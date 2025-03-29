@@ -4,8 +4,7 @@ from logging.config import fileConfig
 from sqlalchemy import engine_from_config, pool
 from alembic import context
 from app.core.config import settings
-from app.core.database import Base
-from app.models import *  # Import all models here
+from app.models.base import Base
 
 # Add the app directory to the Python path
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
@@ -28,14 +27,6 @@ target_metadata = Base.metadata
 # my_important_option = config.get_main_option("my_important_option")
 # ... etc.
 
-def get_url():
-    """Get database URL from environment variables."""
-    user = os.getenv("POSTGRES_USER", "postgres")
-    password = os.getenv("POSTGRES_PASSWORD", "postgres")
-    host = os.getenv("POSTGRES_SERVER", "localhost")
-    db = os.getenv("POSTGRES_DB", "formiq")
-    return f"postgresql://{user}:{password}@{host}/{db}"
-
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
 
@@ -48,7 +39,7 @@ def run_migrations_offline() -> None:
     script output.
 
     """
-    url = get_url()
+    url = settings.SQLALCHEMY_DATABASE_URI
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -68,7 +59,7 @@ def run_migrations_online() -> None:
 
     """
     configuration = config.get_section(config.config_ini_section)
-    configuration["sqlalchemy.url"] = get_url()
+    configuration["sqlalchemy.url"] = settings.SQLALCHEMY_DATABASE_URI
     connectable = engine_from_config(
         configuration,
         prefix="sqlalchemy.",
@@ -77,10 +68,7 @@ def run_migrations_online() -> None:
 
     with connectable.connect() as connection:
         context.configure(
-            connection=connection,
-            target_metadata=target_metadata,
-            compare_type=True,
-            compare_server_default=True
+            connection=connection, target_metadata=target_metadata
         )
 
         with context.begin_transaction():

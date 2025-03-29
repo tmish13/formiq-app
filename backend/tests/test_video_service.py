@@ -2,11 +2,12 @@ import pytest
 from unittest.mock import Mock, patch
 import cv2
 import numpy as np
-from ..services.video import VideoService, VideoError
+from app.services.video import VideoService, VideoError
 import tempfile
 import os
 from PIL import Image
 import io
+from app.core.config import settings
 
 @pytest.fixture
 def mock_cv2():

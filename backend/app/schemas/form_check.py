@@ -1,19 +1,37 @@
-from typing import Dict, Any, Optional
-from app.schemas.base import BaseSchema
+from pydantic import BaseModel
+from datetime import datetime
+from typing import Optional, List
+from app.models.enums import FormCheckStatus
 
-class FormCheckBase(BaseSchema):
-    """Base form check schema with common fields."""
-    exercise_type: str
-    video_url: str
-    analysis_url: Optional[str] = None
-    score: Optional[int] = None
-    feedback: Optional[Dict[str, Any]] = None
-    metadata: Optional[Dict[str, Any]] = None
+class FormCheckBase(BaseModel):
+    """Base schema for form check."""
+    user_id: int
+    video_path: str
+    status: FormCheckStatus = FormCheckStatus.PENDING
+    confidence: Optional[float] = None
+    feedback: Optional[str] = None
+    keypoints: Optional[List[dict]] = None
 
 class FormCheckCreate(FormCheckBase):
-    """Schema for creating a new form check."""
-    user_id: int
+    """Schema for creating a form check."""
+    pass
 
-class FormCheckResponse(FormCheckBase):
+class FormCheckUpdate(BaseModel):
+    """Schema for updating a form check."""
+    status: Optional[FormCheckStatus] = None
+    confidence: Optional[float] = None
+    feedback: Optional[str] = None
+    keypoints: Optional[List[dict]] = None
+
+class FormCheckInDB(FormCheckBase):
+    """Schema for form check in database."""
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class FormCheckResponse(FormCheckInDB):
     """Schema for form check response."""
-    user_id: int 
+    pass 

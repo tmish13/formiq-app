@@ -1,1 +1,0 @@
-from ..core.utils.email import generate_verification_token, send_verification_email 

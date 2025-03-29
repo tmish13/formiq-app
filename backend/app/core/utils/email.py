@@ -10,9 +10,9 @@ from email.mime.multipart import MIMEMultipart
 import secrets
 import string
 from app.core.config import settings
-from app.core.logging import get_logger
-
-logger = get_logger(__name__)
+from app.core.logging import logger
+from app.models.user import User
+from typing import Optional
 
 def generate_verification_token() -> str:
     """Generate a verification token."""
@@ -43,26 +43,22 @@ def send_email(
         logger.error(f"Failed to send email: {str(e)}")
         return False
 
-def send_verification_email(email_to: str, token: str) -> bool:
-    """Send verification email."""
-    subject = "Verify your email"
-    verification_url = f"http://localhost:3000/verify-email?token={token}"
-    html_content = f"""
-        <p>Hi,</p>
-        <p>Please verify your email by clicking the link below:</p>
-        <p><a href="{verification_url}">Verify Email</a></p>
-        <p>If you did not create an account, you can safely ignore this email.</p>
-    """
-    return send_email(email_to, subject, html_content)
+async def send_verification_email(user: User) -> None:
+    """Send verification email to user."""
+    try:
+        # TODO: Implement email sending
+        # This is a placeholder for email sending implementation
+        logger.info(f"Verification email would be sent to {user.email}")
+    except Exception as e:
+        logger.error(f"Failed to send verification email: {str(e)}")
+        raise
 
-def send_password_reset_email(email_to: str, token: str) -> bool:
-    """Send password reset email."""
-    subject = "Reset your password"
-    reset_url = f"http://localhost:3000/reset-password?token={token}"
-    html_content = f"""
-        <p>Hi,</p>
-        <p>You have requested to reset your password. Click the link below to proceed:</p>
-        <p><a href="{reset_url}">Reset Password</a></p>
-        <p>If you did not request a password reset, you can safely ignore this email.</p>
-    """
-    return send_email(email_to, subject, html_content) 
+async def send_password_reset_email(user: User, token: str) -> None:
+    """Send password reset email to user."""
+    try:
+        # TODO: Implement email sending
+        # This is a placeholder for email sending implementation
+        logger.info(f"Password reset email would be sent to {user.email}")
+    except Exception as e:
+        logger.error(f"Failed to send password reset email: {str(e)}")
+        raise 

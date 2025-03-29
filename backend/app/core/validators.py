@@ -1,32 +1,18 @@
 import re
 from typing import Any, Dict, List, Optional, Pattern, Union
-from email_validator import validate_email, EmailNotValidError
+from email_validator import validate_email as validate_email_format, EmailNotValidError
 from app.core.exceptions import ValidationException
 
 # Email validation
 EMAIL_REGEX: Pattern = re.compile(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$")
 
-def validate_email_format(email: str) -> bool:
-    """
-    Validate email format.
-    
-    Args:
-        email: Email to validate
-        
-    Returns:
-        True if email is valid
-        
-    Raises:
-        ValidationException: If email is invalid
-    """
+def validate_email(email: str) -> str:
+    """Validate email format."""
     try:
-        validate_email(email)
-        return True
+        valid = validate_email_format(email)
+        return valid.email
     except EmailNotValidError as e:
-        raise ValidationException(
-            f"Invalid email format: {str(e)}",
-            details={"email": email}
-        )
+        raise ValidationException(detail=str(e))
 
 # Password validation
 PASSWORD_MIN_LENGTH = 8
@@ -34,70 +20,52 @@ PASSWORD_REGEX: Pattern = re.compile(
     r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$"
 )
 
-def validate_password_strength(password: str) -> bool:
+def validate_password(password: str) -> None:
     """
     Validate password strength.
-    
-    Args:
-        password: Password to validate
-        
-    Returns:
-        True if password is strong enough
-        
-    Raises:
-        ValidationException: If password is not strong enough
+    Requirements:
+    - At least 8 characters long
+    - Contains at least one uppercase letter
+    - Contains at least one lowercase letter
+    - Contains at least one number
+    - Contains at least one special character
     """
-    if len(password) < PASSWORD_MIN_LENGTH:
-        raise ValidationException(
-            f"Password must be at least {PASSWORD_MIN_LENGTH} characters long",
-            details={"min_length": PASSWORD_MIN_LENGTH}
-        )
+    if len(password) < 8:
+        raise ValidationException(detail="Password must be at least 8 characters long")
     
-    if not PASSWORD_REGEX.match(password):
-        raise ValidationException(
-            "Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character",
-            details={"regex": PASSWORD_REGEX.pattern}
-        )
+    if not re.search(r"[A-Z]", password):
+        raise ValidationException(detail="Password must contain at least one uppercase letter")
     
-    return True
+    if not re.search(r"[a-z]", password):
+        raise ValidationException(detail="Password must contain at least one lowercase letter")
+    
+    if not re.search(r"\d", password):
+        raise ValidationException(detail="Password must contain at least one number")
+    
+    if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
+        raise ValidationException(detail="Password must contain at least one special character")
 
 # Username validation
 USERNAME_MIN_LENGTH = 4
 USERNAME_MAX_LENGTH = 20
 USERNAME_REGEX: Pattern = re.compile(r"^[a-zA-Z0-9_]+$")
 
-def validate_username(username: str) -> bool:
+def validate_username(username: str) -> None:
     """
-    Validate username.
-    
-    Args:
-        username: Username to validate
-        
-    Returns:
-        True if username is valid
-        
-    Raises:
-        ValidationException: If username is invalid
+    Validate username format.
+    Requirements:
+    - Between 3 and 30 characters long
+    - Contains only alphanumeric characters, underscores, and hyphens
+    - Starts with a letter
     """
-    if len(username) < USERNAME_MIN_LENGTH:
-        raise ValidationException(
-            f"Username must be at least {USERNAME_MIN_LENGTH} characters long",
-            details={"min_length": USERNAME_MIN_LENGTH}
-        )
+    if not 3 <= len(username) <= 30:
+        raise ValidationException(detail="Username must be between 3 and 30 characters long")
     
-    if len(username) > USERNAME_MAX_LENGTH:
-        raise ValidationException(
-            f"Username must be at most {USERNAME_MAX_LENGTH} characters long",
-            details={"max_length": USERNAME_MAX_LENGTH}
-        )
+    if not username[0].isalpha():
+        raise ValidationException(detail="Username must start with a letter")
     
-    if not USERNAME_REGEX.match(username):
-        raise ValidationException(
-            "Username can only contain letters, numbers, and underscores",
-            details={"regex": USERNAME_REGEX.pattern}
-        )
-    
-    return True
+    if not re.match(r"^[a-zA-Z][a-zA-Z0-9_-]*$", username):
+        raise ValidationException(detail="Username can only contain letters, numbers, underscores, and hyphens")
 
 # General validation functions
 def validate_required_fields(data: Dict[str, Any], required_fields: List[str]) -> bool:

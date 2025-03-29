@@ -1,0 +1,201 @@
+"""Base repository module for database operations."""
+from typing import Generic, TypeVar, Type, Optional, List, Any, Dict, Union
+from uuid import UUID
+from sqlalchemy import inspect
+from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.declarative import DeclarativeMeta
+from app.models.base import Base
+from app.core.exceptions import NotFoundException, DatabaseError
+
+# Define ModelType as bound to DeclarativeMeta instead of Base
+ModelType = TypeVar("ModelType", bound=DeclarativeMeta)
+
+class BaseRepository(Generic[ModelType]):
+    """Base repository class with common CRUD operations."""
+    
+    def __init__(self, model: Type[ModelType], db: Session):
+        """
+        Initialize repository with model and database session.
+        
+        Args:
+            model: SQLAlchemy model class
+            db: Database session
+        """
+        self.model = model
+        self.db = db
+        self._mapper = inspect(model)
+
+    def _get_column_type(self, column_name: str) -> Optional[Type]:
+        """Get the Python type of a model column."""
+        if column_name in self._mapper.columns:
+            return self._mapper.columns[column_name].type.python_type
+        return None
+
+    def _convert_value(self, field: str, value: Any) -> Any:
+        """Convert a value to the correct type for a model field."""
+        if value is None:
+            return None
+            
+        column_type = self._get_column_type(field)
+        if column_type is None:
+            return value
+            
+        try:
+            # Handle UUID fields specially
+            if column_type == UUID and isinstance(value, str):
+                return UUID(value)
+            # Handle other type conversions
+            return column_type(value)
+        except (ValueError, TypeError):
+            return value
+
+    def get(self, id: Union[int, str, UUID]) -> Optional[ModelType]:
+        """
+        Get a single record by ID.
+        
+        Args:
+            id: Record identifier
+            
+        Returns:
+            Optional[ModelType]: Found record or None
+        """
+        id_column = self._mapper.primary_key[0]
+        typed_id = self._convert_value(id_column.name, id)
+        return self.db.query(self.model).filter(id_column == typed_id).first()
+
+    def get_multi(
+        self, 
+        *, 
+        skip: int = 0, 
+        limit: int = 100,
+        **filters: Any
+    ) -> List[ModelType]:
+        """
+        Get multiple records with optional filtering.
+        
+        Args:
+            skip: Number of records to skip
+            limit: Maximum number of records to return
+            **filters: Additional filter criteria
+            
+        Returns:
+            List[ModelType]: List of found records
+        """
+        query = self.db.query(self.model)
+        
+        for field, value in filters.items():
+            if hasattr(self.model, field):
+                typed_value = self._convert_value(field, value)
+                query = query.filter(getattr(self.model, field) == typed_value)
+                
+        return query.offset(skip).limit(limit).all()
+
+    def create(self, *, obj_in: Dict[str, Any]) -> ModelType:
+        """
+        Create a new record.
+        
+        Args:
+            obj_in: Dictionary of model field values
+            
+        Returns:
+            ModelType: Created record
+            
+        Raises:
+            DatabaseError: If creation fails
+        """
+        try:
+            # Convert input values to correct types
+            converted_data = {
+                field: self._convert_value(field, value)
+                for field, value in obj_in.items()
+                if hasattr(self.model, field)
+            }
+            
+            db_obj = self.model(**converted_data)
+            self.db.add(db_obj)
+            self.db.commit()
+            self.db.refresh(db_obj)
+            return db_obj
+        except SQLAlchemyError as e:
+            self.db.rollback()
+            raise DatabaseError(f"Failed to create {self.model.__name__}: {str(e)}")
+
+    def update(
+        self, 
+        *, 
+        db_obj: ModelType, 
+        obj_in: Dict[str, Any]
+    ) -> ModelType:
+        """
+        Update an existing record.
+        
+        Args:
+            db_obj: Existing database object
+            obj_in: Dictionary of fields to update
+            
+        Returns:
+            ModelType: Updated record
+            
+        Raises:
+            DatabaseError: If update fails
+        """
+        try:
+            for field, value in obj_in.items():
+                if hasattr(db_obj, field):
+                    typed_value = self._convert_value(field, value)
+                    setattr(db_obj, field, typed_value)
+            
+            self.db.add(db_obj)
+            self.db.commit()
+            self.db.refresh(db_obj)
+            return db_obj
+        except SQLAlchemyError as e:
+            self.db.rollback()
+            raise DatabaseError(f"Failed to update {self.model.__name__}: {str(e)}")
+
+    def delete(self, *, id: Union[int, str, UUID]) -> ModelType:
+        """
+        Delete a record by ID.
+        
+        Args:
+            id: Record identifier
+            
+        Returns:
+            ModelType: Deleted record
+            
+        Raises:
+            NotFoundException: If record doesn't exist
+            DatabaseError: If deletion fails
+        """
+        try:
+            id_column = self._mapper.primary_key[0]
+            typed_id = self._convert_value(id_column.name, id)
+            obj = self.db.query(self.model).get(typed_id)
+            
+            if not obj:
+                raise NotFoundException(f"{self.model.__name__} with id {id} not found")
+            
+            self.db.delete(obj)
+            self.db.commit()
+            return obj
+        except SQLAlchemyError as e:
+            self.db.rollback()
+            raise DatabaseError(f"Failed to delete {self.model.__name__}: {str(e)}")
+
+    def exists(self, **filters: Any) -> bool:
+        """
+        Check if a record exists with given filters.
+        
+        Args:
+            **filters: Filter criteria
+            
+        Returns:
+            bool: True if record exists, False otherwise
+        """
+        query = self.db.query(self.model)
+        for field, value in filters.items():
+            if hasattr(self.model, field):
+                typed_value = self._convert_value(field, value)
+                query = query.filter(getattr(self.model, field) == typed_value)
+        return self.db.query(query.exists()).scalar() 

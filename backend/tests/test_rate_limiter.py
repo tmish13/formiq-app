@@ -3,14 +3,18 @@ import asyncio
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.testclient import TestClient
 import redis.asyncio as redis
-from ..middleware.rate_limiter import RateLimiter
-from ..config import settings
+from app.middleware.rate_limiter import RateLimiter
+from app.core.config import settings
+from app.models.user import User
+from app.core.security import create_access_token
+from app.core.logging import logger
+from unittest.mock import Mock, patch
 
 # Create a test FastAPI app
 app = FastAPI()
 
 # Initialize Redis client for testing
-redis_client = redis.Redis.from_url(settings.redis_url)
+redis_client = redis.Redis.from_url(settings.REDIS_URL)
 
 # Add rate limiter middleware
 app.add_middleware(RateLimiter, redis_client=redis_client)
@@ -170,4 +174,53 @@ def test_redis_key_format():
 
     # Check that the Redis key exists and is properly formatted
     key = f"rate_limit:1.1.1.1"
-    assert asyncio.run(redis_client.exists(key)) == 1 
+    assert asyncio.run(redis_client.exists(key)) == 1
+
+@pytest.fixture
+def rate_limiter():
+    return RateLimiter(requests_per_minute=60)
+
+@pytest.fixture
+def mock_request():
+    request = Mock()
+    request.client.host = "127.0.0.1"
+    return request
+
+@pytest.fixture
+def redis_client():
+    redis_client = redis.Redis.from_url(settings.REDIS_URL)
+    yield redis_client
+    redis_client.close()
+
+def test_rate_limiter_init(rate_limiter):
+    assert rate_limiter.requests_per_minute == 60
+    assert isinstance(rate_limiter.requests, dict)
+
+def test_is_rate_limited_not_exceeded(rate_limiter, mock_request):
+    assert not rate_limiter.is_rate_limited(mock_request.client.host)
+
+def test_is_rate_limited_exceeded(rate_limiter, mock_request):
+    # Simulate multiple requests
+    for _ in range(60):
+        rate_limiter.is_rate_limited(mock_request.client.host)
+    
+    # Next request should be rate limited
+    assert rate_limiter.is_rate_limited(mock_request.client.host)
+
+@pytest.mark.asyncio
+async def test_check_rate_limit_not_exceeded(rate_limiter, mock_request):
+    # Should not raise an exception
+    await rate_limiter.check_rate_limit(mock_request)
+
+@pytest.mark.asyncio
+async def test_check_rate_limit_exceeded(rate_limiter, mock_request):
+    # Simulate multiple requests
+    for _ in range(60):
+        rate_limiter.is_rate_limited(mock_request.client.host)
+    
+    # Next request should raise HTTPException
+    with pytest.raises(HTTPException) as exc_info:
+        await rate_limiter.check_rate_limit(mock_request)
+    
+    assert exc_info.value.status_code == 429
+    assert exc_info.value.detail == "Too many requests" 

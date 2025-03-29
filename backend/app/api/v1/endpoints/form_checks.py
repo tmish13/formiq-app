@@ -1,108 +1,189 @@
-from typing import Any, List
-from fastapi import APIRouter, Depends, HTTPException, status
+"""Form check endpoints."""
+from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query
 from sqlalchemy.orm import Session
-from app.api import deps
-from app.models.form_check import FormCheck
-from app.models.user import User
-from app.schemas.form_check import FormCheckCreate, FormCheckUpdate, FormCheckResponse
-from app.services.form_check import FormCheckService
-from app.core.logging import get_logger
+from app.api.deps import (
+    get_db,
+    get_current_user,
+    check_subscription_tier,
+    validate_form_check_access
+)
+from app.models.enums import (
+    SubscriptionTier,
+    FormCheckStatus,
+    ExerciseType,
+    FeedbackType,
+    FeedbackSeverity
+)
+from app.schemas.form_check import (
+    FormCheckCreate,
+    FormCheckUpdate,
+    FormCheckResponse,
+    FeedbackItemCreate,
+    FeedbackItemResponse
+)
+from app.services.form_check_service import FormCheckService
+from app.core.logging import logger
 
-logger = get_logger(__name__)
 router = APIRouter()
-form_check_service = FormCheckService()
 
 @router.post("/", response_model=FormCheckResponse)
-def create_form_check(
+async def submit_form_check(
     *,
-    db: Session = Depends(deps.get_db),
-    form_check_in: FormCheckCreate,
-    current_user: User = Depends(deps.get_current_user),
-) -> Any:
-    """Create new form check."""
-    form_check_data = form_check_in.dict()
-    form_check_data["user_id"] = current_user.id
-    form_check = form_check_service.create_form_check(db, form_check_data=form_check_data)
-    return form_check
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
+    video: UploadFile = File(...),
+    exercise_type: ExerciseType,
+    notes: Optional[str] = None
+) -> FormCheckResponse:
+    """Submit a new form check for analysis."""
+    # Check subscription tier
+    await check_subscription_tier(SubscriptionTier.BASIC, db, current_user)
+    
+    try:
+        form_check_service = FormCheckService()
+        return await form_check_service.submit_form_check(
+            db,
+            user_id=current_user.id,
+            video=video,
+            exercise_type=exercise_type,
+            notes=notes
+        )
+    except Exception as e:
+        logger.error("Error submitting form check", exc_info=e)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
 
 @router.get("/", response_model=List[FormCheckResponse])
-def read_form_checks(
-    db: Session = Depends(deps.get_db),
-    skip: int = 0,
-    limit: int = 100,
-    current_user: User = Depends(deps.get_current_user),
-) -> Any:
-    """Retrieve form checks."""
-    form_checks = form_check_service.get_user_form_checks(
-        db, user_id=current_user.id, skip=skip, limit=limit
-    )
-    return form_checks
-
-@router.get("/exercise/{exercise_type}", response_model=List[FormCheckResponse])
-def read_exercise_form_checks(
+async def get_form_checks(
     *,
-    db: Session = Depends(deps.get_db),
-    exercise_type: str,
-    current_user: User = Depends(deps.get_current_user),
-) -> Any:
-    """Retrieve form checks for a specific exercise type."""
-    form_checks = form_check_service.get_exercise_form_checks(
-        db, user_id=current_user.id, exercise_type=exercise_type
-    )
-    return form_checks
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
+    status: Optional[FormCheckStatus] = None,
+    exercise_type: Optional[ExerciseType] = None,
+    page: int = Query(1, gt=0),
+    per_page: int = Query(10, gt=0, le=100)
+) -> List[FormCheckResponse]:
+    """Get user's form checks with optional filtering."""
+    try:
+        form_check_service = FormCheckService()
+        return await form_check_service.get_user_form_checks(
+            db,
+            user_id=current_user.id,
+            status=status,
+            exercise_type=exercise_type,
+            page=page,
+            per_page=per_page
+        )
+    except Exception as e:
+        logger.error("Error getting form checks", exc_info=e)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
 
-@router.get("/latest", response_model=List[FormCheckResponse])
-def read_latest_form_checks(
+@router.get("/{form_check_id}", response_model=FormCheckResponse)
+async def get_form_check(
     *,
-    db: Session = Depends(deps.get_db),
-    limit: int = 10,
-    current_user: User = Depends(deps.get_current_user),
-) -> Any:
-    """Retrieve latest form checks."""
-    form_checks = form_check_service.get_latest_form_checks(
-        db, user_id=current_user.id, limit=limit
-    )
-    return form_checks
-
-@router.put("/{form_check_id}", response_model=FormCheckResponse)
-def update_form_check(
-    *,
-    db: Session = Depends(deps.get_db),
-    form_check_id: int,
-    form_check_in: FormCheckUpdate,
-    current_user: User = Depends(deps.get_current_user),
-) -> Any:
-    """Update form check."""
-    form_check = db.query(FormCheck).filter(
-        FormCheck.id == form_check_id,
-        FormCheck.user_id == current_user.id
-    ).first()
-    if not form_check:
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
+    form_check_id: str
+) -> FormCheckResponse:
+    """Get a specific form check."""
+    await validate_form_check_access(form_check_id, db, current_user)
+    
+    try:
+        form_check_service = FormCheckService()
+        return await form_check_service.get(db, id=form_check_id)
+    except Exception as e:
+        logger.error("Error getting form check", exc_info=e)
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Form check not found"
         )
-    form_check = form_check_service.update_form_check(
-        db, form_check=form_check, form_check_data=form_check_in.dict(exclude_unset=True)
-    )
-    return form_check
 
-@router.delete("/{form_check_id}", response_model=FormCheckResponse)
-def delete_form_check(
+@router.post("/{form_check_id}/feedback", response_model=FeedbackItemResponse)
+async def add_feedback(
     *,
-    db: Session = Depends(deps.get_db),
-    form_check_id: int,
-    current_user: User = Depends(deps.get_current_user),
-) -> Any:
-    """Delete form check."""
-    form_check = db.query(FormCheck).filter(
-        FormCheck.id == form_check_id,
-        FormCheck.user_id == current_user.id
-    ).first()
-    if not form_check:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Form check not found"
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
+    form_check_id: str,
+    feedback: FeedbackItemCreate
+) -> FeedbackItemResponse:
+    """Add feedback to a form check."""
+    # Check subscription tier for AI feedback
+    if feedback.is_ai_generated:
+        await check_subscription_tier(SubscriptionTier.PRO, db, current_user)
+    
+    await validate_form_check_access(form_check_id, db, current_user)
+    
+    try:
+        form_check_service = FormCheckService()
+        return await form_check_service.add_feedback(
+            db,
+            form_check_id=form_check_id,
+            feedback_type=feedback.feedback_type,
+            severity=feedback.severity,
+            timestamp=feedback.timestamp,
+            description=feedback.description,
+            suggestions=feedback.suggestions
         )
-    form_check = form_check_service.delete_form_check(db, form_check=form_check)
-    return form_check 
+    except Exception as e:
+        logger.error("Error adding feedback", exc_info=e)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+@router.post("/{form_check_id}/complete", response_model=FormCheckResponse)
+async def complete_analysis(
+    *,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
+    form_check_id: str,
+    summary: str,
+    overall_score: float = Query(..., ge=0, le=10)
+) -> FormCheckResponse:
+    """Complete form check analysis."""
+    await validate_form_check_access(form_check_id, db, current_user)
+    
+    try:
+        form_check_service = FormCheckService()
+        return await form_check_service.complete_analysis(
+            db,
+            form_check_id=form_check_id,
+            summary=summary,
+            overall_score=overall_score
+        )
+    except Exception as e:
+        logger.error("Error completing analysis", exc_info=e)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+@router.delete("/{form_check_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_form_check(
+    *,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
+    form_check_id: str
+) -> None:
+    """Delete a form check."""
+    await validate_form_check_access(form_check_id, db, current_user)
+    
+    try:
+        form_check_service = FormCheckService()
+        await form_check_service.delete_form_check(
+            db,
+            form_check_id=form_check_id,
+            user_id=current_user.id
+        )
+    except Exception as e:
+        logger.error("Error deleting form check", exc_info=e)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        ) 

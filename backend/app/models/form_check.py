@@ -1,47 +1,257 @@
-from sqlalchemy import Column, Integer, String, DateTime, JSON, ForeignKey, Float
+"""Form check models for storing exercise analysis data."""
+from typing import Optional, Dict, Any, List
+from sqlalchemy import Column, Integer, String, DateTime, JSON, ForeignKey, Float, Enum
 from sqlalchemy.sql import func
-from sqlalchemy.orm import relationship
-from ..database import Base
-from .enums import FormCheckStatus
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship, validates
+from app.core.database import Base
+from app.models.enums import (
+    FormCheckStatus,
+    FeedbackType,
+    FeedbackSeverity,
+    ExerciseType
+)
+from app.models.base import BaseModel
+from app.core.exceptions import ValidationError
 
-class FormCheck(Base):
+class FormCheck(BaseModel):
+    """
+    Model for storing form check analysis results.
+    
+    This model handles:
+    - Exercise video metadata
+    - Analysis results
+    - Processing status
+    - Performance metrics
+    - Feedback items
+    
+    Relationships:
+    - Many-to-one with User
+    - One-to-many with FeedbackItem
+    
+    Attributes:
+        user_id (UUID): ID of the user who submitted the form check
+        exercise_type (ExerciseType): Type of exercise being analyzed
+        video_url (str): URL to the uploaded video
+        analysis_url (str): URL to the analyzed video with overlays
+        score (float): Overall form score (0-100)
+        overall_feedback (str): Summary feedback
+        issues (str): JSON string of identified issues
+        status (FormCheckStatus): Current processing status
+        processing_time (float): Time taken to process in seconds
+        confidence_score (float): AI model confidence (0-1)
+        form_metadata (dict): Additional metadata
+        results (dict): Detailed analysis results
+    """
     __tablename__ = "form_checks"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    exercise_type = Column(String, nullable=False)
-    video_url = Column(String, nullable=False)
-    analysis_url = Column(String)  # URL to the analyzed video with overlays
-    score = Column(Float, nullable=False)
-    overall_feedback = Column(String, nullable=False)
-    issues = Column(JSON, nullable=False)  # Stored as JSON
-    status = Column(String, default=FormCheckStatus.PENDING, nullable=False)
-    processing_time = Column(Float, nullable=True)  # Time taken to process the video
-    confidence_score = Column(Float, nullable=True)  # AI model confidence score
-    metadata = Column(JSON, nullable=True)  # Additional metadata about the form check
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    exercise_type = Column(Enum(ExerciseType), nullable=False)
+    video_url = Column(String(1024), nullable=False)
+    analysis_url = Column(String(1024), nullable=True)
+    score = Column(Float, nullable=True)
+    overall_feedback = Column(String(2048), nullable=True)
+    issues = Column(JSON, nullable=True)
+    status = Column(
+        Enum(FormCheckStatus),
+        default=FormCheckStatus.PENDING,
+        nullable=False
+    )
+    processing_time = Column(Float, nullable=True)
+    confidence_score = Column(Float, nullable=True)
+    form_metadata = Column(JSON, nullable=True)
     results = Column(JSON, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
-    user = relationship("User", back_populates="form_checks")
-    feedback_items = relationship("FeedbackItem", back_populates="form_check", cascade="all, delete-orphan")
+    user = relationship(
+        "User",
+        back_populates="form_checks",
+        lazy="select"
+    )
+    feedback_items = relationship(
+        "FeedbackItem",
+        back_populates="form_check",
+        cascade="all, delete-orphan",
+        lazy="select"
+    )
 
-    def __repr__(self):
+    @validates('video_url', 'analysis_url')
+    def validate_url(self, key: str, url: str) -> str:
+        """
+        Validate URL format.
+        
+        Args:
+            key (str): Field name
+            url (str): URL to validate
+            
+        Returns:
+            str: Validated URL
+            
+        Raises:
+            ValidationError: If URL format is invalid
+        """
+        if not url:
+            if key == 'video_url':
+                raise ValidationError("Video URL is required")
+            return url
+
+        if len(url) > 1024:
+            raise ValidationError(f"{key} URL is too long")
+
+        # Basic URL validation
+        if not url.startswith(('http://', 'https://', 's3://')):
+            raise ValidationError(f"Invalid {key} URL format")
+
+        return url
+
+    @validates('score', 'confidence_score')
+    def validate_score(self, key: str, score: Optional[float]) -> Optional[float]:
+        """
+        Validate score values.
+        
+        Args:
+            key (str): Field name
+            score (Optional[float]): Score to validate
+            
+        Returns:
+            Optional[float]: Validated score
+            
+        Raises:
+            ValidationError: If score is invalid
+        """
+        if score is None:
+            return score
+
+        if key == 'score' and not (0 <= score <= 100):
+            raise ValidationError("Score must be between 0 and 100")
+        elif key == 'confidence_score' and not (0 <= score <= 1):
+            raise ValidationError("Confidence score must be between 0 and 1")
+
+        return score
+
+    def validate(self) -> None:
+        """
+        Validate all fields in the model.
+        
+        Raises:
+            ValidationError: If any validation fails
+        """
+        super().validate()
+        self.validate_url('video_url', self.video_url)
+        if self.analysis_url:
+            self.validate_url('analysis_url', self.analysis_url)
+        if self.score is not None:
+            self.validate_score('score', self.score)
+        if self.confidence_score is not None:
+            self.validate_score('confidence_score', self.confidence_score)
+
+    def __repr__(self) -> str:
         return f"<FormCheck {self.id} - {self.exercise_type}>"
 
-class FeedbackItem(Base):
+class FeedbackItem(BaseModel):
+    """
+    Model for storing individual feedback items for a form check.
+    
+    This model handles:
+    - Specific form feedback
+    - Timestamp information
+    - Joint angle data
+    - Improvement suggestions
+    
+    Relationships:
+    - Many-to-one with FormCheck
+    
+    Attributes:
+        form_check_id (UUID): ID of the parent form check
+        type (FeedbackType): Type of feedback
+        message (str): Feedback message
+        timestamp (float): Video timestamp in seconds
+        severity (FeedbackSeverity): Feedback severity level
+        joint_angles (dict): Joint angle measurements
+        suggestions (List[str]): Improvement suggestions
+    """
     __tablename__ = "feedback_items"
 
     id = Column(Integer, primary_key=True, index=True)
-    form_check_id = Column(Integer, ForeignKey("form_checks.id", ondelete="CASCADE"), nullable=False)
-    type = Column(String, nullable=False)  # success, warning, error
-    message = Column(String, nullable=False)
-    timestamp = Column(Float, nullable=False)  # Timestamp in the video where this feedback applies
-    severity = Column(String, nullable=False)  # low, medium, high
-    joint_angles = Column(JSON, nullable=True)  # Joint angles at this timestamp
-    suggestions = Column(JSON, nullable=True)  # Improvement suggestions
+    form_check_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("form_checks.id", ondelete="CASCADE"),
+        nullable=False
+    )
+    type = Column(Enum(FeedbackType), nullable=False)
+    message = Column(String(1024), nullable=False)
+    timestamp = Column(Float, nullable=False)
+    severity = Column(Enum(FeedbackSeverity), nullable=False)
+    joint_angles = Column(JSON, nullable=True)
+    suggestions = Column(JSON, nullable=True)
 
-    form_check = relationship("FormCheck", back_populates="feedback_items")
+    form_check = relationship(
+        "FormCheck",
+        back_populates="feedback_items",
+        lazy="select"
+    )
 
-    def __repr__(self):
+    @validates('message')
+    def validate_message(self, key: str, message: str) -> str:
+        """
+        Validate feedback message.
+        
+        Args:
+            key (str): Field name
+            message (str): Message to validate
+            
+        Returns:
+            str: Validated message
+            
+        Raises:
+            ValidationError: If message is invalid
+        """
+        if not message:
+            raise ValidationError("Feedback message is required")
+        
+        if len(message) > 1024:
+            raise ValidationError("Feedback message is too long")
+        
+        return message
+
+    @validates('timestamp')
+    def validate_timestamp(self, key: str, timestamp: float) -> float:
+        """
+        Validate video timestamp.
+        
+        Args:
+            key (str): Field name
+            timestamp (float): Timestamp to validate
+            
+        Returns:
+            float: Validated timestamp
+            
+        Raises:
+            ValidationError: If timestamp is invalid
+        """
+        if timestamp < 0:
+            raise ValidationError("Timestamp cannot be negative")
+        
+        return timestamp
+
+    def validate(self) -> None:
+        """
+        Validate all fields in the model.
+        
+        Raises:
+            ValidationError: If any validation fails
+        """
+        super().validate()
+        self.validate_message('message', self.message)
+        self.validate_timestamp('timestamp', self.timestamp)
+        
+        if self.suggestions and not isinstance(self.suggestions, list):
+            raise ValidationError("Suggestions must be a list")
+        
+        if self.joint_angles and not isinstance(self.joint_angles, dict):
+            raise ValidationError("Joint angles must be a dictionary")
+
+    def __repr__(self) -> str:
         return f"<FeedbackItem {self.id} - {self.type}>" 

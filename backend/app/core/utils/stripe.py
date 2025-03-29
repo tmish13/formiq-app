@@ -10,19 +10,17 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.models.user import User
-from app.models.subscription import SubscriptionTier
-from app.core.logging import get_logger
-
-logger = get_logger(__name__)
+from app.models.enums import SubscriptionTier
+from app.core.logging import logger
 
 # Configure Stripe
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
 # Subscription price IDs
 SUBSCRIPTION_PRICES = {
-    SubscriptionTier.BASIC: settings.STRIPE_BASIC_PRICE_ID,
-    SubscriptionTier.PRO: settings.STRIPE_PRO_PRICE_ID,
-    SubscriptionTier.ENTERPRISE: settings.STRIPE_ENTERPRISE_PRICE_ID
+    "basic": settings.STRIPE_BASIC_PRICE_ID,
+    "pro": settings.STRIPE_PRO_PRICE_ID,
+    "enterprise": settings.STRIPE_ENTERPRISE_PRICE_ID
 }
 
 async def create_customer(user: User, db: Session) -> str:
@@ -53,6 +51,7 @@ async def create_customer(user: User, db: Session) -> str:
 
 async def create_checkout_session(
     user: User,
+    db: Session,
     price_id: str,
     success_url: str,
     cancel_url: str

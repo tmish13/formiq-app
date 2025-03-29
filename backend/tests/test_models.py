@@ -1,9 +1,11 @@
 import pytest
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
-from ..models import User, FormCheck
-from ..database import get_db, Base, engine
-from ..auth import get_password_hash
+from app.models.user import User
+from app.models.form_check import FormCheck
+from app.models.enums import SubscriptionTier
+from app.core.database import Base, engine, get_db
+from app.core.security import get_password_hash
 
 @pytest.fixture(scope="function")
 def db():

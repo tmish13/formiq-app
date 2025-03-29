@@ -1,10 +1,13 @@
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 import jwt
-from ..main import app
-from ..config import settings
-from ..models import User, FormCheck
+from app.main import app
+from app.core.database import Base, get_db
+from app.core.config import settings
+from app.models.user import User
+from app.models.form_check import FormCheck
 
 client = TestClient(app)
 

@@ -1,158 +1,191 @@
 from typing import Dict, Any
-from prometheus_client import Counter, Histogram, Gauge
+from prometheus_client import Counter, Histogram, Gauge, Summary
 from prometheus_fastapi_instrumentator import Instrumentator
-from fastapi import FastAPI
+from prometheus_client import REGISTRY, PROCESS_COLLECTOR, PLATFORM_COLLECTOR
+from prometheus_client.exposition import generate_latest
+from fastapi import FastAPI, Response
 from app.core.logging import get_logger
 from app.core.config import settings
+import psutil
+import time
 
 logger = get_logger(__name__)
 
-# Define metrics
-REQUEST_COUNT = Counter(
-    'http_requests_total',
-    'Total HTTP requests',
-    ['method', 'endpoint', 'status']
+# Remove default collectors
+REGISTRY.unregister(PROCESS_COLLECTOR)
+REGISTRY.unregister(PLATFORM_COLLECTOR)
+
+# HTTP metrics
+http_requests_total = Counter(
+    "http_requests_total",
+    "Total number of HTTP requests",
+    ["method", "endpoint", "status"]
 )
 
-REQUEST_LATENCY = Histogram(
-    'http_request_duration_seconds',
-    'HTTP request latency',
-    ['method', 'endpoint']
+http_request_duration_seconds = Histogram(
+    "http_request_duration_seconds",
+    "HTTP request duration in seconds",
+    ["method", "endpoint"],
+    buckets=[0.1, 0.5, 1.0, 2.0, 5.0]
 )
 
-DB_QUERY_LATENCY = Histogram(
-    'db_query_duration_seconds',
-    'Database query latency',
-    ['operation']
-)
-
-CACHE_HITS = Counter(
-    'cache_hits_total',
-    'Total cache hits',
-    ['cache_type']
-)
-
-CACHE_MISSES = Counter(
-    'cache_misses_total',
-    'Total cache misses',
-    ['cache_type']
-)
-
-ACTIVE_CONNECTIONS = Gauge(
-    'db_active_connections',
-    'Number of active database connections'
-)
-
-REDIS_MEMORY_USAGE = Gauge(
-    'redis_memory_usage_bytes',
-    'Redis memory usage in bytes'
-)
-
-ERROR_COUNT = Counter(
-    "http_errors_total",
-    "Total number of HTTP errors",
-    ["method", "endpoint", "error_type"]
-)
-
-DB_QUERY_DURATION = Histogram(
+# Database metrics
+db_query_duration_seconds = Histogram(
     "db_query_duration_seconds",
     "Database query duration in seconds",
     ["operation", "table"],
     buckets=[0.01, 0.05, 0.1, 0.5, 1.0]
 )
 
-DB_CONNECTION_POOL = Gauge(
-    "db_connection_pool_size",
-    "Database connection pool size",
+db_connections = Gauge(
+    "db_connections",
+    "Number of active database connections",
     ["state"]
 )
 
-REDIS_CONNECTION_POOL = Gauge(
-    "redis_connection_pool_size",
-    "Redis connection pool size",
-    ["state"]
+# Cache metrics
+cache_hits = Counter(
+    "cache_hits_total",
+    "Total number of cache hits",
+    ["namespace"]
 )
 
-def init_monitoring(app: FastAPI) -> None:
-    """Initialize monitoring for the FastAPI application."""
+cache_misses = Counter(
+    "cache_misses_total",
+    "Total number of cache misses",
+    ["namespace"]
+)
+
+cache_size = Gauge(
+    "cache_size_bytes",
+    "Current size of the cache in bytes",
+    ["namespace"]
+)
+
+# System metrics
+cpu_usage = Gauge(
+    "cpu_usage_percent",
+    "Current CPU usage percentage"
+)
+
+memory_usage = Gauge(
+    "memory_usage_bytes",
+    "Current memory usage in bytes"
+)
+
+disk_usage = Gauge(
+    "disk_usage_bytes",
+    "Current disk usage in bytes"
+)
+
+# Business metrics
+active_users = Gauge(
+    "active_users",
+    "Number of currently active users"
+)
+
+form_checks_total = Counter(
+    "form_checks_total",
+    "Total number of form checks submitted",
+    ["status"]
+)
+
+workouts_completed = Counter(
+    "workouts_completed_total",
+    "Total number of completed workouts",
+    ["type"]
+)
+
+def setup_monitoring(app: FastAPI) -> None:
+    """Configure monitoring for the application."""
     try:
-        # Initialize FastAPI instrumentator
-        instrumentator = Instrumentator(
-            should_group_status_codes=True,
-            should_ignore_untemplated=True,
-            should_respect_env_var=True,
-            should_instrument_requests_inprogress=True,
-            excluded_handlers=["/metrics"],
-        )
+        # Initialize Prometheus instrumentator
+        Instrumentator().instrument(app).expose(app)
         
-        # Add custom metrics
-        instrumentator.add(
-            REQUEST_COUNT,
-            REQUEST_LATENCY,
-            ERROR_COUNT,
-        )
+        # Add custom metrics endpoint
+        @app.get("/metrics")
+        async def metrics():
+            # Update system metrics
+            update_system_metrics()
+            
+            # Generate metrics response
+            return Response(generate_latest(), media_type="text/plain")
         
-        # Instrument the application
-        instrumentator.instrument(app).expose(app)
+        logger.info("Monitoring configured successfully")
         
-        logger.info("monitoring_setup_complete")
     except Exception as e:
-        logger.error("monitoring_setup_failed", error=str(e))
+        logger.error(f"Failed to configure monitoring: {str(e)}")
         raise
 
-def track_request(method: str, endpoint: str, status: int, duration: float):
+def update_system_metrics() -> None:
+    """Update system-related metrics."""
+    try:
+        # CPU usage
+        cpu_usage.set(psutil.cpu_percent())
+        
+        # Memory usage
+        memory = psutil.virtual_memory()
+        memory_usage.set(memory.used)
+        
+        # Disk usage
+        disk = psutil.disk_usage("/")
+        disk_usage.set(disk.used)
+        
+    except Exception as e:
+        logger.error(f"Failed to update system metrics: {str(e)}")
+
+def track_request(method: str, endpoint: str, duration: float, status: int) -> None:
     """Track HTTP request metrics."""
-    REQUEST_COUNT.labels(
-        method=method,
-        endpoint=endpoint,
-        status=status
-    ).inc()
-    
-    REQUEST_LATENCY.labels(
-        method=method,
-        endpoint=endpoint
-    ).observe(duration)
+    try:
+        http_requests_total.labels(
+            method=method,
+            endpoint=endpoint,
+            status=status
+        ).inc()
+        
+        http_request_duration_seconds.labels(
+            method=method,
+            endpoint=endpoint
+        ).observe(duration)
+        
+    except Exception as e:
+        logger.error(f"Failed to track request metrics: {str(e)}")
 
-def track_db_query(operation: str, duration: float):
-    """Track database query metrics."""
-    DB_QUERY_LATENCY.labels(operation=operation).observe(duration)
+def track_db_operation(operation: str, table: str, duration: float) -> None:
+    """Track database operation metrics."""
+    try:
+        db_query_duration_seconds.labels(
+            operation=operation,
+            table=table
+        ).observe(duration)
+        
+    except Exception as e:
+        logger.error(f"Failed to track DB operation metrics: {str(e)}")
 
-def track_cache_hit(cache_type: str):
-    """Track cache hit metrics."""
-    CACHE_HITS.labels(cache_type=cache_type).inc()
+def track_cache_operation(namespace: str, hit: bool) -> None:
+    """Track cache operation metrics."""
+    try:
+        if hit:
+            cache_hits.labels(namespace=namespace).inc()
+        else:
+            cache_misses.labels(namespace=namespace).inc()
+            
+    except Exception as e:
+        logger.error(f"Failed to track cache operation metrics: {str(e)}")
 
-def track_cache_miss(cache_type: str):
-    """Track cache miss metrics."""
-    CACHE_MISSES.labels(cache_type=cache_type).inc()
-
-def update_active_connections(count: int):
-    """Update active database connections count."""
-    ACTIVE_CONNECTIONS.set(count)
-
-def update_redis_memory_usage(bytes_used: int):
-    """Update Redis memory usage."""
-    REDIS_MEMORY_USAGE.set(bytes_used)
-
-def record_error_metrics(
-    method: str,
-    endpoint: str,
-    error_type: str
-) -> None:
-    """Record error metrics."""
-    ERROR_COUNT.labels(
-        method=method,
-        endpoint=endpoint,
-        error_type=error_type
-    ).inc()
-
-def update_connection_pool_metrics(
-    db_pool_size: int,
-    db_pool_used: int,
-    redis_pool_size: int,
-    redis_pool_used: int
-) -> None:
-    """Update connection pool metrics."""
-    DB_CONNECTION_POOL.labels(state="total").set(db_pool_size)
-    DB_CONNECTION_POOL.labels(state="used").set(db_pool_used)
-    REDIS_CONNECTION_POOL.labels(state="total").set(redis_pool_size)
-    REDIS_CONNECTION_POOL.labels(state="used").set(redis_pool_used) 
+def update_business_metrics(metrics: Dict[str, Any]) -> None:
+    """Update business-related metrics."""
+    try:
+        if "active_users" in metrics:
+            active_users.set(metrics["active_users"])
+            
+        if "form_checks" in metrics:
+            for status, count in metrics["form_checks"].items():
+                form_checks_total.labels(status=status).inc(count)
+                
+        if "workouts" in metrics:
+            for type_, count in metrics["workouts"].items():
+                workouts_completed.labels(type=type_).inc(count)
+                
+    except Exception as e:
+        logger.error(f"Failed to update business metrics: {str(e)}") 

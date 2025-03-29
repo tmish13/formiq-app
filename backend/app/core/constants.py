@@ -111,4 +111,40 @@ HTTP_STATUS_CODES: Dict[int, str] = {
     422: "Unprocessable Entity",
     429: "Too Many Requests",
     500: "Internal Server Error",
-} 
+}
+
+# Default configuration values
+DEFAULT_LOG_LEVEL = "INFO"
+DEFAULT_ENVIRONMENT = "development"
+
+# Project metadata
+PROJECT_NAME = "FormIQ"
+VERSION = "1.0.0"
+DESCRIPTION = "AI-powered exercise form analysis API"
+
+# API configuration
+API_V1_STR = "/api/v1"
+
+# Logging configuration
+LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+LOG_FILE_MAX_BYTES = 10 * 1024 * 1024  # 10MB
+LOG_FILE_BACKUP_COUNT = 5
+LOG_DIR = "logs"
+LOG_FILE = "app.log"
+ERROR_LOG_FILE = "error.log"
+
+# Security defaults
+DEFAULT_ALGORITHM = "HS256"
+DEFAULT_ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
+# Rate limiting defaults
+DEFAULT_RATE_LIMIT_REQUESTS = 100
+DEFAULT_RATE_LIMIT_BURST = 200
+
+# CORS defaults
+DEFAULT_CORS_ORIGINS = ["http://localhost:3000"]
+
+# SMTP defaults
+DEFAULT_SMTP_TLS = True
+DEFAULT_SMTP_PORT = 587 

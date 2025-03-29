@@ -1,7 +1,8 @@
 import pytest
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
-from ..middleware.error_handler import ErrorHandler
+from app.middleware.error_handler import ErrorHandler
+from app.core.exceptions import AppException, NotFoundError, ValidationError
 import logging
 
 # Create a test FastAPI app

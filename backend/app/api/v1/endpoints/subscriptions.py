@@ -1,58 +1,40 @@
-from typing import Any
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+"""Subscription endpoints."""
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
 from sqlalchemy.orm import Session
-from app.api import deps
-from app.models.subscription import Subscription
-from app.models.user import User
-from app.schemas.subscription import SubscriptionCreate, SubscriptionResponse
-from app.services.subscription import SubscriptionService
-from app.core.logging import get_logger
-import stripe
+from app.api.deps import get_db, get_current_user
+from app.models.enums import SubscriptionTier
+from app.schemas.subscription import (
+    SubscriptionCreate,
+    SubscriptionUpdate,
+    SubscriptionResponse,
+    StripeWebhookEvent,
+    SubscriptionUsageResponse
+)
+from app.services.subscription_service import SubscriptionService
+from app.core.logging import logger
 
-logger = get_logger(__name__)
 router = APIRouter()
-subscription_service = SubscriptionService()
 
 @router.post("/", response_model=SubscriptionResponse)
-def create_subscription(
+async def create_subscription(
     *,
-    db: Session = Depends(deps.get_db),
-    subscription_in: SubscriptionCreate,
-    current_user: User = Depends(deps.get_current_user),
-) -> Any:
-    """Create new subscription."""
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
+    tier: SubscriptionTier,
+    payment_method_id: str
+) -> SubscriptionResponse:
+    """Create a new subscription."""
     try:
-        # Create Stripe customer if not exists
-        if not current_user.stripe_customer_id:
-            customer = stripe.Customer.create(
-                email=current_user.email,
-                metadata={"user_id": current_user.id}
-            )
-            current_user.stripe_customer_id = customer.id
-            db.commit()
-
-        # Create Stripe subscription
-        subscription = stripe.Subscription.create(
-            customer=current_user.stripe_customer_id,
-            items=[{"price": subscription_in.price_id}],
-            payment_behavior="default_incomplete",
-            payment_settings={"save_default_payment_method": "on_subscription"},
-            expand=["latest_invoice.payment_intent"],
-        )
-
-        # Create local subscription record
-        db_subscription = subscription_service.create_subscription(
+        subscription_service = SubscriptionService()
+        return await subscription_service.create_subscription(
             db,
-            user=current_user,
-            stripe_customer_id=current_user.stripe_customer_id,
-            stripe_subscription_id=subscription.id,
-            plan_type=subscription_in.plan_type
+            user_id=current_user.id,
+            tier=tier,
+            payment_method_id=payment_method_id
         )
-
-        return db_subscription
-
-    except stripe.error.StripeError as e:
-        logger.error(f"Stripe error: {str(e)}")
+    except Exception as e:
+        logger.error("Error creating subscription", exc_info=e)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
@@ -61,51 +43,128 @@ def create_subscription(
 @router.post("/webhook")
 async def stripe_webhook(
     *,
-    request: Request,
-    db: Session = Depends(deps.get_db),
-) -> Any:
+    db: Session = Depends(get_db),
+    request: Request
+) -> Response:
     """Handle Stripe webhook events."""
-    payload = await request.body()
-    sig_header = request.headers.get("stripe-signature")
-
     try:
-        event = stripe.Webhook.construct_event(
-            payload, sig_header, "your_webhook_secret"  # TODO: Move to config
+        # Get webhook payload and signature
+        payload = await request.body()
+        signature = request.headers.get("stripe-signature")
+        
+        subscription_service = SubscriptionService()
+        await subscription_service.handle_webhook(
+            db,
+            event=StripeWebhookEvent(
+                payload=payload,
+                signature=signature
+            )
         )
-    except ValueError as e:
+        
+        return Response(status_code=status.HTTP_200_OK)
+    except Exception as e:
+        logger.error("Error handling webhook", exc_info=e)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid payload"
-        )
-    except stripe.error.SignatureVerificationError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid signature"
+            detail=str(e)
         )
 
-    subscription_service.handle_subscription_webhook(db, event=event)
-    return {"status": "success"}
-
-@router.post("/{subscription_id}/cancel")
-def cancel_subscription(
+@router.get("/current", response_model=Optional[SubscriptionResponse])
+async def get_current_subscription(
     *,
-    db: Session = Depends(deps.get_db),
-    subscription_id: int,
-    current_user: User = Depends(deps.get_current_user),
-) -> Any:
-    """Cancel subscription."""
-    subscription = subscription_service.get_subscription_by_user(db, user_id=current_user.id)
-    if not subscription:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Subscription not found"
-        )
-    
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+) -> Optional[SubscriptionResponse]:
+    """Get user's current active subscription."""
     try:
-        subscription = subscription_service.cancel_subscription(db, subscription=subscription)
-        return subscription
-    except stripe.error.StripeError as e:
-        logger.error(f"Failed to cancel subscription: {str(e)}")
+        subscription_service = SubscriptionService()
+        return await subscription_service.get_active_subscription(
+            db,
+            user_id=current_user.id
+        )
+    except Exception as e:
+        logger.error("Error getting current subscription", exc_info=e)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+@router.put("/current", response_model=SubscriptionResponse)
+async def update_subscription(
+    *,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
+    new_tier: SubscriptionTier
+) -> SubscriptionResponse:
+    """Update subscription tier."""
+    try:
+        subscription_service = SubscriptionService()
+        return await subscription_service.update_subscription(
+            db,
+            user_id=current_user.id,
+            new_tier=new_tier
+        )
+    except Exception as e:
+        logger.error("Error updating subscription", exc_info=e)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+@router.delete("/current", status_code=status.HTTP_204_NO_CONTENT)
+async def cancel_subscription(
+    *,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+) -> None:
+    """Cancel current subscription."""
+    try:
+        subscription_service = SubscriptionService()
+        await subscription_service.cancel_subscription(
+            db,
+            user_id=current_user.id
+        )
+    except Exception as e:
+        logger.error("Error canceling subscription", exc_info=e)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+@router.get("/usage", response_model=SubscriptionUsageResponse)
+async def get_subscription_usage(
+    *,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+) -> SubscriptionUsageResponse:
+    """Get current subscription usage metrics."""
+    try:
+        subscription_service = SubscriptionService()
+        subscription = await subscription_service.get_active_subscription(
+            db,
+            user_id=current_user.id
+        )
+        if not subscription:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No active subscription found"
+            )
+        
+        # Get usage metrics
+        form_checks_used = await subscription_service.repository.count_monthly_submissions(
+            db,
+            user_id=current_user.id
+        )
+        
+        return SubscriptionUsageResponse(
+            tier=subscription.tier,
+            form_checks_used=form_checks_used,
+            form_checks_limit=subscription.tier.monthly_form_checks,
+            period_start=subscription.current_period_start,
+            period_end=subscription.current_period_end
+        )
+    except Exception as e:
+        logger.error("Error getting subscription usage", exc_info=e)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)

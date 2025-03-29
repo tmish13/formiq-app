@@ -3,7 +3,7 @@ from typing import Any
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
-from app.core.logger import logger
+from app.core.logging import logger
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
     async def dispatch(

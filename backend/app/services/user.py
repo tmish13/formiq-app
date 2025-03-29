@@ -1,81 +1,164 @@
-from typing import Optional
+"""Service for managing users and authentication."""
+from typing import Optional, Dict, Any
+from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from app.models.user import User
-from app.repositories.user_repository import UserRepository
-from app.core.utils.email import generate_verification_token, send_verification_email, send_password_reset_email
+from app.models.subscription import Subscription
+from app.core.exceptions import NotFoundError, ValidationError, AuthenticationError
+from app.core.security import get_password_hash, verify_password, create_access_token
 from app.core.logging import get_logger
+from app.core.database import get_db
 
 logger = get_logger(__name__)
 
 class UserService:
-    """Service for user operations."""
+    """Service for managing users and authentication."""
     
-    def __init__(self):
-        self.repository = UserRepository()
+    def __init__(self, db: Session):
+        """Initialize user service with database session."""
+        self.db = db
 
-    def create_user(self, db: Session, *, user_data: dict) -> User:
+    def create_user(self, user_data: Dict[str, Any]) -> User:
         """Create a new user."""
-        user = self.repository.create(db, obj_in=user_data)
-        
-        # Generate verification token and send email
-        token = generate_verification_token()
-        user.verification_token = token
-        db.commit()
-        
-        if not send_verification_email(user.email, token):
-            logger.error(f"Failed to send verification email to {user.email}")
-        
+        try:
+            # Check if user already exists
+            existing_user = self.db.query(User).filter(
+                User.email == user_data["email"]
+            ).first()
+            if existing_user:
+                raise ValidationError("User with this email already exists")
+
+            # Create new user
+            user = User(
+                email=user_data["email"],
+                username=user_data["username"],
+                hashed_password=get_password_hash(user_data["password"]),
+                is_active=True,
+                is_superuser=False,
+                subscription_tier="FREE",
+                created_at=datetime.now(),
+                updated_at=datetime.now()
+            )
+            self.db.add(user)
+            self.db.commit()
+            self.db.refresh(user)
+            logger.info(f"Created user {user.id}")
+            return user
+        except ValidationError:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to create user: {str(e)}")
+            self.db.rollback()
+            raise ValidationError(f"Failed to create user: {str(e)}")
+
+    def authenticate_user(self, email: str, password: str) -> Dict[str, Any]:
+        """Authenticate user and return access token."""
+        try:
+            user = self.db.query(User).filter(User.email == email).first()
+            if not user:
+                raise AuthenticationError("Invalid email or password")
+
+            if not verify_password(password, user.hashed_password):
+                raise AuthenticationError("Invalid email or password")
+
+            if not user.is_active:
+                raise AuthenticationError("User account is inactive")
+
+            access_token = create_access_token(data={"sub": user.email})
+            logger.info(f"User {user.id} authenticated successfully")
+            return {
+                "access_token": access_token,
+                "token_type": "bearer",
+                "user": user
+            }
+        except AuthenticationError:
+            raise
+        except Exception as e:
+            logger.error(f"Authentication failed: {str(e)}")
+            raise AuthenticationError("Authentication failed")
+
+    def get_user_by_id(self, user_id: int) -> User:
+        """Get user by ID."""
+        user = self.db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise NotFoundError(f"User {user_id} not found")
         return user
 
-    def verify_email(self, db: Session, *, token: str) -> Optional[User]:
-        """Verify user email with token."""
-        user = self.repository.get_by_verification_token(db, token=token)
-        if not user:
-            return None
-        
-        user.is_verified = True
-        user.verification_token = None
-        db.commit()
-        return user
-
-    def initiate_password_reset(self, db: Session, *, email: str) -> bool:
-        """Initiate password reset process."""
-        user = self.repository.get_by_email(db, email=email)
-        if not user:
-            return False
-        
-        token = generate_verification_token()
-        user.reset_password_token = token
-        db.commit()
-        
-        return send_password_reset_email(email, token)
-
-    def reset_password(self, db: Session, *, token: str, new_password: str) -> Optional[User]:
-        """Reset user password with token."""
-        user = self.repository.get_by_reset_token(db, token=token)
-        if not user:
-            return None
-        
-        user.update_password(new_password)
-        user.reset_password_token = None
-        db.commit()
-        return user
-
-    def update_user(self, db: Session, *, user: User, user_data: dict) -> User:
-        """Update user information."""
-        if "password" in user_data:
-            user.update_password(user_data.pop("password"))
-        
-        return self.repository.update(db, db_obj=user, obj_in=user_data)
-
-    def get_user_by_email(self, db: Session, *, email: str) -> Optional[User]:
+    def get_user_by_email(self, email: str) -> User:
         """Get user by email."""
-        return self.repository.get_by_email(db, email=email)
+        user = self.db.query(User).filter(User.email == email).first()
+        if not user:
+            raise NotFoundError(f"User with email {email} not found")
+        return user
 
-    def get_user_by_stripe_customer(self, db: Session, *, customer_id: str) -> Optional[User]:
-        """Get user by Stripe customer ID."""
-        return self.repository.get_by_stripe_customer(db, customer_id=customer_id)
+    def update_user(self, user_id: int, update_data: Dict[str, Any]) -> User:
+        """Update user information."""
+        try:
+            user = self.get_user_by_id(user_id)
+            
+            # Update fields
+            for field, value in update_data.items():
+                if field == "password":
+                    user.hashed_password = get_password_hash(value)
+                elif hasattr(user, field):
+                    setattr(user, field, value)
+            
+            user.updated_at = datetime.now()
+            self.db.commit()
+            self.db.refresh(user)
+            logger.info(f"Updated user {user_id}")
+            return user
+        except NotFoundError:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to update user: {str(e)}")
+            self.db.rollback()
+            raise ValidationError(f"Failed to update user: {str(e)}")
 
-    def get_user_by_stripe_subscription(self, db: Session, *, subscription_id: str) -> Optional[User]:
-        """Get user by Stripe subscription ID."""
-        return self.repository.get_by_stripe_subscription(db, subscription_id=subscription_id) 
+    def update_subscription(self, user_id: int, subscription_data: Dict[str, Any]) -> User:
+        """Update user subscription."""
+        try:
+            user = self.get_user_by_id(user_id)
+            
+            # Update subscription
+            user.subscription_tier = subscription_data["tier"]
+            user.updated_at = datetime.now()
+            
+            # Create subscription record
+            subscription = Subscription(
+                user_id=user_id,
+                tier=subscription_data["tier"],
+                start_date=datetime.now(),
+                end_date=datetime.now() + timedelta(days=subscription_data["duration_days"]),
+                created_at=datetime.now(),
+                updated_at=datetime.now()
+            )
+            self.db.add(subscription)
+            
+            self.db.commit()
+            self.db.refresh(user)
+            logger.info(f"Updated subscription for user {user_id}")
+            return user
+        except NotFoundError:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to update subscription: {str(e)}")
+            self.db.rollback()
+            raise ValidationError(f"Failed to update subscription: {str(e)}")
+
+    def deactivate_user(self, user_id: int) -> User:
+        """Deactivate a user account."""
+        try:
+            user = self.get_user_by_id(user_id)
+            user.is_active = False
+            user.updated_at = datetime.now()
+            self.db.commit()
+            self.db.refresh(user)
+            logger.info(f"Deactivated user {user_id}")
+            return user
+        except NotFoundError:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to deactivate user: {str(e)}")
+            self.db.rollback()
+            raise ValidationError(f"Failed to deactivate user: {str(e)}") 

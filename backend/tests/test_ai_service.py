@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import Mock, patch
 import numpy as np
 import cv2
-from ..services.ai import AIService, AIServiceError, ExerciseType
+from app.services.ai import AIService, AIServiceError, ExerciseType
 import torch
 import json
 

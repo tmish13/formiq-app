@@ -2,10 +2,13 @@ import pytest
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import QueuePool
-from ..database import get_db, optimize_query, Base
+from app.core.database import get_db, optimize_query, Base
+from app.core.config import settings
 import logging
 import time
 from contextlib import contextmanager
+from app.models.user import User
+from app.models.form_check import FormCheck
 
 # Test database URL - using SQLite for testing
 TEST_DATABASE_URL = "sqlite:///./test.db"

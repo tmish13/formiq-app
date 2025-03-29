@@ -1,12 +1,9 @@
 from typing import Any, Dict, Optional
 from fastapi import HTTPException, status
-from app.core.logging import get_logger
+from app.core.logging import logger
 
-logger = get_logger(__name__)
-
-class AppException(Exception):
-    """Base exception for all application errors."""
-    
+class AppException(HTTPException):
+    """Base application exception."""
     def __init__(
         self,
         message: str,
@@ -14,55 +11,74 @@ class AppException(Exception):
         status_code: int = 500,
         details: Optional[Dict[str, Any]] = None
     ):
+        super().__init__(status_code=status_code, detail=message)
         self.message = message
         self.code = code
-        self.status_code = status_code
         self.details = details or {}
-        super().__init__(message)
+        logger.error(f"Application error: {message}", extra={"code": code, "status_code": status_code})
 
 class NotFoundError(AppException):
-    """Exception for resource not found errors."""
-    
-    def __init__(
-        self,
-        message: str = "Resource not found",
-        details: Optional[Dict[str, Any]] = None
-    ):
+    """Raised when a resource is not found."""
+    def __init__(self, message: str = "Resource not found"):
         super().__init__(
             message=message,
             code="NOT_FOUND",
-            status_code=404,
-            details=details
+            status_code=status.HTTP_404_NOT_FOUND
         )
 
 class ValidationError(AppException):
-    """Exception for validation-related errors."""
-    
-    def __init__(
-        self,
-        message: str = "Validation error",
-        details: Optional[Dict[str, Any]] = None
-    ):
+    """Raised when validation fails."""
+    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
         super().__init__(
             message=message,
             code="VALIDATION_ERROR",
-            status_code=422,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             details=details
         )
 
 class AuthenticationError(AppException):
-    """Exception for authentication-related errors."""
-    
-    def __init__(
-        self,
-        message: str = "Authentication failed",
-        details: Optional[Dict[str, Any]] = None
-    ):
+    """Raised when authentication fails."""
+    def __init__(self, message: str = "Authentication failed"):
         super().__init__(
             message=message,
             code="AUTHENTICATION_ERROR",
-            status_code=401,
-            details=details
+            status_code=status.HTTP_401_UNAUTHORIZED
+        )
+
+class AuthorizationError(AppException):
+    """Raised when authorization fails."""
+    def __init__(self, message: str = "Not authorized"):
+        super().__init__(
+            message=message,
+            code="AUTHORIZATION_ERROR",
+            status_code=status.HTTP_403_FORBIDDEN
+        )
+
+class ConflictError(AppException):
+    """Raised when there's a conflict."""
+    def __init__(self, message: str = "Resource already exists"):
+        super().__init__(
+            message=message,
+            code="CONFLICT",
+            status_code=status.HTTP_409_CONFLICT
+        )
+
+class RateLimitError(AppException):
+    """Raised when rate limit is exceeded."""
+    def __init__(self, message: str = "Rate limit exceeded"):
+        super().__init__(
+            message=message,
+            code="RATE_LIMIT_EXCEEDED",
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS
+        )
+
+class ServiceUnavailableError(AppException):
+    """Raised when a service is unavailable."""
+    def __init__(self, message: str = "Service temporarily unavailable"):
+        super().__init__(
+            message=message,
+            code="SERVICE_UNAVAILABLE",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE
         )
 
 class AuthorizationException(AppException):
@@ -73,21 +89,6 @@ class AuthorizationException(AppException):
             message=message,
             code="AUTHORIZATION_ERROR",
             status_code=status.HTTP_403_FORBIDDEN,
-            details=details
-        )
-
-class RateLimitError(AppException):
-    """Exception for rate limiting errors."""
-    
-    def __init__(
-        self,
-        message: str = "Rate limit exceeded",
-        details: Optional[Dict[str, Any]] = None
-    ):
-        super().__init__(
-            message=message,
-            code="RATE_LIMIT_EXCEEDED",
-            status_code=429,
             details=details
         )
 
@@ -139,28 +140,6 @@ class ConfigurationException(AppException):
             details=details
         )
 
-class ConflictException(AppException):
-    """Exception for resource conflicts."""
-    
-    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
-        super().__init__(
-            message=message,
-            code="CONFLICT",
-            status_code=status.HTTP_409_CONFLICT,
-            details=details
-        )
-
-class ServiceUnavailableException(AppException):
-    """Exception for service unavailable errors."""
-    
-    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
-        super().__init__(
-            message=message,
-            code="SERVICE_UNAVAILABLE",
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            details=details
-        )
-
 class PaymentError(AppException):
     """Exception for payment-related errors."""
     
@@ -189,4 +168,62 @@ class ProcessingError(AppException):
             code="PROCESSING_ERROR",
             status_code=500,
             details=details
+        )
+
+class ServiceError(AppException):
+    """Base exception for service-level errors."""
+    def __init__(self, message: str, code: str = "SERVICE_ERROR", status_code: int = 500):
+        super().__init__(message, code, status_code)
+
+class RateLimitException(HTTPException):
+    """Exception raised when rate limit is exceeded."""
+    def __init__(self, detail: str = "Rate limit exceeded"):
+        super().__init__(status_code=429, detail=detail)
+
+class ValidationException(HTTPException):
+    """Exception raised for validation errors."""
+    def __init__(self, detail: str = "Validation error"):
+        super().__init__(status_code=422, detail=detail)
+
+"""Custom exceptions."""
+from fastapi import HTTPException, status
+
+class UserAlreadyExists(HTTPException):
+    """Raised when user already exists."""
+    def __init__(self, detail: str):
+        super().__init__(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=detail
+        )
+
+class InvalidCredentials(HTTPException):
+    """Raised when credentials are invalid."""
+    def __init__(self, detail: str):
+        super().__init__(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=detail
+        )
+
+class UserNotFound(HTTPException):
+    """Raised when user is not found."""
+    def __init__(self, detail: str = "User not found"):
+        super().__init__(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=detail
+        )
+
+class TokenExpired(HTTPException):
+    """Raised when token has expired."""
+    def __init__(self, detail: str = "Token has expired"):
+        super().__init__(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=detail
+        )
+
+class InvalidToken(HTTPException):
+    """Raised when token is invalid."""
+    def __init__(self, detail: str = "Invalid token"):
+        super().__init__(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=detail
         ) 

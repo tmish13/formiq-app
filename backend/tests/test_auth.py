@@ -1,21 +1,22 @@
 from fastapi.testclient import TestClient
-from ..main import app
+from app.main import app
 import pytest
-from ..database import Base, get_db
+from fastapi import HTTPException
+from sqlalchemy.orm import Session
+from app.core.database import Base, get_db
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime, timedelta
-from fastapi import HTTPException
 from jose import jwt
-from ..auth import (
-    create_access_token,
+from app.core.security import (
     verify_password,
     get_password_hash,
-    get_current_user,
-    authenticate_user,
+    create_access_token,
+    decode_access_token,
 )
-from ..config import settings
-from ..models import User
+from app.models.user import User
+from app.core.config import settings
+from app.core.auth import get_current_user, authenticate_user
 
 # Test database setup
 SQLALCHEMY_TEST_DATABASE_URL = "sqlite:///./test.db"

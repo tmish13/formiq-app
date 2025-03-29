@@ -1,12 +1,13 @@
 import pytest
 from datetime import datetime
-from ..services.form_check import FormCheckService, FormCheckError, ExerciseType
-from ..models.form_check import FormCheck
-from ..models.user import User
+from app.services.form_check import FormCheckService, FormCheckError, ExerciseType
+from app.models.form_check import FormCheck
+from app.models.user import User
 from sqlalchemy.orm import Session
 from unittest.mock import Mock, patch, ANY
 import json
 import boto3
+from app.core.config import settings
 
 @pytest.fixture
 def mock_s3():
@@ -29,7 +30,7 @@ def mock_db_session():
 @pytest.fixture
 def mock_ai_service():
     """Mock AI service for form analysis"""
-    with patch('..services.ai.AIService') as mock_service:
+    with patch('app.services.ai.AIService') as mock_service:
         service = mock_service.return_value
         service.analyze_form.return_value = {
             "score": 8.5,

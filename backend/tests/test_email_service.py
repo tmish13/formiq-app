@@ -1,6 +1,7 @@
 import pytest
 from unittest.mock import Mock, patch
-from ..services.email import EmailService, EmailError
+from app.services.email import EmailService, EmailError
+from app.core.config import settings
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
