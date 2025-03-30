@@ -3,7 +3,7 @@ interface CacheItem<T> {
   timestamp: number;
 }
 
-class ApiCache {
+export class ApiCache {
   private cache: Map<string, CacheItem<any>>;
   private readonly maxAge: number; // Cache duration in milliseconds
   private readonly maxSize: number; // Maximum number of items to store

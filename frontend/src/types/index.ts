@@ -2,24 +2,15 @@ export type SubscriptionTier = 'free' | 'basic' | 'pro';
 
 export type ExerciseType = 'squat' | 'deadlift' | 'bench_press' | 'overhead_press';
 
-export interface FormCheck {
-  id: number;
-  user_id: number;
-  exercise_type: ExerciseType;
-  video_url: string;
-  score: number;
-  overall_feedback: string;
-  issues: string[];
-  created_at: string;
-}
-
 export interface User {
-  id: number;
+  id: string;
   email: string;
-  username: string;
+  name: string;
+  role: string;
   subscription_tier: SubscriptionTier;
   subscription_end_date: string | null;
-  is_email_verified: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface ApiRequestConfig {
@@ -41,4 +32,52 @@ export interface ApiError {
     data: any;
     status: number;
   };
-} 
+}
+
+export interface AuthResponse {
+  access_token: string;
+  user: User;
+}
+
+export interface LoginCredentials {
+  email: string;
+  password: string;
+}
+
+export interface RegisterData {
+  email: string;
+  password: string;
+  name: string;
+}
+
+export interface Subscription {
+  id: string;
+  user_id: string;
+  tier: SubscriptionTier;
+  status: 'active' | 'cancelled' | 'expired';
+  start_date: string;
+  end_date: string;
+  cancel_at_period_end: boolean;
+  canceled_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SubscriptionPlan {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  interval: 'monthly' | 'yearly';
+  features: string[];
+  stripe_price_id: string;
+  stripe_product_id: string;
+  is_popular?: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export * from './workout';
+export * from './user';
+export * from './subscription';
+export * from './formCheck'; 

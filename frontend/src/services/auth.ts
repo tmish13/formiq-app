@@ -1,38 +1,13 @@
 import { apiService } from './api';
 import { store } from '../store';
 import { setUser, setToken, setError, setLoading } from '../store/slices/authSlice';
-
-interface LoginCredentials {
-  email: string;
-  password: string;
-}
-
-interface RegisterData {
-  email: string;
-  password: string;
-  name: string;
-}
-
-interface AuthResponse {
-  access_token: string;
-  token_type: string;
-  user: {
-    id: string;
-    email: string;
-    name: string;
-    role: string;
-  };
-}
+import type { User, AuthResponse, LoginCredentials, RegisterData } from '../types';
 
 class AuthService {
-  async login(credentials: LoginCredentials) {
+  async login(credentials: LoginCredentials): Promise<AuthResponse> {
     try {
       store.dispatch(setLoading(true));
       const response = await apiService.post<AuthResponse>('/auth/login', credentials);
-      
-      store.dispatch(setToken(response.access_token));
-      store.dispatch(setUser(response.user));
-      
       return response;
     } catch (error: any) {
       store.dispatch(setError(error.message));
@@ -42,14 +17,10 @@ class AuthService {
     }
   }
 
-  async register(data: RegisterData) {
+  async register(data: RegisterData): Promise<AuthResponse> {
     try {
       store.dispatch(setLoading(true));
       const response = await apiService.post<AuthResponse>('/auth/register', data);
-      
-      store.dispatch(setToken(response.access_token));
-      store.dispatch(setUser(response.user));
-      
       return response;
     } catch (error: any) {
       store.dispatch(setError(error.message));
@@ -59,25 +30,23 @@ class AuthService {
     }
   }
 
-  async logout() {
+  async logout(): Promise<void> {
     try {
       store.dispatch(setLoading(true));
       await apiService.post('/auth/logout');
+      localStorage.removeItem('token');
     } catch (error: any) {
       store.dispatch(setError(error.message));
       throw error;
     } finally {
       store.dispatch(setLoading(false));
-      store.dispatch(setToken(null));
-      store.dispatch(setUser(null));
     }
   }
 
-  async getCurrentUser() {
+  async getCurrentUser(): Promise<User> {
     try {
       store.dispatch(setLoading(true));
-      const response = await apiService.get<AuthResponse['user']>('/auth/me');
-      store.dispatch(setUser(response));
+      const response = await apiService.get<User>('/users/me');
       return response;
     } catch (error: any) {
       store.dispatch(setError(error.message));
@@ -87,11 +56,23 @@ class AuthService {
     }
   }
 
-  async refreshToken() {
+  async updateProfile(data: Partial<User>): Promise<User> {
+    try {
+      store.dispatch(setLoading(true));
+      const response = await apiService.patch<User>('/users/me', data);
+      return response;
+    } catch (error: any) {
+      store.dispatch(setError(error.message));
+      throw error;
+    } finally {
+      store.dispatch(setLoading(false));
+    }
+  }
+
+  async refreshToken(): Promise<{ access_token: string }> {
     try {
       store.dispatch(setLoading(true));
       const response = await apiService.post<{ access_token: string }>('/auth/refresh');
-      store.dispatch(setToken(response.access_token));
       return response;
     } catch (error: any) {
       store.dispatch(setError(error.message));

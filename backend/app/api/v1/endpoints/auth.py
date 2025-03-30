@@ -13,8 +13,23 @@ from app.schemas.auth import (
 )
 from app.services.user_service import UserService
 from app.core.logging import logger
+from app.core.exceptions import (
+    ValidationError,
+    AuthenticationError,
+    ServiceError,
+    RateLimitException
+)
+from app.middleware.rate_limiter import EnhancedRateLimiter
 
 router = APIRouter()
+
+# Rate limit sensitive endpoints
+SENSITIVE_ENDPOINTS = {
+    "/api/v1/auth/login": {"limit": 5, "burst": 10, "window": 300},  # 5 attempts per 5 minutes
+    "/api/v1/auth/register": {"limit": 3, "burst": 5, "window": 3600},  # 3 attempts per hour
+    "/api/v1/auth/forgot-password": {"limit": 3, "burst": 5, "window": 3600},  # 3 attempts per hour
+    "/api/v1/auth/reset-password": {"limit": 3, "burst": 5, "window": 3600},  # 3 attempts per hour
+}
 
 @router.post("/register", response_model=TokenResponse)
 async def register(
@@ -35,11 +50,17 @@ async def register(
         )
         
         return tokens
-    except Exception as e:
-        logger.error("Error in user registration", exc_info=e)
+    except ValidationError as e:
+        logger.warning(f"Validation error in user registration: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
+        )
+    except ServiceError as e:
+        logger.error(f"Service error in user registration: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred during registration"
         )
 
 @router.post("/login", response_model=TokenResponse)
@@ -56,11 +77,17 @@ async def login(
             email=user_data.email,
             password=user_data.password
         )
-    except Exception as e:
-        logger.error("Error in user login", exc_info=e)
+    except AuthenticationError as e:
+        logger.warning(f"Authentication error in login: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials"
+        )
+    except ServiceError as e:
+        logger.error(f"Service error in login: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred during login"
         )
 
 @router.post("/verify-email/{token}")
@@ -74,11 +101,17 @@ async def verify_email(
         user_service = UserService()
         await user_service.verify_email(db, token=token)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
-    except Exception as e:
-        logger.error("Error in email verification", exc_info=e)
+    except ValidationError as e:
+        logger.warning(f"Validation error in email verification: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
+        )
+    except ServiceError as e:
+        logger.error(f"Service error in email verification: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred during email verification"
         )
 
 @router.post("/refresh", response_model=TokenResponse)
@@ -94,11 +127,17 @@ async def refresh_token(
             db,
             refresh_token=refresh_data.refresh_token
         )
-    except Exception as e:
-        logger.error("Error in token refresh", exc_info=e)
+    except AuthenticationError as e:
+        logger.warning(f"Authentication error in token refresh: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid refresh token"
+        )
+    except ServiceError as e:
+        logger.error(f"Service error in token refresh: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred during token refresh"
         )
 
 @router.post("/forgot-password")
@@ -114,10 +153,15 @@ async def forgot_password(
             db,
             email=request_data.email
         )
+        # Always return 204 to prevent email enumeration
         return Response(status_code=status.HTTP_204_NO_CONTENT)
-    except Exception as e:
-        logger.error("Error in password reset request", exc_info=e)
-        # Don't reveal if email exists
+    except ValidationError as e:
+        logger.warning(f"Validation error in password reset request: {str(e)}")
+        # Still return 204 to prevent email enumeration
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    except ServiceError as e:
+        logger.error(f"Service error in password reset request: {str(e)}")
+        # Still return 204 to prevent email enumeration
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 @router.post("/reset-password/{token}")
@@ -136,9 +180,15 @@ async def reset_password(
             new_password=reset_data.new_password
         )
         return Response(status_code=status.HTTP_204_NO_CONTENT)
-    except Exception as e:
-        logger.error("Error in password reset", exc_info=e)
+    except ValidationError as e:
+        logger.warning(f"Validation error in password reset: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
+        )
+    except ServiceError as e:
+        logger.error(f"Service error in password reset: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred during password reset"
         ) 

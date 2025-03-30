@@ -11,6 +11,7 @@ from app.core.cache import cache_service
 from app.api.v1.api import api_router
 from app.api.v1.endpoints.health import router as health_router
 from app.api.v1.docs import custom_openapi
+from app.api.v1.endpoints.auth import SENSITIVE_ENDPOINTS
 
 # Middleware imports
 from app.middleware.error_handling import UnifiedErrorHandler
@@ -50,7 +51,7 @@ def create_application() -> FastAPI:
         redis_client=cache_service.redis_client,
         requests_per_minute=settings.RATE_LIMIT_REQUESTS_PER_MINUTE,
         burst_size=settings.RATE_LIMIT_BURST_SIZE,
-        custom_rules=settings.RATE_LIMIT_CUSTOM_RULES,
+        custom_rules=SENSITIVE_ENDPOINTS,  # Apply sensitive endpoint rate limits
         skip_paths=settings.RATE_LIMIT_SKIP_PATHS
     )
     app.add_middleware(

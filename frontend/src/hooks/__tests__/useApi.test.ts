@@ -1,10 +1,11 @@
 import React from 'react';
-import { renderHook, act } from '@testing-library/react';
+import { renderHook, act } from '@testing-library/react-hooks';
 import { MemoryRouter } from 'react-router-dom';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { useApi } from '../useApi';
 import { AxiosProgressEvent } from 'axios';
+import api from '../../config/api';
 
 interface TestResponse {
   message: string;
@@ -51,7 +52,16 @@ const TestWrapper = ({ children }: { children: React.ReactNode }) => {
   return React.createElement(MemoryRouter, null, children);
 };
 
+// Mock the API
+jest.mock('../../config/api', () => ({
+  request: jest.fn(),
+}));
+
 describe('useApi', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
   it('provides initial state', () => {
     const { result } = renderHook(() => useApi<TestResponse>('/api/test'));
 
@@ -258,5 +268,108 @@ describe('useApi', () => {
 
     expect(result.current.error).toBeNull();
     expect(result.current.data).toEqual(mockData);
+  });
+
+  it('should make a GET request', async () => {
+    const mockData = { id: 1, name: 'Test' };
+    (api.request as jest.Mock).mockResolvedValueOnce({ data: mockData });
+
+    const { result } = renderHook(() => useApi('/test', 'get'));
+
+    await act(async () => {
+      const response = await result.current.execute();
+      expect(response).toEqual(mockData);
+      expect(api.request).toHaveBeenCalledWith({
+        method: 'get',
+        url: '/test',
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
+    });
+  });
+
+  it('should make a POST request', async () => {
+    const mockData = { id: 1, name: 'Test' };
+    const requestData = { name: 'Test' };
+    (api.request as jest.Mock).mockResolvedValueOnce({ data: mockData });
+
+    const { result } = renderHook(() => useApi('/test', 'post'));
+
+    await act(async () => {
+      const response = await result.current.execute({ data: requestData });
+      expect(response).toEqual(mockData);
+      expect(api.request).toHaveBeenCalledWith({
+        method: 'post',
+        url: '/test',
+        data: requestData,
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
+    });
+  });
+
+  it('should make a PUT request', async () => {
+    const mockData = { id: 1, name: 'Updated' };
+    const requestData = { name: 'Updated' };
+    (api.request as jest.Mock).mockResolvedValueOnce({ data: mockData });
+
+    const { result } = renderHook(() => useApi('/test/1', 'put'));
+
+    await act(async () => {
+      const response = await result.current.execute({ data: requestData });
+      expect(response).toEqual(mockData);
+      expect(api.request).toHaveBeenCalledWith({
+        method: 'put',
+        url: '/test/1',
+        data: requestData,
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
+    });
+  });
+
+  it('should make a DELETE request', async () => {
+    (api.request as jest.Mock).mockResolvedValueOnce({ data: null });
+
+    const { result } = renderHook(() => useApi('/test/1', 'delete'));
+
+    await act(async () => {
+      const response = await result.current.execute();
+      expect(response).toBeNull();
+      expect(api.request).toHaveBeenCalledWith({
+        method: 'delete',
+        url: '/test/1',
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
+    });
+  });
+
+  it('should handle errors', async () => {
+    const error = new Error('API Error');
+    (api.request as jest.Mock).mockRejectedValueOnce(error);
+
+    const { result } = renderHook(() => useApi('/test', 'get'));
+
+    await act(async () => {
+      const response = await result.current.execute();
+      expect(response).toBeNull();
+      expect(result.current.error).toBe('API Error');
+    });
+  });
+
+  it('should reset state', async () => {
+    const { result } = renderHook(() => useApi('/test', 'get'));
+
+    await act(async () => {
+      result.current.reset();
+      expect(result.current.data).toBeNull();
+      expect(result.current.error).toBeNull();
+      expect(result.current.loading).toBe(false);
+    });
   });
 }); 

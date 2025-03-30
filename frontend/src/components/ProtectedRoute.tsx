@@ -1,8 +1,8 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
-import LoadingSpinner from './LoadingSpinner';
 import { Box, Typography } from '@mui/material';
+import { useAppSelector } from '../store/hooks';
+import LoadingSpinner from './LoadingSpinner';
 import { SubscriptionTier } from '../types';
 
 interface ProtectedRouteProps {
@@ -20,10 +20,10 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children,
   requiredSubscription,
 }) => {
-  const { user, loading, error } = useAuth();
+  const { user, isLoading, error } = useAppSelector((state) => state.auth);
   const location = useLocation();
 
-  if (loading) {
+  if (isLoading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh">
         <LoadingSpinner size="large" />
@@ -66,7 +66,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   // Check if subscription has expired
-  if (user.subscription_end_date) {
+  if (user.subscription_end_date && user.subscription_end_date !== null) {
     const endDate = new Date(user.subscription_end_date);
     if (endDate < new Date()) {
       return (

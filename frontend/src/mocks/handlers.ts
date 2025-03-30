@@ -1,110 +1,156 @@
-import { rest } from 'msw';
-import { DefaultBodyType, PathParams, ResponseComposition, RestContext, RestRequest } from 'msw';
-import { ExerciseType, FormCheck, User } from '../types';
+import { http, HttpResponse } from 'msw';
+import { ExerciseType, FormCheck, User, SubscriptionTier } from '../types';
 
-const BASE_URL = process.env.REACT_APP_API_URL || '/api';
+const baseUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
 const mockUser: User = {
-  id: 1,
+  id: '1',
   email: 'test@example.com',
-  username: 'testuser',
-  subscription_tier: 'basic',
+  name: 'Test User',
+  role: 'user',
+  subscription_tier: 'basic' as SubscriptionTier,
   subscription_end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-  is_email_verified: true,
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
 };
 
 const mockFormChecks: FormCheck[] = [
   {
     id: 1,
     user_id: 1,
-    exercise_type: 'squat' as ExerciseType,
+    exercise_type: 'squat',
     video_url: 'https://example.com/video1.mp4',
-    score: 85,
-    overall_feedback: 'Good form overall, minor adjustments needed',
-    issues: ['Knees caving in slightly', 'Could go deeper'],
+    score: 8.5,
+    overall_feedback: 'Good form overall',
+    issues: ['Slight knee valgus'],
     created_at: new Date().toISOString(),
   },
   {
     id: 2,
     user_id: 1,
-    exercise_type: 'deadlift' as ExerciseType,
+    exercise_type: 'deadlift',
     video_url: 'https://example.com/video2.mp4',
-    score: 92,
-    overall_feedback: 'Excellent form',
-    issues: ['Slight rounding in lower back'],
-    created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+    score: 7.8,
+    overall_feedback: 'Decent form with some issues',
+    issues: ['Rounded back', 'Bar path not straight'],
+    created_at: new Date().toISOString(),
   },
 ];
 
 export const handlers = [
   // Auth endpoints
-  rest.post(
-    `${BASE_URL}/auth/login`,
-    async (req: RestRequest<DefaultBodyType, PathParams>, res: ResponseComposition, ctx: RestContext) => {
-      return res(
-        ctx.status(200),
-        ctx.json({
-          access_token: 'mock_token',
-          token_type: 'bearer',
-          user: mockUser,
-        })
+  http.post(`${baseUrl}/auth/login`, () => {
+    return HttpResponse.json({
+      access_token: 'mock-token',
+      user: mockUser,
+    }, { status: 200 });
+  }),
+
+  http.post(`${baseUrl}/auth/register`, () => {
+    return HttpResponse.json({
+      access_token: 'mock-token',
+      user: mockUser,
+    }, { status: 201 });
+  }),
+
+  http.post(`${baseUrl}/auth/logout`, () => {
+    return new HttpResponse(null, { status: 200 });
+  }),
+
+  http.get(`${baseUrl}/users/me`, ({ request }) => {
+    const auth = request.headers.get('Authorization');
+    
+    if (!auth?.startsWith('Bearer ')) {
+      return HttpResponse.json(
+        { message: 'Unauthorized' },
+        { status: 401 }
       );
     }
-  ),
 
-  rest.get(
-    `${BASE_URL}/auth/me`,
-    async (req: RestRequest, res: ResponseComposition, ctx: RestContext) => {
-      return res(ctx.status(200), ctx.json(mockUser));
-    }
-  ),
+    return HttpResponse.json(mockUser, { status: 200 });
+  }),
+
+  // Subscription endpoints
+  http.get(`${baseUrl}/subscriptions/plans`, () => {
+    return HttpResponse.json([
+      {
+        id: '1',
+        name: 'Basic Plan',
+        description: 'Basic features',
+        price: 9.99,
+        interval: 'monthly',
+        features: ['Feature 1', 'Feature 2'],
+        stripe_price_id: 'price_basic',
+        stripe_product_id: 'prod_basic',
+        is_popular: false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      {
+        id: '2',
+        name: 'Pro Plan',
+        description: 'Pro features',
+        price: 19.99,
+        interval: 'monthly',
+        features: ['Feature 1', 'Feature 2', 'Feature 3', 'Feature 4'],
+        stripe_price_id: 'price_pro',
+        stripe_product_id: 'prod_pro',
+        is_popular: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+    ], { status: 200 });
+  }),
+
+  http.post(`${baseUrl}/subscriptions`, () => {
+    return HttpResponse.json({
+      id: '1',
+      user_id: mockUser.id,
+      tier: 'pro',
+      status: 'active',
+      start_date: new Date().toISOString(),
+      end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      cancel_at_period_end: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }, { status: 200 });
+  }),
 
   // Form checks endpoints
-  rest.get(
-    `${BASE_URL}/form-checks`,
-    async (req: RestRequest, res: ResponseComposition, ctx: RestContext) => {
-      return res(ctx.status(200), ctx.json(mockFormChecks));
-    }
-  ),
+  http.get(`${baseUrl}/form-checks`, () => {
+    return HttpResponse.json(mockFormChecks, { status: 200 });
+  }),
 
-  rest.get(
-    `${BASE_URL}/form-checks/:id`,
-    async (req: RestRequest<DefaultBodyType, { id: string }>, res: ResponseComposition, ctx: RestContext) => {
-      const { id } = req.params;
-      const formCheck = mockFormChecks.find(check => check.id === Number(id));
-      
-      if (!formCheck) {
-        return res(
-          ctx.status(404),
-          ctx.json({ detail: 'Form check not found' })
-        );
-      }
-
-      return res(ctx.status(200), ctx.json(formCheck));
-    }
-  ),
-
-  rest.post(
-    `${BASE_URL}/form-checks`,
-    async (req: RestRequest, res: ResponseComposition, ctx: RestContext) => {
-      const formData = await req.json();
-      
-      const newFormCheck: FormCheck = {
-        id: mockFormChecks.length + 1,
-        user_id: mockUser.id,
-        exercise_type: formData.exercise_type || 'squat',
-        video_url: 'https://example.com/video-new.mp4',
-        score: Math.floor(Math.random() * 30) + 70, // Random score between 70-100
-        overall_feedback: 'New form check analysis',
-        issues: ['Sample issue 1', 'Sample issue 2'],
-        created_at: new Date().toISOString(),
-      };
-
-      return res(
-        ctx.delay(1000), // Simulate network delay
-        ctx.status(201),
-        ctx.json(newFormCheck)
+  http.get(`${baseUrl}/form-checks/:id`, ({ params }) => {
+    const formCheck = mockFormChecks.find(check => check.id === Number(params.id));
+    
+    if (!formCheck) {
+      return HttpResponse.json(
+        { detail: 'Form check not found' },
+        { status: 404 }
       );
     }
-  ),
+
+    return HttpResponse.json(formCheck, { status: 200 });
+  }),
+
+  http.post(`${baseUrl}/form-checks`, async ({ request }) => {
+    const formData = await request.json() as {
+      exercise_type: ExerciseType;
+      video_url: string;
+    };
+    
+    const newFormCheck: FormCheck = {
+      id: mockFormChecks.length + 1,
+      user_id: 1,
+      exercise_type: formData.exercise_type,
+      video_url: formData.video_url,
+      score: Math.round(Math.random() * 10 * 10) / 10,
+      overall_feedback: 'Feedback will be generated after processing',
+      issues: [],
+      created_at: new Date().toISOString(),
+    };
+
+    return HttpResponse.json(newFormCheck, { status: 201 });
+  }),
 ]; 

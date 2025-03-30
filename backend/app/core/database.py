@@ -10,41 +10,43 @@ import aiosqlite
 # Create Base class for models
 Base = declarative_base()
 
+def get_database_url() -> str:
+    """Get the appropriate database URL based on environment."""
+    if settings.ENVIRONMENT == "test":
+        return "sqlite:///./test.db"
+    return settings.SQLALCHEMY_DATABASE_URI
+
+def get_async_database_url() -> str:
+    """Get the appropriate async database URL based on environment."""
+    if settings.ENVIRONMENT == "test":
+        return "sqlite+aiosqlite:///./test.db"
+    return settings.SQLALCHEMY_DATABASE_URI.replace("postgresql://", "postgresql+asyncpg://")
+
 # Create sync engine with connection pooling
-if settings.ENVIRONMENT == "test":
-    # Use SQLite for testing
-    sync_engine = create_engine(
-        "sqlite:///./test.db",
-        echo=settings.DB_ECHO,
-        connect_args={"check_same_thread": False},
-    )
-    engine = create_async_engine(
-        "sqlite+aiosqlite:///./test.db",
-        echo=settings.DB_ECHO,
-        connect_args={"check_same_thread": False},
-    )
-else:
-    # Use PostgreSQL for production
-    sync_engine = create_engine(
-        settings.SQLALCHEMY_DATABASE_URI,
-        echo=settings.DB_ECHO,
-        poolclass=QueuePool,
-        pool_size=settings.DB_POOL_SIZE,
-        max_overflow=settings.DB_MAX_OVERFLOW,
-        pool_timeout=settings.DB_POOL_TIMEOUT,
-        pool_recycle=settings.DB_POOL_RECYCLE,
-        pool_pre_ping=True,
-    )
-    engine = create_async_engine(
-        settings.DATABASE_URL,
-        echo=settings.DB_ECHO,
-        poolclass=QueuePool,
-        pool_size=settings.DB_POOL_SIZE,
-        max_overflow=settings.DB_MAX_OVERFLOW,
-        pool_timeout=settings.DB_POOL_TIMEOUT,
-        pool_recycle=settings.DB_POOL_RECYCLE,
-        pool_pre_ping=True,
-    )
+sync_engine = create_engine(
+    get_database_url(),
+    echo=settings.DB_ECHO,
+    poolclass=QueuePool,
+    pool_size=settings.DB_POOL_SIZE,
+    max_overflow=settings.DB_MAX_OVERFLOW,
+    pool_timeout=settings.DB_POOL_TIMEOUT,
+    pool_recycle=settings.DB_POOL_RECYCLE,
+    pool_pre_ping=True,
+    connect_args={"check_same_thread": False} if settings.ENVIRONMENT == "test" else {}
+)
+
+# Create async engine with connection pooling
+engine = create_async_engine(
+    get_async_database_url(),
+    echo=settings.DB_ECHO,
+    poolclass=QueuePool,
+    pool_size=settings.DB_POOL_SIZE,
+    max_overflow=settings.DB_MAX_OVERFLOW,
+    pool_timeout=settings.DB_POOL_TIMEOUT,
+    pool_recycle=settings.DB_POOL_RECYCLE,
+    pool_pre_ping=True,
+    connect_args={"check_same_thread": False} if settings.ENVIRONMENT == "test" else {}
+)
 
 # Create sync session factory
 SessionLocal = sessionmaker(
