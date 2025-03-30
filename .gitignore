@@ -38,3 +38,7 @@ htmlcov/
 # Misc
 .cache/
 .pytest_cache/
+
+# Database
+*.db
+test.db
