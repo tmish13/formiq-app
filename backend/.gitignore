@@ -51,4 +51,4 @@ media/
 # Test coverage
 .coverage
 htmlcov/
-.pytest_cache/ 
+.pytest_cache/ *.log
