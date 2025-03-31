@@ -1,37 +1,57 @@
-from pydantic import BaseModel
+"""Form check schema module."""
 from datetime import datetime
-from typing import Optional, List
-from app.models.enums import FormCheckStatus
+from typing import Dict, List, Optional
+from uuid import UUID
+
+from pydantic import BaseModel
+
 
 class FormCheckBase(BaseModel):
-    """Base schema for form check."""
-    user_id: int
-    video_path: str
-    status: FormCheckStatus = FormCheckStatus.PENDING
-    confidence: Optional[float] = None
+    """Form check base schema."""
+
+    video_url: str
+    exercise_id: UUID
     feedback: Optional[str] = None
-    keypoints: Optional[List[dict]] = None
+    score: Optional[float] = None
+    keypoints: Optional[List[Dict[str, float]]] = None
+    status: str = "pending"
+
 
 class FormCheckCreate(FormCheckBase):
-    """Schema for creating a form check."""
+    """Form check create schema."""
+
     pass
 
-class FormCheckUpdate(BaseModel):
-    """Schema for updating a form check."""
-    status: Optional[FormCheckStatus] = None
-    confidence: Optional[float] = None
-    feedback: Optional[str] = None
-    keypoints: Optional[List[dict]] = None
 
-class FormCheckInDB(FormCheckBase):
-    """Schema for form check in database."""
-    id: int
-    created_at: datetime
-    updated_at: datetime
+class FormCheckUpdate(FormCheckBase):
+    """Form check update schema."""
+
+    video_url: Optional[str] = None
+    exercise_id: Optional[UUID] = None
+    status: Optional[str] = None
+
+
+class FormCheckInDBBase(FormCheckBase):
+    """Form check in DB base schema."""
+
+    id: Optional[UUID] = None
+    user_id: Optional[UUID] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     class Config:
+        """Pydantic config."""
+
         from_attributes = True
 
-class FormCheckResponse(FormCheckInDB):
-    """Schema for form check response."""
+
+class FormCheck(FormCheckInDBBase):
+    """Form check schema."""
+
+    pass
+
+
+class FormCheckInDB(FormCheckInDBBase):
+    """Form check in DB schema."""
+
     pass 

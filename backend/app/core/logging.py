@@ -3,11 +3,13 @@ import json
 import logging
 import sys
 from pathlib import Path
-from logging.handlers import RotatingFileHandler
+from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
 import structlog
 from typing import Any, Dict, Optional
 import sentry_sdk
 from sentry_sdk.integrations.logging import LoggingIntegration
+from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+from sentry_sdk.integrations.redis import RedisIntegration
 from app.core.config import settings
 from app.core.constants import (
     LOG_FORMAT,
@@ -20,6 +22,7 @@ from app.core.constants import (
 )
 import os
 from datetime import datetime
+import traceback
 
 class JSONFormatter(logging.Formatter):
     """Custom JSON formatter for structured logging."""
@@ -33,8 +36,17 @@ class JSONFormatter(logging.Formatter):
             "module": record.module,
             "function": record.funcName,
             "line": record.lineno,
+            "environment": settings.ENVIRONMENT,
+            "service": settings.PROJECT_NAME,
+            "version": settings.VERSION,
         }
         
+        if hasattr(record, "request_id"):
+            log_data["request_id"] = record.request_id
+            
+        if hasattr(record, "user_id"):
+            log_data["user_id"] = record.user_id
+            
         if hasattr(record, "extra"):
             log_data.update(record.extra)
             
@@ -42,6 +54,17 @@ class JSONFormatter(logging.Formatter):
             log_data["exception"] = self.formatException(record.exc_info)
             
         return json.dumps(log_data)
+
+def get_log_level() -> str:
+    """Get the appropriate log level based on environment."""
+    if settings.ENVIRONMENT == "production":
+        return "INFO"
+    elif settings.ENVIRONMENT == "staging":
+        return "INFO"
+    elif settings.ENVIRONMENT == "test":
+        return "DEBUG" if settings.DEBUG else "INFO"
+    else:  # development
+        return "DEBUG" if settings.DEBUG else "INFO"
 
 def init_sentry() -> None:
     """Initialize Sentry for error tracking."""
@@ -52,9 +75,14 @@ def init_sentry() -> None:
         )
         sentry_sdk.init(
             dsn=settings.SENTRY_DSN,
-            integrations=[sentry_logging],
-            traces_sample_rate=1.0,
-            environment=settings.ENVIRONMENT
+            integrations=[
+                sentry_logging,
+                SqlalchemyIntegration(),
+                RedisIntegration(),
+            ],
+            traces_sample_rate=settings.SENTRY_TRACES_SAMPLE_RATE,
+            environment=settings.SENTRY_ENVIRONMENT,
+            release=settings.VERSION
         )
 
 def setup_logging() -> None:
@@ -65,54 +93,68 @@ def setup_logging() -> None:
     
     # Configure root logger
     root_logger = logging.getLogger()
-    root_logger.setLevel(settings.LOG_LEVEL)
+    root_logger.setLevel(get_log_level())
     
     # Clear existing handlers
     root_logger.handlers = []
     
-    # File handler with rotation
-    file_handler = RotatingFileHandler(
+    # Main log file handler with daily rotation
+    file_handler = TimedRotatingFileHandler(
         LOG_FILE,
-        maxBytes=LOG_FILE_MAX_BYTES,
-        backupCount=LOG_FILE_BACKUP_COUNT,
+        when="midnight",
+        interval=1,
+        backupCount=30,  # Keep 30 days of logs
         encoding="utf-8"
     )
     file_handler.setFormatter(JSONFormatter())
-    root_logger.addHandler(file_handler)
+    file_handler.setLevel(get_log_level())
     
-    # Error file handler
+    # Error log file handler with size-based rotation
     error_handler = RotatingFileHandler(
         ERROR_LOG_FILE,
-        maxBytes=LOG_FILE_MAX_BYTES,
-        backupCount=LOG_FILE_BACKUP_COUNT,
+        maxBytes=10 * 1024 * 1024,  # 10MB
+        backupCount=5,
         encoding="utf-8"
     )
-    error_handler.setLevel(logging.ERROR)
     error_handler.setFormatter(JSONFormatter())
-    root_logger.addHandler(error_handler)
+    error_handler.setLevel(logging.ERROR)
     
-    # Console handler
+    # Console handler with color formatting in development
     console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setFormatter(JSONFormatter())
+    if settings.ENVIRONMENT == "development":
+        console_handler.setFormatter(
+            logging.Formatter(
+                "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+                datefmt="%Y-%m-%d %H:%M:%S"
+            )
+        )
+    else:
+        console_handler.setFormatter(JSONFormatter())
+    console_handler.setLevel(get_log_level())
+    
+    # Add handlers
+    root_logger.addHandler(file_handler)
+    root_logger.addHandler(error_handler)
     root_logger.addHandler(console_handler)
     
-    # Set logging level for specific modules
+    # Set log levels for third-party libraries
     logging.getLogger("uvicorn").setLevel(logging.WARNING)
-    logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
-    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("sqlalchemy").setLevel(logging.WARNING)
+    logging.getLogger("redis").setLevel(logging.WARNING)
+    
+    # Initialize Sentry if configured
+    if settings.ENVIRONMENT != "test":
+        init_sentry()
 
 # Initialize logging
 setup_logging()
 
-# Initialize Sentry
-init_sentry()
-
 # Create logger instance
-logger = logging.getLogger("app")
+logger = structlog.get_logger("app")
 
-def get_logger(name: str) -> logging.Logger:
-    """Get a logger instance with the specified name."""
-    return logging.getLogger(name)
+def get_logger(name: str) -> structlog.BoundLogger:
+    """Get a structured logger instance with the specified name."""
+    return structlog.get_logger(name)
 
 def log_error(
     message: str,
@@ -120,14 +162,15 @@ def log_error(
     extra: Optional[Dict[str, Any]] = None,
     logger_name: str = "app"
 ) -> None:
-    """Log an error with proper formatting."""
-    log = get_logger(logger_name)
-    error_data = {
+    """Log an error with exception details."""
+    log_data = {
         "error_type": type(error).__name__,
         "error_message": str(error),
-        **(extra or {})
+        "traceback": traceback.format_exc()
     }
-    log.error(message, **error_data)
+    if extra:
+        log_data.update(extra)
+    logger.error(message, extra=log_data)
 
 def log_info(
     message: str,

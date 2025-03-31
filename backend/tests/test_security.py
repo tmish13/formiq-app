@@ -9,17 +9,16 @@ from unittest.mock import Mock, patch
 from app.services.user import UserService
 from app.services.workout import WorkoutService
 from sqlalchemy.orm import Session
-from app.core.rate_limit import RateLimiter
 from app.core.encryption import encrypt_data, decrypt_data
 from app.core.validators import validate_email, validate_password, validate_username
 from fastapi import HTTPException
+from app.middleware.rate_limiter import RateLimiterMiddleware
 from app.core.security import (
     verify_password,
     get_password_hash,
     create_access_token,
     decode_access_token,
 )
-from app.middleware.rate_limiter import RateLimiter
 
 @pytest.fixture
 def client():
@@ -91,7 +90,7 @@ def test_password_reset_token():
 
 def test_rate_limiting():
     """Test rate limiting functionality"""
-    limiter = RateLimiter()
+    limiter = RateLimiterMiddleware(app=None, requests=5, window=60)
     user_id = 1
     
     # Test within limit

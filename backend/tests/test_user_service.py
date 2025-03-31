@@ -1,7 +1,7 @@
 import pytest
 from datetime import datetime, timedelta
 from unittest.mock import Mock, patch
-from app.services.user import UserService, UserError
+from app.services.user import UserService
 from app.models.user import User
 from app.models.subscription import Subscription
 from sqlalchemy.orm import Session

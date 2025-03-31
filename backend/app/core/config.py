@@ -22,6 +22,7 @@ from app.core.constants import (
 import base64
 from datetime import datetime, timedelta
 from pydantic import validator
+import secrets
 
 # Load environment variables
 if os.getenv("ENVIRONMENT") == "test":
@@ -32,126 +33,116 @@ else:
 # Generate a default Fernet key (32 url-safe base64-encoded bytes)
 DEFAULT_ENCRYPTION_KEY = base64.urlsafe_b64encode(os.urandom(32)).decode()
 
-class SecuritySettings(BaseSettings):
-    """Security-related settings."""
-    SECRET_KEY: SecretStr = SecretStr(os.getenv("SECRET_KEY", "your-secret-key-here"))
-    ALGORITHM: str = DEFAULT_ALGORITHM
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = DEFAULT_ACCESS_TOKEN_EXPIRE_MINUTES
-    ENCRYPTION_KEY: SecretStr = SecretStr(os.getenv("ENCRYPTION_KEY", DEFAULT_ENCRYPTION_KEY))
-    JWT_SECRET: SecretStr = SecretStr(os.getenv("JWT_SECRET", "your-jwt-secret-here"))
+# Default values for file upload limits
+DEFAULT_MAX_CONTENT_LENGTH = 100 * 1024 * 1024  # 100MB
+DEFAULT_MAX_VIDEO_DURATION = 300  # 5 minutes
+DEFAULT_LOG_MAX_BYTES = 10 * 1024 * 1024  # 10MB
 
-class DatabaseSettings(BaseSettings):
-    """Database-related settings."""
-    POSTGRES_SERVER: str = os.getenv("POSTGRES_SERVER", "localhost")
-    POSTGRES_USER: str = os.getenv("POSTGRES_USER", "postgres")
-    POSTGRES_PASSWORD: SecretStr = SecretStr(os.getenv("POSTGRES_PASSWORD", "postgres"))
-    POSTGRES_DB: str = os.getenv("POSTGRES_DB", "formiq")
-    SQLALCHEMY_DATABASE_URI: Optional[str] = None
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./test.db")
-    DB_ECHO: bool = False
-    DB_POOL_SIZE: int = 5
-    DB_MAX_OVERFLOW: int = 10
-    DB_POOL_TIMEOUT: int = 30
-    DB_POOL_RECYCLE: int = 3600
+class Settings(BaseSettings):
+    """Application settings."""
 
-    @validator("SQLALCHEMY_DATABASE_URI", pre=True)
-    def assemble_db_connection(cls, v: str | None, values: Dict[str, Any]) -> Any:
-        if isinstance(v, str):
-            return v
-        return f"postgresql://{values.get('POSTGRES_USER')}:{values.get('POSTGRES_PASSWORD').get_secret_value()}@{values.get('POSTGRES_SERVER')}/{values.get('POSTGRES_DB')}"
+    # Environment
+    ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
+    DEBUG: bool = os.getenv("DEBUG", "true").lower() == "true"
+    SENTRY_DSN: Optional[str] = os.getenv("SENTRY_DSN")
 
-class RedisSettings(BaseSettings):
-    """Redis-related settings."""
-    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-    RATE_LIMIT_REQUESTS: int = DEFAULT_RATE_LIMIT_REQUESTS
-    RATE_LIMIT_BURST: int = DEFAULT_RATE_LIMIT_BURST
+    API_V1_STR: str = "/api/v1"
+    SECRET_KEY: str = secrets.token_urlsafe(32)
+    ENCRYPTION_KEY: str = os.getenv("ENCRYPTION_KEY", DEFAULT_ENCRYPTION_KEY)
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8  # 8 days
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 30
+    ALGORITHM: str = "HS256"
+    PROJECT_NAME: str = "FormIQ"
+    VERSION: str = "1.0.0"
 
-class StorageSettings(BaseSettings):
-    """Storage-related settings."""
-    STORAGE_TYPE: str = os.getenv("STORAGE_TYPE", "local")
-    STORAGE_PATH: str = os.getenv("STORAGE_PATH", "./storage")
-    S3_BUCKET: str = os.getenv("S3_BUCKET", "formiq-storage")
-    S3_ACCESS_KEY: SecretStr = SecretStr(os.getenv("S3_ACCESS_KEY", "your-s3-access-key"))
-    S3_SECRET_KEY: SecretStr = SecretStr(os.getenv("S3_SECRET_KEY", "your-s3-secret-key"))
-    S3_REGION: str = os.getenv("S3_REGION", "us-east-1")
-
-class EmailSettings(BaseSettings):
-    """Email-related settings."""
-    EMAIL_SENDER: str = os.getenv("EMAIL_SENDER", "noreply@formiq.com")
-    SMTP_HOST: str = os.getenv("SMTP_HOST", "smtp.gmail.com")
-    SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
-    SMTP_USER: str = os.getenv("SMTP_USER", "your-smtp-user")
-    SMTP_PASSWORD: SecretStr = SecretStr(os.getenv("SMTP_PASSWORD", "your-smtp-password"))
-    SMTP_TLS: bool = True
-
-class AISettings(BaseSettings):
-    """AI-related settings."""
-    MODEL_PATH: str = os.getenv("MODEL_PATH", "./models")
-    MODEL_CONFIDENCE_THRESHOLD: float = 0.7
-    MAX_VIDEO_DURATION: int = 300  # 5 minutes in seconds
-    FRAME_EXTRACTION_RATE: int = 30  # Extract every 30th frame
-
-class MonitoringSettings(BaseSettings):
-    """Monitoring-related settings."""
-    ENABLE_MONITORING: bool = True
-    ENABLE_PROMETHEUS: bool = True
-    ENABLE_ALERTS: bool = True
-    ALERT_EMAIL_ENABLED: bool = True
-    ALERT_SLACK_ENABLED: bool = False
-    ALERT_SMS_ENABLED: bool = False
-    ALERT_EMAIL_FROM: str = os.getenv("ALERT_EMAIL_FROM", "alerts@formiq.com")
-    ALERT_EMAIL_TO: str = os.getenv("ALERT_EMAIL_TO", "admin@formiq.com")
-    ALERT_THRESHOLDS: Dict[str, float] = {
-        "error_rate": 0.05,
-        "response_time": 2.0,
-        "db_connections": 100,
-        "redis_memory": 0.9,
-        "cache_hit_ratio": 0.5,
-        "cpu_usage": 80.0,
-        "memory_usage": 85.0,
-        "disk_usage": 90.0
-    }
-
-class Settings(
-    BaseSettings,
-    SecuritySettings,
-    DatabaseSettings,
-    RedisSettings,
-    StorageSettings,
-    EmailSettings,
-    AISettings,
-    MonitoringSettings
-):
-    """Main settings class combining all settings modules."""
-    
-    # Application
-    PROJECT_NAME: str = PROJECT_NAME
-    VERSION: str = VERSION
-    DESCRIPTION: str = DESCRIPTION
-    API_V1_STR: str = API_V1_STR
-    ENVIRONMENT: str = DEFAULT_ENVIRONMENT
-    DEBUG: bool = True
-    
     # CORS
-    CORS_ORIGINS: List[AnyHttpUrl] = []
+    BACKEND_CORS_ORIGINS: List[AnyHttpUrl] = []
 
-    @validator("CORS_ORIGINS", pre=True)
+    @validator("BACKEND_CORS_ORIGINS", pre=True)
     def assemble_cors_origins(cls, v: str | List[str]) -> List[str] | str:
+        """Validate CORS origins."""
         if isinstance(v, str) and not v.startswith("["):
             return [i.strip() for i in v.split(",")]
         elif isinstance(v, (list, str)):
             return v
         raise ValueError(v)
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        if not self.SQLALCHEMY_DATABASE_URI:
-            if self.ENVIRONMENT == "test":
-                self.SQLALCHEMY_DATABASE_URI = "sqlite:///./test.db"
-            else:
-                self.SQLALCHEMY_DATABASE_URI = f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD.get_secret_value()}@{self.POSTGRES_SERVER}/{self.POSTGRES_DB}"
+    # Database
+    POSTGRES_SERVER: str = os.getenv("POSTGRES_SERVER", "localhost")
+    POSTGRES_USER: str = os.getenv("POSTGRES_USER", "postgres")
+    POSTGRES_PASSWORD: str = os.getenv("POSTGRES_PASSWORD", "")
+    POSTGRES_DB: str = os.getenv("POSTGRES_DB", "formiq")
+    SQLALCHEMY_DATABASE_URI: str = (
+        "sqlite+aiosqlite:///./test.db"
+        if os.getenv("ENVIRONMENT") == "test"
+        else f"postgresql+asyncpg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_SERVER}/{POSTGRES_DB}"
+    )
+    DB_ECHO: bool = os.getenv("DB_ECHO", "true").lower() == "true"
+    DB_POOL_SIZE: int = int(os.getenv("DB_POOL_SIZE", "5"))
+    DB_MAX_OVERFLOW: int = int(os.getenv("DB_MAX_OVERFLOW", "10"))
+    DB_POOL_TIMEOUT: int = int(os.getenv("DB_POOL_TIMEOUT", "30"))
+    DB_POOL_RECYCLE: int = int(os.getenv("DB_POOL_RECYCLE", "1800"))  # 30 minutes
 
-    model_config = SettingsConfigDict(case_sensitive=True, env_file=".env")
+    # Redis
+    REDIS_HOST: str = os.getenv("REDIS_HOST", "localhost")
+    REDIS_PORT: int = int(os.getenv("REDIS_PORT", 6379))
+    REDIS_DB: int = int(os.getenv("REDIS_DB", 0))
+    REDIS_PASSWORD: str = os.getenv("REDIS_PASSWORD", "")
+    REDIS_URL: str = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
+
+    # Storage
+    UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "uploads/videos")
+    UPLOAD_URL: str = os.getenv("UPLOAD_URL", "http://localhost:8000/uploads/videos")
+    
+    # AWS Settings
+    AWS_ACCESS_KEY_ID: str = os.getenv("AWS_ACCESS_KEY_ID", "")
+    AWS_SECRET_ACCESS_KEY: str = os.getenv("AWS_SECRET_ACCESS_KEY", "")
+    AWS_REGION: str = os.getenv("AWS_REGION", "us-east-1")
+    AWS_BUCKET_NAME: str = os.getenv("AWS_BUCKET_NAME", "formiq-videos")
+    AWS_S3_ENDPOINT: Optional[str] = os.getenv("AWS_S3_ENDPOINT")
+    
+    # Stripe Settings
+    STRIPE_SECRET_KEY: str = os.getenv("STRIPE_SECRET_KEY", "")
+    STRIPE_WEBHOOK_SECRET: str = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+    STRIPE_PRICE_ID: str = os.getenv("STRIPE_PRICE_ID", "")
+    
+    # SMTP Settings
+    SMTP_HOST: str = os.getenv("SMTP_HOST", "smtp.gmail.com")
+    SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
+    SMTP_USER: str = os.getenv("SMTP_USER", "")
+    SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
+    SMTP_TLS: bool = os.getenv("SMTP_TLS", "true").lower() == "true"
+    SMTP_FROM_EMAIL: str = os.getenv("SMTP_FROM_EMAIL", "noreply@formiq.app")
+    
+    # Rate Limiting
+    RATE_LIMIT_REQUESTS: int = int(os.getenv("RATE_LIMIT_REQUESTS", "100"))
+    RATE_LIMIT_BURST: int = int(os.getenv("RATE_LIMIT_BURST", "200"))
+    RATE_LIMIT_WINDOW: int = int(os.getenv("RATE_LIMIT_WINDOW", "60"))
+    
+    # JWT Settings
+    JWT_SECRET: str = os.getenv("JWT_SECRET", SECRET_KEY)
+    JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM", ALGORITHM)
+    
+    # File Upload Limits
+    MAX_CONTENT_LENGTH: int = int(os.getenv("MAX_CONTENT_LENGTH", str(DEFAULT_MAX_CONTENT_LENGTH)))
+    ALLOWED_VIDEO_TYPES: List[str] = ["video/mp4", "video/quicktime", "video/x-msvideo"]
+    MAX_VIDEO_DURATION: int = int(os.getenv("MAX_VIDEO_DURATION", str(DEFAULT_MAX_VIDEO_DURATION)))
+    
+    # AI Model Settings
+    AI_MODEL_PATH: str = os.getenv("AI_MODEL_PATH", "models")
+    AI_CONFIDENCE_THRESHOLD: float = float(os.getenv("AI_CONFIDENCE_THRESHOLD", "0.7"))
+    AI_MAX_BATCH_SIZE: int = int(os.getenv("AI_MAX_BATCH_SIZE", "32"))
+    
+    # Logging
+    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
+    LOG_FORMAT: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    LOG_FILE: str = os.getenv("LOG_FILE", "app.log")
+    LOG_MAX_BYTES: int = int(os.getenv("LOG_MAX_BYTES", str(DEFAULT_LOG_MAX_BYTES)))
+    LOG_BACKUP_COUNT: int = int(os.getenv("LOG_BACKUP_COUNT", "5"))
+
+    class Config:
+        """Pydantic config."""
+        case_sensitive = True
 
 @lru_cache()
 def get_settings() -> Settings:

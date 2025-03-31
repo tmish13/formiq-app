@@ -1,29 +1,69 @@
-from datetime import datetime
+"""User schema module."""
 from typing import Optional
-from pydantic import EmailStr
-from app.schemas.base import BaseSchema
-from app.models.subscription import SubscriptionTier
+from datetime import datetime
+from uuid import UUID
+from pydantic import BaseModel, EmailStr, Field, validator
 
-class UserBase(BaseSchema):
-    """Base user schema with common fields."""
-    email: EmailStr
-    first_name: str
-    last_name: str
-    is_active: bool
-    is_verified: bool
-    subscription_tier: SubscriptionTier
-    subscription_end_date: Optional[datetime] = None
+class UserBase(BaseModel):
+    """User base schema."""
+    email: Optional[EmailStr] = None
+    is_active: Optional[bool] = True
+    full_name: Optional[str] = None
 
 class UserCreate(UserBase):
-    """Schema for creating a new user."""
+    """User create schema."""
+    email: EmailStr
     password: str
 
-class UserUpdate(BaseSchema):
-    """Schema for updating user information."""
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
+    @validator("password")
+    def validate_password(cls, v):
+        """Validate password strength."""
+        if not any(c.isupper() for c in v):
+            raise ValueError("Password must contain at least one uppercase letter")
+        if not any(c.islower() for c in v):
+            raise ValueError("Password must contain at least one lowercase letter")
+        if not any(c.isdigit() for c in v):
+            raise ValueError("Password must contain at least one number")
+        return v
+
+class UserUpdate(UserBase):
+    """User update schema."""
     password: Optional[str] = None
 
-class UserResponse(UserBase):
-    """Schema for user response."""
-    pass 
+    @validator("password")
+    def validate_password(cls, v):
+        """Validate password strength."""
+        if v is None:
+            return v
+        if not any(c.isupper() for c in v):
+            raise ValueError("Password must contain at least one uppercase letter")
+        if not any(c.islower() for c in v):
+            raise ValueError("Password must contain at least one lowercase letter")
+        if not any(c.isdigit() for c in v):
+            raise ValueError("Password must contain at least one number")
+        return v
+
+class UserInDBBase(UserBase):
+    """User in DB base schema."""
+    id: Optional[UUID] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        """Pydantic config."""
+        from_attributes = True
+
+class User(UserInDBBase):
+    """User schema."""
+    pass
+
+class UserInDB(UserInDBBase):
+    """User in DB schema."""
+    hashed_password: str
+
+class UserFilter(BaseModel):
+    """User filter schema."""
+    email: Optional[str] = None
+    username: Optional[str] = None
+    is_active: Optional[bool] = None
+    is_superuser: Optional[bool] = None 

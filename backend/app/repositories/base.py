@@ -1,16 +1,17 @@
-"""Base repository implementation with advanced CRUD operations and transaction management."""
-from typing import Generic, TypeVar, Type, Optional, List, Any, Dict, Callable
+"""Base repository module."""
+from typing import Any, Dict, Generic, List, Optional, Type, TypeVar, Union, Callable
 from uuid import UUID
-from datetime import datetime
-from sqlalchemy import and_, or_, func, text
-from sqlalchemy.orm import Session, Query, joinedload, selectinload
+from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
-from app.models.base import BaseModel
-from app.core.exceptions import DatabaseError, NotFoundException, ValidationError
-from app.core.logging import logger
-from app.core.cache import cache
+from fastapi.encoders import jsonable_encoder
 
-ModelType = TypeVar("ModelType", bound=BaseModel)
+from app.core.exceptions import AppException, NotFoundException
+from app.core.logging import logger
+from app.core.config import settings
+from app.core.cache import cache_service
+from app.db.base_class import Base
+
+ModelType = TypeVar("ModelType", bound=Base)
 
 class BaseRepository(Generic[ModelType]):
     """
@@ -26,9 +27,11 @@ class BaseRepository(Generic[ModelType]):
     - Caching support with Redis
     """
     
-    def __init__(self, model: Type[ModelType]):
+    def __init__(self, db: Session, model: Type[ModelType]):
+        """Initialize repository."""
+        self.db = db
         self.model = model
-        self.cache_namespace = f"{model.__tablename__}"
+        self.cache_namespace = model.__tablename__
         self.cache_ttl = 3600  # 1 hour default TTL
 
     def _ensure_transaction(self, db: Session) -> None:
@@ -40,21 +43,24 @@ class BaseRepository(Generic[ModelType]):
         """Handle database errors with proper logging."""
         logger.error(f"Database error during {operation}", exc_info=error)
         if isinstance(error, SQLAlchemyError):
-            raise DatabaseError(f"Database error during {operation}: {str(error)}")
+            raise AppException(
+                status_code=500,
+                detail=f"Database error during {operation}: {str(error)}"
+            )
         raise error
 
     def _get_cache_key(self, id: UUID) -> str:
         """Generate cache key for an entity."""
-        return str(id)
+        return f"{self.model.__name__}:{id}"
 
     def _invalidate_cache(self, id: UUID) -> None:
         """Invalidate cache for an entity."""
-        cache.delete(self.cache_namespace, self._get_cache_key(id))
+        cache_service.delete(self.cache_namespace, self._get_cache_key(id))
 
     def _cache_entity(self, entity: ModelType) -> None:
         """Cache an entity."""
         if entity:
-            cache.set(
+            cache_service.set(
                 self.cache_namespace,
                 self._get_cache_key(entity.id),
                 entity.dict(),
@@ -63,119 +69,77 @@ class BaseRepository(Generic[ModelType]):
 
     def _get_from_cache(self, id: UUID) -> Optional[Dict[str, Any]]:
         """Get entity from cache."""
-        return cache.get(self.cache_namespace, self._get_cache_key(id))
+        return cache_service.get(self.cache_namespace, self._get_cache_key(id))
 
-    def get(self, db: Session, id: UUID, select_fields: List[str] = None) -> Optional[ModelType]:
-        """
-        Get a single record by ID with optional field selection and caching.
-        
-        Args:
-            db: Database session
-            id: Record UUID
-            select_fields: Optional list of fields to select
-        """
-        try:
-            # Try to get from cache first
-            cached_data = self._get_from_cache(id)
-            if cached_data:
-                return self.model(**cached_data)
-
-            query = db.query(self.model)
-            if select_fields:
-                query = query.with_entities(*[getattr(self.model, field) for field in select_fields])
-            
-            entity = query.filter(self.model.id == id).first()
-            
-            # Cache the result if found
-            if entity:
-                self._cache_entity(entity)
-            
-            return entity
-        except Exception as e:
-            self._handle_error(e, "get")
+    def get(self, id: UUID) -> Optional[ModelType]:
+        """Get record by ID."""
+        return self.db.query(self.model).filter(self.model.id == id).first()
 
     def get_multi(
-        self,
-        db: Session,
-        *,
-        skip: int = 0,
-        limit: int = 100,
-        filters: Dict[str, Any] = None,
-        order_by: List[str] = None,
-        select_fields: List[str] = None,
-        include_relations: List[str] = None,
-        use_cache: bool = True
+        self, *, skip: int = 0, limit: int = 100
     ) -> List[ModelType]:
-        """
-        Get multiple records with advanced filtering and eager loading.
-        
-        Args:
-            db: Database session
-            skip: Number of records to skip
-            limit: Maximum number of records to return
-            filters: Dictionary of field:value pairs for filtering
-            order_by: List of fields to order by (prefix with - for desc)
-            select_fields: Optional list of fields to select
-            include_relations: Optional list of relationships to eager load
-            use_cache: Whether to use caching
-        """
+        """Get multiple records."""
+        return self.db.query(self.model).offset(skip).limit(limit).all()
+
+    def create(self, *, obj_in: dict) -> ModelType:
+        """Create record."""
+        db_obj = self.model(**obj_in)
+        self.db.add(db_obj)
+        self.db.commit()
+        self.db.refresh(db_obj)
+        return db_obj
+
+    def update(self, *, db_obj: ModelType, obj_in: dict) -> ModelType:
+        """Update record."""
+        for field, value in obj_in.items():
+            setattr(db_obj, field, value)
+        self.db.add(db_obj)
+        self.db.commit()
+        self.db.refresh(db_obj)
+        return db_obj
+
+    def delete(self, *, id: UUID) -> Optional[ModelType]:
+        """Delete record."""
+        obj = self.db.query(self.model).get(id)
+        if obj:
+            self.db.delete(obj)
+            self.db.commit()
+        return obj
+
+    def exists(self, db: Session, id: UUID) -> bool:
+        """Check if a record exists."""
         try:
-            query = db.query(self.model)
-
-            # Apply field selection if specified
-            if select_fields:
-                query = query.with_entities(*[getattr(self.model, field) for field in select_fields])
-
-            # Apply eager loading for relationships
-            if include_relations:
-                for relation in include_relations:
-                    query = query.options(selectinload(getattr(self.model, relation)))
-
-            # Apply filters
-            if filters:
-                filter_conditions = []
-                for key, value in filters.items():
-                    if isinstance(value, list):
-                        filter_conditions.append(getattr(self.model, key).in_(value))
-                    else:
-                        filter_conditions.append(getattr(self.model, key) == value)
-                query = query.filter(and_(*filter_conditions))
-
-            # Apply ordering
-            if order_by:
-                for field in order_by:
-                    if field.startswith('-'):
-                        query = query.order_by(getattr(self.model, field[1:]).desc())
-                    else:
-                        query = query.order_by(getattr(self.model, field).asc())
-
-            entities = query.offset(skip).limit(limit).all()
+            cache_key = self._get_cache_key(id)
+            if cache_service.exists(cache_key):
+                return True
             
-            # Cache results if enabled
-            if use_cache:
-                for entity in entities:
-                    self._cache_entity(entity)
-            
-            return entities
-        except Exception as e:
-            self._handle_error(e, "get_multi")
+            return db.query(self.model).filter(self.model.id == id).first() is not None
+        except SQLAlchemyError as e:
+            logger.error(f"Error checking existence of {self.model.__name__}", error=str(e))
+            raise AppException(
+                status_code=500,
+                detail=f"Error checking existence of {self.model.__name__}"
+            )
 
-    def create(self, db: Session, *, obj_in: Dict[str, Any]) -> ModelType:
-        """Create a new record with transaction management."""
+    def count(self, db: Session) -> int:
+        """Get total count of records."""
         try:
-            self._ensure_transaction(db)
-            db_obj = self.model(**obj_in)
-            db.add(db_obj)
-            db.commit()
-            db.refresh(db_obj)
-            
-            # Cache the new entity
-            self._cache_entity(db_obj)
-            
-            return db_obj
+            return db.query(self.model).count()
+        except SQLAlchemyError as e:
+            logger.error(f"Error counting {self.model.__name__}", error=str(e))
+            raise AppException(
+                status_code=500,
+                detail=f"Error counting {self.model.__name__}"
+            )
+
+    def clear_cache(self, id: UUID) -> bool:
+        """Clear cache for a specific record."""
+        try:
+            cache_key = self._get_cache_key(id)
+            return cache_service.delete(cache_key)
         except Exception as e:
-            db.rollback()
-            self._handle_error(e, "create")
+            logger.error(f"Error clearing cache for {self.model.__name__}", error=str(e))
+            return False
 
     def create_multi(self, db: Session, *, objs_in: List[Dict[str, Any]]) -> List[ModelType]:
         """Create multiple records in a single transaction."""
@@ -193,78 +157,22 @@ class BaseRepository(Generic[ModelType]):
             db.rollback()
             self._handle_error(e, "create_multi")
 
-    def update(
-        self,
-        db: Session,
-        *,
-        db_obj: ModelType,
-        obj_in: Dict[str, Any],
-        exclude_fields: List[str] = None
-    ) -> ModelType:
+    def execute_in_transaction(self, db: Session, operation: Callable[[], Any]) -> Any:
         """
-        Update an existing record with transaction management.
+        Execute an operation within a transaction.
         
         Args:
             db: Database session
-            db_obj: Existing database object
-            obj_in: Dictionary of updates
-            exclude_fields: Optional list of fields to exclude from update
+            operation: Callable that performs the database operation
         """
         try:
             self._ensure_transaction(db)
-            exclude_fields = exclude_fields or []
-            for field, value in obj_in.items():
-                if field not in exclude_fields:
-                    setattr(db_obj, field, value)
-            db.add(db_obj)
+            result = operation()
             db.commit()
-            db.refresh(db_obj)
-            
-            # Update cache
-            self._cache_entity(db_obj)
-            
-            return db_obj
+            return result
         except Exception as e:
             db.rollback()
-            self._handle_error(e, "update")
-
-    def delete(self, db: Session, *, id: UUID) -> ModelType:
-        """Delete a record with transaction management."""
-        try:
-            self._ensure_transaction(db)
-            obj = db.query(self.model).get(id)
-            if not obj:
-                raise NotFoundException(f"{self.model.__name__} not found")
-            db.delete(obj)
-            db.commit()
-            
-            # Invalidate cache
-            self._invalidate_cache(id)
-            
-            return obj
-        except Exception as e:
-            db.rollback()
-            self._handle_error(e, "delete")
-
-    def count(self, db: Session, *, filters: Dict[str, Any] = None) -> int:
-        """Count records with optional filtering."""
-        try:
-            query = db.query(func.count(self.model.id))
-            if filters:
-                filter_conditions = []
-                for key, value in filters.items():
-                    if isinstance(value, list):
-                        filter_conditions.append(getattr(self.model, key).in_(value))
-                    else:
-                        filter_conditions.append(getattr(self.model, key) == value)
-                query = query.filter(and_(*filter_conditions))
-            return query.scalar()
-        except Exception as e:
-            self._handle_error(e, "count")
-
-    def exists(self, db: Session, *, filters: Dict[str, Any]) -> bool:
-        """Check if records exist with given filters."""
-        return self.count(db, filters=filters) > 0
+            self._handle_error(e, "execute_in_transaction")
 
     def upsert(self, db: Session, *, obj_in: Dict[str, Any], unique_fields: List[str]) -> ModelType:
         """
@@ -287,23 +195,6 @@ class BaseRepository(Generic[ModelType]):
             db.rollback()
             self._handle_error(e, "upsert")
 
-    def execute_in_transaction(self, db: Session, operation: Callable[[], Any]) -> Any:
-        """
-        Execute an operation within a transaction.
-        
-        Args:
-            db: Database session
-            operation: Callable that performs the database operation
-        """
-        try:
-            self._ensure_transaction(db)
-            result = operation()
-            db.commit()
-            return result
-        except Exception as e:
-            db.rollback()
-            self._handle_error(e, "execute_in_transaction")
-
     def clear_cache(self) -> None:
         """Clear all cached entities for this repository."""
-        cache.clear_namespace(self.cache_namespace) 
+        cache_service.clear_namespace(self.cache_namespace) 

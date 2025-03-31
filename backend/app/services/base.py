@@ -1,282 +1,75 @@
-"""Base service implementation with dependency injection and transaction management."""
-from typing import TypeVar, Generic, Type, Optional, List, Dict, Any
+"""Base service module."""
+from typing import Any, Dict, Generic, List, Optional, Type, TypeVar, Union
 from uuid import UUID
-from fastapi import Depends
+from datetime import datetime
 from sqlalchemy.orm import Session
-from app.core.database import get_db
-from app.core.exceptions import (
-    ValidationError,
-    NotFoundException,
-    AuthorizationError,
-    DatabaseError
-)
+from fastapi.encoders import jsonable_encoder
+
+from app.core.exceptions import AppException, NotFoundException
 from app.core.logging import logger
 from app.repositories.base import BaseRepository
-from app.models.base import BaseModel
+from app.db.base_class import Base
 
-ModelType = TypeVar("ModelType", bound=BaseModel)
+ModelType = TypeVar("ModelType", bound=Base)
 CreateSchemaType = TypeVar("CreateSchemaType")
 UpdateSchemaType = TypeVar("UpdateSchemaType")
-FilterSchemaType = TypeVar("FilterSchemaType")
 
-class BaseService(Generic[ModelType, CreateSchemaType, UpdateSchemaType, FilterSchemaType]):
-    """
-    Base service class with common functionality.
-    
-    Features:
-    - Dependency injection
-    - Transaction management
-    - Error handling
-    - CRUD operations
-    - Event handling
-    - Validation
-    """
-    
-    def __init__(
-        self,
-        repository: Type[BaseRepository],
-        model: Type[ModelType],
-        create_schema: Type[CreateSchemaType],
-        update_schema: Type[UpdateSchemaType],
-        filter_schema: Type[FilterSchemaType]
-    ):
-        """
-        Initialize service with dependencies.
-        
-        Args:
-            repository: Repository class for data access
-            model: Model class for type checking
-            create_schema: Schema for creation validation
-            update_schema: Schema for update validation
-            filter_schema: Schema for filter validation
-        """
+class BaseService(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
+    """Base class for all services."""
+
+    def __init__(self, repository: Type[BaseRepository]):
+        """Initialize service with repository."""
         self.repository = repository()
-        self.model = model
-        self.create_schema = create_schema
-        self.update_schema = update_schema
-        self.filter_schema = filter_schema
 
-    async def _validate_create(self, data: Dict[str, Any]) -> CreateSchemaType:
-        """Validate creation data."""
-        try:
-            return self.create_schema(**data)
-        except Exception as e:
-            logger.error("Validation error in create", exc_info=e)
-            raise ValidationError(str(e))
+    def get(self, db: Session, id: UUID) -> Optional[ModelType]:
+        """Get a record by ID."""
+        obj = self.repository.get(db, id)
+        if not obj:
+            raise NotFoundException(f"{self.repository.model.__name__} not found")
+        return obj
 
-    async def _validate_update(self, data: Dict[str, Any]) -> UpdateSchemaType:
-        """Validate update data."""
-        try:
-            return self.update_schema(**data)
-        except Exception as e:
-            logger.error("Validation error in update", exc_info=e)
-            raise ValidationError(str(e))
-
-    async def _validate_filters(self, filters: Dict[str, Any]) -> FilterSchemaType:
-        """Validate filter parameters."""
-        try:
-            return self.filter_schema(**filters)
-        except Exception as e:
-            logger.error("Validation error in filters", exc_info=e)
-            raise ValidationError(str(e))
-
-    async def _pre_create(self, db: Session, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Pre-create hook for additional processing."""
-        return data
-
-    async def _post_create(self, db: Session, created: ModelType) -> ModelType:
-        """Post-create hook for additional processing."""
-        return created
-
-    async def _pre_update(self, db: Session, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Pre-update hook for additional processing."""
-        return data
-
-    async def _post_update(self, db: Session, updated: ModelType) -> ModelType:
-        """Post-update hook for additional processing."""
-        return updated
-
-    async def _pre_delete(self, db: Session, id: UUID) -> None:
-        """Pre-delete hook for additional processing."""
-        pass
-
-    async def _post_delete(self, db: Session, deleted: ModelType) -> None:
-        """Post-delete hook for additional processing."""
-        pass
-
-    async def create(
+    def get_multi(
         self,
-        db: Session = Depends(get_db),
-        *,
-        data: Dict[str, Any]
-    ) -> ModelType:
-        """
-        Create a new record with validation.
-        
-        Args:
-            db: Database session
-            data: Creation data
-        """
-        try:
-            # Validate input
-            validated_data = await self._validate_create(data)
-            
-            # Pre-create processing
-            processed_data = await self._pre_create(db, validated_data.dict())
-            
-            # Create record
-            created = self.repository.create(db, obj_in=processed_data)
-            
-            # Post-create processing
-            return await self._post_create(db, created)
-        except Exception as e:
-            logger.error("Error in create service", exc_info=e)
-            raise
-
-    async def update(
-        self,
-        db: Session = Depends(get_db),
-        *,
-        id: UUID,
-        data: Dict[str, Any]
-    ) -> ModelType:
-        """
-        Update an existing record with validation.
-        
-        Args:
-            db: Database session
-            id: Record ID
-            data: Update data
-        """
-        try:
-            # Check existence
-            current = self.repository.get(db, id)
-            if not current:
-                raise NotFoundException(f"{self.model.__name__} not found")
-            
-            # Validate input
-            validated_data = await self._validate_update(data)
-            
-            # Pre-update processing
-            processed_data = await self._pre_update(db, validated_data.dict())
-            
-            # Update record
-            updated = self.repository.update(db, db_obj=current, obj_in=processed_data)
-            
-            # Post-update processing
-            return await self._post_update(db, updated)
-        except Exception as e:
-            logger.error("Error in update service", exc_info=e)
-            raise
-
-    async def delete(
-        self,
-        db: Session = Depends(get_db),
-        *,
-        id: UUID
-    ) -> ModelType:
-        """
-        Delete a record.
-        
-        Args:
-            db: Database session
-            id: Record ID
-        """
-        try:
-            # Check existence
-            current = self.repository.get(db, id)
-            if not current:
-                raise NotFoundException(f"{self.model.__name__} not found")
-            
-            # Pre-delete processing
-            await self._pre_delete(db, id)
-            
-            # Delete record
-            deleted = self.repository.delete(db, id=id)
-            
-            # Post-delete processing
-            await self._post_delete(db, deleted)
-            
-            return deleted
-        except Exception as e:
-            logger.error("Error in delete service", exc_info=e)
-            raise
-
-    async def get(
-        self,
-        db: Session = Depends(get_db),
-        *,
-        id: UUID
-    ) -> Optional[ModelType]:
-        """
-        Get a record by ID.
-        
-        Args:
-            db: Database session
-            id: Record ID
-        """
-        try:
-            entity = self.repository.get(db, id)
-            if not entity:
-                raise NotFoundException(f"{self.model.__name__} not found")
-            return entity
-        except Exception as e:
-            logger.error("Error in get service", exc_info=e)
-            raise
-
-    async def get_multi(
-        self,
-        db: Session = Depends(get_db),
+        db: Session,
         *,
         skip: int = 0,
-        limit: int = 100,
-        filters: Optional[Dict[str, Any]] = None
+        limit: int = 100
     ) -> List[ModelType]:
-        """
-        Get multiple records with filtering.
-        
-        Args:
-            db: Database session
-            skip: Number of records to skip
-            limit: Maximum number of records to return
-            filters: Optional filter parameters
-        """
-        try:
-            # Validate filters if provided
-            if filters:
-                validated_filters = await self._validate_filters(filters)
-                filters = validated_filters.dict(exclude_unset=True)
-            
-            return self.repository.get_multi(
-                db,
-                skip=skip,
-                limit=limit,
-                filters=filters
-            )
-        except Exception as e:
-            logger.error("Error in get_multi service", exc_info=e)
-            raise
+        """Get multiple records."""
+        return self.repository.get_multi(db, skip=skip, limit=limit)
 
-    async def count(
+    def create(self, db: Session, *, obj_in: CreateSchemaType) -> ModelType:
+        """Create a new record."""
+        obj_in_data = jsonable_encoder(obj_in)
+        obj_in_data["created_at"] = datetime.utcnow()
+        obj_in_data["updated_at"] = datetime.utcnow()
+        return self.repository.create(db, obj_in=obj_in_data)
+
+    def update(
         self,
-        db: Session = Depends(get_db),
+        db: Session,
         *,
-        filters: Optional[Dict[str, Any]] = None
-    ) -> int:
-        """
-        Count records with filtering.
+        db_obj: ModelType,
+        obj_in: Union[UpdateSchemaType, Dict[str, Any]]
+    ) -> ModelType:
+        """Update a record."""
+        obj_data = jsonable_encoder(db_obj)
+        update_data = obj_in if isinstance(obj_in, dict) else obj_in.dict(exclude_unset=True)
+        update_data["updated_at"] = datetime.utcnow()
         
-        Args:
-            db: Database session
-            filters: Optional filter parameters
-        """
-        try:
-            # Validate filters if provided
-            if filters:
-                validated_filters = await self._validate_filters(filters)
-                filters = validated_filters.dict(exclude_unset=True)
-            
-            return self.repository.count(db, filters=filters)
-        except Exception as e:
-            logger.error("Error in count service", exc_info=e)
-            raise 
+        for field in obj_data:
+            if field in update_data:
+                setattr(db_obj, field, update_data[field])
+        
+        return self.repository.update(db, db_obj=db_obj, obj_in=update_data)
+
+    def delete(self, db: Session, *, id: UUID) -> ModelType:
+        """Delete a record."""
+        obj = self.repository.delete(db, id=id)
+        if not obj:
+            raise NotFoundException(f"{self.repository.model.__name__} not found")
+        return obj
+
+    def exists(self, db: Session, id: UUID) -> bool:
+        """Check if a record exists."""
+        return self.repository.exists(db, id) 
