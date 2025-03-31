@@ -1,10 +1,10 @@
 """Form check models for storing exercise analysis data."""
 from typing import Optional, Dict, Any, List
-from sqlalchemy import Column, Integer, String, DateTime, JSON, ForeignKey, Float, Enum
+from sqlalchemy import Column, Integer, String, DateTime, JSON, ForeignKey, Float, Enum, Text
 from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, validates
-from app.core.database import Base
+from app.models.base import Base
 from app.models.enums import (
     FormCheckStatus,
     FeedbackType,
@@ -13,6 +13,7 @@ from app.models.enums import (
 )
 from app.models.base import BaseModel
 from app.core.exceptions import ValidationError
+import uuid
 
 class FormCheck(BaseModel):
     """
@@ -45,19 +46,17 @@ class FormCheck(BaseModel):
     """
     __tablename__ = "form_checks"
 
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    exercise_type = Column(Enum(ExerciseType), nullable=False)
-    video_url = Column(String(1024), nullable=False)
+    id = Column(UUID(as_uuid=True), primary_key=True, index=True)
+    video_url = Column(String, nullable=False)
+    exercise_id = Column(UUID(as_uuid=True), ForeignKey("exercise_templates.id"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    feedback = Column(String)
+    score = Column(Float)
+    keypoints = Column(JSON)
+    status = Column(String, default="pending")
     analysis_url = Column(String(1024), nullable=True)
-    score = Column(Float, nullable=True)
     overall_feedback = Column(String(2048), nullable=True)
     issues = Column(JSON, nullable=True)
-    status = Column(
-        Enum(FormCheckStatus),
-        default=FormCheckStatus.PENDING,
-        nullable=False
-    )
     processing_time = Column(Float, nullable=True)
     confidence_score = Column(Float, nullable=True)
     form_metadata = Column(JSON, nullable=True)
@@ -65,6 +64,11 @@ class FormCheck(BaseModel):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
+    exercise = relationship(
+        "ExerciseTemplate",
+        back_populates="form_checks",
+        lazy="select"
+    )
     user = relationship(
         "User",
         back_populates="form_checks",

@@ -1,166 +1,195 @@
-"""User endpoints."""
+"""Users router module."""
 from typing import Any, List
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from app.api.deps import get_db, get_current_user
+
+from app.api import deps
 from app.models.user import User
-from app.schemas.user import UserCreate, UserUpdate, UserResponse
+from app.schemas.user import User as UserSchema, UserCreate, UserUpdate
 from app.services.user_service import UserService
-from app.core.utils import stripe as stripe_utils
-from app.core.utils.email import generate_verification_token, send_verification_email, send_password_reset_email
-from app.core.logging import logger
 
 router = APIRouter()
 
-@router.post("/", response_model=UserResponse)
-async def create_user(
-    user: UserCreate,
-    db: Session = Depends(get_db)
-):
-    """Create new user."""
-    user_service = UserService(db)
-    return user_service.create_user(user)
 
-@router.get("/me", response_model=UserResponse)
-async def read_users_me(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Get current user."""
-    user_service = UserService(db)
-    return user_service.get_user(current_user.id)
+@router.get("/me", response_model=UserSchema)
+def read_user_me(
+    current_user: User = Depends(deps.get_current_user),
+) -> Any:
+    """Get current user.
 
-@router.put("/me", response_model=UserResponse)
-async def update_user_me(
-    user_update: UserUpdate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Update current user."""
-    user_service = UserService(db)
-    return user_service.update_user(current_user.id, user_update)
+    Args:
+        current_user: Current user
 
-@router.delete("/me")
-async def delete_user_me(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Delete current user."""
-    user_service = UserService(db)
-    user_service.delete_user(current_user.id)
-    return {"message": "User deleted successfully"}
+    Returns:
+        Current user
+    """
+    return current_user
 
-@router.post("/verify-email")
-async def verify_email(
-    token: str,
-    db: Session = Depends(get_db)
-):
-    """Verify user email."""
-    user_service = UserService(db)
-    return user_service.verify_email(token)
 
-@router.post("/resend-verification")
-async def resend_verification(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Resend verification email."""
-    user_service = UserService(db)
-    return user_service.resend_verification_email(current_user)
+@router.get("/", response_model=List[UserSchema])
+def read_users(
+    db: Session = Depends(deps.get_db),
+    skip: int = 0,
+    limit: int = 100,
+    current_user: User = Depends(deps.get_current_active_user),
+    user_service: UserService = Depends(deps.get_user_service),
+) -> Any:
+    """Get users.
 
-@router.post("/forgot-password")
-async def forgot_password(
-    email: str,
-    db: Session = Depends(get_db)
-):
-    """Send password reset email."""
-    user_service = UserService(db)
-    return user_service.send_password_reset_email(email)
+    Args:
+        db: Database session
+        skip: Number of records to skip
+        limit: Maximum number of records to return
+        current_user: Current user
+        user_service: User service instance
 
-@router.post("/reset-password")
-async def reset_password(
-    token: str,
-    new_password: str,
-    db: Session = Depends(get_db)
-):
-    """Reset user password."""
-    user_service = UserService(db)
-    return user_service.reset_password(token, new_password)
+    Returns:
+        List of users
+    """
+    return user_service.get_all()
 
-@router.post("/change-password")
-async def change_password(
-    current_password: str,
-    new_password: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Change user password."""
-    user_service = UserService(db)
-    return user_service.change_password(current_user.id, current_password, new_password)
 
-@router.get("/subscription")
-async def get_subscription(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Get user subscription."""
-    user_service = UserService(db)
-    return user_service.get_subscription(current_user.id)
+@router.post("/", response_model=UserSchema)
+def create_user(
+    *,
+    db: Session = Depends(deps.get_db),
+    user_in: UserCreate,
+    current_user: User = Depends(deps.get_current_active_user),
+    user_service: UserService = Depends(deps.get_user_service),
+) -> Any:
+    """Create user.
 
-@router.post("/subscription")
-async def create_subscription(
-    price_id: str,
-    payment_method_id: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Create user subscription."""
-    user_service = UserService(db)
-    return user_service.create_subscription(current_user.id, price_id, payment_method_id)
+    Args:
+        db: Database session
+        user_in: User create schema
+        current_user: Current user
+        user_service: User service instance
 
-@router.delete("/subscription")
-async def cancel_subscription(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Cancel user subscription."""
-    user_service = UserService(db)
-    return user_service.cancel_subscription(current_user.id)
+    Returns:
+        Created user
 
-@router.post("/subscribe")
-async def create_subscription(
-    request: Request,
-    tier: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Create a subscription for the current user."""
-    try:
-        # Get price ID for the tier
-        price_id = stripe_utils.SUBSCRIPTION_PRICES.get(tier)
-        if not price_id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid subscription tier"
-            )
-        
-        # Create checkout session
-        success_url = f"{request.headers.get('origin')}/subscription/success"
-        cancel_url = f"{request.headers.get('origin')}/subscription/cancel"
-        
-        session = await stripe_utils.create_checkout_session(
-            user=current_user,
-            db=db,
-            price_id=price_id,
-            success_url=success_url,
-            cancel_url=cancel_url
-        )
-        
-        return session
-        
-    except Exception as e:
-        logger.error(f"Failed to create subscription for user {current_user.id}: {str(e)}")
+    Raises:
+        HTTPException: If user with the same email already exists
+    """
+    user = user_service.get_by_email(user_in.email)
+    if user:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create subscription"
-        ) 
+            status_code=400,
+            detail="The user with this email already exists in the system.",
+        )
+    return user_service.create(user_in)
+
+
+@router.put("/me", response_model=UserSchema)
+def update_user_me(
+    *,
+    db: Session = Depends(deps.get_db),
+    user_in: UserUpdate,
+    current_user: User = Depends(deps.get_current_active_user),
+    user_service: UserService = Depends(deps.get_user_service),
+) -> Any:
+    """Update current user.
+
+    Args:
+        db: Database session
+        user_in: User update schema
+        current_user: Current user
+        user_service: User service instance
+
+    Returns:
+        Updated user
+    """
+    return user_service.update(current_user, user_in)
+
+
+@router.get("/{user_id}", response_model=UserSchema)
+def read_user_by_id(
+    user_id: int,
+    current_user: User = Depends(deps.get_current_active_user),
+    user_service: UserService = Depends(deps.get_user_service),
+) -> Any:
+    """Get user by ID.
+
+    Args:
+        user_id: User ID
+        current_user: Current user
+        user_service: User service instance
+
+    Returns:
+        User
+
+    Raises:
+        HTTPException: If user not found
+    """
+    user = user_service.get_by_id(user_id)
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail="The user with this id does not exist in the system",
+        )
+    return user
+
+
+@router.put("/{user_id}", response_model=UserSchema)
+def update_user(
+    *,
+    db: Session = Depends(deps.get_db),
+    user_id: int,
+    user_in: UserUpdate,
+    current_user: User = Depends(deps.get_current_active_user),
+    user_service: UserService = Depends(deps.get_user_service),
+) -> Any:
+    """Update user.
+
+    Args:
+        db: Database session
+        user_id: User ID
+        user_in: User update schema
+        current_user: Current user
+        user_service: User service instance
+
+    Returns:
+        Updated user
+
+    Raises:
+        HTTPException: If user not found
+    """
+    user = user_service.get_by_id(user_id)
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail="The user with this id does not exist in the system",
+        )
+    return user_service.update(user, user_in)
+
+
+@router.delete("/{user_id}", response_model=UserSchema)
+def delete_user(
+    *,
+    db: Session = Depends(deps.get_db),
+    user_id: int,
+    current_user: User = Depends(deps.get_current_active_user),
+    user_service: UserService = Depends(deps.get_user_service),
+) -> Any:
+    """Delete user.
+
+    Args:
+        db: Database session
+        user_id: User ID
+        current_user: Current user
+        user_service: User service instance
+
+    Returns:
+        Deleted user
+
+    Raises:
+        HTTPException: If user not found
+    """
+    user = user_service.get_by_id(user_id)
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail="The user with this id does not exist in the system",
+        )
+    return user_service.delete(user) 

@@ -1,3 +1,4 @@
+"""Security module."""
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional, Union
 from jose import jwt, JWTError
@@ -6,43 +7,44 @@ from app.core.config import settings
 from app.core.logging import logger
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
+from uuid import UUID
 
 # Password hashing context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-# Token related functions
-def create_access_token(user_id: int) -> str:
-    """Create access token."""
-    to_encode = {
-        "sub": str(user_id),
-        "exp": datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    }
-    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+ALGORITHM = "HS256"
 
-def create_refresh_token(user_id: int) -> str:
+# Token related functions
+def create_access_token(subject: Union[str, Any]) -> str:
+    """Create access token."""
+    expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode = {"exp": expire, "sub": str(subject)}
+    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+def create_refresh_token(subject: Union[str, Any]) -> str:
     """Create refresh token."""
-    to_encode = {
-        "sub": str(user_id),
-        "exp": datetime.utcnow() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
-    }
-    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    expire = datetime.utcnow() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    to_encode = {"exp": expire, "sub": str(subject)}
+    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
 
 def verify_token(token: str) -> Optional[int]:
     """Verify token and return user ID."""
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
         return int(payload["sub"])
     except JWTError:
         return None
 
 # Password related functions
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify a password against its hash."""
+    """Verify password."""
     return pwd_context.verify(plain_password, hashed_password)
 
 def get_password_hash(password: str) -> str:
-    """Generate password hash."""
+    """Get password hash."""
     return pwd_context.hash(password)
 
 # Security utility functions
@@ -83,7 +85,7 @@ def generate_password_reset_token(email: str) -> str:
     expires = datetime.utcnow() + timedelta(hours=24)
     to_encode = {"exp": expires, "sub": email, "type": "reset"}
     return jwt.encode(
-        to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM
+        to_encode, settings.SECRET_KEY, algorithm=ALGORITHM
     )
 
 def verify_password_reset_token(token: str) -> Optional[str]:
@@ -98,7 +100,7 @@ def verify_password_reset_token(token: str) -> Optional[str]:
     """
     try:
         payload = jwt.decode(
-            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+            token, settings.SECRET_KEY, algorithms=[ALGORITHM]
         )
         if payload.get("type") != "reset":
             return None
@@ -109,7 +111,7 @@ def verify_password_reset_token(token: str) -> Optional[str]:
 def decode_access_token(token: str) -> dict:
     """Decode and verify an access token."""
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
         return payload
     except JWTError:
         raise HTTPException(

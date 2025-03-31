@@ -16,7 +16,7 @@ from app.core.security import (
 )
 from app.models.user import User
 from app.core.config import settings
-from app.core.auth import get_current_user, authenticate_user
+from app.core.auth import AuthService
 
 # Test database setup
 SQLALCHEMY_TEST_DATABASE_URL = "sqlite:///./test.db"
@@ -129,16 +129,16 @@ def test_user_with_password():
 
 def test_authenticate_user(test_user_with_password):
     db = next(get_db())
-    user = authenticate_user(db, "test@example.com", "testpassword")
+    user = AuthService.authenticate_user(db, "test@example.com", "testpassword")
     assert user is not None
     assert user.email == "test@example.com"
 
     # Test with wrong password
-    user = authenticate_user(db, "test@example.com", "wrongpassword")
+    user = AuthService.authenticate_user(db, "test@example.com", "wrongpassword")
     assert user is None
 
     # Test with non-existent user
-    user = authenticate_user(db, "nonexistent@example.com", "testpassword")
+    user = AuthService.authenticate_user(db, "nonexistent@example.com", "testpassword")
     assert user is None
 
     db.close()
@@ -147,44 +147,44 @@ def test_get_current_user(test_user_with_password):
     db = next(get_db())
     
     # Create valid token
-    token = create_access_token(
-        {"sub": str(test_user_with_password.id), "email": test_user_with_password.email}
+    token = AuthService.create_access_token(
+        str(test_user_with_password.id)
     )
     
     # Test with valid token
-    user = get_current_user(db, token)
+    user = AuthService.get_current_user(db, token)
     assert user is not None
     assert user.email == test_user_with_password.email
 
     # Test with invalid token
     with pytest.raises(HTTPException) as exc_info:
-        get_current_user(db, "invalid_token")
+        AuthService.get_current_user(db, "invalid_token")
     assert exc_info.value.status_code == 401
 
     # Test with non-existent user
-    token = create_access_token({"sub": "999", "email": "nonexistent@example.com"})
+    token = AuthService.create_access_token("999")
     with pytest.raises(HTTPException) as exc_info:
-        get_current_user(db, token)
+        AuthService.get_current_user(db, token)
     assert exc_info.value.status_code == 404
 
     db.close()
 
 def test_token_without_sub():
-    token = create_access_token({"email": "test@example.com"})  # Missing sub
+    token = AuthService.create_access_token("")  # Empty subject
     db = next(get_db())
     
     with pytest.raises(HTTPException) as exc_info:
-        get_current_user(db, token)
+        AuthService.get_current_user(db, token)
     assert exc_info.value.status_code == 401
     
     db.close()
 
 def test_token_without_email():
-    token = create_access_token({"sub": "1"})  # Missing email
+    token = AuthService.create_access_token("1")
     db = next(get_db())
     
     with pytest.raises(HTTPException) as exc_info:
-        get_current_user(db, token)
+        AuthService.get_current_user(db, token)
     assert exc_info.value.status_code == 401
     
     db.close()
@@ -219,7 +219,7 @@ def test_subscription_validation(test_user_with_password):
     
     # Test access with expired subscription
     with pytest.raises(HTTPException) as exc_info:
-        get_current_user(db, token, required_subscription="pro")
+        AuthService.get_current_user(db, token, required_subscription="pro")
     assert exc_info.value.status_code == 403
     
     db.close()
@@ -238,7 +238,67 @@ def test_email_verification(test_user_with_password):
     
     # Test access with unverified email
     with pytest.raises(HTTPException) as exc_info:
-        get_current_user(db, token, require_verification=True)
+        AuthService.get_current_user(db, token, require_verification=True)
     assert exc_info.value.status_code == 403
     
-    db.close() 
+    db.close()
+
+def test_login(client: TestClient) -> None:
+    """Test login endpoint."""
+    response = client.post(
+        f"{settings.API_V1_STR}/auth/login",
+        data={"username": "test@example.com", "password": "test123"}
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert "access_token" in data
+    assert "refresh_token" in data
+    assert data["token_type"] == "bearer"
+
+
+def test_login_incorrect_password(client: TestClient) -> None:
+    """Test login with incorrect password."""
+    response = client.post(
+        f"{settings.API_V1_STR}/auth/login",
+        data={"username": "test@example.com", "password": "wrong"}
+    )
+    assert response.status_code == 401
+
+
+def test_login_inactive_user(client: TestClient) -> None:
+    """Test login with inactive user."""
+    response = client.post(
+        f"{settings.API_V1_STR}/auth/login",
+        data={"username": "inactive@example.com", "password": "test123"}
+    )
+    assert response.status_code == 400
+
+
+def test_refresh_token(client: TestClient) -> None:
+    """Test refresh token endpoint."""
+    # First login to get refresh token
+    login_response = client.post(
+        f"{settings.API_V1_STR}/auth/login",
+        data={"username": "test@example.com", "password": "test123"}
+    )
+    refresh_token = login_response.json()["refresh_token"]
+
+    # Then refresh the token
+    response = client.post(
+        f"{settings.API_V1_STR}/auth/refresh",
+        headers={"Authorization": f"Bearer {refresh_token}"}
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert "access_token" in data
+    assert "refresh_token" in data
+    assert data["token_type"] == "bearer"
+
+
+def test_refresh_token_invalid(client: TestClient) -> None:
+    """Test refresh token with invalid token."""
+    response = client.post(
+        f"{settings.API_V1_STR}/auth/refresh",
+        headers={"Authorization": "Bearer invalid_token"}
+    )
+    assert response.status_code == 401 

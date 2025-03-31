@@ -7,6 +7,8 @@ from typing import List, Dict, Any, Optional, Tuple
 from pathlib import Path
 import json
 import mediapipe as mp
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from app.core.exceptions import ServiceError
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -37,6 +39,7 @@ class AIService:
                 min_detection_confidence=0.5,
                 min_tracking_confidence=0.5
             )
+            self.executor = ThreadPoolExecutor(max_workers=4)
             logger.info("AI Service initialized successfully")
         except Exception as e:
             logger.error(f"Failed to initialize AI Service: {str(e)}")
@@ -60,9 +63,9 @@ class AIService:
             logger.error(f"Failed to load models: {str(e)}")
             raise AIServiceError(f"Model loading failed: {str(e)}")
 
-    def analyze_form(self, video: List[np.ndarray], exercise_type: ExerciseType) -> Dict[str, Any]:
+    async def analyze_form(self, video: List[np.ndarray], exercise_type: ExerciseType) -> Dict[str, Any]:
         """
-        Analyze exercise form in a video.
+        Analyze exercise form in a video asynchronously.
         
         Args:
             video: List of video frames as numpy arrays
@@ -75,31 +78,56 @@ class AIService:
             # Validate inputs
             if not isinstance(exercise_type, ExerciseType):
                 raise AIServiceError(f"Invalid exercise type: {exercise_type}")
-            self._validate_video_duration(video)
+            await self._validate_video_duration(video)
             
-            # Process video
-            frames = self._extract_frames(video)
-            landmarks_sequence = []
+            # Process video in thread pool
+            frames = await asyncio.get_event_loop().run_in_executor(
+                self.executor, self._extract_frames, video
+            )
             
-            for frame in frames:
-                landmarks = self._extract_pose_landmarks(frame)
+            # Extract landmarks in parallel
+            landmarks_tasks = [
+                asyncio.get_event_loop().run_in_executor(
+                    self.executor, self._extract_pose_landmarks, frame
+                )
+                for frame in frames
+            ]
+            landmarks_sequence = await asyncio.gather(*landmarks_tasks)
+            
+            # Validate landmarks
+            for landmarks in landmarks_sequence:
                 if not self._validate_landmarks_confidence(landmarks):
                     raise AIServiceError("Low confidence in pose detection")
-                landmarks_sequence.append(landmarks)
             
             # Analyze pose sequence
-            analysis = self._analyze_pose_sequence(landmarks_sequence, exercise_type)
+            analysis = await asyncio.get_event_loop().run_in_executor(
+                self.executor,
+                self._analyze_pose_sequence,
+                landmarks_sequence,
+                exercise_type
+            )
             
             # Generate feedback
-            feedback = self._generate_feedback(analysis, exercise_type)
+            feedback = await asyncio.get_event_loop().run_in_executor(
+                self.executor,
+                self._generate_feedback,
+                analysis,
+                exercise_type
+            )
             
             # Detect exercise phases
-            phases = self._detect_exercise_phases(landmarks_sequence, exercise_type)
+            phases = await asyncio.get_event_loop().run_in_executor(
+                self.executor,
+                self._detect_exercise_phases,
+                landmarks_sequence,
+                exercise_type
+            )
             
             return {
                 "score": analysis["score"],
-                "overall_feedback": feedback,
-                "issues": analysis["issues"],
+                "feedback": feedback,
+                "keypoints": analysis["issues"],
+                "suggestions": self._generate_suggestions(analysis["issues"], exercise_type),
                 "phases": phases
             }
             
@@ -251,11 +279,15 @@ class AIService:
             logger.error(f"Joint angle calculation failed: {str(e)}")
             raise AIServiceError(f"Joint angle calculation failed: {str(e)}")
 
-    def _validate_video_duration(self, video: List[np.ndarray]) -> None:
-        """Validate video duration is within acceptable limits."""
-        max_frames = settings.MAX_VIDEO_FRAMES
-        if len(video) > max_frames:
-            raise AIServiceError(f"Video too long. Maximum {max_frames} frames allowed.")
+    async def _validate_video_duration(self, video: List[np.ndarray]) -> None:
+        """Validate video duration."""
+        try:
+            duration = len(video) / settings.FPS
+            if duration > settings.MAX_VIDEO_DURATION:
+                raise AIServiceError(f"Video duration exceeds maximum limit of {settings.MAX_VIDEO_DURATION} seconds")
+        except Exception as e:
+            logger.error(f"Video duration validation failed: {str(e)}")
+            raise AIServiceError(f"Video duration validation failed: {str(e)}")
 
     def _validate_landmarks_confidence(self, landmarks: List[Dict[str, float]]) -> bool:
         """Check if pose landmarks have sufficient confidence."""
@@ -318,4 +350,20 @@ class AIService:
                 "bar_path": 0.7,
                 "hip_height": 0.6
             }
-        return {} 
+        return {}
+
+    def _generate_suggestions(self, issues: List[Dict[str, Any]], exercise_type: ExerciseType) -> List[str]:
+        """Generate improvement suggestions based on detected issues."""
+        suggestions = []
+        for issue in issues:
+            if issue["severity"] == "high":
+                suggestions.append(f"Focus on {issue['description']} to improve your form.")
+            elif issue["severity"] == "medium":
+                suggestions.append(f"Consider adjusting {issue['description']} for better form.")
+        return suggestions
+
+    def _get_issue_feedback(self, issue: Dict[str, Any], exercise_type: ExerciseType) -> str:
+        """Generate human-readable feedback for a specific issue."""
+        # Implementation of this method depends on the specific issue
+        # This is a placeholder and should be implemented based on your requirements
+        return "" 

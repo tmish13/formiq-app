@@ -24,6 +24,8 @@ from app.schemas.form_check import (
 )
 from app.services.form_check_service import FormCheckService
 from app.core.logging import logger
+from app.core.validators import validate_video_file
+from app.core.config import settings
 
 router = APIRouter()
 
@@ -41,6 +43,16 @@ async def submit_form_check(
     await check_subscription_tier(SubscriptionTier.BASIC, db, current_user)
     
     try:
+        # Read video content
+        content = await video.read()
+        
+        # Validate video file
+        validate_video_file(
+            content=content,
+            filename=video.filename,
+            max_size_mb=settings.MAX_VIDEO_SIZE_MB
+        )
+        
         form_check_service = FormCheckService()
         return await form_check_service.submit_form_check(
             db,
@@ -49,8 +61,29 @@ async def submit_form_check(
             exercise_type=exercise_type,
             notes=notes
         )
+    except ValidationException as e:
+        logger.warning(
+            "Video validation failed",
+            extra={
+                "user_id": current_user.id,
+                "filename": video.filename,
+                "error": str(e)
+            }
+        )
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e)
+        )
     except Exception as e:
-        logger.error("Error submitting form check", exc_info=e)
+        logger.error(
+            "Error submitting form check",
+            extra={
+                "user_id": current_user.id,
+                "filename": video.filename,
+                "error": str(e)
+            },
+            exc_info=e
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)

@@ -1,7 +1,7 @@
 import pytest
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
-from app.middleware.error_handler import ErrorHandler
+from app.middleware.error_handler import ErrorHandlerMiddleware
 from app.core.exceptions import AppException, NotFoundError, ValidationError
 import logging
 
@@ -9,7 +9,7 @@ import logging
 app = FastAPI()
 
 # Add error handler middleware
-app.add_middleware(ErrorHandler)
+app.add_middleware(ErrorHandlerMiddleware)
 
 # Test endpoints
 @app.get("/test-success")
@@ -185,7 +185,7 @@ def test_error_handler_order():
     test_app = FastAPI()
     
     # Add our error handler first
-    test_app.add_middleware(ErrorHandler)
+    test_app.add_middleware(ErrorHandlerMiddleware)
     
     @test_app.get("/test-error")
     async def test_error():
@@ -196,7 +196,7 @@ def test_error_handler_order():
     
     # Our error handler should process the error first
     assert response.status_code == 400
-    assert "request_id" in response.json()
+    assert response.json()["detail"] == "Test error"
 
 def test_large_error_message(caplog):
     """Test handling of errors with large messages"""

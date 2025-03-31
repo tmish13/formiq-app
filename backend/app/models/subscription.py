@@ -6,60 +6,48 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, validates
 from app.models.base import BaseModel
 from app.core.exceptions import ValidationError
-
-class SubscriptionTier(str, Enum):
-    """Subscription tiers available in the application."""
-    FREE = "free"
-    BASIC = "basic"
-    PRO = "pro"
-    ENTERPRISE = "enterprise"
+from app.models.enums import SubscriptionTier
 
 class Subscription(BaseModel):
     """
     Subscription model for tracking user subscriptions.
     
     This model handles:
-    - Subscription tier management
-    - Stripe integration
-    - Trial periods
-    - Subscription status
+    - Subscription details
+    - Payment information
+    - Subscription history
     
     Relationships:
     - Many-to-one with User
     
     Attributes:
-        user_id (UUID): ID of the subscribed user
+        user_id (UUID): ID of the user this subscription belongs to
         tier (SubscriptionTier): Subscription tier level
+        start_date (datetime): When subscription started
+        end_date (datetime): When subscription ends/ended
         stripe_subscription_id (str): Stripe subscription identifier
         stripe_customer_id (str): Stripe customer identifier
-        status (str): Current subscription status
-        current_period_start (datetime): Start of current billing period
-        current_period_end (datetime): End of current billing period
-        cancel_at_period_end (bool): Whether to cancel at period end
-        canceled_at (datetime): When subscription was canceled
-        trial_start (datetime): Start of trial period
-        trial_end (datetime): End of trial period
+        status (str): Current status of subscription
+        cancel_at_period_end (bool): Whether subscription will cancel at period end
     """
     __tablename__ = "subscriptions"
 
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    id = Column(UUID(as_uuid=True), primary_key=True, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     tier = Column(SQLEnum(SubscriptionTier), nullable=False)
-    stripe_subscription_id = Column(String(255), unique=True)
-    stripe_customer_id = Column(String(255), nullable=False)
-    status = Column(String(50), nullable=False)
-    current_period_start = Column(DateTime(timezone=True))
-    current_period_end = Column(DateTime(timezone=True))
-    cancel_at_period_end = Column(Boolean, default=False, nullable=False)
-    canceled_at = Column(DateTime(timezone=True))
-    trial_start = Column(DateTime(timezone=True))
-    trial_end = Column(DateTime(timezone=True))
+    start_date = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    end_date = Column(DateTime(timezone=True), nullable=True)
+    stripe_subscription_id = Column(String(255), unique=True, nullable=True)
+    stripe_customer_id = Column(String(255), nullable=True)
+    status = Column(String(50), nullable=False, default="active")
+    cancel_at_period_end = Column(String(50), nullable=False, default=False)
 
     # Relationships
-    user = relationship(
-        "User",
-        back_populates="subscriptions",
-        lazy="select"
-    )
+    user = relationship("User", back_populates="subscriptions")
+
+    def __repr__(self) -> str:
+        """String representation of the subscription."""
+        return f"<Subscription {self.id} - {self.tier} - {self.status}>"
 
     @validates('status')
     def validate_status(self, key: str, status: str) -> str:
@@ -125,7 +113,7 @@ class Subscription(BaseModel):
 
         return value
 
-    @validates('current_period_start', 'current_period_end', 'trial_start', 'trial_end')
+    @validates('start_date', 'end_date')
     def validate_dates(self, key: str, value: Optional[datetime]) -> Optional[datetime]:
         """
         Validate subscription dates.
@@ -145,16 +133,12 @@ class Subscription(BaseModel):
 
         now = datetime.utcnow()
         
-        if key in ['current_period_start', 'trial_start'] and value > now:
+        if key == 'start_date' and value > now:
             raise ValidationError(f"{key} cannot be in the future")
             
-        if key == 'current_period_end':
-            if self.current_period_start and value <= self.current_period_start:
-                raise ValidationError("Period end must be after period start")
-                
-        if key == 'trial_end':
-            if self.trial_start and value <= self.trial_start:
-                raise ValidationError("Trial end must be after trial start")
+        if key == 'end_date':
+            if self.start_date and value <= self.start_date:
+                raise ValidationError("End date must be after start date")
 
         return value
 
@@ -172,11 +156,7 @@ class Subscription(BaseModel):
             self.validate_stripe_id('stripe_subscription_id', self.stripe_subscription_id)
         
         # Validate dates if set
-        if self.current_period_start:
-            self.validate_dates('current_period_start', self.current_period_start)
-        if self.current_period_end:
-            self.validate_dates('current_period_end', self.current_period_end)
-        if self.trial_start:
-            self.validate_dates('trial_start', self.trial_start)
-        if self.trial_end:
-            self.validate_dates('trial_end', self.trial_end) 
+        if self.start_date:
+            self.validate_dates('start_date', self.start_date)
+        if self.end_date:
+            self.validate_dates('end_date', self.end_date) 

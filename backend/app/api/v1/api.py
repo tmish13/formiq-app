@@ -1,52 +1,13 @@
-"""API v1 router configuration."""
+"""API router module."""
 from fastapi import APIRouter
-from app.api.v1.endpoints import (
-    auth,
-    users,
-    form_checks,
-    subscriptions,
-    workouts,
-    health
-)
 
-# Create v1 router
-api_router = APIRouter(prefix="/v1")
+from app.api.v1.endpoints import auth, users, exercises, form_check
 
-# Include all endpoint routers
-api_router.include_router(
-    auth.router,
-    prefix="/auth",
-    tags=["Authentication"]
-)
+api_router = APIRouter()
 
-api_router.include_router(
-    users.router,
-    prefix="/users",
-    tags=["Users"]
-)
-
-api_router.include_router(
-    form_checks.router,
-    prefix="/form-checks",
-    tags=["Form Checks"]
-)
-
-api_router.include_router(
-    subscriptions.router,
-    prefix="/subscriptions",
-    tags=["Subscriptions"]
-)
-
-api_router.include_router(
-    workouts.router,
-    prefix="/workouts",
-    tags=["Workouts"]
-)
-
-api_router.include_router(
-    health.router,
-    prefix="/health",
-    tags=["Health"]
-)
+api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
+api_router.include_router(users.router, prefix="/users", tags=["users"])
+api_router.include_router(exercises.router, prefix="/exercises", tags=["exercises"])
+api_router.include_router(form_check.router, prefix="/form-checks", tags=["form-checks"])
 
 __all__ = ["api_router"] 

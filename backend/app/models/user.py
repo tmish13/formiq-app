@@ -25,6 +25,7 @@ class User(BaseModel):
     Relationships:
     - One-to-many with FormCheck
     - One-to-many with Subscription
+    - One-to-many with Workout
     
     Attributes:
         email (str): User's email address (unique)
@@ -37,14 +38,17 @@ class User(BaseModel):
         stripe_subscription_id (str): Stripe subscription identifier
         is_email_verified (bool): Whether email is verified
         verification_token (str): Token for email verification
+        is_verified (bool): Whether the user is verified
+        is_superuser (bool): Whether the user is a superuser
     """
     __tablename__ = "users"
 
-    # Profile fields
-    email = Column(String(255), unique=True, index=True, nullable=False)
-    username = Column(String(50), unique=True, index=True, nullable=False)
-    hashed_password = Column(String(255), nullable=False)
-    is_active = Column(Boolean, default=True, nullable=False)
+    id = Column(UUID(as_uuid=True), primary_key=True, index=True)
+    email = Column(String, unique=True, index=True, nullable=False)
+    username = Column(String, unique=True, index=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
+    full_name = Column(String)
+    is_active = Column(Boolean, default=True)
     
     # Subscription fields
     subscription_tier = Column(
@@ -59,16 +63,25 @@ class User(BaseModel):
     # Verification fields
     is_email_verified = Column(Boolean, default=False, nullable=False)
     verification_token = Column(String(255), nullable=True)
+    is_verified = Column(Boolean, default=False, nullable=False)
+    is_superuser = Column(Boolean, default=False, nullable=False)
 
     # Relationships
-    form_checks = relationship(
-        "FormCheck",
+    form_checks = relationship("FormCheck", back_populates="user")
+    subscriptions = relationship(
+        "Subscription",
         back_populates="user",
         cascade="all, delete-orphan",
         lazy="select"
     )
-    subscriptions = relationship(
-        "Subscription",
+    workouts = relationship(
+        "Workout",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        lazy="select"
+    )
+    workout_plans = relationship(
+        "WorkoutPlan",
         back_populates="user",
         cascade="all, delete-orphan",
         lazy="select"
@@ -111,18 +124,23 @@ class User(BaseModel):
             str: Validated username
             
         Raises:
-            ValidationError: If username format is invalid
+            ValidationError: If username is invalid
         """
         if not username:
-            raise ValidationError("Username is required")
-        
-        if not 3 <= len(username) <= 50:
-            raise ValidationError("Username must be between 3 and 50 characters")
-        
-        username_pattern = re.compile(r'^[a-zA-Z0-9_-]+$')
-        if not username_pattern.match(username):
-            raise ValidationError("Username can only contain letters, numbers, underscores, and hyphens")
-        
+            raise ValidationError("Username cannot be empty")
+            
+        if len(username) < 3:
+            raise ValidationError("Username must be at least 3 characters long")
+            
+        if len(username) > 30:
+            raise ValidationError("Username cannot exceed 30 characters")
+            
+        # Only allow alphanumeric characters, underscores, and hyphens
+        if not re.match(r'^[a-zA-Z0-9_-]+$', username):
+            raise ValidationError(
+                "Username can only contain letters, numbers, underscores, and hyphens"
+            )
+            
         return username.lower()
 
     def verify_password(self, password: str) -> bool:

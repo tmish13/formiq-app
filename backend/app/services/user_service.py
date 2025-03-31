@@ -1,261 +1,188 @@
-"""User service for authentication and user management."""
-from typing import Optional, List, Dict, Any
+"""User service module."""
+from typing import Optional, List
 from uuid import UUID
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from fastapi import Depends
+from jose import jwt
 
-from app.core.database import get_db
+from app.core.config import settings
 from app.core.security import (
     get_password_hash,
     verify_password,
     create_access_token,
     create_refresh_token
 )
-from app.core.config import settings
 from app.core.exceptions import (
-    AuthenticationError,
-    AuthorizationError,
-    ValidationError,
-    NotFoundException,
-    UserAlreadyExists,
-    InvalidCredentials
+    AuthenticationException,
+    ValidationException,
+    NotFoundException
 )
-from app.models.user import User
+from app.repositories.user_repository import UserRepository
 from app.schemas.user import (
     UserCreate,
     UserUpdate,
+    User,
     UserFilter,
-    UserResponse,
-    TokenResponse
+    UserInDB
 )
-from app.repositories.user_repository import UserRepository
-from app.services.base import BaseService
-from app.core.email import send_email
-from app.core.logging import logger
+from app.schemas.token import Token
 
-class UserService(BaseService[User, UserCreate, UserUpdate, UserFilter]):
-    """
-    User service with authentication and authorization.
-    
-    Features:
-    - User registration and verification
-    - Authentication and token management
-    - Password reset and update
-    - User profile management
-    - Role-based authorization
-    """
-    
-    def __init__(self):
-        super().__init__(
-            repository=UserRepository,
-            model=User,
-            create_schema=UserCreate,
-            update_schema=UserUpdate,
-            filter_schema=UserFilter
-        )
+class UserService:
+    """User service class."""
 
-    async def register(self, db: Session, data: dict) -> User:
-        """Register a new user."""
-        # Check if user exists
-        if await self.get_by_email(db, data["email"]):
-            raise UserAlreadyExists("Email already registered")
+    def __init__(self, db: Session):
+        """Initialize user service.
 
-        # Create user
+        Args:
+            db: Database session
+        """
+        self.repository = UserRepository(db)
+
+    def get(self, db: Session, user_id: UUID) -> Optional[User]:
+        """Get a user by ID."""
+        user = self.repository.get(db, user_id)
+        if not user:
+            raise NotFoundException("User not found")
+        return User.from_orm(user)
+
+    def get_by_email(self, email: str) -> Optional[User]:
+        """Get user by email.
+
+        Args:
+            email: User email
+
+        Returns:
+            User if found, None otherwise
+        """
+        return self.repository.get_by_email(email)
+
+    def get_by_id(self, user_id: int) -> Optional[User]:
+        """Get user by id.
+
+        Args:
+            user_id: User id
+
+        Returns:
+            User if found, None otherwise
+        """
+        return self.repository.get_by_id(user_id)
+
+    def get_all(self) -> List[User]:
+        """Get all users.
+
+        Returns:
+            List of users
+        """
+        return self.repository.get_all()
+
+    def get_multi(
+        self,
+        db: Session,
+        *,
+        skip: int = 0,
+        limit: int = 100,
+        filters: Optional[UserFilter] = None
+    ) -> List[User]:
+        """Get multiple users."""
+        users = self.repository.get_multi(db, skip=skip, limit=limit)
+        return [User.from_orm(user) for user in users]
+
+    def create(self, user_in: UserCreate) -> User:
+        """Create new user.
+
+        Args:
+            user_in: User create schema
+
+        Returns:
+            Created user
+        """
         user = User(
-            email=data["email"],
-            hashed_password=get_password_hash(data["password"]),
-            full_name=data["full_name"],
+            email=user_in.email,
+            hashed_password=get_password_hash(user_in.password),
+            full_name=user_in.full_name,
             is_active=True,
-            is_verified=False
         )
-        db.add(user)
-        await db.commit()
-        await db.refresh(user)
+        return self.repository.create(user)
+
+    def update(self, user: User, user_in: UserUpdate) -> User:
+        """Update user.
+
+        Args:
+            user: User to update
+            user_in: User update schema
+
+        Returns:
+            Updated user
+        """
+        update_data = user_in.dict(exclude_unset=True)
+        if update_data.get("password"):
+            hashed_password = get_password_hash(update_data["password"])
+            del update_data["password"]
+            update_data["hashed_password"] = hashed_password
+        return self.repository.update(user, update_data)
+
+    def delete(self, db: Session, *, user_id: UUID) -> User:
+        """Delete a user."""
+        user = self.repository.delete(db, id=user_id)
+        if not user:
+            raise NotFoundException("User not found")
+        return User.from_orm(user)
+
+    def authenticate(self, email: str, password: str) -> Optional[User]:
+        """Authenticate user.
+
+        Args:
+            email: User email
+            password: User password
+
+        Returns:
+            User if authentication successful, None otherwise
+        """
+        user = self.get_by_email(email)
+        if not user:
+            return None
+        if not verify_password(password, user.hashed_password):
+            return None
         return user
 
-    async def authenticate(self, db: Session, email: str, password: str) -> dict:
-        """Authenticate user and return tokens."""
-        user = await self.get_by_email(db, email)
-        if not user or not verify_password(password, user.hashed_password):
-            raise InvalidCredentials("Invalid email or password")
-        
-        if not user.is_active:
-            raise InvalidCredentials("User is inactive")
-        
-        if not user.is_verified:
-            raise InvalidCredentials("Email not verified")
+    def is_active(self, user: User) -> bool:
+        """Check if user is active.
 
-        return {
-            "access_token": create_access_token(user.id),
-            "refresh_token": create_refresh_token(user.id),
-            "token_type": "bearer"
-        }
+        Args:
+            user: User to check
 
-    async def verify_email(self, db: Session, token: str) -> None:
-        """Verify user's email."""
-        user = await self.get_by_verification_token(db, token)
-        if not user:
-            raise InvalidCredentials("Invalid verification token")
+        Returns:
+            True if user is active, False otherwise
+        """
+        return user.is_active
+
+    def create_access_token(self, *, user_id: UUID, expires_delta: Optional[timedelta] = None) -> Token:
+        """Create access token for user."""
+        if expires_delta:
+            expire = datetime.utcnow() + expires_delta
+        else:
+            expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         
-        user.is_verified = True
-        user.verification_token = None
-        user.verification_token_expires = None
-        await db.commit()
+        to_encode = {"exp": expire, "sub": str(user_id)}
+        access_token = create_access_token(data=to_encode)
+        refresh_token = create_refresh_token(data=to_encode)
+        
+        return Token(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            token_type="bearer"
+        )
 
-    async def refresh_token(self, db: Session, refresh_token: str) -> dict:
+    def refresh_token(self, *, refresh_token: str) -> Token:
         """Refresh access token using refresh token."""
-        user = await self.get_by_refresh_token(db, refresh_token)
-        if not user:
-            raise InvalidCredentials("Invalid refresh token")
-        
-        return {
-            "access_token": create_access_token(user.id),
-            "refresh_token": create_refresh_token(user.id),
-            "token_type": "bearer"
-        }
-
-    async def request_password_reset(self, db: Session, email: str) -> None:
-        """Request password reset."""
-        user = await self.get_by_email(db, email)
-        if user:
-            # Generate reset token
-            user.reset_token = create_refresh_token(user.id)
-            user.reset_token_expires = datetime.utcnow() + timedelta(hours=24)
-            await db.commit()
-            
-            # Send reset email (implement email sending)
-
-    async def reset_password(self, db: Session, token: str, new_password: str) -> None:
-        """Reset password using token."""
-        user = await self.get_by_reset_token(db, token)
-        if not user:
-            raise InvalidCredentials("Invalid reset token")
-        
-        user.hashed_password = get_password_hash(new_password)
-        user.reset_token = None
-        user.reset_token_expires = None
-        await db.commit()
-
-    async def get_by_email(self, db: Session, email: str) -> Optional[User]:
-        """Get user by email."""
-        return await db.query(User).filter(User.email == email).first()
-
-    async def get_by_verification_token(self, db: Session, token: str) -> Optional[User]:
-        """Get user by verification token."""
-        return await db.query(User).filter(
-            User.verification_token == token,
-            User.verification_token_expires > datetime.utcnow()
-        ).first()
-
-    async def get_by_refresh_token(self, db: Session, token: str) -> Optional[User]:
-        """Get user by refresh token."""
-        return await db.query(User).filter(
-            User.refresh_token == token,
-            User.refresh_token_expires > datetime.utcnow()
-        ).first()
-
-    async def get_by_reset_token(self, db: Session, token: str) -> Optional[User]:
-        """Get user by reset token."""
-        return await db.query(User).filter(
-            User.reset_token == token,
-            User.reset_token_expires > datetime.utcnow()
-        ).first()
-
-    async def update_password(
-        self,
-        db: Session = Depends(get_db),
-        *,
-        user_id: UUID,
-        current_password: str,
-        new_password: str
-    ) -> User:
-        """
-        Update user's password.
-        
-        Args:
-            db: Database session
-            user_id: User's ID
-            current_password: Current password
-            new_password: New password
-        """
         try:
-            user = await self.get(db, id=user_id)
-            
-            # Verify current password
-            if not verify_password(current_password, user.hashed_password):
-                raise ValidationError("Invalid current password")
-            
-            # Update password
-            return await self.update(
-                db,
-                id=user_id,
-                data={"hashed_password": get_password_hash(new_password)}
+            payload = jwt.decode(
+                refresh_token,
+                settings.SECRET_KEY,
+                algorithms=[settings.ALGORITHM]
             )
-        except Exception as e:
-            logger.error("Error in password update", exc_info=e)
-            raise
-
-    async def update_profile(
-        self,
-        db: Session = Depends(get_db),
-        *,
-        user_id: UUID,
-        data: Dict[str, Any]
-    ) -> User:
-        """
-        Update user's profile.
-        
-        Args:
-            db: Database session
-            user_id: User's ID
-            data: Profile update data
-        """
-        try:
-            # Ensure email uniqueness if being updated
-            if "email" in data:
-                existing = self.repository.get_by_email(db, email=data["email"])
-                if existing and existing.id != user_id:
-                    raise ValidationError("Email already taken")
-            
-            return await self.update(db, id=user_id, data=data)
-        except Exception as e:
-            logger.error("Error in profile update", exc_info=e)
-            raise
-
-    def _generate_token(self, length: int = 32) -> str:
-        """Generate a random token."""
-        import secrets
-        return secrets.token_urlsafe(length)
-
-    async def _send_verification_email(self, user: User) -> None:
-        """Send verification email to user."""
-        try:
-            await send_email(
-                to_email=user.email,
-                subject="Verify your email",
-                template="verification",
-                context={
-                    "name": user.full_name,
-                    "url": f"{settings.FRONTEND_URL}/verify-email?token={user.verification_token}"
-                }
-            )
-        except Exception as e:
-            logger.error("Error sending verification email", exc_info=e)
-            raise
-
-    async def _send_reset_email(self, user: User, token: str) -> None:
-        """Send password reset email to user."""
-        try:
-            await send_email(
-                to_email=user.email,
-                subject="Reset your password",
-                template="reset_password",
-                context={
-                    "name": user.full_name,
-                    "url": f"{settings.FRONTEND_URL}/reset-password?token={token}"
-                }
-            )
-        except Exception as e:
-            logger.error("Error sending reset email", exc_info=e)
-            raise 
+            user_id = UUID(payload["sub"])
+            return self.create_access_token(user_id=user_id)
+        except (jwt.JWTError, ValueError):
+            raise AuthenticationException("Invalid refresh token")

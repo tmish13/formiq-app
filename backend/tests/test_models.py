@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.models.user import User
 from app.models.form_check import FormCheck
 from app.models.enums import SubscriptionTier
-from app.core.database import Base, engine, get_db
+from app.core.database import Base, sync_engine as engine, get_db
 from app.core.security import get_password_hash
 
 @pytest.fixture(scope="function")

@@ -1,7 +1,7 @@
 import pytest
 from datetime import datetime, timedelta
 from unittest.mock import Mock, patch
-from app.services.workout import WorkoutService, WorkoutError
+from app.services.workout import WorkoutService
 from app.models.workout import Workout, Exercise, WorkoutPlan
 from app.models.user import User
 from sqlalchemy.orm import Session
