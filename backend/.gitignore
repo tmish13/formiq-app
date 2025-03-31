@@ -52,3 +52,11 @@ media/
 .coverage
 htmlcov/
 .pytest_cache/ *.log
+*.log
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
