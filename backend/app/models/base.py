@@ -5,7 +5,7 @@ from sqlalchemy import Column, DateTime, func, String
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
 from pydantic import BaseModel as PydanticBaseModel
-from app.core.database import Base
+from app.db.base_class import Base
 from app.core.exceptions import ValidationError
 
 T = TypeVar('T', bound='BaseModel')

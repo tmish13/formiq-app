@@ -1,29 +1,35 @@
 from sqlalchemy import create_engine, text
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy.orm import sessionmaker, declarative_base, Session
+from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import QueuePool, NullPool, StaticPool
 from sqlalchemy.exc import SQLAlchemyError
 from app.core.config import settings
 from app.core.logging import logger
+from app.core.exceptions import DatabaseError
+from app.db.base_class import Base
 import aiosqlite
 import inspect
 from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator, Callable, Optional, Union
 
-# Create Base class for models
-Base = declarative_base()
-
 def get_database_url() -> str:
     """Get the appropriate database URL based on environment."""
-    if settings.ENVIRONMENT == "test":
-        return "sqlite:///./test.db"
+    if not settings.SQLALCHEMY_DATABASE_URI:
+        raise DatabaseError("Database URL not configured", status_code=500)
     return settings.SQLALCHEMY_DATABASE_URI
 
 def get_async_database_url() -> str:
     """Get the appropriate async database URL based on environment."""
-    if settings.ENVIRONMENT == "test":
-        return "sqlite+aiosqlite:///./test.db"
-    return settings.SQLALCHEMY_DATABASE_URI.replace("postgresql://", "postgresql+asyncpg://")
+    if not settings.SQLALCHEMY_DATABASE_URI:
+        raise DatabaseError("Database URL not configured", status_code=500)
+    
+    db_url = settings.SQLALCHEMY_DATABASE_URI
+    if db_url.startswith("sqlite://"):
+        return db_url.replace("sqlite://", "sqlite+aiosqlite://")
+    elif db_url.startswith("postgresql://"):
+        return db_url.replace("postgresql://", "postgresql+asyncpg://")
+    else:
+        raise DatabaseError("Unsupported database type for async operations", status_code=500)
 
 def get_engine_kwargs(is_async: bool = False):
     """Get engine kwargs based on environment."""
@@ -132,6 +138,8 @@ class DatabaseSession:
 
     def __getattr__(self, name: str) -> Any:
         """Proxy attribute access to the underlying session."""
+        if name in ('execute', 'execute_sync'):
+            return getattr(self, name)
         self._check_session()
         return getattr(self.db, name)
 
@@ -197,8 +205,8 @@ class DatabaseSession:
         finally:
             try:
                 await self.db.close()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error(f"Error closing session: {str(e)}")
             finally:
                 self.db = None
                 self._closed = True
@@ -207,10 +215,11 @@ class DatabaseSession:
         """Enter sync context."""
         if self._closed:
             raise SQLAlchemyError("Cannot reuse a closed session")
-            
+        
         if self._is_async:
+            self._closed = True
             raise SQLAlchemyError("Cannot use async session factory in sync context")
-            
+        
         try:
             self.db = self.session_factory()
             if isinstance(self.db, AsyncSession):
@@ -246,9 +255,13 @@ class DatabaseSession:
                 except SQLAlchemyError as rollback_error:
                     raise SQLAlchemyError("Failed to rollback transaction: Rollback failed") from rollback_error
         finally:
-            self.db.close()
-            self.db = None
-            self._closed = True
+            try:
+                self.db.close()
+            except Exception as e:
+                logger.error(f"Error closing session: {str(e)}")
+            finally:
+                self.db = None
+                self._closed = True
 
 def get_db_session(session_factory=None):
     """Get a database session context manager."""
@@ -262,15 +275,13 @@ def get_db_session(session_factory=None):
     return DatabaseSession(session_factory)
 
 async def init_db():
-    """Initialize database with proper error handling."""
+    """Initialize database tables."""
     try:
         async with async_engine.begin() as conn:
-            # Create all tables
             await conn.run_sync(Base.metadata.create_all)
-        logger.info("Database initialized successfully")
     except SQLAlchemyError as e:
         logger.error(f"Failed to initialize database: {str(e)}")
-        raise
+        raise DatabaseError(f"Failed to initialize database: {str(e)}", status_code=500)
 
 async def close_db():
     """Close database connections."""
@@ -280,7 +291,7 @@ async def close_db():
         logger.info("Database connections closed successfully")
     except SQLAlchemyError as e:
         logger.error(f"Error closing database connections: {str(e)}")
-        raise
+        raise DatabaseError(f"Error closing database connections: {str(e)}", status_code=500)
 
 def optimize_query(query: str) -> str:
     """Optimize a SQL query by adding appropriate indexes and hints."""

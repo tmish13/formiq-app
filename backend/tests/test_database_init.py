@@ -2,6 +2,7 @@ import pytest
 from sqlalchemy import create_engine, text
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.pool import NullPool, QueuePool
 from app.core.database import init_db, close_db, Base
 from app.core.exceptions import DatabaseError
 from unittest.mock import MagicMock, patch

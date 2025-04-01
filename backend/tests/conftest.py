@@ -1,7 +1,16 @@
 """Test configuration module."""
 import os
-from typing import Generator, Dict, AsyncGenerator, AsyncIterator
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load test environment variables before importing other modules
+test_env_path = Path(__file__).parent / ".env.test"
+load_dotenv(test_env_path)
+
+# Set test environment
+os.environ["ENVIRONMENT"] = "test"
+
+from typing import Generator, Dict, AsyncGenerator, AsyncIterator
 import contextlib
 
 import pytest
@@ -9,8 +18,8 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 
-from app.core.config import settings
-from app.db.base import Base
+from app.core.config import settings, get_settings
+from app.db.base_class import Base
 from app.main import app, create_application
 from app.models.user import User
 from app.models.workout import Workout, Exercise, WorkoutPlan
@@ -19,17 +28,12 @@ from app.core.cache import cache_service
 from app.core.database import get_async_db, async_engine as app_engine
 from tests.test_utils import MockRedis
 from datetime import datetime, timedelta
-from dotenv import load_dotenv
 from app.db.session import async_session
 from app.core import security
 from app.repositories.user_repository import UserRepository
 
-# Load test environment variables
-test_env_path = Path(__file__).parent / ".env.test"
-load_dotenv(test_env_path)
-
-# Set test environment
-os.environ["ENVIRONMENT"] = "test"
+# Clear settings cache to reload with test environment
+get_settings.cache_clear()
 
 # Use SQLite for testing
 SQLALCHEMY_DATABASE_URL = "sqlite+aiosqlite:///./test.db"
