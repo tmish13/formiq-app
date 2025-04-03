@@ -1,17 +1,22 @@
-export type ExerciseType = 'squat' | 'deadlift' | 'bench_press' | 'overhead_press';
+export type ExerciseType = 'squat' | 'deadlift' | 'bench_press' | 'overhead_press' | 'barbell_row' | 'pullup' | 'pushup';
 
 export type FormCheckStatus = 'pending' | 'analyzing' | 'completed' | 'failed';
 
-export type FeedbackType = 'posture' | 'form' | 'technique' | 'safety';
+export type FeedbackType = 'posture' | 'form' | 'technique' | 'safety' | 'general' | 'range_of_motion' | 'balance' | 'tempo';
 
 export type FeedbackSeverity = 'low' | 'medium' | 'high';
 
 export interface FeedbackItem {
+  id?: number;
+  form_check_id?: number;
   type: FeedbackType;
   severity: FeedbackSeverity;
   timestamp: number;
   description: string;
   suggestions: string;
+  is_ai_generated?: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface FormCheck {
@@ -21,6 +26,9 @@ export interface FormCheck {
   video_url: string;
   analysis_url?: string;
   score?: number;
+  overall_score?: number;
+  summary?: string;
+  notes?: string;
   overall_feedback?: string;
   issues?: string[];
   status: FormCheckStatus;
@@ -28,6 +36,7 @@ export interface FormCheck {
   confidence_score?: number;
   form_metadata?: Record<string, any>;
   results?: Record<string, any>;
+  thumbnail_url?: string;
   created_at: string;
   updated_at: string;
   feedback_items?: FeedbackItem[];

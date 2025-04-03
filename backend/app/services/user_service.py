@@ -1,8 +1,9 @@
 """User service module."""
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from uuid import UUID
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends
 from jose import jwt
 
@@ -27,17 +28,15 @@ from app.schemas.user import (
     UserInDB
 )
 from app.schemas.token import Token
+from app.api import deps
 
 class UserService:
-    """User service class."""
-
-    def __init__(self, db: Session):
-        """Initialize user service.
-
-        Args:
-            db: Database session
-        """
+    """User service."""
+    
+    def __init__(self, db: Session = Depends(deps.get_db)):
+        """Initialize service with repository."""
         self.repository = UserRepository(db)
+        self._is_async = isinstance(db, AsyncSession)
 
     def get(self, db: Session, user_id: UUID) -> Optional[User]:
         """Get a user by ID."""
@@ -46,35 +45,17 @@ class UserService:
             raise NotFoundException("User not found")
         return User.from_orm(user)
 
-    def get_by_email(self, email: str) -> Optional[User]:
-        """Get user by email.
+    async def get_by_email(self, email: str) -> Optional[User]:
+        """Get user by email."""
+        return await self.repository.get_by_email(email)
 
-        Args:
-            email: User email
+    async def get_by_id(self, user_id: str) -> Optional[User]:
+        """Get user by ID."""
+        return await self.repository.get_by_id(user_id)
 
-        Returns:
-            User if found, None otherwise
-        """
-        return self.repository.get_by_email(email)
-
-    def get_by_id(self, user_id: int) -> Optional[User]:
-        """Get user by id.
-
-        Args:
-            user_id: User id
-
-        Returns:
-            User if found, None otherwise
-        """
-        return self.repository.get_by_id(user_id)
-
-    def get_all(self) -> List[User]:
-        """Get all users.
-
-        Returns:
-            List of users
-        """
-        return self.repository.get_all()
+    async def get_all(self) -> List[User]:
+        """Get all users."""
+        return await self.repository.get_all()
 
     def get_multi(
         self,
@@ -88,62 +69,41 @@ class UserService:
         users = self.repository.get_multi(db, skip=skip, limit=limit)
         return [User.from_orm(user) for user in users]
 
-    def create(self, user_in: UserCreate) -> User:
-        """Create new user.
+    async def create(self, user_data: UserCreate) -> User:
+        """Create a new user."""
+        # Hash the password
+        hashed_password = get_password_hash(user_data.password)
+        
+        # Create a modified user object with hashed password
+        user_data_dict = user_data.dict()
+        user_data_dict["password"] = hashed_password
+        
+        # Create new user with modified data
+        return await self.repository.create(UserCreate(**user_data_dict))
 
-        Args:
-            user_in: User create schema
+    async def update(self, user_id: str, user_data: Dict[str, Any]) -> Optional[User]:
+        """Update a user."""
+        # Handle password hashing if password is provided
+        if "password" in user_data:
+            user_data["password"] = get_password_hash(user_data["password"])
+            
+        # Update user with processed data
+        update_data = UserUpdate(**user_data)
+        return await self.repository.update(user_id, update_data)
 
-        Returns:
-            Created user
-        """
-        user = User(
-            email=user_in.email,
-            hashed_password=get_password_hash(user_in.password),
-            full_name=user_in.full_name,
-            is_active=True,
-        )
-        return self.repository.create(user)
-
-    def update(self, user: User, user_in: UserUpdate) -> User:
-        """Update user.
-
-        Args:
-            user: User to update
-            user_in: User update schema
-
-        Returns:
-            Updated user
-        """
-        update_data = user_in.dict(exclude_unset=True)
-        if update_data.get("password"):
-            hashed_password = get_password_hash(update_data["password"])
-            del update_data["password"]
-            update_data["hashed_password"] = hashed_password
-        return self.repository.update(user, update_data)
-
-    def delete(self, db: Session, *, user_id: UUID) -> User:
+    async def delete(self, user_id: str) -> bool:
         """Delete a user."""
-        user = self.repository.delete(db, id=user_id)
-        if not user:
-            raise NotFoundException("User not found")
-        return User.from_orm(user)
+        return await self.repository.delete(user_id)
 
-    def authenticate(self, email: str, password: str) -> Optional[User]:
-        """Authenticate user.
-
-        Args:
-            email: User email
-            password: User password
-
-        Returns:
-            User if authentication successful, None otherwise
-        """
-        user = self.get_by_email(email)
+    async def authenticate(self, email: str, password: str) -> Optional[User]:
+        """Authenticate a user."""
+        user = await self.get_by_email(email)
         if not user:
             return None
+        
         if not verify_password(password, user.hashed_password):
             return None
+            
         return user
 
     def is_active(self, user: User) -> bool:

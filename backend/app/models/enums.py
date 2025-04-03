@@ -1,5 +1,5 @@
 """Enumeration types for the application models."""
-from enum import Enum
+from enum import Enum, auto
 from typing import List, Dict, Any
 
 class SubscriptionTier(str, Enum):
@@ -16,6 +16,7 @@ class SubscriptionTier(str, Enum):
     BASIC = "basic"
     PRO = "pro"
     ENTERPRISE = "enterprise"
+    PREMIUM = "premium"
 
     @classmethod
     def get_features(cls) -> Dict[str, List[str]]:
@@ -61,6 +62,12 @@ class FeedbackType(str, Enum):
     SUCCESS = "success"
     WARNING = "warning"
     ERROR = "error"
+    FORM = "form"
+    TECHNIQUE = "technique"
+    POSTURE = "posture"
+    RANGE = "range"
+    SPEED = "speed"
+    BALANCE = "balance"
 
     @classmethod
     def get_color(cls, feedback_type: str) -> str:
@@ -83,6 +90,7 @@ class FeedbackSeverity(str, Enum):
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
+    CRITICAL = "critical"
 
     @classmethod
     def get_priority(cls, severity: str) -> int:
@@ -106,6 +114,7 @@ class ExerciseType(str, Enum):
         PUSH_UP: Standard or modified push-ups
         LUNGE: Forward, reverse, or walking lunges
         PLANK: Front or side planks
+        ROW: Rowing exercise
         OTHER: Other exercise types
     """
     SQUAT = "squat"
@@ -116,6 +125,7 @@ class ExerciseType(str, Enum):
     PUSH_UP = "push_up"
     LUNGE = "lunge"
     PLANK = "plank"
+    ROW = "row"
     OTHER = "other"
 
     @classmethod
@@ -130,6 +140,14 @@ class ExerciseType(str, Enum):
             cls.PUSH_UP: [],
             cls.LUNGE: [],
             cls.PLANK: [],
+            cls.ROW: [],
             cls.OTHER: []
         }
-        return equipment_map.get(exercise_type, []) 
+        return equipment_map.get(exercise_type, [])
+
+class Difficulty(str, Enum):
+    """Difficulty level enum."""
+    BEGINNER = "beginner"
+    INTERMEDIATE = "intermediate"
+    ADVANCED = "advanced"
+    EXPERT = "expert" 

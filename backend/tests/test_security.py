@@ -18,7 +18,9 @@ from app.core.security import (
     get_password_hash,
     create_access_token,
     decode_access_token,
+    verify_token,
 )
+import jwt
 
 @pytest.fixture
 def client():
@@ -77,8 +79,8 @@ def test_jwt_token_creation_and_verification():
     user_id = 1
     token = create_access_token(user_id)
     
-    assert create_access_token(user_id) == token
-    assert create_access_token("invalid_token") is None
+    assert verify_token(token) == str(user_id)
+    assert verify_token("invalid_token") is None
 
 def test_password_reset_token():
     """Test password reset token generation and verification"""
@@ -291,13 +293,14 @@ def test_token_creation(test_user):
     assert isinstance(token, str)
     assert len(token) > 0
     
-    # Test token expiration
-    expired_token = create_access_token(
-        data={"sub": test_user.email},
-        expires_delta=timedelta(seconds=-1)
-    )
+    # Test expired token by directly manipulating the expiration time
+    expire = datetime.utcnow() - timedelta(seconds=1)  # Already expired
+    to_encode = {"exp": expire, "sub": test_user.email}
+    
+    expired_token = jwt.encode(to_encode, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
     
     assert len(expired_token) > 0
+    assert verify_token(expired_token) is None
 
 def test_authentication_required(client):
     """Test that authentication is required for protected endpoints"""

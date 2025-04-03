@@ -1,16 +1,6 @@
 # CloudWatch Log Groups
-resource "aws_cloudwatch_log_group" "frontend" {
-  name              = "/ecs/formiq-frontend"
-  retention_in_days = 30
-
-  tags = {
-    Environment = var.environment
-    Project     = "formiq"
-  }
-}
-
 resource "aws_cloudwatch_log_group" "backend" {
-  name              = "/ecs/formiq-backend"
+  name              = "/ec2/formiq-backend"
   retention_in_days = 30
 
   tags = {
@@ -34,13 +24,12 @@ resource "aws_cloudwatch_dashboard" "main" {
 
         properties = {
           metrics = [
-            ["AWS/ECS", "CPUUtilization", "ClusterName", aws_ecs_cluster.main.name],
-            ["AWS/ECS", "MemoryUtilization", "ClusterName", aws_ecs_cluster.main.name]
+            ["AWS/EC2", "CPUUtilization", "InstanceId", aws_instance.backend.id]
           ]
           period = 300
           stat   = "Average"
           region = var.aws_region
-          title  = "ECS Cluster CPU and Memory Utilization"
+          title  = "EC2 CPU Utilization"
         }
       },
       {
@@ -78,52 +67,12 @@ resource "aws_cloudwatch_dashboard" "main" {
           region = var.aws_region
           title  = "Redis CPU and Memory Utilization"
         }
-      },
-      {
-        type   = "metric"
-        x      = 12
-        y      = 6
-        width  = 12
-        height = 6
-
-        properties = {
-          metrics = [
-            ["AWS/ApplicationELB", "RequestCount", "LoadBalancer", aws_lb.main.arn_suffix],
-            ["AWS/ApplicationELB", "HTTPCode_Target_5XX_Count", "LoadBalancer", aws_lb.main.arn_suffix]
-          ]
-          period = 300
-          stat   = "Sum"
-          region = var.aws_region
-          title  = "ALB Request Count and 5XX Errors"
-        }
       }
     ]
   })
 }
 
 # CloudWatch Alarms
-resource "aws_cloudwatch_metric_alarm" "ecs_cpu" {
-  alarm_name          = "ecs-cpu-utilization"
-  comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = "2"
-  metric_name         = "CPUUtilization"
-  namespace           = "AWS/ECS"
-  period             = "300"
-  statistic          = "Average"
-  threshold          = "80"
-  alarm_description  = "This metric monitors ECS CPU utilization"
-  alarm_actions      = [aws_sns_topic.alerts.arn]
-
-  dimensions = {
-    ClusterName = aws_ecs_cluster.main.name
-  }
-
-  tags = {
-    Environment = var.environment
-    Project     = "formiq"
-  }
-}
-
 resource "aws_cloudwatch_metric_alarm" "rds_cpu" {
   alarm_name          = "rds-cpu-utilization"
   comparison_operator = "GreaterThanThreshold"
@@ -138,6 +87,28 @@ resource "aws_cloudwatch_metric_alarm" "rds_cpu" {
 
   dimensions = {
     DBInstanceIdentifier = aws_db_instance.main.id
+  }
+
+  tags = {
+    Environment = var.environment
+    Project     = "formiq"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "ec2_cpu" {
+  alarm_name          = "ec2-cpu-utilization"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = "2"
+  metric_name         = "CPUUtilization"
+  namespace           = "AWS/EC2"
+  period             = "300"
+  statistic          = "Average"
+  threshold          = "80"
+  alarm_description  = "This metric monitors EC2 CPU utilization"
+  alarm_actions      = [aws_sns_topic.alerts.arn]
+
+  dimensions = {
+    InstanceId = aws_instance.backend.id
   }
 
   tags = {

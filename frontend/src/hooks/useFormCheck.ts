@@ -49,17 +49,59 @@ export const useFormCheck = () => {
   }, [dispatch]);
 
   const submitFormCheck = useCallback(async (
-    video: File,
+    video: File | null,
     exerciseType: ExerciseType,
-    notes?: string
+    notes?: string,
+    videoUrl?: string
   ) => {
     try {
       dispatch(setLoading(true));
-      const data = await formCheckService.submitFormCheck(video, exerciseType, notes);
+      let data;
+      
+      if (videoUrl) {
+        // If we already have a video URL (from direct S3 upload), use it
+        data = await formCheckService.submitFormCheckWithUrl(
+          videoUrl,
+          exerciseType,
+          notes
+        );
+      } else if (video) {
+        // Otherwise, upload the video file through the API
+        data = await formCheckService.submitFormCheck(
+          video,
+          exerciseType,
+          notes
+        );
+      } else {
+        throw new Error('Either video file or video URL must be provided');
+      }
+      
       dispatch(addFormCheck(data));
       return data;
     } catch (err) {
-      dispatch(setError(err instanceof Error ? err.message : 'Failed to submit form check'));
+      const errorMessage = err instanceof Error ? err.message : 'Failed to submit form check';
+      dispatch(setError(errorMessage));
+      throw err;
+    } finally {
+      dispatch(setLoading(false));
+    }
+  }, [dispatch]);
+
+  const getPresignedUploadUrl = useCallback(async (
+    filename: string,
+    contentType: string,
+    exerciseType: ExerciseType
+  ) => {
+    try {
+      dispatch(setLoading(true));
+      return await formCheckService.getPresignedUploadUrl(
+        filename,
+        contentType,
+        exerciseType
+      );
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to get upload URL';
+      dispatch(setError(errorMessage));
       throw err;
     } finally {
       dispatch(setLoading(false));
@@ -72,7 +114,8 @@ export const useFormCheck = () => {
       await formCheckService.deleteFormCheck(id);
       dispatch(deleteFormCheck(id));
     } catch (err) {
-      dispatch(setError(err instanceof Error ? err.message : 'Failed to delete form check'));
+      const errorMessage = err instanceof Error ? err.message : 'Failed to delete form check';
+      dispatch(setError(errorMessage));
       throw err;
     } finally {
       dispatch(setLoading(false));
@@ -90,7 +133,8 @@ export const useFormCheck = () => {
       dispatch(updateFormCheck(data));
       return data;
     } catch (err) {
-      dispatch(setError(err instanceof Error ? err.message : 'Failed to complete analysis'));
+      const errorMessage = err instanceof Error ? err.message : 'Failed to complete analysis';
+      dispatch(setError(errorMessage));
       throw err;
     } finally {
       dispatch(setLoading(false));
@@ -103,7 +147,37 @@ export const useFormCheck = () => {
       const data = await formCheckService.getFormChecksByExercise(exerciseType);
       return data;
     } catch (err) {
-      dispatch(setError(err instanceof Error ? err.message : 'Failed to fetch form checks by exercise'));
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch form checks by exercise';
+      dispatch(setError(errorMessage));
+      throw err;
+    } finally {
+      dispatch(setLoading(false));
+    }
+  }, [dispatch]);
+
+  const addFeedback = useCallback(async (
+    formCheckId: number,
+    feedbackData: {
+      feedbackType: string;
+      severity: string;
+      timestamp: number;
+      description: string;
+      suggestions?: string;
+      isAiGenerated?: boolean;
+    }
+  ) => {
+    try {
+      dispatch(setLoading(true));
+      const feedback = await formCheckService.addFeedback(formCheckId, feedbackData);
+      
+      // Get updated form check with new feedback
+      const updatedFormCheck = await formCheckService.getFormCheck(formCheckId);
+      dispatch(updateFormCheck(updatedFormCheck));
+      
+      return feedback;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to add feedback';
+      dispatch(setError(errorMessage));
       throw err;
     } finally {
       dispatch(setLoading(false));
@@ -118,8 +192,10 @@ export const useFormCheck = () => {
     fetchFormChecks,
     fetchFormCheck,
     submitFormCheck,
+    getPresignedUploadUrl,
     deleteFormCheck: removeFormCheck,
     completeAnalysis,
     fetchFormChecksByExercise,
+    addFeedback,
   };
 }; 

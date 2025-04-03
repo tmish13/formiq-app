@@ -1,63 +1,19 @@
-# WAF Web ACL
+# Security Groups already defined in main.tf
+
+# AWS WAF for basic protection
 resource "aws_wafv2_web_acl" "main" {
-  name        = "formiq-web-acl"
-  description = "WAF Web ACL for FormIQ"
+  name        = "formiq-waf"
+  description = "WAF for FormIQ application"
   scope       = "REGIONAL"
 
   default_action {
     allow {}
   }
 
-  # Rate limiting rule
+  # Block common web attacks
   rule {
-    name     = "RateLimitRule"
+    name     = "AWSManagedRulesCommonRuleSet"
     priority = 1
-
-    override_action {
-      none {}
-    }
-
-    statement {
-      rate_based_statement {
-        limit              = 2000
-        aggregate_key_type = "IP"
-      }
-    }
-
-    visibility_config {
-      cloudwatch_metrics_enabled = true
-      metric_name               = "RateLimitRuleMetric"
-      sampled_requests_enabled  = true
-    }
-  }
-
-  # SQL injection rule
-  rule {
-    name     = "SQLiRule"
-    priority = 2
-
-    override_action {
-      none {}
-    }
-
-    statement {
-      managed_rule_group_statement {
-        name        = "AWSManagedRulesSQLiRuleSet"
-        vendor_name = "AWS"
-      }
-    }
-
-    visibility_config {
-      cloudwatch_metrics_enabled = true
-      metric_name               = "SQLiRuleMetric"
-      sampled_requests_enabled  = true
-    }
-  }
-
-  # XSS rule
-  rule {
-    name     = "XSSRule"
-    priority = 3
 
     override_action {
       none {}
@@ -72,15 +28,147 @@ resource "aws_wafv2_web_acl" "main" {
 
     visibility_config {
       cloudwatch_metrics_enabled = true
-      metric_name               = "XSSRuleMetric"
-      sampled_requests_enabled  = true
+      metric_name                = "AWSManagedRulesCommonRuleSet"
+      sampled_requests_enabled   = true
+    }
+  }
+
+  # Rate limiting
+  rule {
+    name     = "RateLimitRule"
+    priority = 2
+
+    action {
+      block {}
+    }
+
+    statement {
+      rate_based_statement {
+        limit              = 2000 # Requests per 5 minutes
+        aggregate_key_type = "IP"
+      }
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "RateLimitRule"
+      sampled_requests_enabled   = true
     }
   }
 
   visibility_config {
     cloudwatch_metrics_enabled = true
-    metric_name               = "FormIQWebACLMetric"
-    sampled_requests_enabled  = true
+    metric_name                = "formiq-waf"
+    sampled_requests_enabled   = true
+  }
+}
+
+# S3 bucket policy for secure access
+resource "aws_s3_bucket_policy" "video_storage" {
+  bucket = aws_s3_bucket.video_storage.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Deny"
+        Principal = "*"
+        Action = "s3:*"
+        Resource = [
+          aws_s3_bucket.video_storage.arn,
+          "${aws_s3_bucket.video_storage.arn}/*"
+        ]
+        Condition = {
+          Bool = {
+            "aws:SecureTransport" = "false"
+          }
+        }
+      }
+    ]
+  })
+}
+
+# Server-side encryption for S3 buckets
+resource "aws_s3_bucket_server_side_encryption_configuration" "video_storage" {
+  bucket = aws_s3_bucket.video_storage.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+# IAM role for EC2 instance
+resource "aws_iam_role" "ec2_role" {
+  name = "formiq-ec2-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+      }
+    ]
+  })
+}
+
+# IAM policy for S3 access
+resource "aws_iam_policy" "s3_access" {
+  name        = "formiq-s3-access"
+  description = "Allow access to FormIQ S3 buckets"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:ListBucket",
+          "s3:DeleteObject"
+        ]
+        Effect = "Allow"
+        Resource = [
+          aws_s3_bucket.video_storage.arn,
+          "${aws_s3_bucket.video_storage.arn}/*",
+          aws_s3_bucket.frontend_assets.arn,
+          "${aws_s3_bucket.frontend_assets.arn}/*"
+        ]
+      }
+    ]
+  })
+}
+
+# Attach policy to role
+resource "aws_iam_role_policy_attachment" "s3_access" {
+  role       = aws_iam_role.ec2_role.name
+  policy_arn = aws_iam_policy.s3_access.arn
+}
+
+# EC2 instance profile
+resource "aws_iam_instance_profile" "ec2_profile" {
+  name = "formiq-ec2-profile"
+  role = aws_iam_role.ec2_role.name
+}
+
+# Update EC2 instance to use the IAM role
+resource "aws_instance" "backend" {
+  ami           = "ami-0c55b159cbfafe1f0"
+  instance_type = "t3.medium"
+  subnet_id     = module.vpc.public_subnets[0]
+  
+  vpc_security_group_ids = [aws_security_group.backend.id]
+  iam_instance_profile   = aws_iam_instance_profile.ec2_profile.name
+  
+  tags = {
+    Name        = "formiq-backend"
+    Environment = var.environment
+    Project     = "formiq"
   }
 }
 

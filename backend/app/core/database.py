@@ -1,306 +1,429 @@
-from sqlalchemy import create_engine, text
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.pool import QueuePool, NullPool, StaticPool
-from sqlalchemy.exc import SQLAlchemyError
+"""
+Database module for SQLAlchemy ORM configuration.
+
+This module provides database connection, session management, and 
+database utility functions for both synchronous and asynchronous contexts.
+"""
+from sqlalchemy import create_engine, text, event
+from sqlalchemy.orm import sessionmaker, declarative_base, Session
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.pool import QueuePool, NullPool
+from sqlalchemy.exc import SQLAlchemyError, DisconnectionError
+from contextlib import contextmanager
+from typing import Generator, Dict, Any, AsyncGenerator, List
+
 from app.core.config import settings
 from app.core.logging import logger
 from app.core.exceptions import DatabaseError
-from app.db.base_class import Base
-import aiosqlite
-import inspect
-from contextlib import asynccontextmanager
-from typing import Any, AsyncGenerator, Callable, Optional, Union
+
+import time
+
+# Create Base class for models - imported in app/db/base_class.py
+Base = declarative_base()
+
+# Track connection usage statistics for monitoring
+connection_stats = {
+    "active_connections": 0,
+    "total_connections": 0,
+    "max_concurrent": 0,
+    "connection_errors": 0,
+    "connection_timeouts": 0,
+    "last_error_time": None,
+    "last_error_message": None
+}
 
 def get_database_url() -> str:
-    """Get the appropriate database URL based on environment."""
+    """
+    Get the appropriate database URL based on environment.
+    
+    Returns:
+        str: Database URL
+        
+    Raises:
+        DatabaseError: If database URL is not configured
+    """
     if not settings.SQLALCHEMY_DATABASE_URI:
         raise DatabaseError("Database URL not configured", status_code=500)
     return settings.SQLALCHEMY_DATABASE_URI
 
 def get_async_database_url() -> str:
-    """Get the appropriate async database URL based on environment."""
-    if not settings.SQLALCHEMY_DATABASE_URI:
-        raise DatabaseError("Database URL not configured", status_code=500)
+    """
+    Get the appropriate async database URL based on environment.
     
-    db_url = settings.SQLALCHEMY_DATABASE_URI
+    Returns:
+        str: Async database URL
+        
+    Raises:
+        DatabaseError: If database URL is not configured
+    """
+    db_url = get_database_url()
+    
     if db_url.startswith("sqlite://"):
+        # For SQLite, use aiosqlite driver
         return db_url.replace("sqlite://", "sqlite+aiosqlite://")
     elif db_url.startswith("postgresql://"):
+        # For PostgreSQL, use asyncpg driver
         return db_url.replace("postgresql://", "postgresql+asyncpg://")
     else:
-        raise DatabaseError("Unsupported database type for async operations", status_code=500)
+        # For other databases, raise an error as we don't know the async driver
+        raise DatabaseError(f"Unsupported database type for async operations: {db_url}", status_code=500)
 
-def get_engine_kwargs(is_async: bool = False):
-    """Get engine kwargs based on environment."""
-    kwargs = {
-        "echo": settings.DB_ECHO,
-    }
+# Create engine for synchronous operations
+if settings.SQLALCHEMY_DATABASE_URI.startswith("sqlite"):
+    # SQLite connection needs special handling
+    sync_engine = create_engine(
+        get_database_url(),
+        poolclass=NullPool,  # Use NullPool for SQLite to avoid thread issues
+        echo=settings.DB_ECHO,
+        connect_args={"check_same_thread": False}
+    )
+else:
+    # PostgreSQL and other databases - optimized for 1,000 users
+    sync_engine = create_engine(
+        get_database_url(),
+        poolclass=QueuePool if settings.ENVIRONMENT not in ["test"] else NullPool,
+        pool_size=20,  # Increased from 5 to 20 for 1,000 users
+        max_overflow=20,  # Increased from 10 to 20 for 1,000 users
+        pool_timeout=settings.DB_POOL_TIMEOUT,
+        pool_recycle=settings.DB_POOL_RECYCLE,
+        pool_pre_ping=True,
+        echo=settings.DB_ECHO,
+        connect_args={
+            "connect_timeout": 10,
+            # Add statement timeout to prevent long-running queries
+            "options": "-c statement_timeout=15000"  # 15 seconds
+        } if not settings.SQLALCHEMY_DATABASE_URI.startswith("sqlite") else {}
+    )
+
+# Create async engine
+if settings.SQLALCHEMY_DATABASE_URI.startswith("sqlite://"):
+    # SQLite async engine
+    async_engine = create_async_engine(
+        get_async_database_url(),
+        poolclass=NullPool,  # Use NullPool for SQLite
+        echo=settings.DB_ECHO,
+        connect_args={"check_same_thread": False}
+    )
+    logger.info(f"Created SQLite async engine with NullPool: {get_async_database_url()}")
+elif settings.SQLALCHEMY_DATABASE_URI.startswith("postgresql://"):
+    # PostgreSQL async engine - optimized for 1,000 users
+    async_engine = create_async_engine(
+        get_async_database_url(),
+        echo=settings.DB_ECHO,
+        pool_size=20,  # Increased for 1,000 users
+        max_overflow=20,  # Increased for 1,000 users
+        pool_timeout=settings.DB_POOL_TIMEOUT,
+        pool_recycle=settings.DB_POOL_RECYCLE,
+        pool_pre_ping=True,
+        connect_args={
+            "command_timeout": 10,
+            "statement_timeout": 15000,  # 15 seconds statement timeout
+            "connect_timeout": 10
+        }
+    )
+    logger.info(f"Created PostgreSQL async engine with QueuePool: {get_async_database_url()}")
+else:
+    # For other databases, we won't create an async engine
+    logger.warning(f"No async engine created for database URL: {get_database_url()}")
+    async_engine = None
+
+# Setup event listeners for connection monitoring
+@event.listens_for(sync_engine, "connect")
+def receive_connect(dbapi_connection, connection_record):
+    """Track new connections."""
+    connection_stats["active_connections"] += 1
+    connection_stats["total_connections"] += 1
+    connection_stats["max_concurrent"] = max(
+        connection_stats["max_concurrent"], 
+        connection_stats["active_connections"]
+    )
+    # Only log at debug level to avoid log flooding with 1,000 users
+    if connection_stats["total_connections"] % 50 == 0:
+        logger.info(f"Database connection milestone: {connection_stats['total_connections']} total connections created")
+    logger.debug(f"Database connection opened. Active: {connection_stats['active_connections']}")
+
+@event.listens_for(sync_engine, "close")
+def receive_close(dbapi_connection, connection_record):
+    """Track closed connections."""
+    connection_stats["active_connections"] -= 1
+    logger.debug(f"Database connection closed. Active: {connection_stats['active_connections']}")
+
+@event.listens_for(sync_engine, "checkout")
+def checkout(dbapi_connection, connection_record, connection_proxy):
+    """
+    Detect dead connections and record checkout time.
     
-    if settings.ENVIRONMENT == "test":
-        kwargs.update({
-            "poolclass": NullPool,
-            "connect_args": {"check_same_thread": False} if not is_async else {}
-        })
-    else:
-        kwargs.update({
-            "poolclass": QueuePool,
-            "pool_size": settings.DB_POOL_SIZE,
-            "max_overflow": settings.DB_MAX_OVERFLOW,
-            "pool_timeout": settings.DB_POOL_TIMEOUT,
-            "pool_recycle": settings.DB_POOL_RECYCLE,
-            "pool_pre_ping": True,
-            "connect_args": {
-                "command_timeout": 10
-            } if is_async else {}
-        })
-    return kwargs
+    This listener ensures connections are valid when checked out from the pool.
+    """
+    connection_record.info['checkout_time'] = time.time()
+    
+    # Test if connection is dead
+    cursor = dbapi_connection.cursor()
+    try:
+        cursor.execute("SELECT 1")
+    except Exception as ex:
+        connection_stats["connection_errors"] += 1
+        connection_stats["last_error_time"] = time.time()
+        connection_stats["last_error_message"] = str(ex)
+        
+        # Reconnect by raising DisconnectionError
+        logger.warning(f"Connection failed health check: {str(ex)}")
+        raise DisconnectionError("Connection failed health check") from ex
+    finally:
+        cursor.close()
 
-# Create engines based on environment
-sync_engine = create_engine(
-    get_database_url(),
-    **get_engine_kwargs(is_async=False)
-)
+@event.listens_for(sync_engine, "checkin")
+def checkin(dbapi_connection, connection_record):
+    """
+    Record connection usage time on checkin.
+    
+    This tracks how long connections are used before returned to the pool.
+    """
+    checkout_time = connection_record.info.get('checkout_time')
+    if checkout_time is not None:
+        usage_time = time.time() - checkout_time
+        logger.debug(f"Connection used for {usage_time:.2f} seconds")
+        
+        # Log long-running connections
+        if usage_time > 10:  # 10 seconds threshold
+            logger.warning(f"Long running database connection: {usage_time:.2f} seconds")
+        
+        # Clear checkout time
+        connection_record.info['checkout_time'] = None
 
-async_engine = create_async_engine(
-    get_async_database_url(),
-    **get_engine_kwargs(is_async=True)
-)
-
-# Create sync session factory
+# Create sync session factory for synchronous routes
 SessionLocal = sessionmaker(
-    sync_engine,
+    bind=sync_engine,
     autocommit=False,
     autoflush=False,
 )
 
-# Create async session factory
-AsyncSessionLocal = sessionmaker(
-    async_engine,
+# Create async session factory - moved from app.db.session
+async_session = sessionmaker(
+    async_engine, 
     class_=AsyncSession,
     expire_on_commit=False,
     autocommit=False,
     autoflush=False,
 )
 
-def get_db():
-    """Get sync database session with proper error handling."""
+def get_db() -> Generator[Session, None, None]:
+    """
+    Get sync database session with proper error handling.
+    
+    This is a dependency injectable session provider for synchronous routes.
+    
+    Yields:
+        Session: SQLAlchemy session
+        
+    Raises:
+        DatabaseError: On database errors with detailed message
+    """
     db = SessionLocal()
+    start_time = time.time()
     try:
         yield db
     except SQLAlchemyError as e:
         logger.error(f"Database error: {str(e)}", exc_info=True)
-        db.rollback()
-        raise DatabaseError(f"Database error occurred: {str(e)}")
+        try:
+            db.rollback()
+        except Exception as rollback_error:
+            logger.error(f"Error during rollback: {str(rollback_error)}")
+        raise DatabaseError(f"Database error occurred: {str(e)}", original_error=e)
     except Exception as e:
         logger.error(f"Unexpected error in database session: {str(e)}", exc_info=True)
-        db.rollback()
+        try:
+            db.rollback()
+        except Exception as rollback_error:
+            logger.error(f"Error during rollback: {str(rollback_error)}")
         raise
     finally:
         db.close()
+        duration = time.time() - start_time
+        if duration > 1.0:  # Log slow operations (>1s)
+            logger.warning(f"Slow database operation: {duration:.2f}s")
+        logger.debug(f"Database session used for {duration:.4f}s")
 
-async def get_async_db():
-    """Get async database session with proper error handling."""
-    session = AsyncSessionLocal()
-    try:
-        yield session
-    except SQLAlchemyError as e:
-        logger.error(f"Database error: {str(e)}", exc_info=True)
-        await session.rollback()
-        raise DatabaseError(f"Database error occurred: {str(e)}")
-    except Exception as e:
-        logger.error(f"Unexpected error in database session: {str(e)}", exc_info=True)
-        await session.rollback()
-        raise
-    finally:
-        await session.close()
-
-class DatabaseSession:
-    """Database session context manager."""
-
-    def __init__(self, session_factory: Optional[Callable[[], Union[Session, AsyncSession]]] = None):
-        """Initialize database session context manager."""
-        self.session_factory = session_factory or AsyncSessionLocal
-        # Check if session factory is async by looking at its type or if it's a function
-        self._is_async = (
-            isinstance(self.session_factory, async_sessionmaker) or
-            (inspect.isfunction(self.session_factory) and inspect.iscoroutinefunction(self.session_factory)) or
-            (hasattr(self.session_factory, 'class_') and issubclass(self.session_factory.class_, AsyncSession)) or
-            (hasattr(self.session_factory, 'is_async') and self.session_factory.is_async)
-        )
-        self.db: Optional[Union[Session, AsyncSession]] = None
-        self._closed = False
-
-    def _check_session(self):
-        """Check if session is closed or not initialized."""
-        if self._closed or not self.db:
-            raise SQLAlchemyError("Session is closed or not initialized")
-
-    def __getattr__(self, name: str) -> Any:
-        """Proxy attribute access to the underlying session."""
-        if name in ('execute', 'execute_sync'):
-            return getattr(self, name)
-        self._check_session()
-        return getattr(self.db, name)
-
-    async def execute(self, *args, **kwargs):
-        """Execute a query on the session."""
-        self._check_session()
-        if isinstance(self.db, AsyncSession):
-            result = await self.db.execute(*args, **kwargs)
-            return result
-        raise SQLAlchemyError("Cannot use async execution with sync session")
-
-    def execute_sync(self, *args, **kwargs):
-        """Execute a query synchronously on the session."""
-        self._check_session()
-        if not isinstance(self.db, AsyncSession):
-            result = self.db.execute(*args, **kwargs)
-            return result
-        raise SQLAlchemyError("Cannot use sync execution with async session")
-
-    async def __aenter__(self):
-        """Enter async context."""
-        if self._closed:
-            raise SQLAlchemyError("Cannot reuse a closed session")
+async def get_async_db() -> AsyncGenerator[AsyncSession, None]:
+    """
+    Get async database session with proper error handling.
+    
+    This is a dependency injectable session provider for asynchronous routes.
+    
+    Yields:
+        AsyncSession: Async SQLAlchemy session
+    """
+    if async_engine is None:
+        raise DatabaseError("Async database engine not available", status_code=500)
         
-        if not self._is_async:
-            self._closed = True
-            raise SQLAlchemyError("Cannot use sync session factory in async context")
-        
+    start_time = time.time()
+    async with async_session() as session:
         try:
-            self.db = self.session_factory()
-            if not isinstance(self.db, AsyncSession):
-                self._closed = True
-                raise SQLAlchemyError("Session factory returned non-async session")
-            return self
+            yield session
+        except SQLAlchemyError as e:
+            logger.error(f"Async database error: {str(e)}", exc_info=True)
+            await session.rollback()
+            raise DatabaseError(f"Database error occurred: {str(e)}", original_error=e)
         except Exception as e:
-            self._closed = True
-            if self.db:
-                await self.db.close()
-                self.db = None
-            raise SQLAlchemyError(f"Failed to create session: {str(e)}")
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Exit the async context manager."""
-        if not self.db:
-            self._closed = True
-            return
-
-        try:
-            if exc_type is None:
-                try:
-                    await self.db.commit()
-                except SQLAlchemyError as commit_error:
-                    try:
-                        await self.db.rollback()
-                    except SQLAlchemyError as rollback_error:
-                        raise SQLAlchemyError("Failed to rollback transaction: Rollback failed") from rollback_error
-                    raise SQLAlchemyError("Failed to commit transaction: Commit failed") from commit_error
-            else:
-                try:
-                    await self.db.rollback()
-                except SQLAlchemyError as rollback_error:
-                    raise SQLAlchemyError("Failed to rollback transaction: Rollback failed") from rollback_error
+            logger.error(f"Unexpected error in async database session: {str(e)}", exc_info=True)
+            await session.rollback()
+            raise
         finally:
-            try:
-                await self.db.close()
-            except Exception as e:
-                logger.error(f"Error closing session: {str(e)}")
-            finally:
-                self.db = None
-                self._closed = True
-
-    def __enter__(self):
-        """Enter sync context."""
-        if self._closed:
-            raise SQLAlchemyError("Cannot reuse a closed session")
-        
-        if self._is_async:
-            self._closed = True
-            raise SQLAlchemyError("Cannot use async session factory in sync context")
-        
-        try:
-            self.db = self.session_factory()
-            if isinstance(self.db, AsyncSession):
-                self._closed = True
-                raise SQLAlchemyError("Session factory returned async session")
-            return self
-        except Exception as e:
-            self._closed = True
-            if self.db:
-                self.db.close()
-                self.db = None
-            raise SQLAlchemyError(f"Failed to create session: {str(e)}")
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Exit the sync context manager."""
-        if not self.db:
-            self._closed = True
-            return
-
-        try:
-            if exc_type is None:
-                try:
-                    self.db.commit()
-                except SQLAlchemyError as commit_error:
-                    try:
-                        self.db.rollback()
-                    except SQLAlchemyError as rollback_error:
-                        raise SQLAlchemyError("Failed to rollback transaction: Rollback failed") from rollback_error
-                    raise SQLAlchemyError("Failed to commit transaction: Commit failed") from commit_error
-            else:
-                try:
-                    self.db.rollback()
-                except SQLAlchemyError as rollback_error:
-                    raise SQLAlchemyError("Failed to rollback transaction: Rollback failed") from rollback_error
-        finally:
-            try:
-                self.db.close()
-            except Exception as e:
-                logger.error(f"Error closing session: {str(e)}")
-            finally:
-                self.db = None
-                self._closed = True
-
-def get_db_session(session_factory=None):
-    """Get a database session context manager."""
-    if session_factory is None:
-        if settings.ENVIRONMENT == "test":
-            # For test environment, ensure we're using the async session factory
-            # that's already configured for SQLite
-            session_factory = AsyncSessionLocal
-        else:
-            session_factory = SessionLocal
-    return DatabaseSession(session_factory)
+            duration = time.time() - start_time
+            if duration > 0.5:  # Log slow operations (>500ms)
+                logger.warning(f"Slow async database operation: {duration:.2f}s")
+            logger.debug(f"Async database session used for {duration:.4f}s")
+            await session.close()
 
 async def init_db():
-    """Initialize database tables."""
+    """
+    Initialize database tables.
+    
+    This creates all tables defined in the models.
+    
+    Raises:
+        DatabaseError: On initialization errors
+    """
     try:
+        logger.info("Creating database tables...")
+        # Import all models to ensure they're registered with Base.metadata
+        # This import is inside the function to avoid circular imports
+        from app.db.base import Base
+        
+        if async_engine is None:
+            raise DatabaseError("Async database engine not available", status_code=500)
+            
         async with async_engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
+            try:
+                await conn.run_sync(Base.metadata.create_all)
+                logger.info("Database tables created successfully")
+            except SQLAlchemyError as e:
+                # Check if the error is "table already exists" which can be ignored
+                if "already exists" in str(e):
+                    logger.info("Some tables already exist, continuing initialization")
+                else:
+                    raise
     except SQLAlchemyError as e:
         logger.error(f"Failed to initialize database: {str(e)}")
         raise DatabaseError(f"Failed to initialize database: {str(e)}", status_code=500)
+    except Exception as e:
+        logger.error(f"Unexpected error initializing database: {str(e)}")
+        raise DatabaseError(f"Unexpected error initializing database: {str(e)}", status_code=500)
 
 async def close_db():
-    """Close database connections."""
+    """
+    Close database connections.
+    
+    This disposes of all engine connections.
+    
+    Raises:
+        DatabaseError: On connection closure errors
+    """
     try:
-        await async_engine.dispose()
+        logger.info("Closing database connections...")
+        if async_engine:
+            await async_engine.dispose()
         sync_engine.dispose()
         logger.info("Database connections closed successfully")
     except SQLAlchemyError as e:
         logger.error(f"Error closing database connections: {str(e)}")
         raise DatabaseError(f"Error closing database connections: {str(e)}", status_code=500)
+    except Exception as e:
+        logger.error(f"Unexpected error closing database connections: {str(e)}")
+        raise DatabaseError(f"Unexpected error closing database connections: {str(e)}", status_code=500)
+
+def execute_raw_sql(query: str, params: Dict[str, Any] = None) -> List[Dict[str, Any]]:
+    """
+    Execute raw SQL query synchronously.
+    
+    Args:
+        query: SQL query
+        params: Query parameters
+        
+    Returns:
+        List[Dict[str, Any]]: Query results as list of dictionaries
+        
+    Raises:
+        DatabaseError: On query execution errors
+    """
+    db = SessionLocal()
+    try:
+        result = db.execute(text(query), params)
+        return [dict(row) for row in result]
+    except SQLAlchemyError as e:
+        logger.error(f"Raw SQL error: {str(e)}", exc_info=True)
+        raise DatabaseError(f"Failed to execute raw SQL: {str(e)}") from e
+    finally:
+        db.close()
+
+async def execute_raw_sql_async(query: str, params: Dict[str, Any] = None) -> List[Dict[str, Any]]:
+    """
+    Execute raw SQL query asynchronously.
+    
+    Args:
+        query: SQL query
+        params: Query parameters
+        
+    Returns:
+        List[Dict[str, Any]]: Query results as list of dictionaries
+        
+    Raises:
+        DatabaseError: On query execution errors
+    """
+    if async_engine is None:
+        raise DatabaseError("Async database engine not available", status_code=500)
+        
+    async with async_session() as session:
+        try:
+            result = await session.execute(text(query), params)
+            return [dict(row) for row in result]
+        except SQLAlchemyError as e:
+            logger.error(f"Raw SQL error (async): {str(e)}", exc_info=True)
+            raise DatabaseError(f"Failed to execute raw SQL: {str(e)}") from e
+
+def get_db_stats() -> Dict[str, Any]:
+    """
+    Get database connection statistics.
+    
+    Returns:
+        Dict[str, Any]: Connection statistics
+    """
+    return {
+        **connection_stats,
+        "pool_status": {
+            "size": settings.DB_POOL_SIZE,
+            "max_overflow": settings.DB_MAX_OVERFLOW,
+            "timeout": settings.DB_POOL_TIMEOUT,
+            "recycle": settings.DB_POOL_RECYCLE,
+        },
+        "checkout_count": getattr(sync_engine.pool, "checkedout", 0),
+        "checkin_count": getattr(sync_engine.pool, "checkedin", 0),
+    }
 
 def optimize_query(query: str) -> str:
-    """Optimize a SQL query by adding appropriate indexes and hints."""
+    """
+    Optimize a SQL query by adding appropriate indexes and hints.
+    
+    Args:
+        query: SQL query to optimize
+        
+    Returns:
+        str: Optimized query
+    """
     # Add query optimization logic here
     # This is a placeholder implementation
     return query 
 
 def optimize_sqlalchemy_query(query):
-    """Optimize a SQLAlchemy query with appropriate joins and eager loading."""
+    """
+    Optimize a SQLAlchemy query with appropriate joins and eager loading.
+    
+    Args:
+        query: SQLAlchemy query to optimize
+        
+    Returns:
+        Any: Optimized query
+    """
     if hasattr(query, 'join'):
         # Add query optimization logic for joins
         return query

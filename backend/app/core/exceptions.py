@@ -178,13 +178,15 @@ class ServiceError(AppException):
 
 class RateLimitException(HTTPException):
     """Exception raised when rate limit is exceeded."""
-    def __init__(self, detail: str = "Rate limit exceeded"):
+    def __init__(self, detail: str = "Rate limit exceeded", details: Optional[Dict[str, Any]] = None):
         super().__init__(status_code=429, detail=detail)
+        self.details = details or {}
 
 class ValidationException(HTTPException):
     """Exception raised for validation errors."""
-    def __init__(self, detail: str = "Validation error"):
+    def __init__(self, detail: str = "Validation error", details: Optional[Dict[str, Any]] = None):
         super().__init__(status_code=422, detail=detail)
+        self.details = details or {}
 
 """Custom exceptions."""
 from fastapi import HTTPException, status

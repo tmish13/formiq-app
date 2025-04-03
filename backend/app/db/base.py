@@ -5,4 +5,7 @@ from app.db.base_class import Base
 from app.models.user import User
 from app.models.exercise import ExerciseTemplate
 from app.models.form_check import FormCheck, FeedbackItem
-from app.models.workout import Workout, Exercise, WorkoutPlan 
+from app.models.workout import Workout, Exercise, WorkoutPlan
+
+# Import all models to ensure they're registered with Base.metadata.
+from app.models.user import User 

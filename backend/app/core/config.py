@@ -1,8 +1,16 @@
-from typing import List, Union, Optional, Dict, Any
-from pydantic import AnyHttpUrl, field_validator, SecretStr
+"""
+Application configuration module.
+
+This module defines all application settings loaded from environment variables.
+Settings are defined as Pydantic models with validation to ensure correct types and formats.
+"""
+from typing import List, Union, Optional, Dict, Any, ClassVar
+from pydantic import AnyHttpUrl, field_validator, SecretStr, PostgresDsn, RedisDsn, HttpUrl, validator, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
 import os
+import sys
+from pathlib import Path
 from dotenv import load_dotenv
 from app.core.constants import (
     PROJECT_NAME,
@@ -21,14 +29,39 @@ from app.core.constants import (
 )
 import base64
 from datetime import datetime, timedelta
-from pydantic import validator
 import secrets
+import logging
 
 # Load environment variables
-if os.getenv("ENVIRONMENT") == "test":
-    load_dotenv(".env.test")
-else:
+def load_environment():
+    """
+    Load the appropriate environment file based on the ENVIRONMENT variable.
+    """
+    env = os.getenv("ENVIRONMENT", "development").lower()
+    
+    # Determine file path based on environment
+    root_dir = Path(__file__).parent.parent.parent
+    
+    # Order of environment file loading (from most to least specific)
+    env_files = [
+        root_dir / f".env.{env}.local",  # Most specific: .env.{env}.local
+        root_dir / f".env.{env}",        # Environment-specific: .env.{env}
+        root_dir / ".env.local",         # Local override: .env.local
+        root_dir / ".env"                # Default: .env
+    ]
+    
+    # Load the first file that exists
+    for env_file in env_files:
+        if env_file.exists():
+            print(f"Loading environment from {env_file}")
+            load_dotenv(env_file)
+            return
+    
+    # If no file exists, try to load .env which is the default
     load_dotenv()
+
+# Load environment variables before initializing settings
+load_environment()
 
 # Generate a default Fernet key (32 url-safe base64-encoded bytes)
 DEFAULT_ENCRYPTION_KEY = base64.urlsafe_b64encode(os.urandom(32)).decode()
@@ -39,28 +72,90 @@ DEFAULT_MAX_VIDEO_DURATION = 300  # 5 minutes
 DEFAULT_LOG_MAX_BYTES = 10 * 1024 * 1024  # 10MB
 
 class Settings(BaseSettings):
-    """Application settings."""
+    """
+    Application settings class with validation.
+    
+    This class defines all application settings with appropriate types,
+    default values, and validation rules. All settings are loaded from
+    environment variables.
+    """
+    # Environment settings
+    ENVIRONMENT: str = Field(
+        default=os.getenv("ENVIRONMENT", "development"), 
+        description="Application environment (development, test, production)"
+    )
+    DEBUG: bool = Field(
+        default=os.getenv("DEBUG", "true").lower() == "true",
+        description="Enable or disable debug mode"
+    )
+    SENTRY_DSN: Optional[str] = Field(
+        default=None,
+        description="Sentry DSN URL for error reporting"
+    )
+    
+    @validator("SENTRY_DSN")
+    def validate_sentry_dsn(cls, v):
+        """
+        Validate Sentry DSN if provided.
+        
+        Args:
+            v: Sentry DSN value
+            
+        Returns:
+            str: Valid Sentry DSN or None
+        """
+        if v is None or v == "":
+            return None
+        
+        # Simple URL validation
+        if not v.startswith(("http://", "https://")):
+            raise ValueError("Sentry DSN must be a valid URL")
+        
+        return v
 
-    # Environment
-    ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
-    DEBUG: bool = os.getenv("DEBUG", "true").lower() == "true"
-    SENTRY_DSN: Optional[str] = os.getenv("SENTRY_DSN")
-
-    API_V1_STR: str = "/api/v1"
-    SECRET_KEY: str = secrets.token_urlsafe(32)
-    ENCRYPTION_KEY: str = os.getenv("ENCRYPTION_KEY", DEFAULT_ENCRYPTION_KEY)
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8  # 8 days
-    REFRESH_TOKEN_EXPIRE_DAYS: int = 30
-    ALGORITHM: str = "HS256"
-    PROJECT_NAME: str = "FormIQ"
-    VERSION: str = "1.0.0"
+    # API settings
+    API_V1_STR: str = Field(
+        default="/api/v1",
+        description="API version 1 prefix"
+    )
+    SECRET_KEY: str = Field(
+        default_factory=lambda: os.getenv("SECRET_KEY", secrets.token_urlsafe(32)),
+        description="Secret key for JWT and other cryptographic operations"
+    )
+    ENCRYPTION_KEY: str = Field(
+        default=os.getenv("ENCRYPTION_KEY", DEFAULT_ENCRYPTION_KEY),
+        description="Encryption key for sensitive data"
+    )
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(
+        default=60 * 24 * 8,  # 8 days
+        description="Access token expiration time in minutes"
+    )
+    REFRESH_TOKEN_EXPIRE_DAYS: int = Field(
+        default=30,  # 30 days
+        description="Refresh token expiration time in days"
+    )
+    ALGORITHM: str = Field(
+        default="HS256",
+        description="Algorithm used for JWT token signing"
+    )
+    PROJECT_NAME: str = Field(
+        default="FormIQ",
+        description="Name of the project"
+    )
+    VERSION: str = Field(
+        default="1.0.0",
+        description="API version"
+    )
 
     # CORS
-    BACKEND_CORS_ORIGINS: List[AnyHttpUrl] = []
+    BACKEND_CORS_ORIGINS: List[AnyHttpUrl] = Field(
+        default=[],
+        description="List of allowed CORS origins"
+    )
 
     @validator("BACKEND_CORS_ORIGINS", pre=True)
-    def assemble_cors_origins(cls, v: str | List[str]) -> List[str] | str:
-        """Validate CORS origins."""
+    def assemble_cors_origins(cls, v: Union[str, List[str]]) -> Union[List[str], str]:
+        """Validate and process CORS origins from string to list."""
         if isinstance(v, str) and not v.startswith("["):
             return [i.strip() for i in v.split(",")]
         elif isinstance(v, (list, str)):
@@ -68,84 +163,338 @@ class Settings(BaseSettings):
         raise ValueError(v)
 
     # Database
-    POSTGRES_SERVER: str = os.getenv("POSTGRES_SERVER", "localhost")
-    POSTGRES_USER: str = os.getenv("POSTGRES_USER", "postgres")
-    POSTGRES_PASSWORD: str = os.getenv("POSTGRES_PASSWORD", "")
-    POSTGRES_DB: str = os.getenv("POSTGRES_DB", "formiq")
-    SQLALCHEMY_DATABASE_URI: str = (
-        "sqlite+aiosqlite:///./test.db"
-        if os.getenv("ENVIRONMENT") == "test"
-        else f"postgresql+asyncpg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_SERVER}/{POSTGRES_DB}"
+    POSTGRES_SERVER: str = Field(
+        default=os.getenv("POSTGRES_SERVER", "localhost"),
+        description="PostgreSQL server hostname"
     )
-    DB_ECHO: bool = os.getenv("DB_ECHO", "true").lower() == "true"
-    DB_POOL_SIZE: int = int(os.getenv("DB_POOL_SIZE", "5"))
-    DB_MAX_OVERFLOW: int = int(os.getenv("DB_MAX_OVERFLOW", "10"))
-    DB_POOL_TIMEOUT: int = int(os.getenv("DB_POOL_TIMEOUT", "30"))
-    DB_POOL_RECYCLE: int = int(os.getenv("DB_POOL_RECYCLE", "1800"))  # 30 minutes
+    POSTGRES_USER: str = Field(
+        default=os.getenv("POSTGRES_USER", "postgres"),
+        description="PostgreSQL username"
+    )
+    POSTGRES_PASSWORD: str = Field(
+        default=os.getenv("POSTGRES_PASSWORD", ""),
+        description="PostgreSQL password"
+    )
+    POSTGRES_DB: str = Field(
+        default=os.getenv("POSTGRES_DB", "formiq"),
+        description="PostgreSQL database name"
+    )
+    SQLALCHEMY_DATABASE_URI: Optional[str] = Field(
+        default=None,
+        description="SQLAlchemy database URI"
+    )
+    
+    @validator("SQLALCHEMY_DATABASE_URI", pre=True)
+    def assemble_db_connection(cls, v: Optional[str], values: Dict[str, Any]) -> str:
+        """
+        Assemble database connection URI from components or use the provided one.
+        """
+        if v:
+            return v
+            
+        # Use SQLite for test and development environments for simplicity
+        if values.get("ENVIRONMENT") in ["test", "development"]:
+            db_name = "test.db" if values.get("ENVIRONMENT") == "test" else "dev.db"
+            return f"sqlite:///./{db_name}"
+        
+        # Use direct string formatting to ensure correct URI structure
+        user = values.get("POSTGRES_USER")
+        password = values.get("POSTGRES_PASSWORD")
+        server = values.get("POSTGRES_SERVER")
+        db = values.get("POSTGRES_DB")
+        
+        # Construct connection string manually to avoid path formatting issues
+        return f"postgresql://{user}:{password}@{server}/{db}"
+    
+    DB_ECHO: bool = Field(
+        default=os.getenv("DB_ECHO", "false").lower() == "true",
+        description="Enable SQLAlchemy query logging"
+    )
+    DB_POOL_SIZE: int = Field(
+        default=int(os.getenv("DB_POOL_SIZE", "5")),
+        description="Database connection pool size"
+    )
+    DB_MAX_OVERFLOW: int = Field(
+        default=int(os.getenv("DB_MAX_OVERFLOW", "10")),
+        description="Maximum overflow connections in the pool"
+    )
+    DB_POOL_TIMEOUT: int = Field(
+        default=int(os.getenv("DB_POOL_TIMEOUT", "30")),
+        description="Connection pool timeout in seconds"
+    )
+    DB_POOL_RECYCLE: int = Field(
+        default=int(os.getenv("DB_POOL_RECYCLE", "1800")),  # 30 minutes
+        description="Connection recycle time in seconds"
+    )
 
     # Redis
-    REDIS_HOST: str = os.getenv("REDIS_HOST", "localhost")
-    REDIS_PORT: int = int(os.getenv("REDIS_PORT", 6379))
-    REDIS_DB: int = int(os.getenv("REDIS_DB", 0))
-    REDIS_PASSWORD: str = os.getenv("REDIS_PASSWORD", "")
-    REDIS_URL: str = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
+    REDIS_HOST: str = Field(
+        default=os.getenv("REDIS_HOST", "localhost"),
+        description="Redis server hostname"
+    )
+    REDIS_PORT: int = Field(
+        default=int(os.getenv("REDIS_PORT", "6379")),
+        description="Redis server port"
+    )
+    REDIS_DB: int = Field(
+        default=int(os.getenv("REDIS_DB", "0")),
+        description="Redis database number"
+    )
+    REDIS_PASSWORD: str = Field(
+        default=os.getenv("REDIS_PASSWORD", ""),
+        description="Redis password"
+    )
+    REDIS_URL: Optional[str] = Field(
+        default=None,
+        description="Redis connection URL"
+    )
+    
+    @validator("REDIS_URL", pre=True)
+    def assemble_redis_connection(cls, v: Optional[str], values: Dict[str, Any]) -> str:
+        """
+        Assemble Redis connection URL from components or use the provided one.
+        """
+        if v:
+            return v
+            
+        password = values.get("REDIS_PASSWORD")
+        auth = f":{password}@" if password else ""
+        
+        return f"redis://{auth}{values.get('REDIS_HOST')}:{values.get('REDIS_PORT')}/{values.get('REDIS_DB')}"
 
     # Storage
-    UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "uploads/videos")
-    UPLOAD_URL: str = os.getenv("UPLOAD_URL", "http://localhost:8000/uploads/videos")
+    UPLOAD_DIR: str = Field(
+        default=os.getenv("UPLOAD_DIR", "uploads/videos"),
+        description="Directory for uploaded files"
+    )
+    UPLOAD_URL: str = Field(
+        default=os.getenv("UPLOAD_URL", "http://localhost:8000/uploads/videos"),
+        description="Base URL for accessing uploaded files"
+    )
     
     # AWS Settings
-    AWS_ACCESS_KEY_ID: str = os.getenv("AWS_ACCESS_KEY_ID", "")
-    AWS_SECRET_ACCESS_KEY: str = os.getenv("AWS_SECRET_ACCESS_KEY", "")
-    AWS_REGION: str = os.getenv("AWS_REGION", "us-east-1")
-    AWS_BUCKET_NAME: str = os.getenv("AWS_BUCKET_NAME", "formiq-videos")
-    AWS_S3_ENDPOINT: Optional[str] = os.getenv("AWS_S3_ENDPOINT")
+    AWS_ACCESS_KEY_ID: str = Field(
+        default=os.getenv("AWS_ACCESS_KEY_ID", ""),
+        description="AWS access key ID"
+    )
+    AWS_SECRET_ACCESS_KEY: str = Field(
+        default=os.getenv("AWS_SECRET_ACCESS_KEY", ""),
+        description="AWS secret access key"
+    )
+    AWS_REGION: str = Field(
+        default=os.getenv("AWS_REGION", "us-east-1"),
+        description="AWS region for services"
+    )
+    AWS_BUCKET_NAME: str = Field(
+        default=os.getenv("AWS_BUCKET_NAME", "formiq-videos"),
+        description="AWS S3 bucket name for video storage"
+    )
+    AWS_S3_ENDPOINT: Optional[str] = Field(
+        default=os.getenv("AWS_S3_ENDPOINT"),
+        description="Custom S3 endpoint URL (for non-AWS S3 services)"
+    )
+    S3_BUCKET: str = Field(
+        default_factory=lambda: os.getenv("S3_BUCKET", os.getenv("AWS_BUCKET_NAME", "formiq-videos")),
+        description="Alias for AWS_BUCKET_NAME"
+    )
     
     # Stripe Settings
-    STRIPE_SECRET_KEY: str = os.getenv("STRIPE_SECRET_KEY", "")
-    STRIPE_WEBHOOK_SECRET: str = os.getenv("STRIPE_WEBHOOK_SECRET", "")
-    STRIPE_PRICE_ID: str = os.getenv("STRIPE_PRICE_ID", "")
+    STRIPE_SECRET_KEY: str = Field(
+        default=os.getenv("STRIPE_SECRET_KEY", ""),
+        description="Stripe API secret key"
+    )
+    STRIPE_WEBHOOK_SECRET: str = Field(
+        default=os.getenv("STRIPE_WEBHOOK_SECRET", ""),
+        description="Stripe webhook signing secret"
+    )
+    STRIPE_PRICE_ID: str = Field(
+        default=os.getenv("STRIPE_PRICE_ID", ""),
+        description="Default Stripe price ID"
+    )
+    STRIPE_BASIC_PRICE_ID: str = Field(
+        default=os.getenv("STRIPE_BASIC_PRICE_ID", "price_basic"),
+        description="Stripe price ID for basic plan"
+    )
+    STRIPE_PRO_PRICE_ID: str = Field(
+        default=os.getenv("STRIPE_PRO_PRICE_ID", "price_pro"),
+        description="Stripe price ID for pro plan"
+    )
+    STRIPE_PREMIUM_PRICE_ID: str = Field(
+        default=os.getenv("STRIPE_PREMIUM_PRICE_ID", "price_premium"),
+        description="Stripe price ID for premium plan"
+    )
     
     # SMTP Settings
-    SMTP_HOST: str = os.getenv("SMTP_HOST", "smtp.gmail.com")
-    SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
-    SMTP_USER: str = os.getenv("SMTP_USER", "")
-    SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
-    SMTP_TLS: bool = os.getenv("SMTP_TLS", "true").lower() == "true"
-    SMTP_FROM_EMAIL: str = os.getenv("SMTP_FROM_EMAIL", "noreply@formiq.app")
+    SMTP_HOST: str = Field(
+        default=os.getenv("SMTP_HOST", "smtp.gmail.com"),
+        description="SMTP server hostname"
+    )
+    SMTP_PORT: int = Field(
+        default=int(os.getenv("SMTP_PORT", "587")),
+        description="SMTP server port"
+    )
+    SMTP_USER: str = Field(
+        default=os.getenv("SMTP_USER", ""),
+        description="SMTP username"
+    )
+    SMTP_PASSWORD: str = Field(
+        default=os.getenv("SMTP_PASSWORD", ""),
+        description="SMTP password"
+    )
+    SMTP_TLS: bool = Field(
+        default=os.getenv("SMTP_TLS", "true").lower() == "true",
+        description="Enable SMTP TLS"
+    )
+    SMTP_FROM_EMAIL: str = Field(
+        default=os.getenv("SMTP_FROM_EMAIL", "noreply@formiq.app"),
+        description="From email address"
+    )
+    SMTP_USERNAME: str = Field(
+        default_factory=lambda: os.getenv("SMTP_USERNAME", os.getenv("SMTP_USER", "")),
+        description="Alias for SMTP_USER"
+    )
     
     # Rate Limiting
-    RATE_LIMIT_REQUESTS: int = int(os.getenv("RATE_LIMIT_REQUESTS", "100"))
-    RATE_LIMIT_BURST: int = int(os.getenv("RATE_LIMIT_BURST", "200"))
-    RATE_LIMIT_WINDOW: int = int(os.getenv("RATE_LIMIT_WINDOW", "60"))
+    RATE_LIMIT_REQUESTS: int = Field(
+        default=int(os.getenv("RATE_LIMIT_REQUESTS", "100")),
+        description="Default rate limit requests per window"
+    )
+    RATE_LIMIT_BURST: int = Field(
+        default=int(os.getenv("RATE_LIMIT_BURST", "200")),
+        description="Default rate limit burst size"
+    )
+    RATE_LIMIT_WINDOW: int = Field(
+        default=int(os.getenv("RATE_LIMIT_WINDOW", "60")),
+        description="Default rate limit window in seconds"
+    )
     
     # JWT Settings
-    JWT_SECRET: str = os.getenv("JWT_SECRET", SECRET_KEY)
-    JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM", ALGORITHM)
+    JWT_SECRET: str = Field(
+        default=os.getenv("JWT_SECRET", ""),
+        description="Secret key for JWT tokens"
+    )
+
+    @validator("JWT_SECRET")
+    def validate_jwt_secret(cls, v, values):
+        """Validate JWT secret key."""
+        if not v:
+            # If JWT_SECRET is not set, use SECRET_KEY
+            return values.get("SECRET_KEY", "")
+        return v
+        
+    JWT_ALGORITHM: str = Field(
+        default=os.getenv("JWT_ALGORITHM", "HS256"),
+        description="Algorithm for JWT token signing"
+    )
     
     # File Upload Limits
-    MAX_CONTENT_LENGTH: int = int(os.getenv("MAX_CONTENT_LENGTH", str(DEFAULT_MAX_CONTENT_LENGTH)))
-    ALLOWED_VIDEO_TYPES: List[str] = ["video/mp4", "video/quicktime", "video/x-msvideo"]
-    MAX_VIDEO_DURATION: int = int(os.getenv("MAX_VIDEO_DURATION", str(DEFAULT_MAX_VIDEO_DURATION)))
+    MAX_CONTENT_LENGTH: int = Field(
+        default=int(os.getenv("MAX_CONTENT_LENGTH", str(DEFAULT_MAX_CONTENT_LENGTH))),
+        description="Maximum content length for uploads in bytes"
+    )
+    ALLOWED_VIDEO_TYPES: List[str] = Field(
+        default=["video/mp4", "video/quicktime", "video/x-msvideo"],
+        description="List of allowed video MIME types"
+    )
+    MAX_VIDEO_DURATION: int = Field(
+        default=int(os.getenv("MAX_VIDEO_DURATION", str(DEFAULT_MAX_VIDEO_DURATION))),
+        description="Maximum video duration in seconds"
+    )
     
     # AI Model Settings
-    AI_MODEL_PATH: str = os.getenv("AI_MODEL_PATH", "models")
-    AI_CONFIDENCE_THRESHOLD: float = float(os.getenv("AI_CONFIDENCE_THRESHOLD", "0.7"))
-    AI_MAX_BATCH_SIZE: int = int(os.getenv("AI_MAX_BATCH_SIZE", "32"))
+    AI_MODEL_PATH: str = Field(
+        default=os.getenv("AI_MODEL_PATH", "models"),
+        description="Path to AI model files"
+    )
+    AI_CONFIDENCE_THRESHOLD: float = Field(
+        default=float(os.getenv("AI_CONFIDENCE_THRESHOLD", "0.7")),
+        description="Confidence threshold for AI predictions"
+    )
+    AI_MAX_BATCH_SIZE: int = Field(
+        default=int(os.getenv("AI_MAX_BATCH_SIZE", "32")),
+        description="Maximum batch size for AI inference"
+    )
     
     # Logging
-    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
-    LOG_FORMAT: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    LOG_FILE: str = os.getenv("LOG_FILE", "app.log")
-    LOG_MAX_BYTES: int = int(os.getenv("LOG_MAX_BYTES", str(DEFAULT_LOG_MAX_BYTES)))
-    LOG_BACKUP_COUNT: int = int(os.getenv("LOG_BACKUP_COUNT", "5"))
+    LOG_LEVEL: str = Field(
+        default=os.getenv("LOG_LEVEL", "INFO"),
+        description="Logging level"
+    )
+    LOG_FORMAT: str = Field(
+        default="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        description="Log message format"
+    )
+    LOG_FILE: str = Field(
+        default=os.getenv("LOG_FILE", "app.log"),
+        description="Path to log file"
+    )
+    LOG_MAX_BYTES: int = Field(
+        default=int(os.getenv("LOG_MAX_BYTES", str(DEFAULT_LOG_MAX_BYTES))),
+        description="Maximum log file size before rotation"
+    )
+    LOG_BACKUP_COUNT: int = Field(
+        default=int(os.getenv("LOG_BACKUP_COUNT", "5")),
+        description="Number of backup log files to keep"
+    )
 
-    class Config:
-        """Pydantic config."""
-        case_sensitive = True
+    model_config = SettingsConfigDict(
+        case_sensitive=True,
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore"
+    )
+    
+    def validate_settings(self) -> List[str]:
+        """
+        Validate all settings and return a list of warnings/errors.
+        
+        Returns:
+            List[str]: List of warnings or errors
+        """
+        warnings = []
+        
+        # Check if database URI is set for non-test environment
+        if self.ENVIRONMENT != "test" and not self.SQLALCHEMY_DATABASE_URI:
+            warnings.append("DATABASE_URI is not set")
+        
+        # Check if JWT secret is secure enough in production
+        if self.ENVIRONMENT == "production" and len(self.JWT_SECRET) < 32:
+            warnings.append("JWT_SECRET is too short for production")
+        
+        # Check if Stripe settings are set in production
+        if self.ENVIRONMENT == "production" and not self.STRIPE_SECRET_KEY:
+            warnings.append("STRIPE_SECRET_KEY is not set in production")
+        
+        # Check if AWS credentials are set for production
+        if self.ENVIRONMENT == "production" and not self.AWS_ACCESS_KEY_ID:
+            warnings.append("AWS_ACCESS_KEY_ID is not set in production")
+        
+        # Check if SMTP settings are valid
+        if not self.SMTP_HOST or not self.SMTP_USER:
+            warnings.append("SMTP settings are incomplete")
+        
+        return warnings
 
 @lru_cache()
 def get_settings() -> Settings:
-    return Settings()
+    """
+    Get application settings.
+    
+    This function is cached to avoid repeated parsing of environment variables.
+    Clear the cache using `get_settings.cache_clear()` when environment variables change.
+    
+    Returns:
+        Settings: Application settings instance
+    """
+    settings = Settings()
+    
+    # Log warnings if settings are invalid
+    warnings = settings.validate_settings()
+    if warnings and settings.ENVIRONMENT != "test":
+        for warning in warnings:
+            logging.warning(f"Configuration warning: {warning}")
+    
+    return settings
 
+# Global settings instance
 settings = get_settings() 

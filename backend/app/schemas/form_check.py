@@ -1,57 +1,196 @@
 """Form check schema module."""
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Literal, Any
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, validator, HttpUrl, constr, confloat
+from app.models.enums import FeedbackType, FeedbackSeverity, FormCheckStatus, ExerciseType
 
 
 class FormCheckBase(BaseModel):
-    """Form check base schema."""
-
-    video_url: str
-    exercise_id: UUID
-    feedback: Optional[str] = None
-    score: Optional[float] = None
-    keypoints: Optional[List[Dict[str, float]]] = None
-    status: str = "pending"
+    """
+    Base model for form check data.
+    
+    Attributes:
+        video_url: URL to the uploaded video file
+        exercise_id: Reference to the exercise template
+        feedback: Optional textual feedback on the form check
+        score: Optional score from 0-100 representing form quality
+        keypoints: Optional list of keypoint data from pose detection
+        status: Current processing status of the form check
+    """
+    video_url: str = Field(..., description="URL to the uploaded video file")
+    exercise_id: UUID = Field(..., description="Reference to the exercise template")
+    feedback: Optional[str] = Field(None, description="Textual feedback on the form check")
+    score: Optional[float] = Field(None, description="Score from 0-100 representing form quality")
+    keypoints: Optional[List[Dict[str, float]]] = Field(None, description="List of keypoint data from pose detection")
+    status: FormCheckStatus = Field(FormCheckStatus.PENDING, description="Current processing status")
+    
+    @validator("video_url")
+    def validate_video_url(cls, v):
+        """Validate that the video URL is properly formatted."""
+        if not v.startswith(("http://", "https://", "s3://")):
+            raise ValueError("Video URL must be a valid HTTP, HTTPS, or S3 URL")
+        return v
+    
+    @validator("score")
+    def validate_score(cls, v):
+        """Validate that the score is between 0 and 100."""
+        if v is not None and not (0 <= v <= 100):
+            raise ValueError("Score must be between 0 and 100")
+        return v
 
 
 class FormCheckCreate(FormCheckBase):
-    """Form check create schema."""
+    """
+    Schema for creating a new form check.
+    """
+    exercise_type: ExerciseType = Field(..., description="Type of exercise being analyzed")
+    notes: Optional[str] = Field(None, description="Additional notes from the user")
 
-    pass
 
-
-class FormCheckUpdate(FormCheckBase):
-    """Form check update schema."""
-
+class FormCheckUpdate(BaseModel):
+    """
+    Schema for updating an existing form check.
+    
+    All fields are optional to allow partial updates.
+    """
     video_url: Optional[str] = None
     exercise_id: Optional[UUID] = None
-    status: Optional[str] = None
+    status: Optional[FormCheckStatus] = None
+    overall_feedback: Optional[str] = None
+    score: Optional[float] = Field(None, ge=0, le=100, description="Score from 0-100")
 
 
-class FormCheckInDBBase(FormCheckBase):
-    """Form check in DB base schema."""
-
-    id: Optional[UUID] = None
-    user_id: Optional[UUID] = None
-    created_at: Optional[datetime] = None
+class FormCheckResponse(BaseModel):
+    """
+    Schema for form check responses from the API.
+    
+    Includes all form check data and relationships.
+    """
+    id: UUID
+    video_url: str
+    exercise_id: UUID
+    user_id: UUID
+    status: FormCheckStatus
+    score: Optional[float] = None
+    overall_feedback: Optional[str] = None
+    analysis_url: Optional[str] = None
+    created_at: datetime
     updated_at: Optional[datetime] = None
-
+    
     class Config:
-        """Pydantic config."""
-
+        """Pydantic configuration."""
         from_attributes = True
 
 
-class FormCheck(FormCheckInDBBase):
-    """Form check schema."""
+class FeedbackItemBase(BaseModel):
+    """
+    Base model for feedback item data.
+    
+    Attributes:
+        feedback_type: Type of feedback (form, technique, etc.)
+        description: Detailed feedback message
+        timestamp: Timestamp in the video where feedback applies
+        severity: Severity level of the feedback
+        suggestions: List of improvement suggestions
+    """
+    feedback_type: FeedbackType = Field(..., description="Type of feedback")
+    description: constr(min_length=10, max_length=1000) = Field(..., description="Detailed feedback message")
+    timestamp: confloat(ge=0.0) = Field(..., description="Timestamp in the video where feedback applies (seconds)")
+    severity: FeedbackSeverity = Field(..., description="Severity level of the feedback")
+    suggestions: Optional[List[constr(max_length=500)]] = Field(None, description="List of improvement suggestions")
+    is_ai_generated: bool = Field(False, description="Whether this feedback was generated by AI")
+    joint_angles: Optional[Dict[str, float]] = Field(None, description="Joint angle measurements")
 
+    @validator("suggestions")
+    def validate_suggestions(cls, v):
+        """Validate suggestions list."""
+        if v is not None:
+            if not isinstance(v, list):
+                raise ValueError("Suggestions must be a list")
+            if any(not isinstance(s, str) for s in v):
+                raise ValueError("All suggestions must be strings")
+            if len(v) > 10:
+                raise ValueError("Maximum 10 suggestions allowed")
+        return v
+    
+    @validator("joint_angles")
+    def validate_joint_angles(cls, v):
+        """Validate joint angles dictionary."""
+        if v is not None:
+            if not isinstance(v, dict):
+                raise ValueError("Joint angles must be a dictionary")
+            for key, value in v.items():
+                if not isinstance(key, str):
+                    raise ValueError("Joint angle keys must be strings")
+                if not isinstance(value, (int, float)):
+                    raise ValueError("Joint angle values must be numbers")
+        return v
+
+
+class FeedbackItemCreate(FeedbackItemBase):
+    """
+    Schema for creating a new feedback item.
+    """
     pass
 
 
-class FormCheckInDB(FormCheckInDBBase):
-    """Form check in DB schema."""
+class FeedbackItemUpdate(BaseModel):
+    """
+    Schema for updating an existing feedback item.
+    
+    All fields are optional to allow partial updates.
+    """
+    feedback_type: Optional[FeedbackType] = None
+    description: Optional[constr(min_length=10, max_length=1000)] = None
+    timestamp: Optional[confloat(ge=0.0)] = None
+    severity: Optional[FeedbackSeverity] = None
+    suggestions: Optional[List[constr(max_length=500)]] = None
+    joint_angles: Optional[Dict[str, float]] = None
 
-    pass 
+
+class FeedbackItemResponse(BaseModel):
+    """
+    Schema for feedback item responses from the API.
+    
+    Includes all feedback item data and relationships.
+    """
+    id: int
+    form_check_id: UUID
+    feedback_type: FeedbackType
+    description: str
+    timestamp: float
+    severity: FeedbackSeverity
+    suggestions: Optional[List[str]] = None
+    joint_angles: Optional[Dict[str, float]] = None
+    is_ai_generated: bool
+    created_at: datetime
+    
+    class Config:
+        """Pydantic configuration."""
+        from_attributes = True
+
+
+class FormCheckCompleteRequest(BaseModel):
+    """
+    Schema for completing a form check analysis.
+    """
+    summary: constr(min_length=10, max_length=2000) = Field(..., description="Overall feedback summary")
+    overall_score: confloat(ge=0.0, le=10.0) = Field(..., description="Score from 0-10")
+
+
+class FormCheckSummaryStats(BaseModel):
+    """
+    Schema for form check summary statistics.
+    """
+    total_form_checks: int
+    pending_form_checks: int
+    completed_form_checks: int
+    average_score: Optional[float] = None
+    best_exercise: Optional[str] = None
+    worst_exercise: Optional[str] = None
+    
+    class Config:
+        """Pydantic configuration."""
+        from_attributes = True 

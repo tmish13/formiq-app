@@ -17,6 +17,11 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.pool import NullPool
 
 from app.core.config import settings, get_settings
 from app.db.base_class import Base
@@ -25,25 +30,57 @@ from app.models.user import User
 from app.models.workout import Workout, Exercise, WorkoutPlan
 from app.core.security import create_access_token, get_password_hash
 from app.core.cache import cache_service
-from app.core.database import get_async_db, async_engine as app_engine
+from app.core.database import get_db, get_async_db
 from tests.test_utils import MockRedis
 from datetime import datetime, timedelta
 from app.db.session import async_session
 from app.core import security
 from app.repositories.user_repository import UserRepository
+from app.models.exercise import ExerciseTemplate
+from app.models.form_check import FormCheck
+from app.models.subscription import Subscription
 
 # Clear settings cache to reload with test environment
 get_settings.cache_clear()
 
-# Use SQLite for testing
-SQLALCHEMY_DATABASE_URL = "sqlite+aiosqlite:///./test.db"
+# Set up test database
+TEST_DATABASE_URL = "sqlite:///./test.db"
 
-test_engine = create_async_engine(
-    SQLALCHEMY_DATABASE_URL,
+# Create sync engine
+sync_engine = create_engine(
+    TEST_DATABASE_URL,
     connect_args={"check_same_thread": False}
 )
+
+# Create async engine
+async_engine = create_async_engine(
+    "sqlite+aiosqlite:///./test.db",
+    connect_args={"check_same_thread": False}
+)
+
 TestingSessionLocal = sessionmaker(
-    test_engine,
+    autocommit=False, 
+    autoflush=False, 
+    bind=sync_engine
+)
+
+AsyncTestingSessionLocal = async_sessionmaker(
+    bind=async_engine,
+    class_=AsyncSession,
+    expire_on_commit=False
+)
+
+# Create a test async engine
+test_async_engine = create_async_engine(
+    settings.SQLALCHEMY_DATABASE_URI.replace("sqlite://", "sqlite+aiosqlite://"),
+    poolclass=NullPool,
+    echo=False,
+    connect_args={"check_same_thread": False}
+)
+
+# Create test async session
+test_async_session_factory = sessionmaker(
+    test_async_engine,
     class_=AsyncSession,
     expire_on_commit=False,
     autocommit=False,
@@ -53,38 +90,72 @@ TestingSessionLocal = sessionmaker(
 @pytest.fixture(scope="session", autouse=True)
 def override_app_engine():
     """Override the application's database engine with the test engine."""
-    original_engine = app_engine
-    app.state.engine = test_engine  # Set the test engine on the app state
+    original_engine = get_async_db
+    app.state.engine = async_engine  # Set the test engine on the app state
     yield
     app.state.engine = original_engine  # Restore the original engine
 
 @pytest.fixture(scope="session")
-async def test_db_engine():
-    """Create a test database engine."""
-    async with test_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield test_engine
-    async with test_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+def setup_db():
+    # Create tables in the test database
+    Base.metadata.create_all(bind=sync_engine)
+    yield
+    # Drop tables after tests
+    Base.metadata.drop_all(bind=sync_engine)
 
 @pytest.fixture(scope="function")
-async def test_db(test_db_engine) -> AsyncSession:
-    """Create a fresh database session for each test."""
-    async with TestingSessionLocal() as session:
+def db(setup_db):
+    connection = sync_engine.connect()
+    transaction = connection.begin()
+    session = TestingSessionLocal(bind=connection)
+    
+    yield session
+    
+    session.close()
+    transaction.rollback()
+    connection.close()
+
+@pytest.fixture(scope="function")
+async def async_db(setup_db):
+    async with async_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    
+    async with AsyncTestingSessionLocal() as session:
         yield session
+    
+    async with async_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
 
 @pytest.fixture
-async def client() -> AsyncClient:
-    async with AsyncClient(app=app, base_url="http://test") as client:
-        yield client
+def client(db):
+    # Override the get_db dependency to use the test database
+    def override_get_db():
+        try:
+            yield db
+        finally:
+            pass
+    
+    app.dependency_overrides[get_db] = override_get_db
+    with TestClient(app) as test_client:
+        yield test_client
+    app.dependency_overrides.clear()
 
 @pytest.fixture
-async def test_db() -> AsyncGenerator[AsyncSession, None]:
-    async with async_session() as session:
-        yield session
+async def async_client(async_db):
+    # Override the get_async_db dependency
+    async def override_get_async_db():
+        try:
+            yield async_db
+        finally:
+            pass
+    
+    app.dependency_overrides[get_async_db] = override_get_async_db
+    with TestClient(app) as test_client:
+        yield test_client
+    app.dependency_overrides.clear()
 
 @pytest.fixture
-async def test_user(test_db: AsyncSession) -> AsyncGenerator[User, None]:
+async def test_user(db: Session) -> AsyncGenerator[User, None]:
     user = User(
         email="test@example.com",
         username="testuser",
@@ -94,12 +165,12 @@ async def test_user(test_db: AsyncSession) -> AsyncGenerator[User, None]:
         subscription_tier="PRO",
         created_at=datetime.now()
     )
-    test_db.add(user)
-    await test_db.commit()
-    await test_db.refresh(user)
+    db.add(user)
+    db.commit()
+    db.refresh(user)
     yield user
-    await test_db.delete(user)
-    await test_db.commit()
+    db.delete(user)
+    db.commit()
 
 @pytest.fixture
 async def test_token(test_user: User) -> str:
@@ -121,7 +192,7 @@ def mock_redis():
     return MockRedis()
 
 @pytest.fixture(scope="function")
-async def test_admin(test_db) -> User:
+async def test_admin(db) -> User:
     """Create a test admin user"""
     admin = User(
         email="admin@example.com",
@@ -133,9 +204,9 @@ async def test_admin(test_db) -> User:
         subscription_tier="PRO",
         created_at=datetime.now()
     )
-    test_db.add(admin)
-    await test_db.commit()
-    await test_db.refresh(admin)
+    db.add(admin)
+    db.commit()
+    db.refresh(admin)
     return admin
 
 @pytest.fixture(scope="function")
@@ -151,7 +222,7 @@ async def test_admin_headers(test_admin_token) -> Dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 @pytest.fixture(scope="function")
-async def test_workout(test_db, test_user) -> Workout:
+async def test_workout(db, test_user) -> Workout:
     """Create a test workout."""
     user = await test_user
     workout = Workout(
@@ -160,13 +231,13 @@ async def test_workout(test_db, test_user) -> Workout:
         user_id=user.id,
         created_at=datetime.now()
     )
-    test_db.add(workout)
-    await test_db.commit()
-    await test_db.refresh(workout)
+    db.add(workout)
+    db.commit()
+    db.refresh(workout)
     return workout
 
 @pytest.fixture(scope="function")
-async def test_exercise(test_db, test_workout) -> Exercise:
+async def test_exercise(db, test_workout) -> Exercise:
     """Create a test exercise."""
     workout = await test_workout
     exercise = Exercise(
@@ -177,13 +248,13 @@ async def test_exercise(test_db, test_workout) -> Exercise:
         workout_id=workout.id,
         created_at=datetime.now()
     )
-    test_db.add(exercise)
-    await test_db.commit()
-    await test_db.refresh(exercise)
+    db.add(exercise)
+    db.commit()
+    db.refresh(exercise)
     return exercise
 
 @pytest.fixture(scope="function")
-async def test_workout_plan(test_db, test_user) -> WorkoutPlan:
+async def test_workout_plan(db, test_user) -> WorkoutPlan:
     """Create a test workout plan."""
     user = await test_user
     plan = WorkoutPlan(
@@ -192,10 +263,54 @@ async def test_workout_plan(test_db, test_user) -> WorkoutPlan:
         user_id=user.id,
         created_at=datetime.now()
     )
-    test_db.add(plan)
-    await test_db.commit()
-    await test_db.refresh(plan)
+    db.add(plan)
+    db.commit()
+    db.refresh(plan)
     return plan
+
+@pytest.fixture(scope="function")
+async def setup_test_db():
+    """Create all tables for testing."""
+    # Create all tables
+    async with test_async_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.create_all)
+    
+    # Run the test
+    yield
+    
+    # Drop all tables
+    async with test_async_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+
+@pytest.fixture(scope="function")
+async def async_session() -> AsyncGenerator[AsyncSession, None]:
+    """Get async session for tests."""
+    async with test_async_session_factory() as session:
+        yield session
+
+@pytest.fixture(scope="function")
+async def async_client(setup_test_db, async_session) -> Generator[TestClient, None, None]:
+    """Get test client with overridden session."""
+    # Override dependencies
+    async def override_get_db():
+        try:
+            yield async_session
+        finally:
+            await async_session.close()
+
+    app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_async_db] = override_get_db
+    
+    # Set test engine as app state
+    app.state.engine = test_async_engine
+    
+    # Return test client
+    with TestClient(app) as client:
+        yield client
+    
+    # Clear overrides
+    app.dependency_overrides.clear()
 
 def pytest_configure(config):
     """Configure pytest with custom markers."""

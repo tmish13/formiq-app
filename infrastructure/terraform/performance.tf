@@ -1,43 +1,91 @@
-# CloudFront Distribution for CDN
+# CloudFront Distribution for frontend assets and videos
 resource "aws_cloudfront_distribution" "main" {
   enabled             = true
   is_ipv6_enabled     = true
   default_root_object = "index.html"
-  price_class         = "PriceClass_100"
-  aliases             = [var.domain_name]
+  price_class         = "PriceClass_100" # Use lowest cost option for MVP
 
+  # Origin for frontend assets
   origin {
-    domain_name = aws_lb.main.dns_name
-    origin_id   = aws_lb.main.arn
+    domain_name = aws_s3_bucket.frontend_assets.bucket_regional_domain_name
+    origin_id   = "frontend-assets"
 
-    custom_origin_config {
-      http_port              = 80
-      https_port             = 443
-      origin_protocol_policy = "http-only"
-      origin_ssl_protocols   = ["TLSv1.2"]
-      origin_keepalive_timeout = 5
-      origin_read_timeout      = 30
+    s3_origin_config {
+      origin_access_identity = aws_cloudfront_origin_access_identity.main.cloudfront_access_identity_path
     }
   }
 
+  # Origin for video content
+  origin {
+    domain_name = aws_s3_bucket.video_storage.bucket_regional_domain_name
+    origin_id   = "video-storage"
+
+    s3_origin_config {
+      origin_access_identity = aws_cloudfront_origin_access_identity.main.cloudfront_access_identity_path
+    }
+  }
+
+  # Default cache behavior for frontend assets
   default_cache_behavior {
-    allowed_methods        = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
-    cached_methods         = ["GET", "HEAD", "OPTIONS"]
-    target_origin_id       = aws_lb.main.arn
+    allowed_methods        = ["GET", "HEAD"]
+    cached_methods         = ["GET", "HEAD"]
+    target_origin_id       = "frontend-assets"
     viewer_protocol_policy = "redirect-to-https"
     compress              = true
 
     forwarded_values {
+      query_string = false
+      cookies {
+        forward = "none"
+      }
+    }
+
+    min_ttl     = 0
+    default_ttl = 86400    # 1 day
+    max_ttl     = 31536000 # 1 year
+  }
+
+  # Cache behavior for video files
+  ordered_cache_behavior {
+    path_pattern     = "/videos/*"
+    allowed_methods  = ["GET", "HEAD"]
+    cached_methods   = ["GET", "HEAD"]
+    target_origin_id = "video-storage"
+    viewer_protocol_policy = "redirect-to-https"
+    compress            = true
+
+    forwarded_values {
+      query_string = false
+      cookies {
+        forward = "none"
+      }
+    }
+
+    min_ttl     = 0
+    default_ttl = 86400  # 1 day
+    max_ttl     = 604800 # 1 week
+  }
+
+  # Cache behavior for API requests
+  ordered_cache_behavior {
+    path_pattern     = "/api/*"
+    allowed_methods  = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
+    cached_methods   = ["GET", "HEAD", "OPTIONS"]
+    target_origin_id = "frontend-assets"
+    viewer_protocol_policy = "redirect-to-https"
+    compress            = true
+
+    forwarded_values {
       query_string = true
-      headers      = ["*"]
+      headers      = ["Authorization", "Origin"]
       cookies {
         forward = "all"
       }
     }
 
     min_ttl     = 0
-    default_ttl = 3600
-    max_ttl     = 86400
+    default_ttl = 0
+    max_ttl     = 0
   }
 
   restrictions {
@@ -47,13 +95,68 @@ resource "aws_cloudfront_distribution" "main" {
   }
 
   viewer_certificate {
-    acm_certificate_arn = aws_acm_certificate.main.arn
-    ssl_support_method  = "sni-only"
+    cloudfront_default_certificate = true
   }
 
   tags = {
     Environment = var.environment
     Project     = "formiq"
+  }
+}
+
+# CloudFront Origin Access Identity
+resource "aws_cloudfront_origin_access_identity" "main" {
+  comment = "FormIQ CloudFront OAI"
+}
+
+# S3 bucket policy for CloudFront
+resource "aws_s3_bucket_policy" "frontend_assets" {
+  bucket = aws_s3_bucket.frontend_assets.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action   = "s3:GetObject"
+        Effect   = "Allow"
+        Resource = "${aws_s3_bucket.frontend_assets.arn}/*"
+        Principal = {
+          AWS = aws_cloudfront_origin_access_identity.main.iam_arn
+        }
+      }
+    ]
+  })
+}
+
+# S3 bucket policy for video storage
+resource "aws_s3_bucket_policy" "cloudfront_video_access" {
+  bucket = aws_s3_bucket.video_storage.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action   = "s3:GetObject"
+        Effect   = "Allow"
+        Resource = "${aws_s3_bucket.video_storage.arn}/*"
+        Principal = {
+          AWS = aws_cloudfront_origin_access_identity.main.iam_arn
+        }
+      }
+    ]
+  })
+}
+
+# CORS configuration for video storage
+resource "aws_s3_bucket_cors_configuration" "video_storage" {
+  bucket = aws_s3_bucket.video_storage.id
+
+  cors_rule {
+    allowed_headers = ["*"]
+    allowed_methods = ["GET", "PUT", "POST"]
+    allowed_origins = ["*"] # In production, restrict to your domain
+    expose_headers  = ["ETag"]
+    max_age_seconds = 3000
   }
 }
 

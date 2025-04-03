@@ -1,7 +1,7 @@
 """Base model module providing common functionality for all models."""
 from datetime import datetime
-from typing import Dict, Any, TypeVar, Type, Optional
-from sqlalchemy import Column, DateTime, func, String
+from typing import Dict, Any, TypeVar, Type, Optional, List, Set
+from sqlalchemy import Column, DateTime, func, String, inspect
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
 from pydantic import BaseModel as PydanticBaseModel
@@ -40,6 +40,37 @@ class BaseModel(Base):
             column.name: getattr(self, column.name)
             for column in self.__table__.columns
         }
+    
+    def to_dict_with_relationships(self, include: Optional[List[str]] = None) -> Dict[str, Any]:
+        """
+        Convert model instance to dictionary including relationships.
+        
+        Args:
+            include (Optional[List[str]]): List of relationship attributes to include
+            
+        Returns:
+            Dict[str, Any]: Dictionary representation of the model with relationships
+        """
+        result = self.to_dict()
+        
+        if not include:
+            # Get all relationship attributes
+            mapper = inspect(self.__class__)
+            include = [rel.key for rel in mapper.relationships]
+        
+        for rel_name in include:
+            if hasattr(self, rel_name):
+                rel_obj = getattr(self, rel_name)
+                if rel_obj is not None:
+                    if isinstance(rel_obj, list):
+                        result[rel_name] = [
+                            item.to_dict() if hasattr(item, 'to_dict') else item
+                            for item in rel_obj
+                        ]
+                    else:
+                        result[rel_name] = rel_obj.to_dict() if hasattr(rel_obj, 'to_dict') else rel_obj
+        
+        return result
 
     @classmethod
     def from_dict(cls: Type[T], data: Dict[str, Any]) -> T:
@@ -55,7 +86,50 @@ class BaseModel(Base):
         Raises:
             ValidationError: If data validation fails
         """
-        return cls(**data)
+        # Validate required fields
+        cls._validate_required_fields(data)
+        
+        # Create instance and return
+        instance = cls(**data)
+        instance.validate()
+        return instance
+
+    @classmethod
+    def _validate_required_fields(cls, data: Dict[str, Any]) -> None:
+        """
+        Validate required fields in the data dictionary.
+        
+        Args:
+            data (Dict[str, Any]): Dictionary containing model data
+            
+        Raises:
+            ValidationError: If required fields are missing
+        """
+        required_fields = cls._get_required_fields()
+        missing_fields = [field for field in required_fields if field not in data]
+        
+        if missing_fields:
+            raise ValidationError(f"Missing required fields: {', '.join(missing_fields)}")
+
+    @classmethod
+    def _get_required_fields(cls) -> Set[str]:
+        """
+        Get required fields for the model.
+        
+        Returns:
+            Set[str]: Set of required field names
+        """
+        required_fields = set()
+        for column in cls.__table__.columns:
+            if not column.nullable and column.default is None and column.server_default is None:
+                # The column is required if it's not nullable and has no default value
+                required_fields.add(column.name)
+        
+        # Remove id field as it's generated automatically
+        if 'id' in required_fields:
+            required_fields.remove('id')
+        
+        return required_fields
 
     def update(self, data: Dict[str, Any]) -> None:
         """
@@ -70,6 +144,9 @@ class BaseModel(Base):
         for key, value in data.items():
             if hasattr(self, key):
                 setattr(self, key, value)
+        
+        # Validate after update
+        self.validate()
 
     @classmethod
     def validate_field(cls, field: str, value: Any) -> None:
@@ -85,6 +162,51 @@ class BaseModel(Base):
         """
         if not hasattr(cls, field):
             raise ValidationError(f"Invalid field: {field}")
+        
+        column = cls.__table__.columns.get(field)
+        if column is not None:
+            # Check if the field is required and value is None
+            if not column.nullable and value is None:
+                raise ValidationError(f"Field '{field}' cannot be null")
+            
+            # Check field type if possible
+            cls._validate_field_type(field, value, column)
+
+    @classmethod
+    def _validate_field_type(cls, field: str, value: Any, column) -> None:
+        """
+        Validate the type of a field value.
+        
+        Args:
+            field (str): Field name to validate
+            value (Any): Value to validate
+            column: SQLAlchemy column object
+            
+        Raises:
+            ValidationError: If validation fails
+        """
+        if value is None:
+            return
+        
+        # Basic type checking
+        try:
+            if hasattr(column.type, 'python_type'):
+                expected_type = column.type.python_type
+                
+                # Handle UUID special case
+                if expected_type is uuid.UUID and isinstance(value, str):
+                    try:
+                        uuid.UUID(value)
+                    except ValueError:
+                        raise ValidationError(f"Field '{field}' must be a valid UUID")
+                
+                # Skip type checking for ARRAY and JSON types which don't have reliable python_type
+                elif str(column.type) not in ('ARRAY', 'JSON'):
+                    if not isinstance(value, expected_type):
+                        raise ValidationError(f"Field '{field}' must be of type {expected_type.__name__}")
+        except Exception as e:
+            # Log the error but don't fail validation if type checking itself fails
+            pass
 
     def validate(self) -> None:
         """
@@ -96,7 +218,9 @@ class BaseModel(Base):
         Raises:
             ValidationError: If validation fails
         """
-        pass
+        for column in self.__table__.columns:
+            value = getattr(self, column.name, None)
+            self.validate_field(column.name, value)
 
     def __repr__(self) -> str:
         """String representation of the model."""

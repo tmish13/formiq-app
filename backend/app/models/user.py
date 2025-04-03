@@ -10,6 +10,7 @@ from app.models.base import BaseModel
 from app.models.enums import SubscriptionTier
 from app.core.security import get_password_hash, verify_password
 from app.core.exceptions import ValidationError
+import uuid
 
 class User(BaseModel):
     """
@@ -43,7 +44,7 @@ class User(BaseModel):
     """
     __tablename__ = "users"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, index=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
     email = Column(String, unique=True, index=True, nullable=False)
     username = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)

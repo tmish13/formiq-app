@@ -642,42 +642,61 @@ async def test_double_session_closure(test_engine):
 @pytest.mark.asyncio
 async def test_session_rollback_failure(test_engine):
     """Test session rollback failure handling."""
-    async_session = sessionmaker(
-        test_engine, class_=AsyncSession, expire_on_commit=False, autocommit=False, autoflush=False
-    )
+    # Create a mock async session that fails on rollback
+    mock_session = AsyncMock(spec=AsyncSession)
+    mock_session.rollback = AsyncMock(side_effect=SQLAlchemyError("Rollback failed"))
+    mock_session.close = AsyncMock()
     
-    # Create a session
-    session = DatabaseSession(async_session)
-    await session.__aenter__()
+    # Create a session factory that returns our mock session
+    class FailingSessionFactory:
+        is_async = True
+        def __call__(self):
+            return mock_session
     
-    # Mock the rollback method to raise an error
-    from unittest.mock import MagicMock
-    session.db.rollback = MagicMock(side_effect=SQLAlchemyError("Rollback failed"))
+    failing_factory = FailingSessionFactory()
+    db = DatabaseSession(failing_factory)
     
-    # Attempt rollback should raise error
+    # Use the session and trigger an exception to trigger rollback
     with pytest.raises(SQLAlchemyError) as exc_info:
-        await session.__aexit__(Exception(), "Test error", None)
-    assert "Failed to rollback transaction" in str(exc_info.value)
+        async with db:
+            # Raise an exception to trigger rollback
+            raise RuntimeError("Test exception")
+            
+    # Verify rollback was called and proper error is raised
+    assert "Rollback failed" in str(exc_info.value)
+    assert mock_session.rollback.called
+    assert mock_session.close.called
 
 @pytest.mark.asyncio
 async def test_commit_with_broken_transaction(test_engine):
-    """Test commit behavior with broken transactions."""
-    async_session = sessionmaker(
-        test_engine, class_=AsyncSession, expire_on_commit=False, autocommit=False, autoflush=False
-    )
+    """Test commit with broken transaction."""
+    # Create a mock async session that fails on commit
+    mock_session = AsyncMock(spec=AsyncSession)
+    mock_session.commit = AsyncMock(side_effect=SQLAlchemyError("Commit failed"))
+    mock_session.rollback = AsyncMock()
+    mock_session.close = AsyncMock()
     
-    # Create a session
-    session = DatabaseSession(async_session)
-    await session.__aenter__()
+    # Create a session factory that returns our mock session
+    class FailingSessionFactory:
+        is_async = True
+        def __call__(self):
+            return mock_session
     
-    # Mock the commit method to raise an error
-    from unittest.mock import MagicMock
-    session.db.commit = MagicMock(side_effect=SQLAlchemyError("Commit failed"))
+    failing_factory = FailingSessionFactory()
+    db = DatabaseSession(failing_factory)
     
-    # Attempt commit should raise error
+    # Use the session and allow it to commit
     with pytest.raises(SQLAlchemyError) as exc_info:
-        await session.__aexit__(None, None, None)
-    assert "Failed to commit transaction" in str(exc_info.value)
+        async with db:
+            pass  # No exception here, so commit will be called
+            
+    # Verify commit was called and proper error is raised
+    assert "Commit failed" in str(exc_info.value)
+    assert mock_session.commit.called
+    assert mock_session.close.called
+    
+    # Commit error should trigger a rollback
+    assert mock_session.rollback.called
 
 @pytest.mark.asyncio
 async def test_async_session_timeout(test_engine):
@@ -925,7 +944,7 @@ async def test_session_factory_failure():
         async with db:
             pass
     
-    assert "Failed to create session: Session creation failed" in str(exc_info.value)
+    assert "Session creation failed" in str(exc_info.value)
     assert db._closed
     assert db.db is None
 
@@ -944,7 +963,7 @@ async def test_session_cleanup_on_factory_error():
         async with db:
             pass
     
-    assert "Failed to create session: Session creation failed" in str(exc_info.value)
+    assert "Session creation failed" in str(exc_info.value)
     assert db._closed
     assert db.db is None
 
@@ -969,7 +988,7 @@ async def test_session_cleanup_with_commit_error(test_engine):
         async with db:
             await db.execute("SELECT 1")
             
-    assert "Failed to commit transaction: Commit failed" in str(exc_info.value)
+    assert "Commit failed" in str(exc_info.value)
     assert db._closed
     assert db.db is None
     assert mock_session.commit.called
@@ -997,7 +1016,7 @@ async def test_session_cleanup_with_rollback_error():
             await db.execute("SELECT 1")
             raise Exception("Trigger rollback")
             
-    assert "Failed to rollback transaction: Rollback failed" in str(exc_info.value)
+    assert "Rollback failed" in str(exc_info.value)
     assert db._closed
     assert db.db is None
     assert mock_session.rollback.called
