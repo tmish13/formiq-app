@@ -42,3 +42,4 @@ htmlcov/
 # Database
 *.db
 test.db
+venv/
