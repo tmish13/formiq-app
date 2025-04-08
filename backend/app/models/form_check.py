@@ -4,7 +4,7 @@ from sqlalchemy import Column, Integer, String, DateTime, JSON, ForeignKey, Floa
 from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, validates
-from app.models.base import Base
+from app.models.base import Base, SQLiteUUID
 from app.models.enums import (
     FormCheckStatus,
     FeedbackType,
@@ -46,10 +46,10 @@ class FormCheck(BaseModel):
     """
     __tablename__ = "form_checks"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, index=True)
+    id = Column(SQLiteUUID(), primary_key=True, index=True)
     video_url = Column(String, nullable=False)
-    exercise_id = Column(UUID(as_uuid=True), ForeignKey("exercise_templates.id"), nullable=False)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    exercise_id = Column(SQLiteUUID(), ForeignKey("exercise_templates.id"), nullable=False)
+    user_id = Column(SQLiteUUID(), ForeignKey("users.id"), nullable=False)
     feedback = Column(String)
     score = Column(Float)
     keypoints = Column(JSON)
@@ -180,7 +180,7 @@ class FeedbackItem(BaseModel):
 
     id = Column(Integer, primary_key=True, index=True)
     form_check_id = Column(
-        UUID(as_uuid=True),
+        SQLiteUUID(),
         ForeignKey("form_checks.id", ondelete="CASCADE"),
         nullable=False
     )

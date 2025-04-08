@@ -4,7 +4,6 @@ from uuid import UUID
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import Depends
 from jose import jwt
 
 from app.core.config import settings
@@ -28,15 +27,14 @@ from app.schemas.user import (
     UserInDB
 )
 from app.schemas.token import Token
-from app.api import deps
 
 class UserService:
     """User service."""
     
-    def __init__(self, db: Session = Depends(deps.get_db)):
+    def __init__(self, repository: UserRepository):
         """Initialize service with repository."""
-        self.repository = UserRepository(db)
-        self._is_async = isinstance(db, AsyncSession)
+        self.repository = repository
+        self._is_async = isinstance(repository.db, AsyncSession)
 
     def get(self, db: Session, user_id: UUID) -> Optional[User]:
         """Get a user by ID."""
@@ -69,14 +67,23 @@ class UserService:
         users = self.repository.get_multi(db, skip=skip, limit=limit)
         return [User.from_orm(user) for user in users]
 
-    async def create(self, user_data: UserCreate) -> User:
-        """Create a new user."""
+    async def create(self, user_data: UserCreate, is_superuser: bool = False) -> User:
+        """Create a new user.
+
+        Args:
+            user_data: User create schema
+            is_superuser: Whether the user should be a superuser (default: False)
+
+        Returns:
+            Created user
+        """
         # Hash the password
         hashed_password = get_password_hash(user_data.password)
         
         # Create a modified user object with hashed password
         user_data_dict = user_data.dict()
         user_data_dict["password"] = hashed_password
+        user_data_dict["is_superuser"] = is_superuser
         
         # Create new user with modified data
         return await self.repository.create(UserCreate(**user_data_dict))

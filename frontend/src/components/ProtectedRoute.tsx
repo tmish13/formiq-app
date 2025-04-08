@@ -2,7 +2,7 @@ import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { Box, Typography } from '@mui/material';
 import { useAppSelector } from '../store/hooks';
-import LoadingSpinner from './LoadingSpinner';
+import { LoadingSpinner } from './common/LoadingSpinner';
 import { SubscriptionTier } from '../types';
 
 interface ProtectedRouteProps {

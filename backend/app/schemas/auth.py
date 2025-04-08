@@ -1,7 +1,8 @@
 """Authentication schemas."""
-from typing import Optional
+from typing import Optional, Dict, List, Any
 from datetime import datetime
 from pydantic import BaseModel, EmailStr, Field, validator
+from app.core.validators import validate_password
 
 class UserCreate(BaseModel):
     """User creation schema."""
@@ -89,11 +90,11 @@ class PasswordReset(BaseModel):
         return v
 
     @validator("new_password")
-    def validate_password_length(cls, v):
-        if len(v) < 8:
-            raise ValueError("Password must be at least 8 characters long")
-        if len(v) > 100:
-            raise ValueError("Password must not exceed 100 characters")
+    def validate_password_strength(cls, v):
+        try:
+            validate_password(v)
+        except Exception as e:
+            raise ValueError(str(e))
         return v
 
     class Config:

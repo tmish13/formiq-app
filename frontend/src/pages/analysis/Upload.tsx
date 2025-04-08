@@ -152,7 +152,15 @@ const Upload: React.FC = () => {
     
     try {
       // Get presigned upload URL
-      const presignedData = await apiService.post('/form-checks/presigned-upload', {
+      interface PresignedUploadResponse {
+        post_data: {
+          url: string;
+          fields: Record<string, string>;
+        };
+        file_url: string;
+      }
+      
+      const presignedData = await apiService.post<PresignedUploadResponse>('/form-checks/presigned-upload', {
         filename: video!.name,
         contentType: video!.type,
         exerciseType

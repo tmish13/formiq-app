@@ -26,6 +26,7 @@ from app.core.constants import (
     DEFAULT_LOG_LEVEL,
     DEFAULT_RATE_LIMIT_REQUESTS,
     DEFAULT_RATE_LIMIT_BURST,
+    Environment
 )
 import base64
 from datetime import datetime, timedelta
@@ -71,6 +72,24 @@ DEFAULT_MAX_CONTENT_LENGTH = 100 * 1024 * 1024  # 100MB
 DEFAULT_MAX_VIDEO_DURATION = 300  # 5 minutes
 DEFAULT_LOG_MAX_BYTES = 10 * 1024 * 1024  # 10MB
 
+def safe_int(value, default=0):
+    """
+    Safely convert a value to an integer, handling None and empty strings.
+    
+    Args:
+        value: The value to convert
+        default: Default value if conversion fails
+        
+    Returns:
+        int: Converted integer or default value
+    """
+    if value is None or value == "":
+        return default
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return default
+
 class Settings(BaseSettings):
     """
     Application settings class with validation.
@@ -80,7 +99,7 @@ class Settings(BaseSettings):
     environment variables.
     """
     # Environment settings
-    ENVIRONMENT: str = Field(
+    ENVIRONMENT: Environment = Field(
         default=os.getenv("ENVIRONMENT", "development"), 
         description="Application environment (development, test, production)"
     )
@@ -127,7 +146,7 @@ class Settings(BaseSettings):
         description="Encryption key for sensitive data"
     )
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(
-        default=60 * 24 * 8,  # 8 days
+        default=60 * 24,  # 24 hours
         description="Access token expiration time in minutes"
     )
     REFRESH_TOKEN_EXPIRE_DAYS: int = Field(
@@ -142,9 +161,19 @@ class Settings(BaseSettings):
         default="FormIQ",
         description="Name of the project"
     )
+    PROJECT_DESCRIPTION: str = Field(
+        default="AI-powered form checking for fitness",
+        description="Description of the project"
+    )
     VERSION: str = Field(
         default="1.0.0",
         description="API version"
+    )
+
+    # Admin settings
+    ADMIN_REGISTRATION_CODE: str = Field(
+        default=os.getenv("ADMIN_REGISTRATION_CODE", secrets.token_urlsafe(16)),
+        description="Secret code required for admin account registration"
     )
 
     # CORS
@@ -211,20 +240,24 @@ class Settings(BaseSettings):
         description="Enable SQLAlchemy query logging"
     )
     DB_POOL_SIZE: int = Field(
-        default=int(os.getenv("DB_POOL_SIZE", "5")),
+        default=safe_int(os.getenv("DB_POOL_SIZE"), 20),
         description="Database connection pool size"
     )
     DB_MAX_OVERFLOW: int = Field(
-        default=int(os.getenv("DB_MAX_OVERFLOW", "10")),
+        default=safe_int(os.getenv("DB_MAX_OVERFLOW"), 30),
         description="Maximum overflow connections in the pool"
     )
     DB_POOL_TIMEOUT: int = Field(
-        default=int(os.getenv("DB_POOL_TIMEOUT", "30")),
+        default=safe_int(os.getenv("DB_POOL_TIMEOUT"), 60),
         description="Connection pool timeout in seconds"
     )
     DB_POOL_RECYCLE: int = Field(
-        default=int(os.getenv("DB_POOL_RECYCLE", "1800")),  # 30 minutes
+        default=safe_int(os.getenv("DB_POOL_RECYCLE"), 1800),  # 30 minutes
         description="Connection recycle time in seconds"
+    )
+    SSL_REQUIRED: bool = Field(
+        default=os.getenv("SSL_REQUIRED", "false").lower() == "true",
+        description="Whether SSL is required for database connections"
     )
 
     # Redis
@@ -233,11 +266,11 @@ class Settings(BaseSettings):
         description="Redis server hostname"
     )
     REDIS_PORT: int = Field(
-        default=int(os.getenv("REDIS_PORT", "6379")),
+        default=safe_int(os.getenv("REDIS_PORT"), 6379),
         description="Redis server port"
     )
     REDIS_DB: int = Field(
-        default=int(os.getenv("REDIS_DB", "0")),
+        default=safe_int(os.getenv("REDIS_DB"), 0),
         description="Redis database number"
     )
     REDIS_PASSWORD: str = Field(
@@ -270,6 +303,14 @@ class Settings(BaseSettings):
     UPLOAD_URL: str = Field(
         default=os.getenv("UPLOAD_URL", "http://localhost:8000/uploads/videos"),
         description="Base URL for accessing uploaded files"
+    )
+    USE_S3_STORAGE: bool = Field(
+        default=os.getenv("USE_S3_STORAGE", "false").lower() == "true",
+        description="Whether to use S3 for storage in production"
+    )
+    S3_PUBLIC_ACCESS: bool = Field(
+        default=os.getenv("S3_PUBLIC_ACCESS", "false").lower() == "true",
+        description="Whether S3 files should be publicly accessible by default"
     )
     
     # AWS Settings
@@ -330,7 +371,7 @@ class Settings(BaseSettings):
         description="SMTP server hostname"
     )
     SMTP_PORT: int = Field(
-        default=int(os.getenv("SMTP_PORT", "587")),
+        default=safe_int(os.getenv("SMTP_PORT"), 587),
         description="SMTP server port"
     )
     SMTP_USER: str = Field(
@@ -356,16 +397,24 @@ class Settings(BaseSettings):
     
     # Rate Limiting
     RATE_LIMIT_REQUESTS: int = Field(
-        default=int(os.getenv("RATE_LIMIT_REQUESTS", "100")),
+        default=safe_int(os.getenv("RATE_LIMIT_REQUESTS"), 60),
         description="Default rate limit requests per window"
     )
     RATE_LIMIT_BURST: int = Field(
-        default=int(os.getenv("RATE_LIMIT_BURST", "200")),
+        default=safe_int(os.getenv("RATE_LIMIT_BURST"), 120),
         description="Default rate limit burst size"
     )
     RATE_LIMIT_WINDOW: int = Field(
-        default=int(os.getenv("RATE_LIMIT_WINDOW", "60")),
+        default=safe_int(os.getenv("RATE_LIMIT_WINDOW"), 60),
         description="Default rate limit window in seconds"
+    )
+    RATE_LIMIT_ENABLED: bool = Field(
+        default=os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "true",
+        description="Whether rate limiting is enabled"
+    )
+    RATE_LIMIT_STORAGE: str = Field(
+        default=os.getenv("RATE_LIMIT_STORAGE", "memory"),
+        description="Storage backend for rate limit data (memory or redis)"
     )
     
     # JWT Settings
@@ -389,7 +438,7 @@ class Settings(BaseSettings):
     
     # File Upload Limits
     MAX_CONTENT_LENGTH: int = Field(
-        default=int(os.getenv("MAX_CONTENT_LENGTH", str(DEFAULT_MAX_CONTENT_LENGTH))),
+        default=safe_int(os.getenv("MAX_CONTENT_LENGTH"), DEFAULT_MAX_CONTENT_LENGTH),
         description="Maximum content length for uploads in bytes"
     )
     ALLOWED_VIDEO_TYPES: List[str] = Field(
@@ -397,7 +446,7 @@ class Settings(BaseSettings):
         description="List of allowed video MIME types"
     )
     MAX_VIDEO_DURATION: int = Field(
-        default=int(os.getenv("MAX_VIDEO_DURATION", str(DEFAULT_MAX_VIDEO_DURATION))),
+        default=safe_int(os.getenv("MAX_VIDEO_DURATION"), DEFAULT_MAX_VIDEO_DURATION),
         description="Maximum video duration in seconds"
     )
     
@@ -407,11 +456,11 @@ class Settings(BaseSettings):
         description="Path to AI model files"
     )
     AI_CONFIDENCE_THRESHOLD: float = Field(
-        default=float(os.getenv("AI_CONFIDENCE_THRESHOLD", "0.7")),
+        default=float(os.getenv("AI_CONFIDENCE_THRESHOLD") or "0.7"),
         description="Confidence threshold for AI predictions"
     )
     AI_MAX_BATCH_SIZE: int = Field(
-        default=int(os.getenv("AI_MAX_BATCH_SIZE", "32")),
+        default=safe_int(os.getenv("AI_MAX_BATCH_SIZE"), 32),
         description="Maximum batch size for AI inference"
     )
     
@@ -429,11 +478,11 @@ class Settings(BaseSettings):
         description="Path to log file"
     )
     LOG_MAX_BYTES: int = Field(
-        default=int(os.getenv("LOG_MAX_BYTES", str(DEFAULT_LOG_MAX_BYTES))),
+        default=safe_int(os.getenv("LOG_MAX_BYTES"), DEFAULT_LOG_MAX_BYTES),
         description="Maximum log file size before rotation"
     )
     LOG_BACKUP_COUNT: int = Field(
-        default=int(os.getenv("LOG_BACKUP_COUNT", "5")),
+        default=safe_int(os.getenv("LOG_BACKUP_COUNT"), 5),
         description="Number of backup log files to keep"
     )
 
@@ -444,36 +493,56 @@ class Settings(BaseSettings):
         extra="ignore"
     )
     
-    def validate_settings(self) -> List[str]:
+    def validate_settings(self) -> List[Dict[str, Any]]:
         """
         Validate all settings and return a list of warnings/errors.
         
         Returns:
-            List[str]: List of warnings or errors
+            List[Dict[str, Any]]: List of warnings or errors with severity level
         """
-        warnings = []
+        issues = []
         
         # Check if database URI is set for non-test environment
-        if self.ENVIRONMENT != "test" and not self.SQLALCHEMY_DATABASE_URI:
-            warnings.append("DATABASE_URI is not set")
+        if self.ENVIRONMENT != Environment.TEST and not self.SQLALCHEMY_DATABASE_URI:
+            issues.append({
+                "severity": "critical",
+                "message": "DATABASE_URI is not set",
+                "context": "Database connection will fail"
+            })
         
         # Check if JWT secret is secure enough in production
-        if self.ENVIRONMENT == "production" and len(self.JWT_SECRET) < 32:
-            warnings.append("JWT_SECRET is too short for production")
+        if self.ENVIRONMENT == Environment.PRODUCTION and len(self.JWT_SECRET) < 32:
+            issues.append({
+                "severity": "high",
+                "message": "JWT_SECRET is too short for production",
+                "context": "Minimum 32 characters recommended for security"
+            })
         
         # Check if Stripe settings are set in production
-        if self.ENVIRONMENT == "production" and not self.STRIPE_SECRET_KEY:
-            warnings.append("STRIPE_SECRET_KEY is not set in production")
+        if self.ENVIRONMENT == Environment.PRODUCTION and not self.STRIPE_SECRET_KEY:
+            issues.append({
+                "severity": "high",
+                "message": "STRIPE_SECRET_KEY is not set in production",
+                "context": "Payment processing will fail"
+            })
         
         # Check if AWS credentials are set for production
-        if self.ENVIRONMENT == "production" and not self.AWS_ACCESS_KEY_ID:
-            warnings.append("AWS_ACCESS_KEY_ID is not set in production")
+        if self.ENVIRONMENT == Environment.PRODUCTION and not self.AWS_ACCESS_KEY_ID:
+            issues.append({
+                "severity": "high",
+                "message": "AWS_ACCESS_KEY_ID is not set in production",
+                "context": "File storage operations will fail"
+            })
         
         # Check if SMTP settings are valid
         if not self.SMTP_HOST or not self.SMTP_USER:
-            warnings.append("SMTP settings are incomplete")
+            issues.append({
+                "severity": "medium",
+                "message": "SMTP settings are incomplete",
+                "context": "Email notifications will not work"
+            })
         
-        return warnings
+        return issues
 
 @lru_cache()
 def get_settings() -> Settings:
@@ -488,11 +557,20 @@ def get_settings() -> Settings:
     """
     settings = Settings()
     
-    # Log warnings if settings are invalid
-    warnings = settings.validate_settings()
-    if warnings and settings.ENVIRONMENT != "test":
-        for warning in warnings:
-            logging.warning(f"Configuration warning: {warning}")
+    # Validate settings
+    issues = settings.validate_settings()
+    
+    # Log warnings for issues if not in test environment
+    if issues and settings.ENVIRONMENT != Environment.TEST:
+        for issue in issues:
+            if issue["severity"] == "critical":
+                logging.critical(f"Configuration critical issue: {issue['message']} - {issue['context']}")
+            elif issue["severity"] == "high":
+                logging.error(f"Configuration error: {issue['message']} - {issue['context']}")
+            elif issue["severity"] == "medium":
+                logging.warning(f"Configuration warning: {issue['message']} - {issue['context']}")
+            else:
+                logging.info(f"Configuration notice: {issue['message']} - {issue['context']}")
     
     return settings
 

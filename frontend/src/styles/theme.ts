@@ -1,44 +1,204 @@
 import { ThemeOptions, createTheme } from '@mui/material/styles';
+import 'styled-components';
+
+// Extend the DefaultTheme interface from styled-components
+declare module 'styled-components' {
+  export interface DefaultTheme {
+    colors: {
+      primary: string;
+      primaryLight: string;
+      primaryDark: string;
+      secondary: string;
+      secondaryLight: string;
+      secondaryDark: string;
+      success: string;
+      successLight: string;
+      successDark: string;
+      error: string;
+      errorLight: string;
+      errorDark: string;
+      warning: string;
+      warningLight: string;
+      warningDark: string;
+      info: string;
+      infoLight: string;
+      infoDark: string;
+      text: string;
+      textSecondary: string;
+      background: string;
+      white: string;
+      border: string;
+      disabled: string;
+    };
+    typography: {
+      fontFamily: {
+        base: string;
+        mono: string;
+      };
+      fontSize: {
+        xs: string;
+        sm: string;
+        base: string;
+        lg: string;
+        xl: string;
+        xxl: string;
+      };
+      fontWeight: {
+        light: number;
+        normal: number;
+        medium: number;
+        semibold: number;
+        bold: number;
+      };
+    };
+    spacing: {
+      xs: string;
+      sm: string;
+      md: string;
+      lg: string;
+      xl: string;
+      xxl: string;
+    };
+    borderRadius: {
+      sm: string;
+      md: string;
+      lg: string;
+      full: string;
+    };
+    shadows: {
+      sm: string;
+      md: string;
+      lg: string;
+    };
+    transitions: {
+      fast: string;
+      medium: string;
+      slow: string;
+    };
+    breakpoints: {
+      xs: string;
+      sm: string;
+      md: string;
+      lg: string;
+      xl: string;
+    };
+  }
+}
+
+// Define our theme object type
+export interface Theme {
+  colors: {
+    primary: string;
+    primaryLight: string;
+    primaryDark: string;
+    secondary: string;
+    secondaryLight: string;
+    secondaryDark: string;
+    success: string;
+    successLight: string;
+    successDark: string;
+    error: string;
+    errorLight: string;
+    errorDark: string;
+    warning: string;
+    warningLight: string;
+    warningDark: string;
+    info: string;
+    infoLight: string;
+    infoDark: string;
+    text: string;
+    textSecondary: string;
+    background: string;
+    white: string;
+    border: string;
+    disabled: string;
+  };
+  typography: {
+    fontFamily: {
+      base: string;
+      mono: string;
+    };
+    fontSize: {
+      xs: string;
+      sm: string;
+      base: string;
+      lg: string;
+      xl: string;
+      xxl: string;
+    };
+    fontWeight: {
+      light: number;
+      normal: number;
+      medium: number;
+      semibold: number;
+      bold: number;
+    };
+  };
+  spacing: {
+    xs: string;
+    sm: string;
+    md: string;
+    lg: string;
+    xl: string;
+    xxl: string;
+  };
+  borderRadius: {
+    sm: string;
+    md: string;
+    lg: string;
+    full: string;
+  };
+  shadows: {
+    sm: string;
+    md: string;
+    lg: string;
+  };
+  transitions: {
+    fast: string;
+    medium: string;
+    slow: string;
+  };
+}
 
 const themeOptions: ThemeOptions = {
   palette: {
     primary: {
-      main: '#2196f3',
-      light: '#64b5f6',
-      dark: '#1976d2',
+      main: '#4D7CFE',
+      light: '#83A9FF',
+      dark: '#2E5BFF',
     },
     secondary: {
-      main: '#f50057',
-      light: '#ff4081',
-      dark: '#c51162',
+      main: '#6C5CE7',
+      light: '#A29BFE',
+      dark: '#5341D6',
     },
     success: {
-      main: '#4caf50',
-      light: '#81c784',
-      dark: '#388e3c',
+      main: '#00C67F',
+      light: '#46EDB0',
+      dark: '#00A366',
     },
     error: {
-      main: '#f44336',
-      light: '#e57373',
-      dark: '#d32f2f',
+      main: '#FF6B6B',
+      light: '#FF9B9B',
+      dark: '#E64C4C',
     },
     warning: {
-      main: '#ff9800',
-      light: '#ffb74d',
-      dark: '#f57c00',
+      main: '#FFA502',
+      light: '#FFCE82',
+      dark: '#E08700',
     },
     info: {
-      main: '#2196f3',
-      light: '#64b5f6',
-      dark: '#1976d2',
+      main: '#45AAF2',
+      light: '#75C4F7',
+      dark: '#2D8ED6',
     },
     text: {
-      primary: '#212529',
-      secondary: '#6c757d',
+      primary: '#2D3748',
+      secondary: '#718096',
     },
     background: {
-      default: '#f8f9fa',
-      paper: '#ffffff',
+      default: '#F7FAFC',
+      paper: '#FFFFFF',
     },
   },
   typography: {
@@ -51,18 +211,22 @@ const themeOptions: ThemeOptions = {
     h1: {
       fontSize: '2.5rem',
       fontWeight: 700,
+      letterSpacing: '-0.025em',
     },
     h2: {
       fontSize: '2rem',
       fontWeight: 700,
+      letterSpacing: '-0.025em',
     },
     h3: {
       fontSize: '1.75rem',
       fontWeight: 600,
+      letterSpacing: '-0.025em',
     },
     h4: {
       fontSize: '1.5rem',
       fontWeight: 600,
+      letterSpacing: '-0.025em',
     },
     h5: {
       fontSize: '1.25rem',
@@ -75,15 +239,17 @@ const themeOptions: ThemeOptions = {
     body1: {
       fontSize: '1rem',
       fontWeight: 400,
+      lineHeight: 1.6,
     },
     body2: {
       fontSize: '0.875rem',
       fontWeight: 400,
+      lineHeight: 1.6,
     },
   },
   spacing: (factor: number) => `${0.25 * factor}rem`,
   shape: {
-    borderRadius: 4,
+    borderRadius: 10,
   },
   shadows: [
     'none',
@@ -140,4 +306,86 @@ const themeOptions: ThemeOptions = {
   },
 };
 
-export const theme = createTheme(themeOptions); 
+export const theme = createTheme(themeOptions);
+
+// Our custom theme object
+export const customTheme = {
+  colors: {
+    primary: '#4D7CFE',
+    primaryLight: '#83A9FF',
+    primaryDark: '#2E5BFF',
+    secondary: '#6C5CE7',
+    secondaryLight: '#A29BFE',
+    secondaryDark: '#5341D6',
+    success: '#00C67F',
+    successLight: '#46EDB0',
+    successDark: '#00A366',
+    error: '#FF6B6B',
+    errorLight: '#FF9B9B',
+    errorDark: '#E64C4C',
+    warning: '#FFA502',
+    warningLight: '#FFCE82',
+    warningDark: '#E08700',
+    info: '#45AAF2',
+    infoLight: '#75C4F7',
+    infoDark: '#2D8ED6',
+    text: '#2D3748',
+    textSecondary: '#718096',
+    background: '#F7FAFC',
+    white: '#FFFFFF',
+    border: '#E2E8F0',
+    disabled: '#A0AEC0',
+  },
+  typography: {
+    fontFamily: {
+      base: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+      mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+    },
+    fontSize: {
+      xs: '0.75rem',
+      sm: '0.875rem',
+      base: '1rem',
+      lg: '1.125rem',
+      xl: '1.25rem',
+      xxl: '1.5rem',
+    },
+    fontWeight: {
+      light: 300,
+      normal: 400,
+      medium: 500,
+      semibold: 600,
+      bold: 700,
+    },
+  },
+  spacing: {
+    xs: '0.5rem',
+    sm: '0.75rem',
+    md: '1rem',
+    lg: '1.5rem',
+    xl: '2rem',
+    xxl: '3rem',
+  },
+  borderRadius: {
+    sm: '0.25rem',
+    md: '0.5rem',
+    lg: '1rem',
+    full: '9999px',
+  },
+  shadows: {
+    sm: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
+    md: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+    lg: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+  },
+  transitions: {
+    fast: '150ms ease-in-out',
+    medium: '300ms ease-in-out',
+    slow: '500ms ease-in-out',
+  },
+  breakpoints: {
+    xs: '0px',
+    sm: '600px',
+    md: '960px',
+    lg: '1280px',
+    xl: '1920px',
+  },
+}; 

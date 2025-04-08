@@ -1,0 +1,69 @@
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments 
+venv/
+.venv/
+ENV/
+env/
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Test, coverage, and development files
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+*.cover
+.hypothesis/
+.mypy_cache/
+.tox/
+
+# Local environment
+.env
+.env.*
+!.env.example
+!.env.production.template
+
+# User uploaded content
+uploads/videos/*
+!uploads/videos/.gitkeep
+
+# Logs
+logs/
+*.log
+
+# Docker-specific
+Dockerfile
+docker-compose*.yml
+docker-entrypoint-initdb.d/
+.dockerignore
+
+# Git files
+.git/
+.gitignore
+.github/ 

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api from '../config/api';
+import api, { endpoints } from '../config/api';
 import { User } from '../types';
 
 interface AuthContextType {
@@ -8,7 +8,7 @@ interface AuthContextType {
   loading: boolean;
   error: string | null;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, username: string, password: string) => Promise<void>;
+  register: (email: string, password: string, name: string) => Promise<void>;
   logout: () => void;
   updateSubscription: (tier: string) => Promise<void>;
 }
@@ -32,7 +32,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fetchUser = async () => {
     try {
-      const response = await api.get('/users/me');
+      const response = await api.get(endpoints.user.profile);
       setUser(response.data);
     } catch (err) {
       localStorage.removeItem('token');
@@ -45,20 +45,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (email: string, password: string) => {
     try {
       setError(null);
-      const response = await api.post('/auth/login/email', { email, password });
+      const response = await api.post(endpoints.auth.login, { email, password });
       localStorage.setItem('token', response.data.access_token);
       await fetchUser();
-      navigate('/');
+      navigate('/dashboard');
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Failed to login');
       throw err;
     }
   };
 
-  const register = async (email: string, username: string, password: string) => {
+  const register = async (email: string, password: string, name: string) => {
     try {
       setError(null);
-      await api.post('/auth/register', { email, username, password });
+      await api.post(endpoints.auth.register, { email, password, name });
       await login(email, password);
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Failed to register');
@@ -67,6 +67,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = () => {
+    // Attempt to call logout API endpoint, but don't wait for it
+    try {
+      api.post(endpoints.auth.logout).catch(console.error);
+    } catch (e) {
+      console.error('Error during logout:', e);
+    }
+    
     localStorage.removeItem('token');
     setUser(null);
     navigate('/login');
@@ -75,7 +82,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updateSubscription = async (tier: string) => {
     try {
       setError(null);
-      const response = await api.post('/users/subscription', { tier });
+      const response = await api.post(endpoints.user.subscription, { tier });
       setUser(response.data);
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Failed to update subscription');

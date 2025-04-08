@@ -4,6 +4,9 @@ import styled, { keyframes } from 'styled-components';
 interface LoadingSpinnerProps {
   size?: 'small' | 'medium' | 'large';
   color?: string;
+  isFullPage?: boolean;
+  text?: string;
+  ariaLabel?: string;
 }
 
 const spin = keyframes`
@@ -11,57 +14,84 @@ const spin = keyframes`
   100% { transform: rotate(360deg); }
 `;
 
-const SpinnerContainer = styled.div<{ size: LoadingSpinnerProps['size'] }>`
-  display: inline-block;
-  width: ${({ size, theme }) => {
-    switch (size) {
-      case 'small':
-        return '20px';
-      case 'large':
-        return '40px';
-      default:
-        return '30px';
-    }
-  }};
-  height: ${({ size, theme }) => {
-    switch (size) {
-      case 'small':
-        return '20px';
-      case 'large':
-        return '40px';
-      default:
-        return '30px';
-    }
-  }};
-  border: 3px solid ${({ theme }) => theme.colors.primaryLight};
-  border-radius: 50%;
-  border-top-color: ${({ theme, color }) => color || theme.colors.primary};
-  animation: ${spin} 1s linear infinite;
+const LoadingText = styled.div`
+  margin-top: 1rem;
+  color: ${({ theme }) => theme.colors.text};
+  font-size: 1rem;
+  text-align: center;
 `;
 
-const LoadingText = styled.p`
-  color: ${({ theme }) => theme.colors.textSecondary};
-  margin-top: ${({ theme }) => theme.spacing.sm};
-  font-size: ${({ theme }) => theme.typography.fontSize.sm};
-`;
-
-const LoadingContainer = styled.div`
+const Container = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: ${({ theme }) => theme.spacing.xl};
 `;
 
-export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
+const FullPageLoader = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: ${({ theme }) => theme.colors.background};
+  z-index: 9999;
+`;
+
+const SpinnerWrapper = styled.div<{ size: LoadingSpinnerProps['size'] }>`
+  width: ${({ size }) => {
+    switch (size) {
+      case 'small': return '24px';
+      case 'large': return '48px';
+      default: return '32px';
+    }
+  }};
+  height: ${({ size }) => {
+    switch (size) {
+      case 'small': return '24px';
+      case 'large': return '48px';
+      default: return '32px';
+    }
+  }};
+  position: relative;
+`;
+
+const Spinner = styled.div<{ $color?: string }>`
+  width: 100%;
+  height: 100%;
+  border: 3px solid ${({ theme }) => theme.colors.background};
+  border-top: 3px solid ${({ $color, theme }) => $color || theme.colors.primary};
+  border-radius: 50%;
+  animation: ${spin} 1s linear infinite;
+`;
+
+const LoadingSpinner: React.FC<LoadingSpinnerProps> = React.memo(({
   size = 'medium',
   color,
-  children,
+  isFullPage = false,
+  text,
+  ariaLabel = 'Loading...'
 }) => {
-  return (
-    <LoadingContainer>
-      <SpinnerContainer size={size} color={color} />
-      {children && <LoadingText>{children}</LoadingText>}
-    </LoadingContainer>
+  const spinner = (
+    <Container>
+      <SpinnerWrapper size={size}>
+        <Spinner $color={color} role="progressbar" aria-label={ariaLabel} />
+      </SpinnerWrapper>
+      {text && <LoadingText>{text}</LoadingText>}
+    </Container>
   );
-}; 
+
+  if (isFullPage) {
+    return <FullPageLoader>{spinner}</FullPageLoader>;
+  }
+
+  return spinner;
+});
+
+LoadingSpinner.displayName = 'LoadingSpinner';
+
+export { LoadingSpinner }; 

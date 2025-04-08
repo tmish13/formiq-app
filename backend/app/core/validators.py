@@ -24,13 +24,25 @@ def validate_email(email: str) -> str:
 # Password validation
 PASSWORD_MIN_LENGTH = 8
 PASSWORD_MAX_LENGTH = 128
-PASSWORD_REGEX: Pattern = re.compile(
-    r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$"
-)
+PASSWORD_SPECIAL_CHARS = "!@#$%^&*()_-+=[]{}|;:'\",.<>/?`~"
+PASSWORD_COMMON_PATTERNS = [
+    r"12345",
+    r"qwerty",
+    r"password",
+    r"admin",
+    r"letmein",
+    r"welcome",
+    r"123456",
+    r"000000",
+    r"abcdef",
+    r"111111",
+    r"888888",
+]
 
 def validate_password(password: str) -> None:
     """
-    Validate password strength.
+    Validate password strength according to security best practices.
+    
     Requirements:
     - Between 8 and 128 characters long
     - Contains at least one uppercase letter
@@ -38,36 +50,59 @@ def validate_password(password: str) -> None:
     - Contains at least one number
     - Contains at least one special character
     - No common passwords or patterns
+    - No sequential or repeated characters
+    
+    Args:
+        password: Password to validate
+        
+    Raises:
+        ValidationException: If password does not meet security requirements
     """
+    # Check length
     if not PASSWORD_MIN_LENGTH <= len(password) <= PASSWORD_MAX_LENGTH:
         raise ValidationException(
             detail=f"Password must be between {PASSWORD_MIN_LENGTH} and {PASSWORD_MAX_LENGTH} characters long"
         )
     
+    # Check for uppercase
     if not re.search(r"[A-Z]", password):
         raise ValidationException(detail="Password must contain at least one uppercase letter")
     
+    # Check for lowercase
     if not re.search(r"[a-z]", password):
         raise ValidationException(detail="Password must contain at least one lowercase letter")
     
+    # Check for numbers
     if not re.search(r"\d", password):
         raise ValidationException(detail="Password must contain at least one number")
     
-    if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
+    # Check for special characters
+    if not any(c in PASSWORD_SPECIAL_CHARS for c in password):
         raise ValidationException(detail="Password must contain at least one special character")
     
     # Check for common patterns
-    common_patterns = [
-        r"12345",
-        r"qwerty",
-        r"password",
-        r"admin",
-        r"letmein",
-        r"welcome",
-    ]
-    for pattern in common_patterns:
+    for pattern in PASSWORD_COMMON_PATTERNS:
         if re.search(pattern, password.lower()):
             raise ValidationException(detail="Password contains a common pattern that is not allowed")
+    
+    # Check for sequential characters
+    for i in range(len(password) - 2):
+        # Check for ascending sequences like "abc", "123"
+        if (ord(password[i+1]) == ord(password[i]) + 1 and
+            ord(password[i+2]) == ord(password[i]) + 2):
+            raise ValidationException(detail="Password cannot contain sequential characters")
+        
+        # Check for descending sequences like "cba", "321"
+        if (ord(password[i+1]) == ord(password[i]) - 1 and
+            ord(password[i+2]) == ord(password[i]) - 2):
+            raise ValidationException(detail="Password cannot contain sequential characters")
+    
+    # Check for repeated characters (3 or more of the same character)
+    for i in range(len(password) - 2):
+        if password[i] == password[i+1] == password[i+2]:
+            raise ValidationException(detail="Password cannot contain 3 or more repeated characters")
+    
+    return True
 
 # Username validation
 USERNAME_MIN_LENGTH = 4

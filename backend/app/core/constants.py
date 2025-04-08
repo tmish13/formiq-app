@@ -2,7 +2,7 @@
 Application-wide constants.
 """
 from enum import Enum, auto
-from typing import Dict, List
+from typing import Dict, List, Any
 
 # API constants
 API_PREFIX = "/api/v1"
@@ -147,4 +147,93 @@ DEFAULT_CORS_ORIGINS = ["http://localhost:3000"]
 
 # SMTP defaults
 DEFAULT_SMTP_TLS = True
-DEFAULT_SMTP_PORT = 587 
+DEFAULT_SMTP_PORT = 587
+
+# Environment constants
+class Environment(str, Enum):
+    """Application environment."""
+    DEVELOPMENT = "development"
+    STAGING = "staging"
+    PRODUCTION = "production"
+    TEST = "test"
+
+# Error code constants
+class ErrorCode:
+    """Error codes for API responses."""
+    AUTHENTICATION_ERROR = "authentication_error"
+    AUTHORIZATION_ERROR = "authorization_error"
+    VALIDATION_ERROR = "validation_error"
+    DATABASE_ERROR = "database_error"
+    NOT_FOUND_ERROR = "not_found_error"
+    CONFLICT_ERROR = "conflict_error"
+    RATE_LIMIT_ERROR = "rate_limit_error"
+    SERVICE_UNAVAILABLE_ERROR = "service_unavailable_error"
+    INTERNAL_SERVER_ERROR = "internal_server_error"
+
+# User roles
+class UserRole(str, Enum):
+    """User role types."""
+    ADMIN = "admin"
+    USER = "user"
+    STAFF = "staff"
+    GUEST = "guest"
+
+# Subscription tiers
+class SubscriptionTier(str, Enum):
+    """Subscription tier types."""
+    FREE = "free"
+    BASIC = "basic"
+    PRO = "pro"
+    ENTERPRISE = "enterprise"
+
+# Default configuration values
+DEFAULT_JWT_EXPIRE_MINUTES = 30
+DEFAULT_REFRESH_TOKEN_EXPIRE_DAYS = 7
+DEFAULT_RATE_LIMIT_WINDOW = 60  # seconds
+DEFAULT_LOG_MAX_BYTES = 10 * 1024 * 1024  # 10 MB
+DEFAULT_FILE_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB
+
+# Storage paths
+UPLOAD_DIR = "uploads"
+TEMP_DIR = "temp"
+
+# Logging paths
+LOG_DIR = "logs"
+LOG_FILE = "app.log"
+ERROR_LOG_FILE = "error.log"
+
+# Cache keys & TTLs
+CACHE_KEY_PATTERNS = {
+    "user": "user:{id}",
+    "form_check": "form_check:{id}",
+    "exercise": "exercise:{id}",
+    "all_exercises": "exercises:all",
+    "user_form_checks": "user:{id}:form_checks"
+}
+
+CACHE_TTL = {
+    "default": 3600,  # 1 hour
+    "user": 1800,  # 30 min
+    "form_check": 86400,  # 1 day
+    "exercise": 86400,  # 1 day
+    "rate_limit": 60,  # 1 min
+    "auth_token": 900,  # 15 min
+}
+
+# HTTP response messages
+HTTP_MESSAGES = {
+    "success": {
+        "created": "Resource created successfully",
+        "updated": "Resource updated successfully",
+        "deleted": "Resource deleted successfully",
+    },
+    "error": {
+        "not_found": "Resource not found",
+        "unauthorized": "Authentication required",
+        "forbidden": "You don't have permission to access this resource",
+        "validation": "Validation error",
+        "conflict": "Resource conflict",
+        "rate_limit": "Rate limit exceeded",
+        "server_error": "Internal server error",
+    }
+} 

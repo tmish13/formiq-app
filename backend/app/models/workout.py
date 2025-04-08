@@ -4,7 +4,7 @@ from typing import Optional, Dict, Any
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, JSON, Float, Enum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, validates
-from app.models.base import BaseModel
+from app.models.base import BaseModel, SQLiteUUID
 from app.core.exceptions import ValidationError
 
 class Workout(BaseModel):
@@ -31,7 +31,7 @@ class Workout(BaseModel):
     """
     __tablename__ = "workouts"
 
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(SQLiteUUID(), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     name = Column(String(255), nullable=False)
     description = Column(String(1024))
     duration = Column(Integer)  # Duration in minutes
@@ -104,7 +104,7 @@ class Exercise(BaseModel):
     """
     __tablename__ = "exercises"
 
-    workout_id = Column(UUID(as_uuid=True), ForeignKey("workouts.id", ondelete="CASCADE"), nullable=False)
+    workout_id = Column(SQLiteUUID(), ForeignKey("workouts.id", ondelete="CASCADE"), nullable=False)
     name = Column(String(255), nullable=False)
     description = Column(String(1024))
     sets = Column(Integer)
@@ -176,8 +176,8 @@ class WorkoutPlan(BaseModel):
     """
     __tablename__ = "workout_plans"
 
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    workout_id = Column(UUID(as_uuid=True), ForeignKey("workouts.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(SQLiteUUID(), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    workout_id = Column(SQLiteUUID(), ForeignKey("workouts.id", ondelete="CASCADE"), nullable=False)
     name = Column(String(255), nullable=False)
     description = Column(String(1024))
     frequency = Column(String(50))  # e.g., "daily", "weekly", "monthly"

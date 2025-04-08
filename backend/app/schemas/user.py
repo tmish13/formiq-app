@@ -3,6 +3,10 @@ from typing import Optional, List
 from datetime import datetime
 from uuid import UUID
 from pydantic import BaseModel, EmailStr, Field, validator, constr
+from app.core.validators import validate_password
+import re
+
+from app.core.config import settings
 
 class UserBase(BaseModel):
     """
@@ -44,6 +48,7 @@ class UserCreate(UserBase):
     )
     password: constr(min_length=8) = Field(..., description="Password (min 8 characters)")
     full_name: Optional[str] = Field(None, description="User's full name")
+    is_superuser: Optional[bool] = Field(False, description="Whether user is a superuser")
 
     @validator("username")
     def set_username_default(cls, v, values):
@@ -76,22 +81,19 @@ class UserUpdate(UserBase):
     """
     password: Optional[constr(min_length=8)] = Field(None, description="New password")
     subscription_tier: Optional[str] = Field(None, description="User's subscription tier")
+    is_superuser: Optional[bool] = Field(None, description="Whether user is a superuser")
 
     @validator("password")
-    def validate_password(cls, v):
+    def validate_password_field(cls, v):
         """Validate password strength."""
         if v is None:
             return v
-        if len(v) < 8:
-            raise ValueError("Password must be at least 8 characters long")
-        if not any(c.isupper() for c in v):
-            raise ValueError("Password must contain at least one uppercase letter")
-        if not any(c.islower() for c in v):
-            raise ValueError("Password must contain at least one lowercase letter")
-        if not any(c.isdigit() for c in v):
-            raise ValueError("Password must contain at least one number")
-        if not any(c in "!@#$%^&*()-_=+[]{}|;:'\",.<>/?`~" for c in v):
-            raise ValueError("Password must contain at least one special character")
+        
+        try:
+            validate_password(v)
+        except Exception as e:
+            raise ValueError(str(e))
+        
         return v
     
     @validator("subscription_tier")
@@ -168,4 +170,66 @@ class UserFilter(BaseModel):
         allowed_tiers = ["FREE", "BASIC", "PRO", "PREMIUM"]
         if v not in allowed_tiers:
             raise ValueError(f"Subscription tier must be one of: {', '.join(allowed_tiers)}")
+        return v
+
+class UserUpdatePassword(BaseModel):
+    """User password update schema."""
+    current_password: str = Field(..., description="Current password")
+    new_password: str = Field(
+        ...,
+        description="New password",
+        min_length=8,
+        max_length=128
+    )
+    
+    @validator("new_password")
+    def validate_password(cls, v):
+        """Validate password."""
+        # Check for uppercase letters
+        if not re.search(r"[A-Z]", v):
+            raise ValueError("Password must contain at least one uppercase letter")
+        
+        # Check for lowercase letters
+        if not re.search(r"[a-z]", v):
+            raise ValueError("Password must contain at least one lowercase letter")
+        
+        # Check for digits
+        if not re.search(r"\d", v):
+            raise ValueError("Password must contain at least one number")
+        
+        # Check for special characters
+        if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", v):
+            raise ValueError("Password must contain at least one special character")
+        
+        return v
+
+class UserPasswordReset(BaseModel):
+    """User password reset schema."""
+    token: str = Field(..., description="Password reset token")
+    new_password: str = Field(
+        ...,
+        description="New password",
+        min_length=8,
+        max_length=128
+    )
+    
+    @validator("new_password")
+    def validate_password(cls, v):
+        """Validate password."""
+        # Check for uppercase letters
+        if not re.search(r"[A-Z]", v):
+            raise ValueError("Password must contain at least one uppercase letter")
+        
+        # Check for lowercase letters
+        if not re.search(r"[a-z]", v):
+            raise ValueError("Password must contain at least one lowercase letter")
+        
+        # Check for digits
+        if not re.search(r"\d", v):
+            raise ValueError("Password must contain at least one number")
+        
+        # Check for special characters
+        if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", v):
+            raise ValueError("Password must contain at least one special character")
+        
         return v 

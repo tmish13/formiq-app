@@ -1,13 +1,14 @@
 import { apiService } from './api';
 import { store } from '../store';
-import { setUser, setToken, setError, setLoading } from '../store/slices/authSlice';
+import { setLoading, setError } from '../store/slices/authSlice';
 import type { User, AuthResponse, LoginCredentials, RegisterData } from '../types';
+import { endpoints } from '../config/api';
 
 class AuthService {
   async login(credentials: LoginCredentials): Promise<AuthResponse> {
     try {
       store.dispatch(setLoading(true));
-      const response = await apiService.post<AuthResponse>('/auth/login', credentials);
+      const response = await apiService.post<AuthResponse>(endpoints.auth.login, credentials);
       return response;
     } catch (error: any) {
       store.dispatch(setError(error.message));
@@ -20,7 +21,7 @@ class AuthService {
   async register(data: RegisterData): Promise<AuthResponse> {
     try {
       store.dispatch(setLoading(true));
-      const response = await apiService.post<AuthResponse>('/auth/register', data);
+      const response = await apiService.post<AuthResponse>(endpoints.auth.register, data);
       return response;
     } catch (error: any) {
       store.dispatch(setError(error.message));
@@ -33,7 +34,7 @@ class AuthService {
   async logout(): Promise<void> {
     try {
       store.dispatch(setLoading(true));
-      await apiService.post('/auth/logout');
+      await apiService.post(endpoints.auth.logout);
       localStorage.removeItem('token');
     } catch (error: any) {
       store.dispatch(setError(error.message));
@@ -46,7 +47,7 @@ class AuthService {
   async getCurrentUser(): Promise<User> {
     try {
       store.dispatch(setLoading(true));
-      const response = await apiService.get<User>('/users/me');
+      const response = await apiService.get<User>(endpoints.user.profile);
       return response;
     } catch (error: any) {
       store.dispatch(setError(error.message));
@@ -59,7 +60,7 @@ class AuthService {
   async updateProfile(data: Partial<User>): Promise<User> {
     try {
       store.dispatch(setLoading(true));
-      const response = await apiService.patch<User>('/users/me', data);
+      const response = await apiService.patch<User>(endpoints.user.update, data);
       return response;
     } catch (error: any) {
       store.dispatch(setError(error.message));
@@ -72,7 +73,7 @@ class AuthService {
   async refreshToken(): Promise<{ access_token: string }> {
     try {
       store.dispatch(setLoading(true));
-      const response = await apiService.post<{ access_token: string }>('/auth/refresh');
+      const response = await apiService.post<{ access_token: string }>(endpoints.auth.refreshToken);
       return response;
     } catch (error: any) {
       store.dispatch(setError(error.message));

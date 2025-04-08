@@ -165,7 +165,7 @@ export const AnalysisPage: React.FC = () => {
                 Start Recording
               </Button>
             ) : (
-              <Button variant="error" onClick={handleStopRecording}>
+              <Button variant="secondary" onClick={handleStopRecording}>
                 Stop Recording
               </Button>
             )}

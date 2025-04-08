@@ -2,14 +2,14 @@
 from typing import Optional, List, Dict, Any
 from sqlalchemy import Column, Integer, String, Boolean, Enum, DateTime, ForeignKey
 from sqlalchemy.orm import relationship, validates
-from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime
 import enum
 import re
-from app.models.base import BaseModel
+from app.models.base import BaseModel, SQLiteUUID
 from app.models.enums import SubscriptionTier
 from app.core.security import get_password_hash, verify_password
 from app.core.exceptions import ValidationError
+from app.core.validators import validate_password as validate_password_strength
 import uuid
 
 class User(BaseModel):
@@ -44,7 +44,7 @@ class User(BaseModel):
     """
     __tablename__ = "users"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    id = Column(SQLiteUUID(), primary_key=True, default=uuid.uuid4, index=True)
     email = Column(String, unique=True, index=True, nullable=False)
     username = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
@@ -169,19 +169,15 @@ class User(BaseModel):
         if not password:
             raise ValidationError("Password is required")
         
-        if len(password) < 8:
-            raise ValidationError("Password must be at least 8 characters")
-        
-        if not any(c.isupper() for c in password):
-            raise ValidationError("Password must contain at least one uppercase letter")
-        
-        if not any(c.islower() for c in password):
-            raise ValidationError("Password must contain at least one lowercase letter")
-        
-        if not any(c.isdigit() for c in password):
-            raise ValidationError("Password must contain at least one number")
-        
-        self.hashed_password = get_password_hash(password)
+        try:
+            # Use the common password validator
+            validate_password_strength(password)
+            
+            # Hash and store the password
+            self.hashed_password = get_password_hash(password)
+        except Exception as e:
+            # Convert any exceptions to ValidationError
+            raise ValidationError(str(e))
 
     def validate(self) -> None:
         """

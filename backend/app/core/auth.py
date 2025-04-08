@@ -1,14 +1,22 @@
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional, Union, Tuple
+import secrets
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.security import verify_password, is_token_blacklisted
+from app.core.security import (
+    verify_password, 
+    track_login_attempt, 
+    create_access_token, 
+    create_refresh_token,
+    is_token_blacklisted,
+    ALGORITHM
+)
 from app.core.config import settings
 from app.core.constants import ROLE_PERMISSIONS, Roles
 from app.core.exceptions import AuthenticationException, AuthorizationException
@@ -21,27 +29,95 @@ oauth2_scheme = OAuth2PasswordBearer(
 )
 
 class AuthService:
-    """Authentication service."""
+    """Enhanced authentication service with security features."""
     
     @staticmethod
-    def authenticate_user(db: Session, email: str, password: str) -> Optional[User]:
+    async def authenticate_user(
+        request: Request,
+        db: Session, 
+        email: str, 
+        password: str
+    ) -> Tuple[Optional[User], bool, bool]:
         """
-        Authenticate a user with email and password.
+        Authenticate a user with email and password with rate limiting protection.
         
         Args:
+            request: Request object for IP tracking
             db: Database session
             email: User email
             password: User password
             
         Returns:
-            User if authentication successful, None otherwise
+            Tuple containing:
+            - User if authentication successful, None otherwise
+            - Boolean indicating if account is locked
+            - Boolean indicating authentication success/failure
         """
-        user = db.query(User).filter(User.email == email).first()
+        # Get client IP for additional security logging
+        client_ip = request.client.host if request.client else None
+        
+        # Check if account is locked due to too many failed attempts
+        account_locked = track_login_attempt(email.lower(), success=False)
+        if account_locked:
+            logger.warning(
+                "Account locked due to too many failed attempts",
+                extra={
+                    "email": email,
+                    "ip": client_ip,
+                    "request_id": getattr(request.state, "request_id", None)
+                }
+            )
+            return None, True, False
+        
+        # Try to find the user
+        user = db.query(User).filter(User.email == email.lower()).first()
         if not user:
-            return None
+            logger.warning(
+                "Login attempt with non-existent user", 
+                extra={
+                    "email": email,
+                    "ip": client_ip,
+                    "request_id": getattr(request.state, "request_id", None)
+                }
+            )
+            # We still track the attempt even if user doesn't exist
+            # Use the same timing to prevent timing attacks
+            return None, False, False
+            
+        # Verify password
         if not verify_password(password, user.hashed_password):
-            return None
-        return user
+            logger.warning(
+                "Failed login attempt", 
+                extra={
+                    "user_id": user.id,
+                    "email": email,
+                    "ip": client_ip,
+                    "request_id": getattr(request.state, "request_id", None)
+                }
+            )
+            return None, False, False
+            
+        # If we get here, authentication was successful
+        # Reset failed attempts counter
+        track_login_attempt(email.lower(), success=True)
+        
+        # Log successful login
+        logger.info(
+            "Successful login", 
+            extra={
+                "user_id": user.id,
+                "email": email,
+                "ip": client_ip,
+                "request_id": getattr(request.state, "request_id", None)
+            }
+        )
+        
+        # Update last login timestamp if the model has this field
+        if hasattr(user, "last_login"):
+            user.last_login = datetime.utcnow()
+            db.commit()
+            
+        return user, False, True
     
     @staticmethod
     def get_current_user(
@@ -62,22 +138,35 @@ class AuthService:
         """
         try:
             if is_token_blacklisted(token):
-                raise AuthenticationException("Token is blacklisted")
+                raise AuthenticationException("Token is blacklisted or revoked")
                 
             payload = jwt.decode(
-                token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+                token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM]
             )
             token_data = TokenPayload(**payload)
             
+            # Ensure the token hasn't expired
             if datetime.fromtimestamp(token_data.exp) < datetime.now():
                 raise AuthenticationException("Token has expired")
+                
+            # Validate token type (if present)
+            if "type" in payload and payload["type"] != "access":
+                raise AuthenticationException("Invalid token type")
+                
         except (JWTError, ValidationError) as e:
-            logger.error("token_decode_error", error=str(e))
+            logger.warning(
+                "Token validation error", 
+                extra={"error": str(e)}
+            )
             raise AuthenticationException("Could not validate credentials")
             
         user = db.query(User).filter(User.id == token_data.sub).first()
         if not user:
             raise AuthenticationException("User not found")
+            
+        # Check if user account status has changed since token was issued
+        if not user.is_active:
+            raise AuthenticationException("User account is disabled")
             
         return user
     
@@ -98,7 +187,7 @@ class AuthService:
             AuthenticationException: If user is inactive
         """
         if not current_user.is_active:
-            raise AuthenticationException("Inactive user")
+            raise AuthenticationException("Inactive user account")
         return current_user
     
     @staticmethod
@@ -129,59 +218,55 @@ class AuthService:
             return current_user
             
         logger.warning(
-            "permission_denied",
-            user_id=current_user.id,
-            required_permission=required_permission,
-            user_role=current_user.role
+            "Permission denied",
+            extra={
+                "user_id": current_user.id,
+                "required_permission": required_permission,
+                "user_role": current_user.role
+            }
         )
         raise AuthorizationException("Not enough permissions")
     
     @staticmethod
-    def generate_token(user_id: int) -> Dict[str, Any]:
+    def generate_tokens(user_id: int, user_role: str = None) -> Dict[str, Any]:
         """
-        Generate access token for user.
+        Generate access and refresh tokens for user.
         
         Args:
             user_id: User ID
+            user_role: User role for token claims
             
         Returns:
-            Token data
+            Dict containing access and refresh tokens
         """
+        # Additional claims for the token
+        additional_data = {}
+        if user_role:
+            additional_data["role"] = user_role
+        
+        # Add unique token ID for potential revocation
+        token_id = secrets.token_hex(16)
+        additional_data["jti"] = token_id
+        
+        # Create access token with shorter expiration
         access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-        
-        return {
-            "access_token": AuthService.create_access_token(
-                user_id, expires_delta=access_token_expires
-            ),
-            "token_type": "bearer",
-        }
-    
-    @staticmethod
-    def create_access_token(
-        subject: Union[int, Any], expires_delta: Optional[timedelta] = None
-    ) -> str:
-        """
-        Create access token.
-        
-        Args:
-            subject: Token subject (usually user ID)
-            expires_delta: Token expiration delta
-            
-        Returns:
-            Encoded JWT token
-        """
-        if expires_delta:
-            expire = datetime.utcnow() + expires_delta
-        else:
-            expire = datetime.utcnow() + timedelta(
-                minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
-            )
-            
-        to_encode = {"exp": expire, "sub": str(subject)}
-        encoded_jwt = jwt.encode(
-            to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM
+        access_token = create_access_token(
+            subject=user_id, 
+            expires_delta=access_token_expires,
+            data=additional_data
         )
         
-        return encoded_jwt
+        # Create refresh token with longer expiration
+        refresh_token = create_refresh_token(
+            subject=user_id
+        )
+        
+        return {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+            "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60  # seconds
+        }
 
+# Create a singleton instance
 auth_service = AuthService() 

@@ -78,21 +78,27 @@ if settings.SQLALCHEMY_DATABASE_URI.startswith("sqlite"):
         connect_args={"check_same_thread": False}
     )
 else:
-    # PostgreSQL and other databases - optimized for 1,000 users
+    # PostgreSQL and other databases - optimized for production
+    connect_args = {
+        "connect_timeout": 10,
+        # Add statement timeout to prevent long-running queries
+        "options": "-c statement_timeout=15000"  # 15 seconds
+    }
+    
+    # Add SSL if required (for production)
+    if settings.ENVIRONMENT == "production" and settings.SSL_REQUIRED:
+        connect_args["sslmode"] = "require"
+    
     sync_engine = create_engine(
         get_database_url(),
         poolclass=QueuePool if settings.ENVIRONMENT not in ["test"] else NullPool,
-        pool_size=20,  # Increased from 5 to 20 for 1,000 users
-        max_overflow=20,  # Increased from 10 to 20 for 1,000 users
+        pool_size=settings.DB_POOL_SIZE,
+        max_overflow=settings.DB_MAX_OVERFLOW,
         pool_timeout=settings.DB_POOL_TIMEOUT,
         pool_recycle=settings.DB_POOL_RECYCLE,
         pool_pre_ping=True,
         echo=settings.DB_ECHO,
-        connect_args={
-            "connect_timeout": 10,
-            # Add statement timeout to prevent long-running queries
-            "options": "-c statement_timeout=15000"  # 15 seconds
-        } if not settings.SQLALCHEMY_DATABASE_URI.startswith("sqlite") else {}
+        connect_args=connect_args if not settings.SQLALCHEMY_DATABASE_URI.startswith("sqlite") else {}
     )
 
 # Create async engine
@@ -106,20 +112,26 @@ if settings.SQLALCHEMY_DATABASE_URI.startswith("sqlite://"):
     )
     logger.info(f"Created SQLite async engine with NullPool: {get_async_database_url()}")
 elif settings.SQLALCHEMY_DATABASE_URI.startswith("postgresql://"):
-    # PostgreSQL async engine - optimized for 1,000 users
+    # PostgreSQL async engine - optimized for production
+    async_connect_args = {
+        "command_timeout": 10,
+        "statement_timeout": 15000,  # 15 seconds statement timeout
+        "connect_timeout": 10
+    }
+    
+    # Add SSL if required (for production)
+    if settings.ENVIRONMENT == "production" and settings.SSL_REQUIRED:
+        async_connect_args["ssl"] = True
+    
     async_engine = create_async_engine(
         get_async_database_url(),
         echo=settings.DB_ECHO,
-        pool_size=20,  # Increased for 1,000 users
-        max_overflow=20,  # Increased for 1,000 users
+        pool_size=settings.DB_POOL_SIZE,
+        max_overflow=settings.DB_MAX_OVERFLOW,
         pool_timeout=settings.DB_POOL_TIMEOUT,
         pool_recycle=settings.DB_POOL_RECYCLE,
         pool_pre_ping=True,
-        connect_args={
-            "command_timeout": 10,
-            "statement_timeout": 15000,  # 15 seconds statement timeout
-            "connect_timeout": 10
-        }
+        connect_args=async_connect_args
     )
     logger.info(f"Created PostgreSQL async engine with QueuePool: {get_async_database_url()}")
 else:

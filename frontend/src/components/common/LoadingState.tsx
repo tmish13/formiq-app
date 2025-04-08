@@ -19,7 +19,7 @@ const LoadingContainer = styled.div`
 const ContentContainer = styled.div<{ isLoading: boolean }>`
   opacity: ${({ isLoading }) => (isLoading ? 0.5 : 1)};
   pointer-events: ${({ isLoading }) => (isLoading ? 'none' : 'auto')};
-  transition: opacity ${({ theme }) => theme.transitions.normal};
+  transition: opacity ${({ theme }) => theme.transitions?.medium || '0.3s ease'};
 `;
 
 export const LoadingState: React.FC<LoadingStateProps> = ({

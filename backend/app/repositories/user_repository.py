@@ -40,11 +40,20 @@ class UserRepository:
     
     async def create(self, user_data: UserCreate) -> User:
         """Create a new user."""
+        # Convert Pydantic model to dict
+        user_dict = user_data.dict(exclude_unset=True)
+        
+        # Extract values that need special handling
+        password = user_dict.pop("password", None)  # Password should be already hashed
+        is_superuser = user_dict.pop("is_superuser", False)  # Extract is_superuser flag
+        
+        # Create user with proper attributes
         user = User(
             email=user_data.email,
             username=user_data.username or user_data.email.split('@')[0],
             full_name=user_data.full_name,
-            hashed_password=user_data.password  # Note: Should be hashed in a real app
+            hashed_password=password,  # Note: Should be hashed in the service layer
+            is_superuser=is_superuser  # Set superuser status
         )
         
         self.db.add(user)

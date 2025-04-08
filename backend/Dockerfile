@@ -1,5 +1,5 @@
-# Use Python 3.8 slim image
-FROM python:3.8-slim
+# Use Python 3.9 slim image
+FROM python:3.9-slim
 
 # Set working directory
 WORKDIR /app
@@ -7,27 +7,33 @@ WORKDIR /app
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PYTHONPATH=/app
+    ENVIRONMENT=production
 
 # Install system dependencies
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-        postgresql-client \
-        libpq-dev \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libpq-dev \
+    ffmpeg \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy project files
+# Copy application code
 COPY . .
 
-# Create upload directory
+# Create required directories
 RUN mkdir -p uploads/videos
 
 # Expose port
 EXPOSE 8000
 
+# Set up entrypoint
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
+
 # Run the application
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"] 
+ENTRYPOINT ["/docker-entrypoint.sh"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"] 

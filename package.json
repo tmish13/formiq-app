@@ -1,0 +1,18 @@
+{
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject",
+    "test:coverage": "jest --coverage",
+    "test:e2e": "cypress run",
+    "test:security": "npm audit && snyk test",
+    "cap:sync": "npx cap sync && npm run fix:java",
+    "cap:build": "npm run build && npx cap sync && npm run fix:java",
+    "cap:android": "npm run fix:java && npx cap run android",
+    "cap:ios": "npx cap run ios",
+    "cap:open:android": "npm run fix:java && npx cap open android",
+    "cap:open:ios": "npx cap open ios",
+    "fix:java": "node fix-java-version.js"
+  }
+} 

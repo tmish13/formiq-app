@@ -24,6 +24,8 @@ const mockFormChecks: FormCheck[] = [
     overall_feedback: 'Good form overall',
     issues: ['Slight knee valgus'],
     created_at: new Date().toISOString(),
+    status: 'completed',
+    updated_at: new Date().toISOString(),
   },
   {
     id: 2,
@@ -34,6 +36,8 @@ const mockFormChecks: FormCheck[] = [
     overall_feedback: 'Decent form with some issues',
     issues: ['Rounded back', 'Bar path not straight'],
     created_at: new Date().toISOString(),
+    status: 'completed',
+    updated_at: new Date().toISOString(),
   },
 ];
 
@@ -149,6 +153,8 @@ export const handlers = [
       overall_feedback: 'Feedback will be generated after processing',
       issues: [],
       created_at: new Date().toISOString(),
+      status: 'pending',
+      updated_at: new Date().toISOString(),
     };
 
     return HttpResponse.json(newFormCheck, { status: 201 });

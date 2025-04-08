@@ -1,6 +1,6 @@
 """Minimal app to test SQLAlchemy with SQLite."""
 import os
-from typing import Optional, List
+from typing import Optional, List, AsyncGenerator
 import uvicorn
 import asyncio
 from fastapi import FastAPI, Depends, HTTPException
@@ -10,6 +10,7 @@ from sqlalchemy import Column, Integer, String
 from sqlalchemy.pool import NullPool
 from sqlalchemy.future import select
 from pydantic import BaseModel
+import contextlib
 
 # SQLite file
 DB_FILE = "./minimal_test.db"
@@ -59,8 +60,30 @@ async_session = sessionmaker(
     expire_on_commit=False
 )
 
-# Create FastAPI app
-app = FastAPI(title="Minimal App")
+@contextlib.asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """Lifespan context manager for the application."""
+    # --- STARTUP LOGIC ---
+    # Create tables
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.create_all)
+    print("Database tables created")
+    
+    # Yield control to FastAPI
+    yield
+    
+    # --- SHUTDOWN LOGIC ---
+    # Close database connections
+    await engine.dispose()
+    print("Engine disposed")
+
+# Modify FastAPI app to use the lifespan context manager
+app = FastAPI(
+    title="FastAPI Minimal Example",
+    description="A minimal FastAPI application with SQLAlchemy",
+    lifespan=lifespan
+)
 
 # Dependency for database session
 async def get_db():
@@ -69,21 +92,6 @@ async def get_db():
             yield session
         finally:
             await session.close()
-
-# Startup event
-@app.on_event("startup")
-async def startup():
-    # Create tables
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-        await conn.run_sync(Base.metadata.create_all)
-    print("Database tables created")
-
-# Shutdown event
-@app.on_event("shutdown")
-async def shutdown():
-    await engine.dispose()
-    print("Engine disposed")
 
 # Register endpoint
 @app.post("/auth/register", response_model=UserResponse)

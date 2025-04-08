@@ -1,14 +1,51 @@
 """Base model module providing common functionality for all models."""
 from datetime import datetime
 from typing import Dict, Any, TypeVar, Type, Optional, List, Set
-from sqlalchemy import Column, DateTime, func, String, inspect
+from sqlalchemy import Column, DateTime, func, String, inspect, CHAR
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.types import TypeDecorator
 import uuid
 from pydantic import BaseModel as PydanticBaseModel
 from app.db.base_class import Base
 from app.core.exceptions import ValidationError
+from sqlalchemy.ext.declarative import declared_attr
+import re
+import json
 
 T = TypeVar('T', bound='BaseModel')
+
+class SQLiteUUID(TypeDecorator):
+    """
+    Platform-independent UUID type.
+    Uses PostgreSQL's UUID type, otherwise uses CHAR(36), storing as string.
+    """
+    impl = CHAR
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == 'postgresql':
+            return dialect.type_descriptor(UUID())
+        else:
+            return dialect.type_descriptor(CHAR(36))
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return value
+        elif dialect.name == 'postgresql':
+            return str(value)
+        else:
+            if not isinstance(value, uuid.UUID):
+                return str(uuid.UUID(value))
+            else:
+                return str(value)
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return value
+        else:
+            if not isinstance(value, uuid.UUID):
+                value = uuid.UUID(value)
+            return value
 
 class BaseModel(Base):
     """
@@ -25,7 +62,7 @@ class BaseModel(Base):
     """
     __abstract__ = True
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    id = Column(SQLiteUUID(), primary_key=True, default=uuid.uuid4, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
@@ -36,10 +73,19 @@ class BaseModel(Base):
         Returns:
             Dict[str, Any]: Dictionary representation of the model
         """
-        return {
-            column.name: getattr(self, column.name)
-            for column in self.__table__.columns
-        }
+        result = {}
+        for column in self.__table__.columns:
+            value = getattr(self, column.name)
+            
+            # Handle UUID objects
+            if isinstance(value, uuid.UUID):
+                value = str(value)
+            # Handle datetime objects
+            elif isinstance(value, datetime):
+                value = value.isoformat()
+            
+            result[column.name] = value
+        return result
     
     def to_dict_with_relationships(self, include: Optional[List[str]] = None) -> Dict[str, Any]:
         """
@@ -86,11 +132,12 @@ class BaseModel(Base):
         Raises:
             ValidationError: If data validation fails
         """
-        # Validate required fields
-        cls._validate_required_fields(data)
+        # Filter out keys that don't match model attributes
+        valid_fields = inspect(cls).columns.keys()
+        filtered_data = {k: v for k, v in data.items() if k in valid_fields}
         
-        # Create instance and return
-        instance = cls(**data)
+        # Create instance and validate
+        instance = cls(**filtered_data)
         instance.validate()
         return instance
 
@@ -224,4 +271,40 @@ class BaseModel(Base):
 
     def __repr__(self) -> str:
         """String representation of the model."""
-        return f"<{self.__class__.__name__} {self.id}>" 
+        return f"<{self.__class__.__name__} {self.id}>"
+
+    @declared_attr
+    def __tablename__(cls) -> str:
+        """Generate __tablename__ automatically from class name."""
+        # Convert CamelCase to snake_case and pluralize
+        name = re.sub('(?<!^)(?=[A-Z])', '_', cls.__name__).lower()
+        if not name.endswith('s'):
+            name += 's'  # Simple pluralization
+        return name
+
+    def to_json(self) -> str:
+        """
+        Convert model to JSON string.
+        
+        Returns:
+            JSON string representation of the model
+        """
+        return json.dumps(self.to_dict())
+
+    @classmethod
+    def create(cls: Type[T], **kwargs) -> T:
+        """
+        Create a new instance with the given attributes.
+        
+        Args:
+            **kwargs: Model field values
+            
+        Returns:
+            A new instance of the model
+            
+        Raises:
+            ValidationError: If data validation fails
+        """
+        instance = cls(**kwargs)
+        instance.validate()
+        return instance 

@@ -4,7 +4,7 @@ from typing import Optional
 from sqlalchemy import Column, String, DateTime, Enum as SQLEnum, Integer, Boolean, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, validates
-from app.models.base import BaseModel
+from app.models.base import BaseModel, SQLiteUUID
 from app.core.exceptions import ValidationError
 from app.models.enums import SubscriptionTier
 
@@ -32,8 +32,8 @@ class Subscription(BaseModel):
     """
     __tablename__ = "subscriptions"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, index=True)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    id = Column(SQLiteUUID(), primary_key=True, index=True)
+    user_id = Column(SQLiteUUID(), ForeignKey("users.id"), nullable=False)
     tier = Column(SQLEnum(SubscriptionTier), nullable=False)
     start_date = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
     end_date = Column(DateTime(timezone=True), nullable=True)

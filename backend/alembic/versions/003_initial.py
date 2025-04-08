@@ -1,17 +1,18 @@
 """Initial migration
 
-Revision ID: 001
-Revises: 
+Revision ID: 003
+Revises: 002
 Create Date: 2024-02-14 12:00:00.000000
 
 """
 from alembic import op
 import sqlalchemy as sa
-import postgresql
+from sqlalchemy.dialects.postgresql import UUID
+import uuid
 
 # revision identifiers, used by Alembic.
-revision = '001'
-down_revision = None
+revision = '003'
+down_revision = '002'
 branch_labels = None
 depends_on = None
 
@@ -20,7 +21,7 @@ def upgrade() -> None:
     # Create users table
     op.create_table(
         'users',
-        sa.Column('id', postgresql.UUID(), nullable=False),
+        sa.Column('id', sa.String(36), nullable=False),
         sa.Column('email', sa.String(length=255), nullable=False),
         sa.Column('hashed_password', sa.String(length=255), nullable=False),
         sa.Column('full_name', sa.String(length=255), nullable=False),
@@ -34,7 +35,7 @@ def upgrade() -> None:
     # Create exercises table
     op.create_table(
         'exercises',
-        sa.Column('id', postgresql.UUID(), nullable=False),
+        sa.Column('id', sa.String(36), nullable=False),
         sa.Column('name', sa.String(length=255), nullable=False),
         sa.Column('description', sa.Text(), nullable=True),
         sa.Column('video_url', sa.String(length=255), nullable=True),
@@ -49,13 +50,13 @@ def upgrade() -> None:
     # Create form_checks table
     op.create_table(
         'form_checks',
-        sa.Column('id', postgresql.UUID(), nullable=False),
+        sa.Column('id', sa.String(36), nullable=False),
         sa.Column('video_url', sa.String(length=255), nullable=False),
-        sa.Column('exercise_id', postgresql.UUID(), nullable=False),
-        sa.Column('user_id', postgresql.UUID(), nullable=False),
+        sa.Column('exercise_id', sa.String(36), nullable=False),
+        sa.Column('user_id', sa.String(36), nullable=False),
         sa.Column('feedback', sa.Text(), nullable=True),
         sa.Column('score', sa.Float(), nullable=True),
-        sa.Column('keypoints', postgresql.JSON(astext_type=sa.Text()), nullable=True),
+        sa.Column('keypoints', sa.JSON().with_variant(sa.Text(), 'sqlite'), nullable=True),
         sa.Column('status', sa.String(length=50), nullable=False, server_default='pending'),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
         sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),

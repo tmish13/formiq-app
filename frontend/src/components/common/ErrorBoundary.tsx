@@ -1,6 +1,5 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
-import styled from 'styled-components';
-import { Button } from './Button';
+import ServerErrorPage from './ServerErrorPage';
 
 interface Props {
   children: ReactNode;
@@ -12,79 +11,57 @@ interface State {
   error: Error | null;
 }
 
-const ErrorContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 100vh;
-  padding: ${({ theme }) => theme.spacing.xl};
-  text-align: center;
-`;
-
-const ErrorTitle = styled.h1`
-  color: ${({ theme }) => theme.colors.error};
-  margin-bottom: ${({ theme }) => theme.spacing.md};
-`;
-
-const ErrorMessage = styled.p`
-  color: ${({ theme }) => theme.colors.textSecondary};
-  margin-bottom: ${({ theme }) => theme.spacing.xl};
-  max-width: 600px;
-`;
-
-const ErrorDetails = styled.pre`
-  background-color: ${({ theme }) => theme.colors.background};
-  padding: ${({ theme }) => theme.spacing.md};
-  border-radius: ${({ theme }) => theme.borderRadius.md};
-  margin-bottom: ${({ theme }) => theme.spacing.xl};
-  overflow-x: auto;
-  text-align: left;
-  font-size: ${({ theme }) => theme.typography.fontSize.sm};
-`;
-
-export class ErrorBoundary extends Component<Props, State> {
+class ErrorBoundary extends Component<Props, State> {
   public state: State = {
     hasError: false,
-    error: null,
+    error: null
   };
 
   public static getDerivedStateFromError(error: Error): State {
+    // Update state so the next render will show the fallback UI
     return { hasError: true, error };
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    // Log error to error reporting service
     console.error('Uncaught error:', error, errorInfo);
+    
+    // If we have Sentry configured, log the error
+    if (window.Sentry) {
+      window.Sentry.captureException(error);
+    }
   }
+
+  public resetError = () => {
+    this.setState({ hasError: false, error: null });
+  };
 
   public render() {
     if (this.state.hasError) {
+      // You can render any custom fallback UI
       if (this.props.fallback) {
         return this.props.fallback;
       }
-
+      
       return (
-        <ErrorContainer>
-          <ErrorTitle>Something went wrong</ErrorTitle>
-          <ErrorMessage>
-            We apologize for the inconvenience. Please try refreshing the page or contact support if the problem persists.
-          </ErrorMessage>
-          {process.env.NODE_ENV === 'development' && this.state.error && (
-            <ErrorDetails>
-              {this.state.error.toString()}
-              {this.state.error.stack}
-            </ErrorDetails>
-          )}
-          <Button
-            variant="primary"
-            onClick={() => window.location.reload()}
-          >
-            Refresh Page
-          </Button>
-        </ErrorContainer>
+        <ServerErrorPage
+          error={this.state.error || undefined}
+          resetError={this.resetError}
+        />
       );
     }
 
     return this.props.children;
   }
-} 
+}
+
+// Add window.Sentry type definition
+declare global {
+  interface Window {
+    Sentry?: {
+      captureException: (error: Error) => void;
+    };
+  }
+}
+
+export default ErrorBoundary; 

@@ -13,7 +13,9 @@ export interface FeedbackItem {
   severity: FeedbackSeverity;
   timestamp: number;
   description: string;
+  message?: string;
   suggestions: string;
+  joint_angles?: Record<string, number>;
   is_ai_generated?: boolean;
   created_at?: string;
   updated_at?: string;

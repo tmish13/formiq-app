@@ -1,4 +1,12 @@
-import { configureStore, combineReducers, Middleware, AnyAction, Store, Action, ThunkAction, ThunkMiddleware } from '@reduxjs/toolkit';
+import { 
+  configureStore, 
+  combineReducers, 
+  Middleware, 
+  AnyAction,
+  Action,
+  ThunkAction,
+  ThunkMiddleware
+} from '@reduxjs/toolkit';
 import { persistStore, persistReducer, FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER } from 'redux-persist';
 import storage from 'redux-persist/lib/storage';
 import { TypedUseSelectorHook, useDispatch, useSelector } from 'react-redux';
@@ -48,7 +56,7 @@ const cacheMiddleware: Middleware<{}, RootState> =
   (action: AnyAction) => {
     // Handle optimistic updates
     if (action.meta?.optimistic) {
-      const { type, payload, meta } = action;
+      const { type, meta } = action;
       const { endpoint } = meta;
 
       // Cache the previous state for rollback
@@ -89,7 +97,7 @@ const errorMiddleware: Middleware<{}, RootState> =
       // You can dispatch error notifications or handle errors globally here
     }
     return next(action);
-};
+  };
 
 // Analytics middleware
 const analyticsMiddleware: Middleware<{}, RootState> = 
