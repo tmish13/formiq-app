@@ -1,69 +1,56 @@
-import React, { useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router } from 'react-router-dom';
-import { ThemeProvider } from 'styled-components';
-import { Provider } from 'react-redux';
-import { PersistGate } from 'redux-persist/integration/react';
-import { store, persistor } from './store';
-import { customTheme } from './styles/theme';
-import { GlobalStyles } from './styles/globalStyles';
-import { AppLayout } from './components/layout/AppLayout';
+import { ThemeProvider } from './contexts/ThemeContext';
+import { OnboardingWalkthrough } from './components/onboarding/OnboardingWalkthrough';
+import { SplashScreen } from './components/splash/SplashScreen';
+import { AuthProvider } from './contexts/AuthContext';
 import { AppRoutes } from './routes';
-import { ErrorBoundary } from './components/common/ErrorBoundary';
-import { LoadingSpinner } from './components/common/LoadingSpinner';
-// Import Capacitor plugins
-import { SplashScreen } from '@capacitor/splash-screen';
-import { StatusBar, Style } from '@capacitor/status-bar';
+import { GlobalStyle } from './styles/GlobalStyle';
 import { Capacitor } from '@capacitor/core';
-// Import network status components
-import { NetworkStatusProvider } from './contexts/NetworkStatusProvider';
-import { OfflineStatusBar } from './components/common/OfflineStatusBar';
+import { SplashScreen as CapacitorSplashScreen } from '@capacitor/splash-screen';
 
 export const App: React.FC = () => {
+  const [showOnboarding, setShowOnboarding] = useState(true);
+  const [showSplash, setShowSplash] = useState(true);
+  const isNative = Capacitor.isNativePlatform();
+
   useEffect(() => {
-    // Initialize Capacitor plugins
-    const initCapacitor = async () => {
-      if (Capacitor.isNativePlatform()) {
-        try {
-          // Hide splash screen with a fade animation
-          await SplashScreen.hide({
-            fadeOutDuration: 500
-          });
-          
-          if (Capacitor.getPlatform() === 'android' || Capacitor.getPlatform() === 'ios') {
-            // Set status bar style
-            await StatusBar.setStyle({ style: Style.Dark });
-            
-            // Set background color only on Android
-            if (Capacitor.getPlatform() === 'android') {
-              StatusBar.setBackgroundColor({ color: '#2196f3' });
-            }
-          }
-        } catch (error) {
-          console.error('Error initializing Capacitor plugins', error);
-        }
-      }
-    };
-    
-    initCapacitor();
+    const hasSeenOnboarding = localStorage.getItem('formiq_onboarding_complete');
+    if (hasSeenOnboarding) {
+      setShowOnboarding(false);
+    }
   }, []);
 
+  const handleOnboardingComplete = () => {
+    setShowOnboarding(false);
+  };
+
+  const handleSplashComplete = () => {
+    setShowSplash(false);
+    
+    // Hide the native splash screen if we're on a native platform
+    if (isNative) {
+      CapacitorSplashScreen.hide();
+    }
+  };
+
   return (
-    <Provider store={store}>
-      <PersistGate loading={<LoadingSpinner />} persistor={persistor}>
-        <ThemeProvider theme={customTheme}>
-          <GlobalStyles />
-          <NetworkStatusProvider>
-            <ErrorBoundary>
-              <Router>
-                <OfflineStatusBar />
-                <AppLayout>
-                  <AppRoutes />
-                </AppLayout>
-              </Router>
-            </ErrorBoundary>
-          </NetworkStatusProvider>
-        </ThemeProvider>
-      </PersistGate>
-    </Provider>
+    <ThemeProvider>
+      <AuthProvider>
+        <Router>
+          <GlobalStyle />
+          {showSplash ? (
+            <SplashScreen onComplete={handleSplashComplete} />
+          ) : (
+            <>
+              {showOnboarding && (
+                <OnboardingWalkthrough onComplete={handleOnboardingComplete} />
+              )}
+              <AppRoutes />
+            </>
+          )}
+        </Router>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }; 

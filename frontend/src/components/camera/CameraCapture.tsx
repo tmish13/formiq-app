@@ -1,10 +1,12 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import styled from 'styled-components';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Capacitor } from '@capacitor/core';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { Filesystem, Directory } from '@capacitor/filesystem';
+import { getThemeValue, fallbacks } from '../../utils/themeUtils';
+import { FormTipsOverlay, FormTip } from './FormTipsOverlay';
 
 // Styled components
 const CaptureContainer = styled.div`
@@ -33,56 +35,53 @@ const ButtonsContainer = styled.div`
 `;
 
 const CaptureButton = styled.button`
-  background-color: ${({ theme }) => theme.colors.primary};
-  color: ${({ theme }) => theme.colors.white};
+  background-color: ${({ theme }) => getThemeValue(theme, 'colors.primary', fallbacks.colors.primary)};
+  color: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.colors.white)};
   border: none;
-  border-radius: 50%;
-  width: 64px;
-  height: 64px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  border-radius: 8px;
+  padding: 12px 24px;
+  font-weight: ${({ theme }) => theme?.typography?.fontWeight?.medium || 500};
   cursor: pointer;
   transition: all 0.2s ease;
   
   &:hover {
     transform: scale(1.05);
-    background-color: ${({ theme }) => theme.colors.primaryDark};
+    background-color: ${({ theme }) => getThemeValue(theme, 'colors.primaryDark', fallbacks.colors.primaryDark)};
   }
   
   &:disabled {
-    background-color: ${({ theme }) => theme.colors.disabled};
+    background-color: ${({ theme }) => getThemeValue(theme, 'colors.disabled', fallbacks.colors.disabled)};
     cursor: not-allowed;
     transform: none;
   }
 `;
 
 const ActionButton = styled.button`
-  background-color: ${({ theme }) => theme.colors.secondary};
-  color: ${({ theme }) => theme.colors.white};
+  background-color: ${({ theme }) => getThemeValue(theme, 'colors.secondary', fallbacks.colors.secondary)};
+  color: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.colors.white)};
   border: none;
   border-radius: 8px;
   padding: 12px 16px;
-  font-weight: ${({ theme }) => theme.typography.fontWeight.medium};
+  font-weight: ${({ theme }) => theme?.typography?.fontWeight?.medium || 500};
   cursor: pointer;
   transition: all 0.2s ease;
   
   &:hover {
-    background-color: ${({ theme }) => theme.colors.secondaryDark};
+    background-color: ${({ theme }) => getThemeValue(theme, 'colors.secondaryDark', fallbacks.colors.secondaryDark)};
   }
   
   &:disabled {
-    background-color: ${({ theme }) => theme.colors.disabled};
+    background-color: ${({ theme }) => getThemeValue(theme, 'colors.disabled', fallbacks.colors.disabled)};
     cursor: not-allowed;
   }
 `;
 
 const ErrorMessage = styled.div`
-  color: ${({ theme }) => theme.colors.error};
+  color: ${({ theme }) => getThemeValue(theme, 'colors.error', fallbacks.colors.error)};
   margin: 16px 0;
   padding: 8px 16px;
   border-radius: 4px;
-  background-color: ${({ theme }) => theme.colors.errorLight};
+  background-color: ${({ theme }) => getThemeValue(theme, 'colors.errorLight', fallbacks.colors.errorLight)};
   width: 100%;
   text-align: center;
 `;
@@ -91,20 +90,115 @@ const FileInput = styled.input`
   display: none;
 `;
 
+const VideoWrapper = styled.div`
+  position: relative;
+  width: 100%;
+  max-height: 70vh;
+  border-radius: 8px;
+  overflow: hidden;
+`;
+
+// Mock form tips data
+const mockFormTips: Record<string, FormTip[]> = {
+  squat: [
+    {
+      id: 'squat-1',
+      message: 'Knees slightly too forward',
+      type: 'warning',
+      position: { top: '30%', left: '50%' },
+    },
+    {
+      id: 'squat-2',
+      message: 'Keep your back straight',
+      type: 'error',
+      position: { top: '40%', left: '30%' },
+    },
+  ],
+  pushup: [
+    {
+      id: 'pushup-1',
+      message: 'Lower your chest closer to the ground',
+      type: 'warning',
+      position: { top: '50%', left: '40%' },
+    },
+    {
+      id: 'pushup-2',
+      message: 'Keep your core tight',
+      type: 'success',
+      position: { top: '60%', left: '60%' },
+    },
+  ],
+  deadlift: [
+    {
+      id: 'deadlift-1',
+      message: 'Bend your knees more',
+      type: 'warning',
+      position: { top: '40%', left: '50%' },
+    },
+    {
+      id: 'deadlift-2',
+      message: 'Keep the bar close to your body',
+      type: 'error',
+      position: { top: '50%', left: '30%' },
+    },
+  ],
+  lunge: [
+    {
+      id: 'lunge-1',
+      message: 'Front knee over toes',
+      type: 'warning',
+      position: { top: '40%', left: '40%' },
+    },
+    {
+      id: 'lunge-2',
+      message: 'Keep torso upright',
+      type: 'success',
+      position: { top: '50%', left: '60%' },
+    },
+  ],
+};
+
 interface CameraCaptureProps {
   onVideoCapture: (videoFile: File, thumbnailFile?: File) => void;
   maxDuration?: number; // in seconds
+  exerciseType?: string;
 }
 
 export const CameraCapture: React.FC<CameraCaptureProps> = ({ 
   onVideoCapture, 
-  maxDuration = 60 
+  maxDuration = 60,
+  exerciseType = 'squat'
 }) => {
   const [videoSrc, setVideoSrc] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isMobile] = useState(Capacitor.isNativePlatform());
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [currentTips, setCurrentTips] = useState<FormTip[]>(mockFormTips[exerciseType] || []);
+  const [formScore, setFormScore] = useState(85);
+
+  // Simulate form tips updates
+  useEffect(() => {
+    if (isRecording) {
+      const interval = setInterval(() => {
+        setCurrentTips(prevTips => {
+          const newTips = prevTips.map(tip => ({
+            ...tip,
+            position: {
+              top: `${Math.random() * 60 + 20}%`,
+              left: `${Math.random() * 60 + 20}%`,
+            },
+          }));
+          return newTips;
+        });
+        
+        // Randomly update form score
+        setFormScore(prev => Math.max(0, Math.min(100, prev + (Math.random() * 10 - 5))));
+      }, 2000);
+
+      return () => clearInterval(interval);
+    }
+  }, [isRecording]);
 
   // Function to handle file selection
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -260,50 +354,48 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
 
   return (
     <CaptureContainer>
-      {error && <ErrorMessage>{error}</ErrorMessage>}
-      
-      <FileInput 
-        type="file" 
-        accept="video/*" 
-        ref={fileInputRef}
-        onChange={handleFileChange}
-        capture="environment"
-      />
-      
-      {videoSrc && (
-        <VideoPreview 
-          src={videoSrc} 
-          controls 
-          autoPlay={false}
+      <VideoWrapper>
+        <VideoPreview
+          src={videoSrc || undefined}
+          autoPlay
           playsInline
+          muted
         />
-      )}
-      
+        {isRecording && (
+          <FormTipsOverlay
+            tips={currentTips}
+            score={formScore}
+          />
+        )}
+      </VideoWrapper>
+
       <ButtonsContainer>
-        {videoSrc ? (
+        {!videoSrc ? (
+          <CaptureButton
+            onClick={captureVideo}
+            disabled={isRecording}
+          >
+            {isRecording ? 'Recording...' : 'Start Recording'}
+          </CaptureButton>
+        ) : (
           <>
             <ActionButton onClick={cancelRecording}>
               Cancel
             </ActionButton>
-          </>
-        ) : (
-          <>
-            {error ? (
-              <ActionButton onClick={retryCapture}>
-                Retry
-              </ActionButton>
-            ) : (
-              <CaptureButton
-                onClick={captureVideo}
-                disabled={isRecording}
-                aria-label={isRecording ? 'Recording...' : 'Record Video'}
-              >
-                {isRecording ? 'Stop' : 'Record'}
-              </CaptureButton>
-            )}
+            <CaptureButton onClick={captureVideo}>
+              Record Again
+            </CaptureButton>
           </>
         )}
       </ButtonsContainer>
+
+      {error && <ErrorMessage>{error}</ErrorMessage>}
+      <FileInput
+        type="file"
+        accept="video/*"
+        onChange={handleFileChange}
+        ref={fileInputRef}
+      />
     </CaptureContainer>
   );
 }; 

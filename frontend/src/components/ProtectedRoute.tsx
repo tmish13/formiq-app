@@ -1,88 +1,79 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { Box, Typography } from '@mui/material';
-import { useAppSelector } from '../store/hooks';
-import { LoadingSpinner } from './common/LoadingSpinner';
-import { SubscriptionTier } from '../types';
+import { authService } from '../services/auth';
+import LoadingSpinner from './atoms/LoadingSpinner';
+import type { User } from '../types/auth';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  requiredSubscription?: SubscriptionTier;
+  requireAuth?: boolean;
+  roles?: string[];
 }
 
-const subscriptionLevels: { [key in SubscriptionTier]: number } = {
-  free: 0,
-  basic: 1,
-  pro: 2,
-};
-
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
+export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children,
-  requiredSubscription,
+  requireAuth = true,
+  roles = []
 }) => {
-  const { user, isLoading, error } = useAppSelector((state) => state.auth);
+  const [isValidating, setIsValidating] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [hasRequiredRole, setHasRequiredRole] = useState(false);
   const location = useLocation();
 
-  if (isLoading) {
+  useEffect(() => {
+    const validateSession = async () => {
+      try {
+        if (!authService.isAuthenticated()) {
+          setIsAuthenticated(false);
+          setIsValidating(false);
+          return;
+        }
+
+        await authService.validateToken();
+        const user = authService.getCurrentUser();
+        
+        setIsAuthenticated(true);
+        setHasRequiredRole(
+          roles.length === 0 || (user?.roles || []).some((role: string) => roles.includes(role))
+        );
+      } catch (error) {
+        setIsAuthenticated(false);
+        setHasRequiredRole(false);
+      } finally {
+        setIsValidating(false);
+      }
+    };
+
+    validateSession();
+  }, [roles]);
+
+  if (isValidating) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh">
-        <LoadingSpinner size="large" />
-      </Box>
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100vh' 
+      }}>
+        <LoadingSpinner />
+      </div>
     );
   }
 
-  if (error) {
-    return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh">
-        <Typography color="error" variant="h6">
-          {error}
-        </Typography>
-      </Box>
-    );
+  if (!requireAuth && isAuthenticated) {
+    // Redirect already authenticated users away from auth pages
+    return <Navigate to="/dashboard" replace />;
   }
 
-  if (!user) {
-    // Save the attempted URL for redirection after login
-    return <Navigate to="/login" state={{ from: location.pathname }} replace />;
+  if (requireAuth && !isAuthenticated) {
+    // Redirect unauthenticated users to login
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (requiredSubscription) {
-    const userLevel = subscriptionLevels[user.subscription_tier];
-    const requiredLevel = subscriptionLevels[requiredSubscription];
-
-    if (userLevel < requiredLevel) {
-      // Save the attempted URL for redirection after subscription upgrade
-      return (
-        <Navigate 
-          to="/subscription" 
-          state={{ 
-            from: location.pathname,
-            requiredTier: requiredSubscription 
-          }} 
-          replace 
-        />
-      );
-    }
-  }
-
-  // Check if subscription has expired
-  if (user.subscription_end_date && user.subscription_end_date !== null) {
-    const endDate = new Date(user.subscription_end_date);
-    if (endDate < new Date()) {
-      return (
-        <Navigate 
-          to="/subscription" 
-          state={{ 
-            from: location.pathname,
-            expired: true 
-          }} 
-          replace 
-        />
-      );
-    }
+  if (requireAuth && isAuthenticated && !hasRequiredRole) {
+    // Redirect authenticated users without required role
+    return <Navigate to="/unauthorized" replace />;
   }
 
   return <>{children}</>;
-};
-
-export default ProtectedRoute; 
+}; 

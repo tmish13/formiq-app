@@ -4,7 +4,11 @@ import { useNavigate } from 'react-router-dom';
 import { CameraCapture } from '../../components/camera/CameraCapture';
 import { useNetworkStatus } from '../../services/networkService';
 import { storageService } from '../../services/storageService';
-import { apiService } from '../../services/api';
+import { apiService } from '../../services/apiService';
+import { videoService } from '../../services/videoService';
+import { getThemeValue, fallbacks } from '../../utils/themeUtils';
+import { ApiResponse } from '../../services/apiService';
+import { LoadingSpinner } from '../../components/common/LoadingSpinner';
 
 const PageContainer = styled.div`
   max-width: 800px;
@@ -35,7 +39,7 @@ const Select = styled.select`
   width: 100%;
   padding: 12px;
   border-radius: 8px;
-  border: 1px solid ${({ theme }) => theme.colors.border};
+  border: 1px solid ${({ theme }) => getThemeValue(theme, 'colors.border', fallbacks.colors.border)};
   background-color: ${({ theme }) => theme.colors.white};
   font-size: 16px;
   font-family: inherit;
@@ -45,7 +49,7 @@ const TextArea = styled.textarea`
   width: 100%;
   padding: 12px;
   border-radius: 8px;
-  border: 1px solid ${({ theme }) => theme.colors.border};
+  border: 1px solid ${({ theme }) => getThemeValue(theme, 'colors.border', fallbacks.colors.border)};
   background-color: ${({ theme }) => theme.colors.white};
   font-size: 16px;
   font-family: inherit;
@@ -71,7 +75,7 @@ const Button = styled.button`
   }
   
   &:disabled {
-    background-color: ${({ theme }) => theme.colors.disabled};
+    background-color: ${({ theme }) => getThemeValue(theme, 'colors.disabled', fallbacks.colors.disabled)};
     cursor: not-allowed;
   }
 `;
@@ -101,6 +105,44 @@ const ErrorMessage = styled.div`
   border-radius: 8px;
   margin-bottom: 16px;
   font-weight: ${({ theme }) => theme.typography.fontWeight.medium};
+  font-size: ${({ theme }) => theme.typography.fontSize.small};
+`;
+
+const LoadingOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+`;
+
+const LoadingText = styled.div`
+  color: ${({ theme }) => theme.colors.white};
+  margin-top: 16px;
+  text-align: center;
+`;
+
+const ProgressBar = styled.div<{ progress: number }>`
+  width: 100%;
+  height: 4px;
+  background-color: ${({ theme }) => theme.colors.border};
+  border-radius: 2px;
+  margin-top: 8px;
+  overflow: hidden;
+
+  &::after {
+    content: '';
+    display: block;
+    width: ${({ progress }) => progress}%;
+    height: 100%;
+    background-color: ${({ theme }) => theme.colors.primary};
+    transition: width 0.3s ease;
+  }
 `;
 
 // Exercise types
@@ -121,22 +163,67 @@ interface OfflineResponse {
   message?: string;
 }
 
+interface FormCheckResponse {
+  id: string;
+  video_url: string;
+  exercise_id: string;
+  user_id: string;
+  status: 'pending' | 'processing' | 'completed';
+  score?: number;
+  overall_feedback?: string;
+  analysis_url?: string;
+  created_at: string;
+  updated_at?: string;
+}
+
 export const FormCheckUploadPage: React.FC = () => {
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [exerciseType, setExerciseType] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
   const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [isCompressing, setIsCompressing] = useState<boolean>(false);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isQueued, setIsQueued] = useState<boolean>(false);
   const { status } = useNetworkStatus();
   const navigate = useNavigate();
 
-  const handleVideoCapture = (video: File, thumbnail?: File) => {
-    setVideoFile(video);
-    if (thumbnail) {
-      setThumbnailFile(thumbnail);
+  const handleVideoCapture = async (video: File, thumbnail?: File) => {
+    try {
+      setIsCompressing(true);
+      setError(null);
+
+      // Compress video before setting it
+      const compressedVideo = await videoService.compressVideo(video, {
+        maxSizeMB: 50,
+        maxWidth: 1280,
+        maxHeight: 720,
+        quality: 0.8,
+      });
+
+      // Set the compressed video file
+      setVideoFile(new File([compressedVideo.data], video.name, { 
+        type: compressedVideo.type 
+      }));
+
+      // Set the thumbnail file if provided, otherwise generate one
+      if (thumbnail) {
+        setThumbnailFile(thumbnail);
+      } else {
+        const videoThumbnail = await videoService.generateThumbnail(video);
+        if (videoThumbnail) {
+          setThumbnailFile(new File([videoThumbnail], 'thumbnail.jpg', { 
+            type: 'image/jpeg' 
+          }));
+        }
+      }
+    } catch (err) {
+      console.error('Error processing video:', err);
+      setError('Failed to process video. Please try again.');
+    } finally {
+      setIsCompressing(false);
     }
   };
 
@@ -156,6 +243,7 @@ export const FormCheckUploadPage: React.FC = () => {
     setError(null);
     setSuccess(null);
     setIsUploading(true);
+    setUploadProgress(0);
     
     try {
       // Create form data for the API request
@@ -171,16 +259,20 @@ export const FormCheckUploadPage: React.FC = () => {
         formData.append('thumbnail', thumbnailFile);
       }
       
-      // Make API request with offline capability
-      const response = await apiService.post<Record<string, any> | OfflineResponse>('/form-checks', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-        offlineQueueable: true,
+      // Make API request with offline capability and progress tracking
+      const response = await apiService.formChecks.upload(formData, {
+        onUploadProgress: (progressEvent) => {
+          if (progressEvent.total) {
+            const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            setUploadProgress(progress);
+          }
+        }
       });
       
-      // Check if the request was queued for offline processing
-      if ('queued' in response && response.queued) {
+      const formCheckData = (response.data as ApiResponse<FormCheckResponse>).data;
+      
+      // Check if the request is being processed
+      if (formCheckData.status === 'processing') {
         setIsQueued(true);
         
         // Store the form check data locally for offline access
@@ -193,21 +285,22 @@ export const FormCheckUploadPage: React.FC = () => {
             video_filename: videoFile.name,
             recorded_at: new Date().toISOString(),
           },
-          queueId: (response as OfflineResponse).queuedRequestId || `offline-${Date.now()}`,
+          queueId: formCheckData.id || `offline-${Date.now()}`,
           queuedAt: new Date().toISOString(),
         });
         
-        // Save the video file to local storage or IndexedDB (simplified here)
-        // In a real implementation, you would use IndexedDB for large files
-        
-        setSuccess('Your form check has been saved and will be uploaded when you are back online');
+        setSuccess('Your form check has been saved and will be processed shortly');
       } else {
-        // Request was successful immediately
         setSuccess('Your form check has been uploaded successfully!');
         
-        // Navigate to the form check details page or list
+        // Navigate to analysis page after successful upload
         setTimeout(() => {
-          navigate('/workout/form-checks');
+          navigate('/analysis', { 
+            state: { 
+              formCheckId: formCheckData.id,
+              exerciseType: exerciseType
+            }
+          });
         }, 2000);
       }
     } catch (err) {
@@ -215,6 +308,7 @@ export const FormCheckUploadPage: React.FC = () => {
       setError('Failed to upload form check. Please try again.');
     } finally {
       setIsUploading(false);
+      setUploadProgress(0);
     }
   };
 
@@ -260,11 +354,23 @@ export const FormCheckUploadPage: React.FC = () => {
             placeholder="Add any notes about your form, weight used, or concerns..."
           />
           
-          <Button type="submit" disabled={isUploading || !videoFile}>
-            {isUploading ? 'Uploading...' : isQueued ? 'Queued for Upload' : 'Submit Form Check'}
+          <Button type="submit" disabled={isUploading || isCompressing || !videoFile}>
+            {isCompressing ? 'Processing Video...' : isUploading ? `Uploading... ${uploadProgress}%` : isQueued ? 'Queued for Upload' : 'Submit Form Check'}
           </Button>
+          {(isUploading || isCompressing) && <ProgressBar progress={uploadProgress} />}
         </form>
       </FormContainer>
+
+      {(isUploading || isCompressing) && (
+        <LoadingOverlay>
+          <div>
+            <LoadingSpinner size="large" />
+            <LoadingText>
+              {isCompressing ? 'Processing video...' : `Uploading video... ${uploadProgress}%`}
+            </LoadingText>
+          </div>
+        </LoadingOverlay>
+      )}
     </PageContainer>
   );
 }; 

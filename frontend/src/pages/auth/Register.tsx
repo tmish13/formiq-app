@@ -37,7 +37,7 @@ const Register = () => {
 
     try {
       setLoading(true);
-      await register(email, username, password);
+      await register({ email, username, password });
     } catch (err) {
       // Error is handled by AuthContext
     } finally {

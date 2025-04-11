@@ -1,0 +1,30 @@
+#!/bin/bash
+
+# Create .env.production file
+cat > frontend/.env.production << EOL
+# API Configuration
+REACT_APP_API_URL=https://api.formiq-app.com
+REACT_APP_WS_URL=wss://api.formiq-app.com/ws
+REACT_APP_ENVIRONMENT=production
+REACT_APP_VERSION=1.0.0
+
+# Sentry
+REACT_APP_SENTRY_DSN=your_sentry_dsn
+REACT_APP_SENTRY_ENVIRONMENT=production
+
+# Google Analytics
+REACT_APP_GA_TRACKING_ID=your_ga_tracking_id
+
+# Feature Flags
+REACT_APP_ENABLE_ANALYTICS=true
+REACT_APP_ENABLE_NOTIFICATIONS=true
+REACT_APP_ENABLE_PWA=true
+
+# Other
+NODE_ENV=production
+EOL
+
+echo "Frontend environment variables generated successfully in frontend/.env.production"
+echo "Please review and update the following values with your actual credentials:"
+echo "- REACT_APP_SENTRY_DSN"
+echo "- REACT_APP_GA_TRACKING_ID" 

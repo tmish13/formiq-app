@@ -1,5 +1,350 @@
 # FormIQ - AI-Powered Exercise Form Analysis
 
+FormIQ is a comprehensive exercise form analysis platform that leverages AI to provide real-time feedback on exercise form and technique. The platform helps users improve their workout form, prevent injuries, and optimize their training.
+
+## 🌟 Features
+
+- Real-time exercise form analysis using AI
+- Pose detection and form assessment
+- Personalized feedback and recommendations
+- Progress tracking and analytics
+- User authentication and authorization
+- Secure video upload and storage
+- Comprehensive API documentation
+- iOS and Android mobile apps
+
+## 🏗️ Project Structure
+
+```
+formiq-app-1/
+├── frontend/               # React frontend application
+│   ├── src/               # Source code
+│   │   ├── components/    # Reusable UI components
+│   │   ├── pages/        # Page components
+│   │   ├── contexts/     # React contexts
+│   │   ├── hooks/        # Custom React hooks
+│   │   ├── services/     # API services
+│   │   └── utils/        # Utility functions
+│   ├── public/           # Static files
+│   ├── ios/              # iOS native app
+│   ├── android/          # Android native app
+│   └── tests/            # Test files
+├── backend/              # FastAPI backend application
+│   ├── app/             # Source code
+│   ├── config/          # Configuration files
+│   ├── scripts/         # Backend-specific scripts
+│   └── tests/           # Test files
+├── infrastructure/      # Infrastructure configurations
+├── scripts/            # Project-wide scripts
+└── docs/              # Documentation
+```
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- Node.js 16+
+- Python 3.9+
+- Xcode 14+ (for iOS development)
+- Android Studio (for Android development)
+- PostgreSQL 13+
+- Redis 6+
+
+### Installation
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/formiq.git
+   cd formiq
+   ```
+
+2. Set up environment files:
+   ```bash
+   ./scripts/setup-env.sh
+   ```
+
+3. Install dependencies:
+   ```bash
+   # Frontend dependencies
+   cd frontend
+   npm install
+
+   # Backend dependencies
+   cd ../backend
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   pip install -r requirements.txt
+   ```
+
+4. Initialize the database:
+   ```bash
+   ./scripts/manage-db.sh init
+   ```
+
+### Development
+
+1. Start the backend server:
+   ```bash
+   cd backend
+   uvicorn app.main:app --reload
+   ```
+
+2. Start the frontend development server:
+   ```bash
+   cd frontend
+   npm start
+   ```
+
+3. For iOS development:
+   ```bash
+   cd frontend/ios
+   pod install
+   cd ..
+   npm run ios
+   ```
+
+4. For Android development:
+   ```bash
+   cd frontend
+   npm run android
+   ```
+
+## 🛠️ Tech Stack
+
+### Frontend
+- React 18
+- TypeScript
+- Material-UI
+- Redux Toolkit
+- React Router
+- Capacitor (for mobile apps)
+- TensorFlow.js (for client-side AI)
+
+### Backend
+- FastAPI
+- Python 3.9+
+- PostgreSQL
+- Redis
+- SQLAlchemy
+- Pydantic
+- JWT Authentication
+
+### AI/ML
+- MediaPipe Pose Detection
+- Custom CNN for Form Analysis
+- TensorFlow.js for Client-side Processing
+
+### Infrastructure
+- Docker
+- AWS S3 (Storage)
+- GitHub Actions (CI/CD)
+- Prometheus & Grafana (Monitoring)
+- Sentry (Error Tracking)
+
+## 🔒 Security Features
+
+- OAuth2 authentication
+- JWT token-based authorization
+- Rate limiting with Redis
+- Input validation and sanitization
+- Security headers and CORS
+- Regular security audits
+- CSRF protection
+- Secure password handling
+
+## 📱 Mobile App Features
+
+### iOS
+- Native UI components
+- Camera integration
+- Real-time pose detection
+- Offline support
+- Push notifications
+- Background processing
+- HealthKit integration
+
+### Android
+- Material Design components
+- Camera integration
+- Real-time pose detection
+- Offline support
+- Push notifications
+- Background processing
+- Google Fit integration
+
+## 🧪 Testing
+
+```bash
+# Frontend tests
+cd frontend
+npm test
+
+# Backend tests
+cd backend
+pytest
+
+# Mobile app tests
+cd frontend
+npm run ios:test
+npm run android:test
+```
+
+## 📈 Monitoring
+
+- Application metrics via Prometheus
+- Visual dashboards with Grafana
+- Error tracking with Sentry
+- Performance monitoring
+- User analytics
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🆘 Support
+
+- Email: support@formiq.com
+- Documentation: [docs.formiq.com](https://docs.formiq.com)
+- Issue Tracker: [GitHub Issues](https://github.com/yourusername/formiq/issues)
+- Community: [Discord](https://discord.gg/formiq)
+
+## 🔄 Recent Updates (April 2024)
+
+### Frontend Improvements
+- Enhanced mobile responsiveness
+- Improved form validation
+- Added loading states
+- Fixed theme compatibility issues
+- Enhanced error handling
+- Improved accessibility
+
+### Backend Improvements
+- Enhanced API performance
+- Improved error handling
+- Added request validation
+- Enhanced security measures
+- Improved database operations
+- Added rate limiting
+
+### Mobile App Updates
+- Fixed iOS build issues
+- Enhanced camera integration
+- Improved pose detection
+- Added offline support
+- Enhanced UI/UX
+- Fixed authentication flow
+
+### Infrastructure Updates
+- Improved deployment pipeline
+- Enhanced monitoring
+- Added automated backups
+- Improved scaling
+- Enhanced security
+- Added performance optimizations
+
+## Project Structure
+```
+formiq-app-1/
+├── frontend/               # React frontend application
+│   ├── src/               # Source code
+│   ├── public/            # Static files
+│   ├── config/            # Configuration files
+│   ├── scripts/           # Frontend-specific scripts
+│   └── tests/             # Test files
+├── backend/               # FastAPI backend application
+│   ├── app/              # Source code
+│   ├── config/           # Configuration files
+│   ├── scripts/          # Backend-specific scripts
+│   ├── tests/            # Test files
+│   └── deployment/       # Deployment configurations
+├── config/               # Project-wide configuration
+│   └── templates/        # Environment file templates
+├── scripts/              # Project-wide scripts
+├── logs/                 # Centralized logging
+├── docs/                 # Documentation
+└── infrastructure/       # Infrastructure configurations
+```
+
+## Setup Instructions
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/formiq.git
+   cd formiq
+   ```
+
+2. Set up environment files:
+   ```bash
+   ./scripts/setup-env.sh
+   ```
+
+3. Initialize the database:
+   ```bash
+   ./scripts/manage-db.sh init
+   ```
+
+4. Install dependencies:
+   ```bash
+   # Frontend dependencies
+   cd frontend
+   npm install
+
+   # Backend dependencies
+   cd ../backend
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   pip install -r requirements.txt
+   ```
+
+5. Start the development servers:
+   ```bash
+   # Start backend server
+   cd backend
+   uvicorn app.main:app --reload
+
+   # Start frontend server (in a new terminal)
+   cd frontend
+   npm start
+   ```
+
+## Available Scripts
+
+### Environment Setup
+- `./scripts/setup-env.sh`: Set up environment files from templates
+
+### Database Management
+- `./scripts/manage-db.sh init`: Initialize the database
+- `./scripts/manage-db.sh reset`: Reset the database
+- `./scripts/manage-db.sh migrate`: Run database migrations
+
+### Development
+- `npm start`: Start the frontend development server
+- `npm test`: Run frontend tests
+- `npm run build`: Build the frontend for production
+- `pytest`: Run backend tests
+- `uvicorn app.main:app --reload`: Start the backend development server
+
+## Contributing
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Support
+For support, email support@formiq.com or join our Slack channel.
+
 ## Overview
 FormIQ is a comprehensive exercise form analysis platform that leverages AI to provide real-time feedback on exercise form and technique. The platform helps users improve their workout form, prevent injuries, and optimize their training.
 
@@ -97,110 +442,6 @@ rate_limit:burst:{ip}:{endpoint} -> count (expires in burst window)
   - Load balancing
   - Auto-scaling
   - Backup strategy
-
-## Getting Started
-
-### Prerequisites
-- Python 3.9+
-- PostgreSQL 13+
-- Redis 6+
-- Docker (optional)
-
-### Installation
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/yourusername/formiq.git
-   cd formiq
-   ```
-
-2. Create and activate virtual environment:
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
-
-3. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. Set up environment variables:
-   ```bash
-   cp .env.example .env
-   # Edit .env with your configuration
-   ```
-
-5. Initialize database:
-   ```bash
-   alembic upgrade head
-   ```
-
-6. Run the application:
-   ```bash
-   uvicorn app.main:app --reload
-   ```
-
-### Testing
-```bash
-# Run tests with coverage
-pytest --cov=app tests/
-
-# Run security checks
-bandit -r app/
-safety check
-```
-
-## Development
-
-### Code Style
-- Follow PEP 8 guidelines
-- Use type hints
-- Write docstrings for all functions
-- Keep functions small and focused
-
-### Git Workflow
-1. Create feature branch
-2. Make changes
-3. Run tests
-4. Submit PR
-5. Code review
-6. Merge to main
-
-### CI/CD Pipeline
-- Automated testing
-- Security scanning
-- Dependency checking
-- Code quality checks
-- Automated deployment
-
-## Deployment
-
-### Production Setup
-1. Set up infrastructure
-2. Configure monitoring
-3. Set up logging
-4. Configure backups
-5. Deploy application
-
-### Monitoring
-- Application metrics
-- System metrics
-- Error tracking
-- Performance monitoring
-- User analytics
-
-## Contributing
-1. Fork the repository
-2. Create feature branch
-3. Commit changes
-4. Push to branch
-5. Create Pull Request
-
-## License
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Support
-For support, email support@formiq.com or join our Slack channel.
 
 ## Infrastructure Improvements (April 2024)
 

@@ -1,45 +1,46 @@
 import React from 'react';
-import styled from 'styled-components';
+import styled, { DefaultTheme } from 'styled-components';
 import { ApiError } from '../../utils/errorHandling';
+import { getThemeValue, fallbacks } from '../../utils/themeUtils';
 
 interface ErrorMessageProps {
   error: ApiError | null;
   onRetry?: () => void;
 }
 
-const ErrorContainer = styled.div`
-  padding: ${({ theme }) => theme.spacing.md};
-  border-radius: ${({ theme }) => theme.borderRadius.md};
-  background-color: ${({ theme }) => theme.colors.errorLight};
-  border: 1px solid ${({ theme }) => theme.colors.error};
-  color: ${({ theme }) => theme.colors.errorDark};
-  margin: ${({ theme }) => theme.spacing.md} 0;
+const ErrorContainer = styled.div<{ theme: DefaultTheme }>`
+  padding: ${({ theme }) => getThemeValue(theme, 'spacing.md', fallbacks.spacing.md)};
+  border-radius: ${({ theme }) => getThemeValue(theme, 'borderRadius.md', fallbacks.borderRadius.md)};
+  background-color: ${({ theme }) => getThemeValue(theme, 'colors.errorLight', fallbacks.colors.errorLight)};
+  border: 1px solid ${({ theme }) => getThemeValue(theme, 'colors.error', fallbacks.colors.error)};
+  color: ${({ theme }) => getThemeValue(theme, 'colors.error', fallbacks.colors.error)};
+  margin: ${({ theme }) => getThemeValue(theme, 'spacing.md', fallbacks.spacing.md)} 0;
 `;
 
-const ErrorTitle = styled.h3`
-  margin: 0 0 ${({ theme }) => theme.spacing.sm};
-  font-size: ${({ theme }) => theme.typography.fontSize.lg};
-  font-weight: ${({ theme }) => theme.typography.fontWeight.semibold};
+const ErrorTitle = styled.h3<{ theme: DefaultTheme }>`
+  margin: 0 0 ${({ theme }) => getThemeValue(theme, 'spacing.sm', fallbacks.spacing.sm)};
+  font-size: ${({ theme }) => getThemeValue(theme, 'typography.fontSize.lg', fallbacks.typography.fontSize.lg)};
+  font-weight: ${({ theme }) => getThemeValue(theme, 'typography.fontWeight.bold', String(fallbacks.typography.fontWeight.bold))};
 `;
 
-const ErrorText = styled.p`
+const ErrorText = styled.p<{ theme: DefaultTheme }>`
   margin: 0;
-  font-size: ${({ theme }) => theme.typography.fontSize.base};
+  font-size: ${({ theme }) => getThemeValue(theme, 'typography.fontSize.md', fallbacks.typography.fontSize.md)};
 `;
 
-const RetryButton = styled.button`
-  margin-top: ${({ theme }) => theme.spacing.sm};
-  padding: ${({ theme }) => theme.spacing.sm} ${({ theme }) => theme.spacing.md};
-  background-color: ${({ theme }) => theme.colors.error};
-  color: ${({ theme }) => theme.colors.white};
+const RetryButton = styled.button<{ theme: DefaultTheme }>`
+  margin-top: ${({ theme }) => getThemeValue(theme, 'spacing.sm', fallbacks.spacing.sm)};
+  padding: ${({ theme }) => getThemeValue(theme, 'spacing.sm', fallbacks.spacing.sm)} ${({ theme }) => getThemeValue(theme, 'spacing.md', fallbacks.spacing.md)};
+  background-color: ${({ theme }) => getThemeValue(theme, 'colors.error', fallbacks.colors.error)};
+  color: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.colors.white)};
   border: none;
-  border-radius: ${({ theme }) => theme.borderRadius.md};
+  border-radius: ${({ theme }) => getThemeValue(theme, 'borderRadius.md', fallbacks.borderRadius.md)};
   cursor: pointer;
-  font-size: ${({ theme }) => theme.typography.fontSize.sm};
-  transition: background-color ${({ theme }) => theme.transitions.fast};
+  font-size: ${({ theme }) => getThemeValue(theme, 'typography.fontSize.sm', fallbacks.typography.fontSize.sm)};
+  transition: background-color ${({ theme }) => getThemeValue(theme, 'transitions.medium', fallbacks.transitions.medium)};
 
   &:hover {
-    background-color: ${({ theme }) => theme.colors.errorDark};
+    background-color: ${({ theme }) => getThemeValue(theme, 'colors.error', fallbacks.colors.error)};
   }
 `;
 

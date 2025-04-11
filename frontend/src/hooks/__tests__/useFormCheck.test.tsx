@@ -8,7 +8,7 @@ import { FormCheck, ExerciseType } from '../../types';
 // Mock the form check service
 jest.mock('../../services/formCheckService', () => ({
   formCheckService: {
-    getUserFormChecks: jest.fn(),
+    getFormChecks: jest.fn(),
     getFormCheck: jest.fn(),
     submitFormCheck: jest.fn(),
     deleteFormCheck: jest.fn(),
@@ -59,7 +59,7 @@ describe('useFormCheck', () => {
 
   it('should fetch form checks successfully', async () => {
     const mockFormChecks = [mockFormCheck];
-    (require('../../services/formCheckService').formCheckService.getUserFormChecks as jest.Mock).mockResolvedValue(mockFormChecks);
+    (require('../../services/formCheckService').formCheckService.getFormChecks as jest.Mock).mockResolvedValue(mockFormChecks);
 
     const { result } = renderHook(() => useFormCheck(), { wrapper: TestWrapper });
 
@@ -74,7 +74,7 @@ describe('useFormCheck', () => {
 
   it('should handle error when fetching form checks', async () => {
     const error = new Error('Failed to fetch form checks');
-    (require('../../services/formCheckService').formCheckService.getUserFormChecks as jest.Mock).mockRejectedValue(error);
+    (require('../../services/formCheckService').formCheckService.getFormChecks as jest.Mock).mockRejectedValue(error);
 
     const { result } = renderHook(() => useFormCheck(), { wrapper: TestWrapper });
 

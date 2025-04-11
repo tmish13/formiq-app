@@ -1,5 +1,6 @@
 import React from 'react';
 import styled, { keyframes } from 'styled-components';
+import { getThemeValue, fallbacks } from '../../utils/themeUtils';
 
 // Types for skeleton loader
 export type SkeletonVariant = 'text' | 'circular' | 'rectangular' | 'card' | 'list' | 'table';
@@ -34,7 +35,7 @@ const SkeletonBase = styled.div<{
   width: ${({ width }) => width || '100%'};
   height: ${({ height }) => height || '16px'};
   border-radius: ${({ borderRadius }) => borderRadius || '4px'};
-  background-color: ${({ theme }) => theme.colors.disabled};
+  background-color: ${({ theme }) => getThemeValue(theme, 'colors.disabled', fallbacks.colors.disabled)};
   position: relative;
   overflow: hidden;
   
@@ -67,25 +68,25 @@ const TextSkeleton = styled(SkeletonBase)`
 `;
 
 const CircularSkeleton = styled(SkeletonBase)`
-  border-radius: ${({ theme }) => theme.borderRadius.full};
+  border-radius: 50%;
 `;
 
 const CardSkeleton = styled.div`
-  border-radius: ${({ theme }) => theme.borderRadius.md};
-  padding: ${({ theme }) => theme.spacing.md};
-  background-color: ${({ theme }) => theme.colors.white};
-  box-shadow: ${({ theme }) => theme.shadows.sm};
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  margin-bottom: ${({ theme }) => theme.spacing.md};
+  border-radius: ${({ theme }) => getThemeValue(theme, 'borderRadius.md', '0.5rem')};
+  padding: ${({ theme }) => getThemeValue(theme, 'spacing.md', '1rem')};
+  background-color: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.colors.white)};
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 1px solid ${({ theme }) => getThemeValue(theme, 'colors.border', fallbacks.colors.border)};
+  margin-bottom: ${({ theme }) => getThemeValue(theme, 'spacing.md', '1rem')};
 `;
 
 const ListSkeleton = styled.div`
-  margin-bottom: ${({ theme }) => theme.spacing.md};
+  margin-bottom: ${({ theme }) => getThemeValue(theme, 'spacing.md', '1rem')};
 `;
 
 const ListItem = styled.div`
-  padding: ${({ theme }) => theme.spacing.sm};
-  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+  padding: ${({ theme }) => getThemeValue(theme, 'spacing.sm', '0.75rem')};
+  border-bottom: 1px solid ${({ theme }) => getThemeValue(theme, 'colors.border', fallbacks.colors.border)};
   display: flex;
   align-items: center;
   
@@ -96,15 +97,15 @@ const ListItem = styled.div`
 
 const TableSkeleton = styled.div`
   width: 100%;
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  border-radius: ${({ theme }) => theme.borderRadius.md};
+  border: 1px solid ${({ theme }) => getThemeValue(theme, 'colors.border', fallbacks.colors.border)};
+  border-radius: ${({ theme }) => getThemeValue(theme, 'borderRadius.md', '0.5rem')};
   overflow: hidden;
 `;
 
 const TableRow = styled.div`
   display: flex;
-  padding: ${({ theme }) => theme.spacing.sm};
-  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+  padding: ${({ theme }) => getThemeValue(theme, 'spacing.sm', '0.75rem')};
+  border-bottom: 1px solid ${({ theme }) => getThemeValue(theme, 'colors.border', fallbacks.colors.border)};
   
   &:last-child {
     border-bottom: none;
@@ -112,8 +113,8 @@ const TableRow = styled.div`
 `;
 
 const TableHeader = styled(TableRow)`
-  background-color: ${({ theme }) => theme.colors.background};
-  font-weight: ${({ theme }) => theme.typography.fontWeight.medium};
+  background-color: ${({ theme }) => getThemeValue(theme, 'colors.background', fallbacks.colors.background)};
+  font-weight: ${({ theme }) => getThemeValue(theme, 'typography.fontWeight.medium', '500')};
 `;
 
 export const Skeleton: React.FC<SkeletonProps> = ({

@@ -4,6 +4,7 @@ import styled, { keyframes } from 'styled-components';
 import { useAuth } from '../../hooks/useAuth';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
+import { getThemeValue, fallbacks } from '../../utils/themeUtils';
 
 // Icons (pseudo-implementation - ideally import from a library like react-icons)
 const EmailIcon = () => (
@@ -52,32 +53,18 @@ const LoginContainer = styled.div`
   justify-content: center;
   min-height: 100vh;
   padding: ${({ theme }) => theme.spacing.xl};
-  background: linear-gradient(135deg, #1a2a6c, #b21f1f, #fdbb2d);
-  background-size: 400% 400%;
-  animation: gradientBG 15s ease infinite;
+  background: linear-gradient(135deg, #4A90E2, #5C6BC0);
   position: relative;
-  
-  @keyframes gradientBG {
-    0% {
-      background-position: 0% 50%;
-    }
-    50% {
-      background-position: 100% 50%;
-    }
-    100% {
-      background-position: 0% 50%;
-    }
-  }
-  
+  overflow: hidden;
+
   &::before {
     content: '';
     position: absolute;
     top: 0;
     left: 0;
-    width: 100%;
-    height: 100%;
+    right: 0;
+    bottom: 0;
     background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
-    z-index: 0;
   }
 `;
 
@@ -87,64 +74,47 @@ const LoginCard = styled.div`
   padding: ${({ theme }) => theme.spacing.xl};
   background-color: ${({ theme }) => theme.colors.white};
   border-radius: ${({ theme }) => theme.borderRadius.lg};
-  box-shadow: ${({ theme }) => theme.shadows.lg};
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
   animation: ${fadeIn} 0.6s ease-out;
   position: relative;
   overflow: hidden;
-  margin: 0 auto; /* Center the card */
-  z-index: 1; /* Make sure it's above the pattern overlay */
-  
-  &::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 5px;
-    background: linear-gradient(90deg, ${({ theme }) => theme.colors.primary}, ${({ theme }) => theme.colors.secondary});
-  }
+  margin: 0 auto;
+  z-index: 1;
 `;
 
 const Logo = styled.div`
   display: flex;
-  justify-content: center;
-  margin-bottom: ${({ theme }) => theme.spacing.md};
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: ${({ theme }) => theme.spacing.xl};
   
-  img {
-    height: 70px;
-    width: auto;
+  svg {
+    width: 64px;
+    height: 64px;
+    margin-bottom: ${({ theme }) => theme.spacing.md};
+    color: ${({ theme }) => theme.colors.primary};
   }
+`;
+
+const AppName = styled.h1`
+  color: ${({ theme }) => theme.colors.primary};
+  font-size: ${({ theme }) => theme.typography.fontSize.xxl};
+  font-weight: ${({ theme }) => theme.typography.fontWeight.bold};
+  margin: 0;
+  text-align: center;
 `;
 
 const Tagline = styled.p`
   text-align: center;
-  margin-top: -0.5rem;
-  margin-bottom: ${({ theme }) => theme.spacing.lg};
-  color: ${({ theme }) => theme.colors.primary};
-  font-weight: ${({ theme }) => theme.typography.fontWeight.medium};
-  font-size: ${({ theme }) => theme.typography.fontSize.sm};
-  letter-spacing: 0.5px;
-`;
-
-const Title = styled.h1`
-  text-align: center;
-  margin-bottom: ${({ theme }) => theme.spacing.xs};
-  color: ${({ theme }) => theme.colors.text};
-  font-weight: ${({ theme }) => theme.typography.fontWeight.bold};
-  letter-spacing: -0.025em;
-`;
-
-const Subtitle = styled.p`
-  text-align: center;
-  margin-bottom: ${({ theme }) => theme.spacing.lg};
   color: ${({ theme }) => theme.colors.textSecondary};
-  font-size: ${({ theme }) => theme.typography.fontSize.base};
+  font-size: ${({ theme }) => theme.typography.fontSize.md};
+  margin: ${({ theme }) => theme.spacing.md} 0 ${({ theme }) => theme.spacing.xl};
 `;
 
 const Form = styled.form`
   display: flex;
   flex-direction: column;
-  gap: ${({ theme }) => theme.spacing.md};
+  gap: ${({ theme }) => theme.spacing.lg};
 `;
 
 const ErrorMessage = styled.div`
@@ -154,40 +124,36 @@ const ErrorMessage = styled.div`
   padding: ${({ theme }) => theme.spacing.sm};
   background-color: ${({ theme }) => theme.colors.errorLight}20;
   border-radius: ${({ theme }) => theme.borderRadius.md};
-  border-left: 3px solid ${({ theme }) => theme.colors.error};
   animation: ${fadeIn} 0.3s ease-out;
 `;
 
-const Link = styled(RouterLink)`
+const ForgotPassword = styled(RouterLink)`
   color: ${({ theme }) => theme.colors.primary};
   text-decoration: none;
-  text-align: center;
-  margin-top: ${({ theme }) => theme.spacing.md};
-  font-weight: ${({ theme }) => theme.typography.fontWeight.medium};
-  transition: all 0.2s ease;
+  text-align: right;
+  font-size: ${({ theme }) => theme.typography.fontSize.sm};
+  margin-top: -${({ theme }) => theme.spacing.md};
   display: block;
   
   &:hover {
-    color: ${({ theme }) => theme.colors.primaryDark};
     text-decoration: underline;
   }
 `;
 
-const Divider = styled.div`
-  display: flex;
-  align-items: center;
-  margin: ${({ theme }) => theme.spacing.md} 0;
+const SignUpText = styled.p`
+  text-align: center;
+  margin-top: ${({ theme }) => theme.spacing.xl};
+  color: ${({ theme }) => theme.colors.textSecondary};
+  font-size: ${({ theme }) => theme.typography.fontSize.md};
+`;
+
+const SignUpLink = styled(RouterLink)`
+  color: ${({ theme }) => theme.colors.primary};
+  text-decoration: none;
+  font-weight: ${({ theme }) => theme.typography.fontWeight.medium};
   
-  &::before, &::after {
-    content: "";
-    flex: 1;
-    border-bottom: 1px solid ${({ theme }) => theme.colors.border};
-  }
-  
-  span {
-    padding: 0 ${({ theme }) => theme.spacing.sm};
-    color: ${({ theme }) => theme.colors.textSecondary};
-    font-size: ${({ theme }) => theme.typography.fontSize.sm};
+  &:hover {
+    text-decoration: underline;
   }
 `;
 
@@ -197,7 +163,6 @@ export const LoginPage: React.FC = () => {
   const { login, isLoading, error } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
 
   const from = (location.state as any)?.from?.pathname || '/dashboard';
 
@@ -207,24 +172,24 @@ export const LoginPage: React.FC = () => {
       await login(email, password);
       navigate(from, { replace: true });
     } catch (error) {
-      // Error is handled by useAuth hook
       console.error("Login error:", error);
     }
-  };
-
-  const togglePasswordVisibility = () => {
-    setShowPassword(!showPassword);
   };
 
   return (
     <LoginContainer>
       <LoginCard>
         <Logo>
-          <img src="/assets/logo.svg" alt="FormIQ Logo" />
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+            <line x1="4" y1="22" x2="4" y2="15" />
+          </svg>
+          <AppName>FormIQ</AppName>
         </Logo>
-        <Tagline>Perfect Form, Exceptional Results</Tagline>
-        <Title>Welcome Back</Title>
-        <Subtitle>Sign in to continue your fitness journey</Subtitle>
+        
+        <Tagline>
+          Perfect Your Form, Maximize Your Results
+        </Tagline>
         
         {error && <ErrorMessage>{error}</ErrorMessage>}
         
@@ -236,41 +201,38 @@ export const LoginPage: React.FC = () => {
             onChange={(e) => setEmail(e.target.value)}
             required
             autoComplete="email"
-            placeholder="Your email address"
-            icon={<EmailIcon />}
+            placeholder="Enter your email"
             fullWidth
           />
+          
           <Input
             label="Password"
-            type={showPassword ? "text" : "password"}
+            type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
             autoComplete="current-password"
-            placeholder="Your password"
-            icon={<LockIcon />}
-            endIcon={
-              <div onClick={togglePasswordVisibility} style={{ cursor: 'pointer' }}>
-                {showPassword ? <EyeOffIcon /> : <EyeIcon />}
-              </div>
-            }
+            placeholder="Enter your password"
             fullWidth
           />
+          
+          <ForgotPassword to="/forgot-password">
+            Forgot your password?
+          </ForgotPassword>
+          
           <Button 
             type="submit" 
             variant="primary" 
             isLoading={isLoading}
             fullWidth
           >
-            Sign In
+            {isLoading ? 'Signing In...' : 'Sign In'}
           </Button>
-          
-          <Divider>
-            <span>OR</span>
-          </Divider>
-          
-          <Link to="/register">Don't have an account? Sign up</Link>
         </Form>
+        
+        <SignUpText>
+          New to FormIQ? <SignUpLink to="/register">Create an account</SignUpLink>
+        </SignUpText>
       </LoginCard>
     </LoginContainer>
   );

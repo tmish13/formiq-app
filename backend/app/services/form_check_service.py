@@ -8,6 +8,8 @@ from datetime import datetime
 import uuid
 import hashlib
 import logging
+import cv2
+import numpy as np
 
 from app.models.form_check import FormCheck, FeedbackItem
 from app.models.enums import (
@@ -28,11 +30,15 @@ from app.schemas.form_check import (
     FeedbackItemResponse
 )
 from app.services.storage import StorageService
+from app.services.ai_model_service import AIModelService
 from app.core.config import settings
 from app.core.exceptions import (
     ValidationError,
     NotFoundException
 )
+
+# Initialize services
+ai_model_service = AIModelService()
 
 # Replace this import to fix the module not found error
 # from app.services.tasks import enqueue_form_check_analysis
@@ -57,6 +63,51 @@ class FormCheckService:
         self.db = db
         self.form_check_repository = FormCheckRepository(db)
         self.feedback_repository = FeedbackRepository(db)
+
+    async def analyze_video(self, video_path: str, exercise_type: ExerciseType) -> Dict[str, Any]:
+        """Analyze video using AI model service."""
+        try:
+            # Open video file
+            cap = cv2.VideoCapture(video_path)
+            if not cap.isOpened():
+                raise ValidationError("Could not open video file")
+
+            # Process video frames
+            frame_results = []
+            while cap.isOpened():
+                ret, frame = cap.read()
+                if not ret:
+                    break
+
+                # Detect pose in frame
+                landmarks, confidence = ai_model_service.detect_pose(frame)
+                if landmarks:
+                    frame_results.append({
+                        "landmarks": landmarks,
+                        "confidence": confidence
+                    })
+
+            cap.release()
+
+            if not frame_results:
+                return {
+                    "score": 0.0,
+                    "feedback": ["No poses detected in the video"],
+                    "risk_level": "high"
+                }
+
+            # Analyze form using the most confident frame
+            best_frame = max(frame_results, key=lambda x: x["confidence"])
+            analysis = ai_model_service.analyze_form(
+                best_frame["landmarks"],
+                exercise_type.value
+            )
+
+            return analysis
+
+        except Exception as e:
+            logger.error(f"Error analyzing video: {str(e)}")
+            raise
 
     async def get_cached_analysis(self, video_hash: str) -> Optional[Dict[str, Any]]:
         """
@@ -107,65 +158,66 @@ class FormCheckService:
         Returns:
             Created form check data
         """
-        # Upload video to storage
-        video_url = await upload_video(video)
-        
-        # Get video content hash for cache lookup
-        await video.seek(0)
-        content = await video.read()
-        video_hash = hashlib.md5(content).hexdigest()
-        
-        # Check if we've analyzed this exact video before
-        cached_results = await self.get_cached_analysis(video_hash)
-        
-        # Create form check record
-        form_check_data = {
-            "video_url": video_url,
-            "user_id": user_id,
-            "exercise_type": exercise_type,
-            "status": FormCheckStatus.PENDING,
-            "notes": notes
-        }
-        
-        # Create form check in database
-        form_check = self.form_check_repository.create(form_check_data)
-        
-        # If we have cached results, apply them immediately
-        if cached_results:
-            logger.info(f"Using cached analysis results for video {video_hash}")
+        try:
+            # Upload video to storage
+            video_url = await upload_video(video)
+            
+            # Get video content hash for cache lookup
+            await video.seek(0)
+            content = await video.read()
+            video_hash = hashlib.md5(content).hexdigest()
+            
+            # Check if we've analyzed this exact video before
+            cached_results = await self.get_cached_analysis(video_hash)
+            
+            # Create form check record
+            form_check_data = {
+                "video_url": video_url,
+                "user_id": user_id,
+                "exercise_type": exercise_type,
+                "status": FormCheckStatus.PENDING,
+                "notes": notes
+            }
+            
+            # Create form check in database
+            form_check = self.form_check_repository.create(form_check_data)
+            
+            # Analyze video
+            analysis = await self.analyze_video(video_url, exercise_type)
+            
+            # Update form check with analysis results
             update_data = {
                 "status": FormCheckStatus.COMPLETED,
-                "overall_feedback": cached_results.get("overall_feedback"),
-                "score": cached_results.get("score"),
-                "confidence_score": cached_results.get("confidence_score"),
-                "processing_time": 0.1,  # Near-instant as we're using cache
-                "form_metadata": cached_results.get("form_metadata"),
-                "results": cached_results.get("results")
+                "overall_feedback": "\n".join(analysis["feedback"]),
+                "score": analysis["score"],
+                "confidence_score": 0.95,  # TODO: Use actual confidence
+                "processing_time": 0.1,
+                "form_metadata": {
+                    "risk_level": analysis["risk_level"]
+                }
             }
+            
             form_check = self.form_check_repository.update(
                 db_obj=form_check,
                 obj_in=update_data
             )
             
-            # Also apply cached feedback items
-            if cached_results.get("feedback_items"):
-                for item in cached_results["feedback_items"]:
-                    self.feedback_repository.create({
-                        "form_check_id": form_check.id,
-                        "type": item["type"],
-                        "message": item["message"],
-                        "timestamp": item["timestamp"],
-                        "severity": item["severity"],
-                        "joint_angles": item.get("joint_angles"),
-                        "suggestions": item.get("suggestions"),
-                        "is_ai_generated": True
-                    })
-        else:
-            # Queue form check for analysis (background task)
-            # self.queue_form_check_analysis(form_check.id)
-            await enqueue_form_check_analysis(form_check.id)
+            # Create feedback items
+            for feedback in analysis["feedback"]:
+                self.feedback_repository.create({
+                    "form_check_id": form_check.id,
+                    "type": FeedbackType.FORM,
+                    "message": feedback,
+                    "timestamp": 0.0,
+                    "severity": FeedbackSeverity.MEDIUM,
+                    "is_ai_generated": True
+                })
             
-        return form_check
+            return form_check
+            
+        except Exception as e:
+            logger.error(f"Error submitting form check: {str(e)}")
+            raise
 
     async def get_user_form_checks(
         self,

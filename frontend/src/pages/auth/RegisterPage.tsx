@@ -4,6 +4,7 @@ import styled, { keyframes } from 'styled-components';
 import { useAuth } from '../../hooks/useAuth';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
+import { getThemeValue, fallbacks } from '../../utils/themeUtils';
 
 // Icons (pseudo-implementation - ideally import from a library like react-icons)
 const EmailIcon = () => (
@@ -145,7 +146,7 @@ const Subtitle = styled.p`
   text-align: center;
   margin-bottom: ${({ theme }) => theme.spacing.lg};
   color: ${({ theme }) => theme.colors.textSecondary};
-  font-size: ${({ theme }) => theme.typography.fontSize.base};
+  font-size: ${({ theme }) => theme.typography.fontSize.md};
 `;
 
 const Form = styled.form`
@@ -210,7 +211,7 @@ const Divider = styled.div`
   &::before, &::after {
     content: "";
     flex: 1;
-    border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+    border-bottom: 1px solid ${({ theme }) => getThemeValue(theme, 'colors.border', fallbacks.colors.border)};
   }
   
   span {

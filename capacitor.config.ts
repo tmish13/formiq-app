@@ -11,6 +11,18 @@ const config: CapacitorConfig = {
     iosScheme: 'http',
     cleartext: true
   },
+  splashScreen: {
+    launchShowDuration: 2000,
+    launchAutoHide: true,
+    backgroundColor: '#4D7CFE',
+    androidSplashResourceName: 'splash',
+    androidScaleType: 'CENTER_CROP',
+    showSpinner: false,
+    splashFullScreen: true,
+    splashImmersive: true,
+    layoutName: 'launch_screen',
+    iosSplashResourceName: 'Splash'
+  },
   android: {
     allowMixedContent: true,
     captureInput: true,
@@ -36,5 +48,17 @@ const config: CapacitorConfig = {
       javaVersion: '17'
     }
   },
-  // ... existing code ...
-}; 
+  ios: {
+    contentInset: 'always',
+    allowsLinkPreview: true,
+    scrollEnabled: true,
+    backgroundColor: '#F7FAFC',
+    overrideUserAgent: 'FormIQ-iOS',
+    appendUserAgent: 'FormIQ-iOS',
+    limitsNavigationsToAppBoundDomains: true,
+    handleApplicationNotifications: true,
+    preferredContentMode: 'mobile'
+  }
+};
+
+export default config; 

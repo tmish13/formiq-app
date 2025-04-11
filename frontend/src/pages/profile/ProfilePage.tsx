@@ -3,6 +3,8 @@ import styled from 'styled-components';
 import { useAuth } from '../../hooks/useAuth';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
+import { useTheme } from '../../contexts/ThemeContext';
+import { Switch } from '../../components/common/Switch';
 
 const ProfileContainer = styled.div`
   min-height: 100vh;
@@ -19,6 +21,7 @@ const Header = styled.header`
 
 const Title = styled.h1`
   color: ${({ theme }) => theme.colors.text};
+  font-size: ${({ theme }) => theme.typography.fontSize.xlarge};
 `;
 
 const ProfileCard = styled.div`
@@ -37,7 +40,7 @@ const Section = styled.section`
 const SectionTitle = styled.h2`
   color: ${({ theme }) => theme.colors.text};
   margin-bottom: ${({ theme }) => theme.spacing.md};
-  font-size: ${({ theme }) => theme.typography.fontSize.xl};
+  font-size: ${({ theme }) => theme.typography.fontSize.xlarge};
 `;
 
 const Form = styled.form`
@@ -52,8 +55,37 @@ const ButtonGroup = styled.div`
   margin-top: ${({ theme }) => theme.spacing.md};
 `;
 
+const SettingRow = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: ${({ theme }) => theme.spacing.md} 0;
+  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+  
+  &:last-child {
+    border-bottom: none;
+  }
+`;
+
+const SettingLabel = styled.div`
+  display: flex;
+  flex-direction: column;
+`;
+
+const SettingTitle = styled.span`
+  font-weight: ${({ theme }) => theme.typography.fontWeight.medium};
+  color: ${({ theme }) => theme.colors.text};
+`;
+
+const SettingDescription = styled.span`
+  font-size: ${({ theme }) => theme.typography.fontSize.small};
+  color: ${({ theme }) => theme.colors.textSecondary};
+  margin-top: 4px;
+`;
+
 export const ProfilePage: React.FC = () => {
   const { user } = useAuth();
+  const { isDarkMode, toggleDarkMode } = useTheme();
   const [name, setName] = useState(user?.name || '');
   const [email, setEmail] = useState(user?.email || '');
   const [currentPassword, setCurrentPassword] = useState('');
@@ -133,6 +165,21 @@ export const ProfilePage: React.FC = () => {
               </Button>
             </ButtonGroup>
           </Form>
+        </Section>
+
+        <Section>
+          <SectionTitle>App Settings</SectionTitle>
+          <SettingRow>
+            <SettingLabel>
+              <SettingTitle>Dark Mode</SettingTitle>
+              <SettingDescription>Use dark theme for the app interface</SettingDescription>
+            </SettingLabel>
+            <Switch 
+              checked={isDarkMode} 
+              onChange={toggleDarkMode} 
+              aria-label="Toggle dark mode"
+            />
+          </SettingRow>
         </Section>
       </ProfileCard>
     </ProfileContainer>

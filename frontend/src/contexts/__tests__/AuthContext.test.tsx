@@ -1,7 +1,8 @@
 import React from 'react';
 import { render, screen, waitFor, act } from '@testing-library/react';
-import { http, HttpResponse } from 'msw';
+import { rest } from 'msw';
 import { setupServer } from 'msw/node';
+import { BrowserRouter } from 'react-router-dom';
 import { AuthProvider, useAuth } from '../AuthContext';
 
 const mockUser = {
@@ -14,17 +15,17 @@ const mockUser = {
 };
 
 const server = setupServer(
-  http.get('/api/auth/me', () => {
-    return HttpResponse.json(mockUser);
+  rest.get('https://api.formiq-app.com/auth/validate', (req, res, ctx) => {
+    return res(ctx.json(mockUser));
   }),
-  http.post('/api/auth/login', () => {
-    return HttpResponse.json({
+  rest.post('https://api.formiq-app.com/auth/login', (req, res, ctx) => {
+    return res(ctx.json({
       access_token: 'mock_token',
       user: mockUser,
-    });
+    }));
   }),
-  http.post('/api/auth/logout', () => {
-    return new HttpResponse(null, { status: 200 });
+  rest.post('https://api.formiq-app.com/auth/logout', (req, res, ctx) => {
+    return res(ctx.status(200));
   })
 );
 
@@ -37,9 +38,9 @@ afterAll(() => server.close());
 
 // Test component that uses the auth context
 const TestComponent = () => {
-  const { user, loading, error, login, logout } = useAuth();
+  const { user, isLoading, error, login, logout } = useAuth();
 
-  if (loading) return <div>Loading...</div>;
+  if (isLoading) return <div>Loading...</div>;
   if (error) return <div>Error: {error}</div>;
   if (!user) return <button onClick={() => login('test@example.com', 'password')}>Login</button>;
 
@@ -51,9 +52,17 @@ const TestComponent = () => {
   );
 };
 
+const renderWithRouter = (ui: React.ReactElement) => {
+  return render(
+    <BrowserRouter>
+      {ui}
+    </BrowserRouter>
+  );
+};
+
 describe('AuthContext', () => {
   it('provides initial loading state', () => {
-    render(
+    renderWithRouter(
       <AuthProvider>
         <TestComponent />
       </AuthProvider>
@@ -65,7 +74,7 @@ describe('AuthContext', () => {
   it('loads user from token in localStorage', async () => {
     localStorage.setItem('token', 'mock_token');
 
-    render(
+    renderWithRouter(
       <AuthProvider>
         <TestComponent />
       </AuthProvider>
@@ -77,7 +86,7 @@ describe('AuthContext', () => {
   });
 
   it('handles login successfully', async () => {
-    render(
+    renderWithRouter(
       <AuthProvider>
         <TestComponent />
       </AuthProvider>
@@ -99,12 +108,12 @@ describe('AuthContext', () => {
 
   it('handles login error', async () => {
     server.use(
-      http.post('/api/auth/login', () => {
-        return new HttpResponse(null, { status: 401 });
+      rest.post('/api/auth/login', (req, res, ctx) => {
+        return res(ctx.status(401));
       })
     );
 
-    render(
+    renderWithRouter(
       <AuthProvider>
         <TestComponent />
       </AuthProvider>
@@ -126,7 +135,7 @@ describe('AuthContext', () => {
   it('handles logout successfully', async () => {
     localStorage.setItem('token', 'mock_token');
 
-    render(
+    renderWithRouter(
       <AuthProvider>
         <TestComponent />
       </AuthProvider>
@@ -153,14 +162,14 @@ describe('AuthContext', () => {
     };
 
     server.use(
-      http.get('/api/auth/me', () => {
-        return HttpResponse.json(expiredUser);
+      rest.get('/api/auth/me', (req, res, ctx) => {
+        return res(ctx.json(expiredUser));
       })
     );
 
     localStorage.setItem('token', 'mock_token');
 
-    render(
+    renderWithRouter(
       <AuthProvider>
         <TestComponent />
       </AuthProvider>
@@ -173,14 +182,14 @@ describe('AuthContext', () => {
 
   it('handles network error when fetching user', async () => {
     server.use(
-      http.get('/api/auth/me', () => {
-        return new HttpResponse(null, { status: 500 });
+      rest.get('/api/auth/me', (req, res, ctx) => {
+        return res(ctx.status(500));
       })
     );
 
     localStorage.setItem('token', 'mock_token');
 
-    render(
+    renderWithRouter(
       <AuthProvider>
         <TestComponent />
       </AuthProvider>
@@ -193,14 +202,14 @@ describe('AuthContext', () => {
 
   it('handles invalid token', async () => {
     server.use(
-      http.get('/api/auth/me', () => {
-        return new HttpResponse(null, { status: 401 });
+      rest.get('/api/auth/me', (req, res, ctx) => {
+        return res(ctx.status(401));
       })
     );
 
-    localStorage.setItem('token', 'invalid_token');
+    localStorage.setItem('token', 'mock_token');
 
-    render(
+    renderWithRouter(
       <AuthProvider>
         <TestComponent />
       </AuthProvider>

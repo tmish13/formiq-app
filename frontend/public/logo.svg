@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="100" height="100" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4D7CFE;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#5A67D8;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Clipboard background -->
+  <rect x="15" y="5" width="70" height="90" rx="8" fill="white" stroke="url(#grad)" stroke-width="4"/>
+  
+  <!-- Clipboard top -->
+  <rect x="35" y="2" width="30" height="10" rx="4" fill="url(#grad)"/>
+  
+  <!-- Form elements -->
+  <rect x="25" y="25" width="50" height="10" rx="2" fill="#E2E8F0"/>
+  <rect x="25" y="45" width="50" height="10" rx="2" fill="#E2E8F0"/>
+  <rect x="25" y="65" width="50" height="10" rx="2" fill="#E2E8F0"/>
+  
+  <!-- Checkmarks -->
+  <circle cx="25" cy="75" r="10" fill="url(#grad)" opacity="0.2"/>
+  <path d="M20 75L23 78L30 71" stroke="url(#grad)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  
+  <!-- Letter Q element with gradient -->
+  <path d="M65 70C65 66.134 68.134 63 72 63C75.866 63 79 66.134 79 70C79 73.866 75.866 77 72 77L79 84" stroke="url(#grad)" stroke-width="4" stroke-linecap="round"/>
+</svg> 

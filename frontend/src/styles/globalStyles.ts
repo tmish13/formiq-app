@@ -1,108 +1,61 @@
 import { createGlobalStyle } from 'styled-components';
-// No need to import Theme as it's defined in the DefaultTheme from styled-components
+import { Theme } from '../theme';
+import { getThemeValue, fallbacks } from '../utils/themeUtils';
 
-export const GlobalStyles = createGlobalStyle`
+export const GlobalStyles = createGlobalStyle<{ theme?: Partial<Theme> }>`
   * {
-    box-sizing: border-box;
     margin: 0;
     padding: 0;
+    box-sizing: border-box;
     -webkit-tap-highlight-color: transparent;
   }
 
-  html {
+  html, body {
+    height: 100%;
+    width: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     font-size: 16px;
+    line-height: 1.5;
+    color: ${({ theme }) => getThemeValue(theme, 'colors.text', fallbacks.colors.text)};
+    background-color: ${({ theme }) => getThemeValue(theme, 'colors.background', fallbacks.colors.background)};
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    
-    @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
-      font-size: 14px;
-    }
   }
 
-  body {
-    font-family: ${({ theme }) => theme.typography?.fontFamily?.base || "'Inter', sans-serif"};
-    font-size: ${({ theme }) => theme.typography?.fontSize?.base || '16px'};
-    line-height: 1.5;
-    color: ${({ theme }) => theme.colors?.text || '#212529'};
-    background-color: ${({ theme }) => theme.colors?.background || '#f8f9fa'};
-    overflow-x: hidden;
-    text-size-adjust: 100%;
-    -webkit-text-size-adjust: 100%;
-  }
-
-  h1, h2, h3, h4, h5, h6 {
-    font-weight: ${({ theme }) => theme.typography?.fontWeight?.bold || 700};
-    line-height: 1.2;
-    margin-bottom: ${({ theme }) => theme.spacing?.md || '1rem'};
-  }
-
-  h1 {
-    font-size: ${({ theme }) => theme.typography?.fontSize?.xxl || '2.5rem'};
-    
-    @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
-      font-size: 2rem;
-    }
-  }
-
-  h2 {
-    font-size: ${({ theme }) => theme.typography?.fontSize?.xl || '2rem'};
-    
-    @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
-      font-size: 1.75rem;
-    }
-  }
-
-  h3 {
-    font-size: ${({ theme }) => theme.typography?.fontSize?.lg || '1.75rem'};
-    
-    @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
-      font-size: 1.5rem;
-    }
-  }
-
-  p {
-    margin-bottom: ${({ theme }) => theme.spacing?.md || '1rem'};
-  }
-
-  a {
-    color: ${({ theme }) => theme.colors?.primary || '#0d6efd'};
-    text-decoration: none;
-    transition: color ${({ theme }) => theme.transitions?.fast || '0.2s ease'};
-    touch-action: manipulation;
-    
-    &:hover {
-      color: ${({ theme }) => theme.colors?.primaryDark || '#0a58ca'};
-    }
-  }
-
-  /* Improve touch targets on mobile */
-  button, 
-  input[type="button"], 
-  input[type="submit"], 
-  input[type="reset"],
-  a {
-    min-height: 44px;
-    min-width: 44px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-  }
-  
-  /* Add safe areas for iPhone X and newer */
-  @supports (padding: max(0px)) {
-    body {
-      padding-left: env(safe-area-inset-left);
-      padding-right: env(safe-area-inset-right);
-      padding-bottom: env(safe-area-inset-bottom);
-    }
+  #root {
+    height: 100%;
+    width: 100%;
   }
 
   button {
+    font-family: inherit;
+    border: none;
+    background: none;
     cursor: pointer;
+    padding: 0;
+    margin: 0;
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  input, select, textarea {
     font-family: inherit;
     font-size: inherit;
-    line-height: inherit;
-    touch-action: manipulation;
+    color: inherit;
+    background: none;
+    border: none;
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  ul, ol {
+    list-style: none;
   }
 
   img {
@@ -110,95 +63,112 @@ export const GlobalStyles = createGlobalStyle`
     height: auto;
   }
 
-  input, 
-  textarea, 
-  select {
-    font-family: inherit;
-    font-size: inherit;
-    
-    @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
-      font-size: 16px; /* Prevents iOS zoom on focus */
+  /* iOS-like scrolling */
+  .scroll-container {
+    -webkit-overflow-scrolling: touch;
+    overflow-y: auto;
+    scroll-behavior: smooth;
+  }
+
+  /* iOS-like button styles */
+  .ios-button {
+    background-color: ${({ theme }) => getThemeValue(theme, 'colors.primary', fallbacks.colors.primary)};
+    color: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.colors.white)};
+    padding: 12px 24px;
+    border-radius: ${({ theme }) => getThemeValue(theme, 'borderRadius.medium', fallbacks.borderRadius.medium)};
+    font-weight: ${({ theme }) => getThemeValue(theme, 'typography.fontWeight.medium', fallbacks.typography.fontWeight.medium)};
+    transition: opacity ${({ theme }) => getThemeValue(theme, 'transitions.fast', fallbacks.transitions.fast)};
+
+    &:active {
+      opacity: 0.7;
+    }
+
+    &:disabled {
+      background-color: ${({ theme }) => getThemeValue(theme, 'colors.disabled', fallbacks.colors.disabled)};
+      cursor: not-allowed;
     }
   }
 
-  ul, ol {
-    margin-bottom: ${({ theme }) => theme.spacing?.md || '1rem'};
-    padding-left: ${({ theme }) => theme.spacing?.md || '1rem'};
-  }
-
-  code {
-    font-family: ${({ theme }) => theme.typography?.fontFamily?.mono || 'monospace'};
-    font-size: ${({ theme }) => theme.typography?.fontSize?.sm || '0.875rem'};
-    background-color: ${({ theme }) => theme.colors?.secondaryLight || '#e9ecef'};
-    padding: ${({ theme }) => theme.spacing?.xs || '0.25rem'} ${({ theme }) => theme.spacing?.sm || '0.5rem'};
-    border-radius: ${({ theme }) => theme.borderRadius?.sm || '0.25rem'};
-  }
-
-  pre {
-    background-color: ${({ theme }) => theme.colors?.secondaryLight || '#e9ecef'};
-    padding: ${({ theme }) => theme.spacing?.md || '1rem'};
-    border-radius: ${({ theme }) => theme.borderRadius?.md || '0.5rem'};
-    overflow-x: auto;
-    margin-bottom: ${({ theme }) => theme.spacing?.md || '1rem'};
-  }
-
-  blockquote {
-    border-left: 4px solid ${({ theme }) => theme.colors?.primary || '#0d6efd'};
-    padding-left: ${({ theme }) => theme.spacing?.md || '1rem'};
-    margin-bottom: ${({ theme }) => theme.spacing?.md || '1rem'};
-    color: ${({ theme }) => theme.colors?.textSecondary || '#6c757d'};
-  }
-
-  table {
+  /* iOS-like input styles */
+  .ios-input {
+    background-color: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.colors.white)};
+    border: 1px solid ${({ theme }) => getThemeValue(theme, 'colors.secondaryLight', fallbacks.colors.secondaryLight)};
+    padding: 12px 16px;
+    border-radius: ${({ theme }) => getThemeValue(theme, 'borderRadius.medium', fallbacks.borderRadius.medium)};
     width: 100%;
-    border-collapse: collapse;
-    margin-bottom: ${({ theme }) => theme.spacing?.md || '1rem'};
-    overflow-x: auto;
-    display: block;
-    
-    @media (min-width: ${({ theme }) => theme.breakpoints.md}) {
-      display: table;
+    transition: border-color ${({ theme }) => getThemeValue(theme, 'transitions.fast', fallbacks.transitions.fast)};
+
+    &:focus {
+      border-color: ${({ theme }) => getThemeValue(theme, 'colors.primary', fallbacks.colors.primary)};
     }
   }
 
-  th, td {
-    padding: ${({ theme }) => theme.spacing?.sm || '0.5rem'};
-    border: 1px solid ${({ theme }) => theme.colors?.border || '#dee2e6'};
-    text-align: left;
-  }
+  /* iOS-like select styles */
+  .ios-select {
+    appearance: none;
+    background-color: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.colors.white)};
+    border: 1px solid ${({ theme }) => getThemeValue(theme, 'colors.secondaryLight', fallbacks.colors.secondaryLight)};
+    padding: 12px 16px;
+    padding-right: 40px;
+    border-radius: ${({ theme }) => getThemeValue(theme, 'borderRadius.medium', fallbacks.borderRadius.medium)};
+    width: 100%;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 16px;
+    transition: border-color ${({ theme }) => getThemeValue(theme, 'transitions.fast', fallbacks.transitions.fast)};
 
-  th {
-    background-color: ${({ theme }) => theme.colors?.secondaryLight || '#e9ecef'};
-    font-weight: ${({ theme }) => theme.typography?.fontWeight?.semibold || 600};
-  }
-
-  tr:nth-child(even) {
-    background-color: ${({ theme }) => theme.colors?.secondaryLight || '#e9ecef'};
-  }
-
-  .loading-spinner {
-    display: inline-block;
-    width: 20px;
-    height: 20px;
-    border: 2px solid ${({ theme }) => theme.colors?.white || '#ffffff'};
-    border-radius: 50%;
-    border-top-color: transparent;
-    animation: spin 1s linear infinite;
-  }
-
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
+    &:focus {
+      border-color: ${({ theme }) => getThemeValue(theme, 'colors.primary', fallbacks.colors.primary)};
     }
   }
-  
-  /* Add swipe gesture support */
-  * {
-    touch-action: pan-x pan-y;
+
+  /* iOS-like card styles */
+  .ios-card {
+    background-color: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.colors.white)};
+    border-radius: ${({ theme }) => getThemeValue(theme, 'borderRadius.medium', fallbacks.borderRadius.medium)};
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    padding: ${({ theme }) => getThemeValue(theme, 'spacing.lg', fallbacks.spacing.lg)};
   }
-  
-  /* Disable pull-to-refresh browser behavior */
-  html {
-    overscroll-behavior-y: contain;
+
+  /* iOS-like list styles */
+  .ios-list {
+    background-color: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.colors.white)};
+    border-radius: ${({ theme }) => getThemeValue(theme, 'borderRadius.medium', fallbacks.borderRadius.medium)};
+    overflow: hidden;
+  }
+
+  .ios-list-item {
+    padding: ${({ theme }) => getThemeValue(theme, 'spacing.md', fallbacks.spacing.md)};
+    border-bottom: 1px solid ${({ theme }) => getThemeValue(theme, 'colors.background', fallbacks.colors.background)};
+
+    &:last-child {
+      border-bottom: none;
+    }
+  }
+
+  /* iOS-like scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: ${({ theme }) => getThemeValue(theme, 'colors.secondaryLight', fallbacks.colors.secondaryLight)};
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: ${({ theme }) => getThemeValue(theme, 'colors.secondary', fallbacks.colors.secondary)};
+  }
+
+  /* iOS-like selection */
+  ::selection {
+    background: ${({ theme }) => getThemeValue(theme, 'colors.primaryLight', fallbacks.colors.primaryLight)};
+    color: ${({ theme }) => getThemeValue(theme, 'colors.primary', fallbacks.colors.primary)};
   }
 `; 

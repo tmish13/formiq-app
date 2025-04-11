@@ -3,16 +3,19 @@ import logging
 import logging.handlers
 import os
 import sys
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import json
 from pathlib import Path
 from datetime import datetime
 from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
+import structlog
 
 from app.core.config import settings
 
 import sentry_sdk
 from sentry_sdk.integrations.logging import LoggingIntegration
+from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+from sentry_sdk.integrations.redis import RedisIntegration
 
 # Constants
 LOG_DIR = os.path.join(os.getcwd(), "logs")
@@ -193,22 +196,27 @@ def get_log_level() -> str:
 
 def init_sentry() -> None:
     """Initialize Sentry for error tracking."""
-    if settings.SENTRY_DSN:
-        sentry_logging = LoggingIntegration(
-            level=logging.INFO,
-            event_level=logging.ERROR
-        )
-        sentry_sdk.init(
-            dsn=settings.SENTRY_DSN,
-            integrations=[
-                sentry_logging,
-                SqlalchemyIntegration(),
-                RedisIntegration(),
-            ],
-            traces_sample_rate=settings.SENTRY_TRACES_SAMPLE_RATE,
-            environment=settings.SENTRY_ENVIRONMENT,
-            release=settings.VERSION
-        )
+    if settings.SENTRY_DSN and settings.SENTRY_DSN != "https://sentry.io/your-project-id":
+        try:
+            sentry_logging = LoggingIntegration(
+                level=logging.INFO,
+                event_level=logging.ERROR
+            )
+            sentry_sdk.init(
+                dsn=settings.SENTRY_DSN,
+                integrations=[
+                    sentry_logging,
+                    SqlalchemyIntegration(),
+                    RedisIntegration(),
+                ],
+                traces_sample_rate=settings.SENTRY_TRACES_SAMPLE_RATE,
+                environment=settings.SENTRY_ENVIRONMENT,
+                release=settings.VERSION
+            )
+        except Exception as e:
+            print(f"Failed to initialize Sentry: {e}")
+    else:
+        print("Sentry DSN not configured, skipping initialization")
 
 def setup_logging() -> None:
     """Configure logging with both file and console handlers."""

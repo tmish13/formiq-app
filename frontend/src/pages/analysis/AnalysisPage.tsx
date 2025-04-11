@@ -101,7 +101,7 @@ const FeedbackContent = styled.div`
 const FeedbackTitle = styled.h3`
   color: ${({ theme }) => theme.colors.text};
   margin-bottom: ${({ theme }) => theme.spacing.xs};
-  font-size: ${({ theme }) => theme.typography.fontSize.base};
+  font-size: ${({ theme }) => theme.typography.fontSize.md};
 `;
 
 const FeedbackDescription = styled.p`

@@ -1,6 +1,7 @@
 import React from 'react';
 import styled, { keyframes } from 'styled-components';
 import { useNetworkStatus } from '../../services/networkService';
+import { getThemeValue } from '../../utils/themeUtils';
 
 const slideDown = keyframes`
   from {
@@ -45,7 +46,7 @@ const Dot = styled.span`
 `;
 
 const QueueInfo = styled.div`
-  font-size: ${({ theme }) => theme.typography.fontSize.sm};
+  font-size: ${({ theme }) => getThemeValue(theme, 'typography.fontSize.small', '0.875rem')};
   margin-top: 4px;
 `;
 

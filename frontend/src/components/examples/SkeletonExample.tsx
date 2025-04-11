@@ -2,52 +2,53 @@ import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import Skeleton from '../common/SkeletonLoader';
 import { LoadingSpinner } from '../common/LoadingSpinner';
+import { getThemeValue, fallbacks } from '../../utils/themeUtils';
 
 const ExampleContainer = styled.div`
-  padding: ${({ theme }) => theme.spacing.lg};
+  padding: ${({ theme }) => getThemeValue(theme, 'spacing.lg', '1.5rem')};
   max-width: 800px;
   margin: 0 auto;
 `;
 
 const Section = styled.div`
-  margin-bottom: ${({ theme }) => theme.spacing.xl};
+  margin-bottom: ${({ theme }) => getThemeValue(theme, 'spacing.xl', '2rem')};
 `;
 
 const SectionTitle = styled.h2`
-  margin-bottom: ${({ theme }) => theme.spacing.md};
-  color: ${({ theme }) => theme.colors.text};
-  font-weight: ${({ theme }) => theme.typography.fontWeight.semibold};
+  margin-bottom: ${({ theme }) => getThemeValue(theme, 'spacing.md', '1rem')};
+  color: ${({ theme }) => getThemeValue(theme, 'colors.text', '#2D3748')};
+  font-weight: ${({ theme }) => getThemeValue(theme, 'typography.fontWeight.semibold', '600')};
 `;
 
 const ButtonGroup = styled.div`
-  margin-bottom: ${({ theme }) => theme.spacing.lg};
+  margin-bottom: ${({ theme }) => getThemeValue(theme, 'spacing.lg', '1.5rem')};
   display: flex;
-  gap: ${({ theme }) => theme.spacing.sm};
+  gap: ${({ theme }) => getThemeValue(theme, 'spacing.sm', '0.75rem')};
 `;
 
 const Button = styled.button`
-  padding: ${({ theme }) => `${theme.spacing.sm} ${theme.spacing.md}`};
-  background-color: ${({ theme }) => theme.colors.primary};
+  padding: ${({ theme }) => `${getThemeValue(theme, 'spacing.sm', '0.75rem')} ${getThemeValue(theme, 'spacing.md', '1rem')}`};
+  background-color: ${({ theme }) => getThemeValue(theme, 'colors.primary', '#4D7CFE')};
   color: white;
   border: none;
-  border-radius: ${({ theme }) => theme.borderRadius.md};
+  border-radius: ${({ theme }) => getThemeValue(theme, 'borderRadius.md', '0.5rem')};
   cursor: pointer;
-  font-weight: ${({ theme }) => theme.typography.fontWeight.medium};
-  transition: background-color ${({ theme }) => theme.transitions.fast};
+  font-weight: ${({ theme }) => getThemeValue(theme, 'typography.fontWeight.medium', '500')};
+  transition: background-color ${({ theme }) => getThemeValue(theme, 'transitions.medium', '0.3s')};
 
   &:hover {
-    background-color: ${({ theme }) => theme.colors.primaryDark};
+    background-color: ${({ theme }) => getThemeValue(theme, 'colors.primaryDark', '#2E5BFF')};
   }
 
   &:disabled {
-    background-color: ${({ theme }) => theme.colors.disabled};
+    background-color: ${({ theme }) => getThemeValue(theme, 'colors.disabled', fallbacks.colors.disabled)};
     cursor: not-allowed;
   }
 `;
 
 const FlexRow = styled.div`
   display: flex;
-  gap: ${({ theme }) => theme.spacing.md};
+  gap: ${({ theme }) => getThemeValue(theme, 'spacing.md', '1rem')};
   flex-wrap: wrap;
 `;
 

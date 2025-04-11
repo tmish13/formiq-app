@@ -1,99 +1,109 @@
 """Exercises router module."""
-from typing import Any, List
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import Any, List, Optional
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_active_user, get_db
 from app.repositories.exercise_repository import ExerciseRepository
-from app.schemas.exercise import Exercise, ExerciseCreate, ExerciseUpdate
+from app.schemas.exercise import Exercise, ExerciseCreate, ExerciseUpdate, ExerciseBase
+from app.core.cache import cache_service
+from app.models.exercise import ExerciseTemplate
+from app.services.exercise_service import ExerciseService
 
 router = APIRouter()
 
 
-@router.get("/", response_model=List[Exercise])
-def read_exercises(
-    db: Session = Depends(get_db),
-    skip: int = 0,
-    limit: int = 100,
-    current_user: Any = Depends(get_current_active_user),
-) -> Any:
-    """Get exercises."""
-    exercise_repository = ExerciseRepository(db)
-    exercises = exercise_repository.get_multi(skip=skip, limit=limit)
+@router.get("/", response_model=List[ExerciseBase])
+async def get_exercises(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=100),
+    exercise_service: ExerciseService = Depends()
+):
+    """Get all exercises with caching."""
+    cache_key = f"exercises:list:{skip}:{limit}"
+    
+    # Try to get from cache first
+    cached_exercises = await cache_service.get(cache_key)
+    if cached_exercises:
+        return cached_exercises
+    
+    # If not in cache, get from database
+    exercises = await exercise_service.get_all(skip=skip, limit=limit)
+    
+    # Cache the results
+    await cache_service.set(cache_key, exercises, expires_in=3600)  # Cache for 1 hour
+    
     return exercises
 
 
-@router.post("/", response_model=Exercise)
-def create_exercise(
-    *,
-    db: Session = Depends(get_db),
-    exercise_in: ExerciseCreate,
-    current_user: Any = Depends(get_current_active_user),
-) -> Any:
-    """Create exercise."""
-    exercise_repository = ExerciseRepository(db)
-    exercise = exercise_repository.get_by_name(name=exercise_in.name)
-    if exercise:
-        raise HTTPException(
-            status_code=400,
-            detail="The exercise with this name already exists in the system.",
-        )
-    exercise = exercise_repository.create(obj_in=exercise_in.dict())
+@router.post("/", response_model=ExerciseBase)
+async def create_exercise(
+    exercise: ExerciseCreate,
+    exercise_service: ExerciseService = Depends()
+):
+    """Create a new exercise and invalidate relevant caches."""
+    new_exercise = await exercise_service.create(exercise)
+    
+    # Invalidate list cache
+    await cache_service.delete("exercises:list:*")
+    
+    return new_exercise
+
+
+@router.get("/{exercise_id}", response_model=ExerciseBase)
+async def get_exercise(
+    exercise_id: str,
+    exercise_service: ExerciseService = Depends()
+):
+    """Get a specific exercise with caching."""
+    cache_key = f"exercises:detail:{exercise_id}"
+    
+    # Try to get from cache first
+    cached_exercise = await cache_service.get(cache_key)
+    if cached_exercise:
+        return cached_exercise
+    
+    # If not in cache, get from database
+    exercise = await exercise_service.get_by_id(exercise_id)
+    if not exercise:
+        raise HTTPException(status_code=404, detail="Exercise not found")
+    
+    # Cache the result
+    await cache_service.set(cache_key, exercise, expires_in=3600)  # Cache for 1 hour
+    
     return exercise
 
 
-@router.get("/{exercise_id}", response_model=Exercise)
-def read_exercise(
-    *,
-    db: Session = Depends(get_db),
-    exercise_id: int,
-    current_user: Any = Depends(get_current_active_user),
-) -> Any:
-    """Get exercise by ID."""
-    exercise_repository = ExerciseRepository(db)
-    exercise = exercise_repository.get(id=exercise_id)
-    if not exercise:
-        raise HTTPException(
-            status_code=404,
-            detail="The exercise with this id does not exist in the system",
-        )
-    return exercise
+@router.put("/{exercise_id}", response_model=ExerciseBase)
+async def update_exercise(
+    exercise_id: str,
+    exercise: ExerciseUpdate,
+    exercise_service: ExerciseService = Depends()
+):
+    """Update an exercise and invalidate relevant caches."""
+    updated_exercise = await exercise_service.update(exercise_id, exercise)
+    if not updated_exercise:
+        raise HTTPException(status_code=404, detail="Exercise not found")
+    
+    # Invalidate both list and detail caches
+    await cache_service.delete("exercises:list:*")
+    await cache_service.delete(f"exercises:detail:{exercise_id}")
+    
+    return updated_exercise
 
 
-@router.put("/{exercise_id}", response_model=Exercise)
-def update_exercise(
-    *,
-    db: Session = Depends(get_db),
-    exercise_id: int,
-    exercise_in: ExerciseUpdate,
-    current_user: Any = Depends(get_current_active_user),
-) -> Any:
-    """Update exercise."""
-    exercise_repository = ExerciseRepository(db)
-    exercise = exercise_repository.get(id=exercise_id)
-    if not exercise:
-        raise HTTPException(
-            status_code=404,
-            detail="The exercise with this id does not exist in the system",
-        )
-    exercise = exercise_repository.update(db_obj=exercise, obj_in=exercise_in.dict(exclude_unset=True))
-    return exercise
-
-
-@router.delete("/{exercise_id}", response_model=Exercise)
-def delete_exercise(
-    *,
-    db: Session = Depends(get_db),
-    exercise_id: int,
-    current_user: Any = Depends(get_current_active_user),
-) -> Any:
-    """Delete exercise."""
-    exercise_repository = ExerciseRepository(db)
-    exercise = exercise_repository.get(id=exercise_id)
-    if not exercise:
-        raise HTTPException(
-            status_code=404,
-            detail="The exercise with this id does not exist in the system",
-        )
-    exercise = exercise_repository.delete(id=exercise_id)
-    return exercise 
+@router.delete("/{exercise_id}")
+async def delete_exercise(
+    exercise_id: str,
+    exercise_service: ExerciseService = Depends()
+):
+    """Delete an exercise and invalidate relevant caches."""
+    deleted = await exercise_service.delete(exercise_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Exercise not found")
+    
+    # Invalidate both list and detail caches
+    await cache_service.delete("exercises:list:*")
+    await cache_service.delete(f"exercises:detail:{exercise_id}")
+    
+    return {"message": "Exercise deleted successfully"} 

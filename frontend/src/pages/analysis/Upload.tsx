@@ -4,7 +4,7 @@ import { styled } from '@mui/system';
 import { useFormCheck } from '../../hooks/useFormCheck';
 import LoadingSpinner from '../../components/atoms/LoadingSpinner';
 import { ExerciseType } from '../../types';
-import { apiService } from '../../services/api';
+import { apiService } from '../../services/apiService';
 import { useAuth } from '../../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 
@@ -151,74 +151,30 @@ const Upload: React.FC = () => {
     }
     
     try {
-      // Get presigned upload URL
-      interface PresignedUploadResponse {
-        post_data: {
-          url: string;
-          fields: Record<string, string>;
-        };
-        file_url: string;
+      // Create form data
+      const formData = new FormData();
+      if (!video) {
+        setUploadError('Please select a video to upload');
+        return;
+      }
+      formData.append('video', video);
+      formData.append('exerciseType', exerciseType);
+      if (notes) {
+        formData.append('notes', notes);
       }
       
-      const presignedData = await apiService.post<PresignedUploadResponse>('/form-checks/presigned-upload', {
-        filename: video!.name,
-        contentType: video!.type,
-        exerciseType
-      });
+      const response = await apiService.formAnalysis.analyze(formData);
       
-      // Prepare form data for direct S3 upload
-      const formData = new FormData();
-      Object.entries(presignedData.post_data.fields).forEach(([key, value]) => {
-        formData.append(key, value as string);
-      });
-      formData.append('file', video!);
-      
-      // Upload directly to S3 with progress tracking
-      const xhr = new XMLHttpRequest();
-      xhr.open('POST', presignedData.post_data.url);
-      
-      xhr.upload.onprogress = (event) => {
-        if (event.lengthComputable) {
-          const progress = Math.round((event.loaded / event.total) * 100);
-          setUploadProgress(progress);
-        }
-      };
-      
-      xhr.onload = async () => {
-        if (xhr.status === 204 || xhr.status === 200) {
-          try {
-            // Complete form check submission with already uploaded video
-            await submitFormCheck(
-              null, // No need to upload the video again
-              exerciseType,
-              notes,
-              presignedData.file_url // Pass the S3 URL
-            );
-            
-            // Redirect to form check results page
-            navigate('/analysis/history');
-            
-            // Reset form
-            setVideo(null);
-            setNotes('');
-            setUploadProgress(0);
-          } catch (err) {
-            console.error('Failed to complete form check submission:', err);
-            setUploadError('Failed to complete submission after upload');
-          }
-        } else {
-          setUploadError(`Upload failed with status: ${xhr.status}`);
-        }
-      };
-      
-      xhr.onerror = () => {
-        setUploadError('Network error occurred during upload');
-      };
-      
-      xhr.send(formData);
+      // Handle response
+      if (response.status === 200) {
+        resetForm();
+        navigate(`/analysis/${response.data.id}`);
+      } else {
+        setUploadError('Failed to upload video. Please try again.');
+      }
     } catch (err) {
-      console.error('Failed to get presigned URL:', err);
-      setUploadError('Failed to prepare upload');
+      console.error('Failed to upload video:', err);
+      setUploadError('Failed to upload video. Please try again.');
     }
   };
 

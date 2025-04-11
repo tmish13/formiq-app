@@ -3,6 +3,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useAppSelector } from '../../store/hooks';
 import { Button } from '../common/Button';
 import styled from 'styled-components';
+import { getThemeValue } from '../../utils/themeUtils';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -21,7 +22,7 @@ const LoadingContainer = styled.div`
 
 const LoadingText = styled.p`
   color: ${({ theme }) => theme.colors.textSecondary};
-  font-size: ${({ theme }) => theme.typography.fontSize.lg};
+  font-size: ${({ theme }) => getThemeValue(theme, 'typography.fontSize.large', '1.25rem')};
 `;
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({

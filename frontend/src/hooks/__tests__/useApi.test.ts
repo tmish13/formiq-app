@@ -1,7 +1,7 @@
 import React from 'react';
 import { renderHook, act } from '@testing-library/react-hooks';
 import { MemoryRouter } from 'react-router-dom';
-import { http, HttpResponse } from 'msw';
+import { rest } from 'msw';
 import { setupServer } from 'msw/node';
 import { useApi } from '../useApi';
 import { AxiosProgressEvent } from 'axios';
@@ -26,20 +26,22 @@ interface UseApiResult<T> {
 const mockData: TestResponse = { message: 'Success' };
 const mockError: TestResponse = { message: 'Error occurred' };
 
-const server = setupServer(
-  http.get('/api/test', () => {
-    return HttpResponse.json(mockData);
+const handlers = [
+  rest.get('*/api/test', (req, res, ctx) => {
+    return res(ctx.json(mockData));
   }),
-  http.post('/api/test', () => {
-    return HttpResponse.json(mockData);
+  rest.post('*/api/test', (req, res, ctx) => {
+    return res(ctx.json(mockData));
   }),
-  http.put('/api/test', () => {
-    return HttpResponse.json(mockData);
+  rest.put('*/api/test', (req, res, ctx) => {
+    return res(ctx.json(mockData));
   }),
-  http.delete('/api/test', () => {
-    return HttpResponse.json(mockData);
+  rest.delete('*/api/test', (req, res, ctx) => {
+    return res(ctx.json(mockData));
   })
-);
+];
+
+const server = setupServer(...handlers);
 
 beforeAll(() => server.listen());
 afterEach(() => {
@@ -84,8 +86,11 @@ describe('useApi', () => {
 
   it('handles GET request error', async () => {
     server.use(
-      http.get('/api/test', () => {
-        return new HttpResponse(JSON.stringify({ detail: 'Error occurred' }), { status: 500 });
+      rest.get('*/api/test', (req, res, ctx) => {
+        return res(
+          ctx.status(500),
+          ctx.json({ detail: 'Error occurred' })
+        );
       })
     );
 
@@ -114,8 +119,11 @@ describe('useApi', () => {
 
   it('handles POST request error', async () => {
     server.use(
-      http.post('/api/test', () => {
-        return new HttpResponse(JSON.stringify(mockError), { status: 500 });
+      rest.post('*/api/test', (req, res, ctx) => {
+        return res(
+          ctx.status(500),
+          ctx.json(mockError)
+        );
       })
     );
 
@@ -144,8 +152,11 @@ describe('useApi', () => {
 
   it('handles PUT request error', async () => {
     server.use(
-      http.put('/api/test', () => {
-        return new HttpResponse(JSON.stringify(mockError), { status: 500 });
+      rest.put('*/api/test', (req, res, ctx) => {
+        return res(
+          ctx.status(500),
+          ctx.json(mockError)
+        );
       })
     );
 
@@ -174,8 +185,11 @@ describe('useApi', () => {
 
   it('handles DELETE request error', async () => {
     server.use(
-      http.delete('/api/test', () => {
-        return new HttpResponse(JSON.stringify(mockError), { status: 500 });
+      rest.delete('*/api/test', (req, res, ctx) => {
+        return res(
+          ctx.status(500),
+          ctx.json(mockError)
+        );
       })
     );
 
@@ -207,8 +221,10 @@ describe('useApi', () => {
 
   it('handles network errors', async () => {
     server.use(
-      http.get('/api/test', () => {
-        return new HttpResponse(null, { status: 0 });
+      rest.get('*/api/test', (req, res, ctx) => {
+        return res(
+          ctx.status(0)
+        );
       })
     );
 
@@ -225,8 +241,10 @@ describe('useApi', () => {
 
   it('handles unauthorized errors', async () => {
     server.use(
-      http.get('/api/test', () => {
-        return new HttpResponse(null, { status: 401 });
+      rest.get('*/api/test', (req, res, ctx) => {
+        return res(
+          ctx.status(401)
+        );
       })
     );
 
@@ -245,8 +263,11 @@ describe('useApi', () => {
     const { result } = renderHook(() => useApi<TestResponse>('/api/test'));
 
     server.use(
-      http.get('/api/test', () => {
-        return new HttpResponse(JSON.stringify(mockError), { status: 500 });
+      rest.get('*/api/test', (req, res, ctx) => {
+        return res(
+          ctx.status(500),
+          ctx.json(mockError)
+        );
       })
     );
 
@@ -257,8 +278,8 @@ describe('useApi', () => {
     expect(result.current.error).toBe('Error occurred');
 
     server.use(
-      http.get('/api/test', () => {
-        return HttpResponse.json(mockData);
+      rest.get('*/api/test', (req, res, ctx) => {
+        return res(ctx.json(mockData));
       })
     );
 

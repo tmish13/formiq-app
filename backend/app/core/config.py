@@ -5,8 +5,8 @@ This module defines all application settings loaded from environment variables.
 Settings are defined as Pydantic models with validation to ensure correct types and formats.
 """
 from typing import List, Union, Optional, Dict, Any, ClassVar
-from pydantic import AnyHttpUrl, field_validator, SecretStr, PostgresDsn, RedisDsn, HttpUrl, validator, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import AnyHttpUrl, field_validator, SecretStr, PostgresDsn, RedisDsn, HttpUrl, validator, Field
 from functools import lru_cache
 import os
 import sys
@@ -110,6 +110,14 @@ class Settings(BaseSettings):
     SENTRY_DSN: Optional[str] = Field(
         default=None,
         description="Sentry DSN URL for error reporting"
+    )
+    SENTRY_ENVIRONMENT: str = Field(
+        default=os.getenv("SENTRY_ENVIRONMENT", "production"),
+        description="Sentry environment name"
+    )
+    SENTRY_TRACES_SAMPLE_RATE: float = Field(
+        default=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1")),
+        description="Sentry traces sample rate"
     )
     
     @validator("SENTRY_DSN")

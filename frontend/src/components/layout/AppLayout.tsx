@@ -1,106 +1,115 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import styled from 'styled-components';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuth } from '../../contexts/AuthContext';
+import { getThemeValue, fallbacks } from '../../utils/themeUtils';
+import { Header, HeaderContent } from './Header';
 
-const LayoutContainer = styled.div`
+// Commenting out these imports until they are properly implemented
+// import { Footer } from './Footer';
+// import { Sidebar } from './Sidebar';
+
+const Container = styled.div<{ hasHeader: boolean }>`
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-`;
 
-const MainContent = styled.main<{ hasHeader: boolean }>`
-  flex: 1;
-  padding-top: ${({ hasHeader }) => (hasHeader ? '64px' : '0')}; // Height of the header
-  
-  @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
+  @media (min-width: 769px) {
+    padding-top: ${({ hasHeader }) => (hasHeader ? '64px' : '0')}; // Height of the header
+  }
+
+  @media (max-width: 768px) {
     padding-top: ${({ hasHeader }) => (hasHeader ? '56px' : '0')}; // Smaller header height on mobile
   }
 `;
 
-const Header = styled.header`
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 64px;
-  background-color: ${({ theme }) => theme.colors.white};
-  box-shadow: ${({ theme }) => theme.shadows.sm};
+const Main = styled.main<{ hasHeader: boolean }>`
+  flex: 1;
   display: flex;
-  align-items: center;
-  padding: 0 ${({ theme }) => theme.spacing.xl};
-  z-index: 1000;
+  flex-direction: column;
+
+  @media (min-width: 769px) {
+    min-height: calc(100vh - 64px); // Subtract header height
+  }
+
+  @media (max-width: 768px) {
+    min-height: calc(100vh - 56px); // Subtract mobile header height
+  }
+`;
+
+const ContentWrapper = styled.div<{ hasSidebar: boolean }>`
+  display: flex;
+  min-height: calc(100vh - 64px); // Subtract header height
   
-  @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
-    height: 56px;
-    padding: 0 ${({ theme }) => theme.spacing.md};
+  @media (max-width: ${({ theme }) => getThemeValue(theme, 'breakpoints.sm', '576px')}) {
+    min-height: calc(100vh - 56px); // Subtract mobile header height
+    flex-direction: column;
+  }
+`;
+
+const MainContent = styled.main<{ hasSidebar: boolean; hasFooter: boolean }>`
+  flex: 1;
+  background-color: ${({ theme }) => getThemeValue(theme, 'colors.background', '#F7FAFC')};
+  padding: ${({ theme }) => getThemeValue(theme, 'spacing.lg', '1.5rem')};
+  transition: padding 0.3s ease;
+  padding-bottom: ${({ hasFooter }) => (hasFooter ? '80px' : '1.5rem')};
+  
+  @media (max-width: ${({ theme }) => getThemeValue(theme, 'breakpoints.sm', '576px')}) {
+    padding: ${({ theme }) => getThemeValue(theme, 'spacing.md', '1rem')};
+    padding-bottom: ${({ hasFooter }) => (hasFooter ? '60px' : '1rem')};
   }
 `;
 
 const Logo = styled(Link)`
-  font-size: ${({ theme }) => theme.typography.fontSize.xl};
-  font-weight: ${({ theme }) => theme.typography.fontWeight.bold};
-  color: ${({ theme }) => theme.colors.primary};
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => getThemeValue(theme, 'spacing.sm', '8px')};
   text-decoration: none;
-  margin-right: ${({ theme }) => theme.spacing.xl};
-  
-  @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
-    font-size: ${({ theme }) => theme.typography.fontSize.lg};
-    margin-right: ${({ theme }) => theme.spacing.md};
-  }
+  color: ${({ theme }) => getThemeValue(theme, 'colors.text', '#000000')};
+  font-weight: ${({ theme }) => getThemeValue(theme, 'typography.fontWeight.bold', 700)};
+  font-size: ${({ theme }) => getThemeValue(theme, 'typography.fontSize.large', '20px')};
 `;
 
 const Nav = styled.nav<{ isOpen: boolean }>`
   display: flex;
-  align-items: center;
-  gap: ${({ theme }) => theme.spacing.md};
-  flex: 1;
-  
-  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+  gap: ${({ theme }) => getThemeValue(theme, 'spacing.md', '16px')};
+
+  @media (max-width: 768px) {
+    display: ${({ isOpen }) => (isOpen ? 'flex' : 'none')};
     position: fixed;
     top: 56px;
     left: 0;
     right: 0;
+    background-color: ${({ theme }) => getThemeValue(theme, 'colors.white', '#FFFFFF')};
     flex-direction: column;
-    background-color: ${({ theme }) => theme.colors.white};
-    box-shadow: ${({ theme }) => theme.shadows.md};
-    padding: ${({ theme }) => theme.spacing.md};
-    transform: translateY(${({ isOpen }) => (isOpen ? '0' : '-100%')});
-    opacity: ${({ isOpen }) => (isOpen ? '1' : '0')};
-    visibility: ${({ isOpen }) => (isOpen ? 'visible' : 'hidden')};
-    transition: all ${({ theme }) => theme.transitions.medium};
-    height: auto;
-    align-items: flex-start;
-    z-index: 999;
+    padding: ${({ theme }) => getThemeValue(theme, 'spacing.md', '16px')};
+    box-shadow: ${({ theme }) => getThemeValue(theme, 'shadows.md', '0 4px 8px rgba(0, 0, 0, 0.1)')};
   }
 `;
 
-const NavLink = styled(Link)<{ active?: boolean }>`
+const NavLink = styled(Link)<{ active: boolean }>`
   color: ${({ theme, active }) =>
-    active ? theme.colors.primary : theme.colors.textSecondary};
+    active
+      ? getThemeValue(theme, 'colors.primary', '#007AFF')
+      : getThemeValue(theme, 'colors.text', '#000000')};
   text-decoration: none;
   font-weight: ${({ theme, active }) =>
-    active ? theme.typography.fontWeight.semibold : theme.typography.fontWeight.normal};
-  padding: ${({ theme }) => theme.spacing.sm} ${({ theme }) => theme.spacing.md};
-  border-radius: ${({ theme }) => theme.borderRadius.md};
-  transition: all ${({ theme }) => theme.transitions.fast};
+    active
+      ? getThemeValue(theme, 'typography.fontWeight.medium', 500)
+      : getThemeValue(theme, 'typography.fontWeight.normal', 400)};
+  padding: ${({ theme }) => getThemeValue(theme, 'spacing.sm', '8px')};
+  border-radius: ${({ theme }) => getThemeValue(theme, 'borderRadius.small', '4px')};
+  transition: all ${({ theme }) => getThemeValue(theme, 'transitions.fast', '0.2s')};
 
   &:hover {
-    color: ${({ theme }) => theme.colors.primary};
-    background-color: ${({ theme }) => theme.colors.primaryLight};
-  }
-  
-  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
-    width: 100%;
-    padding: ${({ theme }) => theme.spacing.md};
-    font-size: ${({ theme }) => theme.typography.fontSize.lg};
+    background-color: ${({ theme }) => getThemeValue(theme, 'colors.background', '#F2F2F7')};
   }
 `;
 
 const UserMenu = styled.div`
   position: relative;
   
-  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+  @media (max-width: ${({ theme }) => getThemeValue(theme, 'breakpoints.md', '768px')}) {
     margin-left: auto;
   }
 `;
@@ -108,18 +117,18 @@ const UserMenu = styled.div`
 const UserButton = styled.button`
   display: flex;
   align-items: center;
-  gap: ${({ theme }) => theme.spacing.sm};
+  gap: ${({ theme }) => getThemeValue(theme, 'spacing.sm', '0.75rem')};
   background: none;
   border: none;
-  padding: ${({ theme }) => theme.spacing.sm} ${({ theme }) => theme.spacing.md};
+  padding: ${({ theme }) => getThemeValue(theme, 'spacing.sm', '0.75rem')} ${({ theme }) => getThemeValue(theme, 'spacing.md', '1rem')};
   cursor: pointer;
-  color: ${({ theme }) => theme.colors.text};
-  font-weight: ${({ theme }) => theme.typography.fontWeight.medium};
+  color: ${({ theme }) => getThemeValue(theme, 'colors.text', '#2D3748')};
+  font-weight: ${({ theme }) => getThemeValue(theme, 'typography.fontWeight.medium', '500')};
   min-width: 44px;
   min-height: 44px;
   
-  @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
-    padding: ${({ theme }) => theme.spacing.sm};
+  @media (max-width: ${({ theme }) => getThemeValue(theme, 'breakpoints.sm', '576px')}) {
+    padding: ${({ theme }) => getThemeValue(theme, 'spacing.sm', '0.75rem')};
   }
 `;
 
@@ -127,15 +136,15 @@ const DropdownMenu = styled.div<{ isOpen: boolean }>`
   position: absolute;
   top: 100%;
   right: 0;
-  background-color: ${({ theme }) => theme.colors.white};
-  border-radius: ${({ theme }) => theme.borderRadius.md};
-  box-shadow: ${({ theme }) => theme.shadows.md};
+  background-color: ${({ theme }) => getThemeValue(theme, 'colors.white', '#FFFFFF')};
+  border-radius: ${({ theme }) => getThemeValue(theme, 'borderRadius.md', '0.5rem')};
+  box-shadow: ${({ theme }) => getThemeValue(theme, 'shadows.md', '0 4px 6px rgba(0,0,0,0.1)')};
   min-width: 200px;
   display: ${({ isOpen }) => (isOpen ? 'block' : 'none')};
-  margin-top: ${({ theme }) => theme.spacing.xs};
+  margin-top: ${({ theme }) => getThemeValue(theme, 'spacing.xs', '0.5rem')};
   z-index: 1001;
   
-  @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
+  @media (max-width: ${({ theme }) => getThemeValue(theme, 'breakpoints.sm', '576px')}) {
     position: fixed;
     top: 56px;
     right: 0;
@@ -147,73 +156,62 @@ const DropdownMenu = styled.div<{ isOpen: boolean }>`
 
 const DropdownItem = styled(Link)`
   display: block;
-  padding: ${({ theme }) => theme.spacing.sm} ${({ theme }) => theme.spacing.md};
-  color: ${({ theme }) => theme.colors.text};
+  padding: ${({ theme }) => getThemeValue(theme, 'spacing.sm', '0.75rem')} ${({ theme }) => getThemeValue(theme, 'spacing.md', '1rem')};
+  color: ${({ theme }) => getThemeValue(theme, 'colors.text', '#2D3748')};
   text-decoration: none;
-  transition: all ${({ theme }) => theme.transitions.fast};
+  transition: all ${({ theme }) => getThemeValue(theme, 'transitions.short', '0.2s')};
   min-height: 44px;
   display: flex;
   align-items: center;
 
   &:hover {
-    background-color: ${({ theme }) => theme.colors.primaryLight};
-    color: ${({ theme }) => theme.colors.primary};
+    background-color: ${({ theme }) => getThemeValue(theme, 'colors.primaryLight', '#83A9FF')}20;
+    color: ${({ theme }) => getThemeValue(theme, 'colors.primary', '#4D7CFE')};
   }
   
-  @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
-    padding: ${({ theme }) => theme.spacing.md};
-    font-size: ${({ theme }) => theme.typography.fontSize.base};
+  @media (max-width: ${({ theme }) => getThemeValue(theme, 'breakpoints.sm', '576px')}) {
+    padding: ${({ theme }) => getThemeValue(theme, 'spacing.md', '1rem')};
+    font-size: ${({ theme }) => getThemeValue(theme, 'typography.fontSize.medium', '1rem')};
   }
 `;
 
 const LogoutButton = styled.button`
   display: block;
   width: 100%;
-  padding: ${({ theme }) => theme.spacing.sm} ${({ theme }) => theme.spacing.md};
+  padding: ${({ theme }) => getThemeValue(theme, 'spacing.sm', '0.75rem')} ${({ theme }) => getThemeValue(theme, 'spacing.md', '1rem')};
   background: none;
   border: none;
-  color: ${({ theme }) => theme.colors.error};
+  color: ${({ theme }) => getThemeValue(theme, 'colors.error', '#F56565')};
   text-align: left;
   cursor: pointer;
-  transition: all ${({ theme }) => theme.transitions.fast};
+  transition: all ${({ theme }) => getThemeValue(theme, 'transitions.short', '0.2s')};
   min-height: 44px;
 
   &:hover {
-    background-color: ${({ theme }) => theme.colors.error}10;
+    background-color: ${({ theme }) => getThemeValue(theme, 'colors.error', '#F56565')}10;
   }
   
-  @media (max-width: ${({ theme }) => theme.breakpoints.sm}) {
-    padding: ${({ theme }) => theme.spacing.md};
-    font-size: ${({ theme }) => theme.typography.fontSize.base};
+  @media (max-width: ${({ theme }) => getThemeValue(theme, 'breakpoints.sm', '576px')}) {
+    padding: ${({ theme }) => getThemeValue(theme, 'spacing.md', '1rem')};
+    font-size: ${({ theme }) => getThemeValue(theme, 'typography.fontSize.medium', '1rem')};
   }
 `;
 
 const HamburgerButton = styled.button`
   display: none;
-  flex-direction: column;
-  justify-content: space-between;
-  width: 24px;
-  height: 20px;
-  background: transparent;
+  background: none;
   border: none;
+  padding: ${({ theme }) => getThemeValue(theme, 'spacing.sm', '8px')};
   cursor: pointer;
-  padding: 0;
-  margin-right: ${({ theme }) => theme.spacing.md};
-  min-width: 44px;
-  min-height: 44px;
-  
-  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
-    display: flex;
+
+  @media (max-width: 768px) {
+    display: block;
   }
-  
-  div {
+
+  svg {
     width: 24px;
-    height: 3px;
-    background: ${({ theme }) => theme.colors.primary};
-    border-radius: 10px;
-    transition: all 0.3s linear;
-    position: relative;
-    transform-origin: 1px;
+    height: 24px;
+    stroke: ${({ theme }) => getThemeValue(theme, 'colors.text', '#000000')};
   }
 `;
 
@@ -229,10 +227,13 @@ const Overlay = styled.div<{ show: boolean }>`
 `;
 
 interface AppLayoutProps {
-  children: React.ReactNode;
+  children: ReactNode;
+  hasHeader?: boolean;
+  hasFooter?: boolean;
+  hasSidebar?: boolean;
 }
 
-export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
+export const AppLayout: React.FC<AppLayoutProps> = ({ children, hasHeader = true, hasFooter = true, hasSidebar = false }) => {
   const location = useLocation();
   const { user, logout, isAuthenticated } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -277,50 +278,70 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   };
 
   return (
-    <LayoutContainer>
+    <Container hasHeader={showHeader}>
       {showHeader && (
-        <>
-          <Header>
-            <HamburgerButton onClick={(e) => {
-              e.stopPropagation();
-              setIsMobileNavOpen(!isMobileNavOpen);
-            }}>
-              <div />
-              <div />
-              <div />
+        <Header>
+          <HeaderContent>
+            <Logo to="/">
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+                <line x1="4" y1="22" x2="4" y2="15" />
+              </svg>
+              FormIQ
+            </Logo>
+
+            <HamburgerButton onClick={() => setIsMobileNavOpen(!isMobileNavOpen)}>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                {isMobileNavOpen ? (
+                  <path d="M18 6L6 18M6 6l12 12" />
+                ) : (
+                  <path d="M3 12h18M3 6h18M3 18h18" />
+                )}
+              </svg>
             </HamburgerButton>
-            <Logo to="/">FormIQ</Logo>
-            <Nav isOpen={isMobileNavOpen} onClick={handleMenuClick}>
-              <NavLink to="/dashboard" active={location.pathname === '/dashboard'}>
+
+            <Nav isOpen={isMobileNavOpen}>
+              <NavLink to="/" active={location.pathname === '/'}>
                 Dashboard
-              </NavLink>
-              <NavLink to="/workout" active={location.pathname === '/workout'}>
-                Workout
               </NavLink>
               <NavLink to="/analysis" active={location.pathname === '/analysis'}>
                 Analysis
               </NavLink>
+              <NavLink to="/profile" active={location.pathname === '/profile'}>
+                Profile
+              </NavLink>
+              <NavLink to="/auth/login" onClick={handleLogout} active={false}>
+                Logout
+              </NavLink>
             </Nav>
-            <UserMenu>
-              <UserButton onClick={(e) => {
-                e.stopPropagation();
-                setIsMenuOpen(!isMenuOpen);
-              }}>
-                {user?.name}
-              </UserButton>
-              <DropdownMenu isOpen={isMenuOpen} onClick={handleMenuClick}>
-                <DropdownItem to="/profile">Profile</DropdownItem>
-                <LogoutButton onClick={handleLogout}>Logout</LogoutButton>
-              </DropdownMenu>
-            </UserMenu>
-          </Header>
-          <Overlay show={isMobileNavOpen || isMenuOpen} onClick={() => {
-            setIsMobileNavOpen(false);
-            setIsMenuOpen(false);
-          }} />
-        </>
+          </HeaderContent>
+        </Header>
       )}
-      <MainContent hasHeader={showHeader}>{children}</MainContent>
-    </LayoutContainer>
+      <Overlay show={isMobileNavOpen || isMenuOpen} onClick={() => {
+        setIsMobileNavOpen(false);
+        setIsMenuOpen(false);
+      }} />
+      <Main hasHeader={showHeader}>
+        <ContentWrapper hasSidebar={hasSidebar}>
+          <MainContent hasSidebar={hasSidebar} hasFooter={hasFooter}>{children}</MainContent>
+        </ContentWrapper>
+      </Main>
+    </Container>
   );
 }; 

@@ -42,4 +42,17 @@ export interface FormCheck {
   created_at: string;
   updated_at: string;
   feedback_items?: FeedbackItem[];
+}
+
+export interface FormCheckResponse {
+  id: string;
+  video_url: string;
+  exercise_id: string;
+  user_id: string;
+  status: 'pending' | 'processing' | 'completed';
+  score?: number;
+  overall_feedback?: string;
+  analysis_url?: string;
+  created_at: string;
+  updated_at?: string;
 } 

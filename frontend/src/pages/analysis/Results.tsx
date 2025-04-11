@@ -45,6 +45,12 @@ const TimeMarker = styled(Box, {
     opacity: 1,
     transform: 'scaleX(1.5)',
   },
+  '&:focus-visible': {
+    opacity: 1,
+    transform: 'scaleX(1.5)',
+    outline: `2px solid ${markerColor}`,
+    outlineOffset: '2px',
+  },
 }));
 
 const JointAngleCard = styled(Paper)(({ theme }) => ({
@@ -219,13 +225,18 @@ const Results: React.FC = () => {
                 display: 'flex',
                 alignItems: 'center'
               }}>
-                <IconButton onClick={togglePlayPause} color="primary">
+                <IconButton 
+                  onClick={togglePlayPause} 
+                  color="primary"
+                  aria-label={isPlaying ? "Pause video" : "Play video"}
+                >
                   {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
                 </IconButton>
                 <LinearProgress 
                   variant="determinate" 
                   value={(currentTime / videoDuration) * 100}
                   sx={{ flexGrow: 1, mx: 1 }}
+                  aria-label={`Video progress: ${Math.round((currentTime / videoDuration) * 100)}%`}
                 />
                 <Typography variant="caption" color="white">
                   {Math.floor(currentTime / 60)}:{Math.floor(currentTime % 60).toString().padStart(2, '0')}
@@ -234,7 +245,7 @@ const Results: React.FC = () => {
             </VideoContainer>
             
             {/* Timeline with feedback markers */}
-            <TimelineContainer>
+            <TimelineContainer role="toolbar" aria-label="Video feedback timeline">
               {sortedFeedbackItems.map((item) => (
                 <TimeMarker
                   key={item.id || 'unknown'}
@@ -245,10 +256,16 @@ const Results: React.FC = () => {
                     seekToTime(item.timestamp);
                     setActiveFeedback(item.id?.toString() || 'unknown');
                   }}
-                  aria-label={`Jump to feedback at ${Math.floor(item.timestamp / 60)}:${Math.floor(item.timestamp % 60).toString().padStart(2, '0')}`}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      seekToTime(item.timestamp);
+                      setActiveFeedback(item.id?.toString() || 'unknown');
+                    }
+                  }}
+                  aria-label={`Jump to feedback at ${Math.floor(item.timestamp / 60)}:${Math.floor(item.timestamp % 60).toString().padStart(2, '0')}: ${item.message}`}
                   role="button"
                   tabIndex={0}
-                  aria-pressed={activeFeedback === (item.id?.toString() || 'unknown')}
                 />
               ))}
             </TimelineContainer>

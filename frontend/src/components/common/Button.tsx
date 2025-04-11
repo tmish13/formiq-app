@@ -1,5 +1,6 @@
 import React from 'react';
-import styled, { keyframes } from 'styled-components';
+import styled, { keyframes, DefaultTheme } from 'styled-components';
+import { getThemeValue, fallbacks } from '../../utils/themeUtils';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'outline' | 'ghost';
@@ -15,7 +16,7 @@ const spin = keyframes`
   100% { transform: rotate(360deg); }
 `;
 
-const StyledButton = styled.button<ButtonProps>`
+const StyledButton = styled.button<ButtonProps & { theme: DefaultTheme }>`
   padding: ${({ size }) => {
     switch (size) {
       case 'small': return '0.5rem 0.875rem';
@@ -25,13 +26,13 @@ const StyledButton = styled.button<ButtonProps>`
   }};
   
   width: ${({ fullWidth }) => fullWidth ? '100%' : 'auto'};
-  border-radius: ${({ theme }) => theme.borderRadius.md};
-  font-weight: ${({ theme }) => theme.typography.fontWeight.semibold};
+  border-radius: ${({ theme }) => getThemeValue(theme, 'borderRadius.md', fallbacks.borderRadius.md)};
+  font-weight: ${({ theme }) => getThemeValue(theme, 'typography.fontWeight.medium', String(fallbacks.typography.fontWeight.medium))};
   font-size: ${({ size, theme }) => {
     switch (size) {
-      case 'small': return theme.typography.fontSize.xs;
-      case 'large': return theme.typography.fontSize.lg;
-      default: return theme.typography.fontSize.base;
+      case 'small': return getThemeValue(theme, 'typography.fontSize.xs', fallbacks.typography.fontSize.xs);
+      case 'large': return getThemeValue(theme, 'typography.fontSize.lg', fallbacks.typography.fontSize.lg);
+      default: return getThemeValue(theme, 'typography.fontSize.md', fallbacks.typography.fontSize.md);
     }
   }};
   letter-spacing: 0.025em;
@@ -48,61 +49,61 @@ const StyledButton = styled.button<ButtonProps>`
     switch (variant) {
       case 'secondary':
         return `
-          background-color: ${theme.colors.secondary};
-          color: ${theme.colors.white};
+          background-color: ${getThemeValue(theme, 'colors.secondary', fallbacks.colors.secondary)};
+          color: ${getThemeValue(theme, 'colors.white', fallbacks.colors.white)};
           border: none;
-          box-shadow: ${theme.shadows.sm};
+          box-shadow: ${getThemeValue(theme, 'shadows.sm', fallbacks.shadows.sm)};
           &:hover:not(:disabled) {
-            background-color: ${theme.colors.secondaryDark};
-            box-shadow: ${theme.shadows.md};
+            background-color: ${getThemeValue(theme, 'colors.secondaryDark', fallbacks.colors.secondaryDark)};
+            box-shadow: ${getThemeValue(theme, 'shadows.md', fallbacks.shadows.md)};
             transform: translateY(-1px);
           }
           &:active:not(:disabled) {
-            background-color: ${theme.colors.secondaryDark};
-            box-shadow: ${theme.shadows.sm};
+            background-color: ${getThemeValue(theme, 'colors.secondaryDark', fallbacks.colors.secondaryDark)};
+            box-shadow: ${getThemeValue(theme, 'shadows.sm', fallbacks.shadows.sm)};
             transform: translateY(0);
           }
         `;
       case 'outline':
         return `
           background-color: transparent;
-          color: ${theme.colors.primary};
-          border: 2px solid ${theme.colors.primary};
+          color: ${getThemeValue(theme, 'colors.primary', fallbacks.colors.primary)};
+          border: 2px solid ${getThemeValue(theme, 'colors.primary', fallbacks.colors.primary)};
           &:hover:not(:disabled) {
-            background-color: ${theme.colors.primaryLight}20;
+            background-color: ${getThemeValue(theme, 'colors.primaryLight', fallbacks.colors.primaryLight)}20;
             transform: translateY(-1px);
           }
           &:active:not(:disabled) {
-            background-color: ${theme.colors.primaryLight}30;
+            background-color: ${getThemeValue(theme, 'colors.primaryLight', fallbacks.colors.primaryLight)}30;
             transform: translateY(0);
           }
         `;
       case 'ghost':
         return `
           background-color: transparent;
-          color: ${theme.colors.primary};
+          color: ${getThemeValue(theme, 'colors.primary', fallbacks.colors.primary)};
           border: none;
           &:hover:not(:disabled) {
-            background-color: ${theme.colors.primaryLight}20;
+            background-color: ${getThemeValue(theme, 'colors.primaryLight', fallbacks.colors.primaryLight)}20;
           }
           &:active:not(:disabled) {
-            background-color: ${theme.colors.primaryLight}30;
+            background-color: ${getThemeValue(theme, 'colors.primaryLight', fallbacks.colors.primaryLight)}30;
           }
         `;
       default:
         return `
-          background-color: ${theme.colors.primary};
-          color: ${theme.colors.white};
+          background-color: ${getThemeValue(theme, 'colors.primary', fallbacks.colors.primary)};
+          color: ${getThemeValue(theme, 'colors.white', fallbacks.colors.white)};
           border: none;
-          box-shadow: ${theme.shadows.sm};
+          box-shadow: ${getThemeValue(theme, 'shadows.sm', fallbacks.shadows.sm)};
           &:hover:not(:disabled) {
-            background-color: ${theme.colors.primaryDark};
-            box-shadow: ${theme.shadows.md};
+            background-color: ${getThemeValue(theme, 'colors.primaryDark', fallbacks.colors.primaryDark)};
+            box-shadow: ${getThemeValue(theme, 'shadows.md', fallbacks.shadows.md)};
             transform: translateY(-1px);
           }
           &:active:not(:disabled) {
-            background-color: ${theme.colors.primaryDark};
-            box-shadow: ${theme.shadows.sm};
+            background-color: ${getThemeValue(theme, 'colors.primaryDark', fallbacks.colors.primaryDark)};
+            box-shadow: ${getThemeValue(theme, 'shadows.sm', fallbacks.shadows.sm)};
             transform: translateY(0);
           }
         `;
@@ -119,8 +120,8 @@ const StyledButton = styled.button<ButtonProps>`
     outline: none;
     box-shadow: 0 0 0 3px ${({ theme, variant }) => 
       variant === 'secondary' 
-        ? `${theme.colors.secondary}40` 
-        : `${theme.colors.primary}40`};
+        ? `${getThemeValue(theme, 'colors.secondary', fallbacks.colors.secondary)}40` 
+        : `${getThemeValue(theme, 'colors.primary', fallbacks.colors.primary)}40`};
   }
 `;
 

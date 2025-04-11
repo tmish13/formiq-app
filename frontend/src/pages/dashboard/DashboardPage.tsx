@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Typography, Box, Grid, Paper, Button, Card, CardContent, CardHeader, Divider } from '@mui/material';
+import { Container, Typography, Box, Grid as MuiGrid, Paper, Button, Card, CardContent, CardHeader, Divider } from '@mui/material';
 import { Skeleton } from '../../components/common/SkeletonLoader';
 import styled from 'styled-components';
 import { useAuth } from '../../hooks/useAuth';
@@ -35,7 +35,7 @@ const Subtitle = styled.p`
   font-size: ${({ theme }) => theme.typography.fontSize.lg};
 `;
 
-const Grid = styled.div`
+const DashboardGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: ${({ theme }) => theme.spacing.xl};
@@ -146,7 +146,7 @@ export const DashboardPage: React.FC = () => {
     <DashboardContainer>
       <Header>
         <Title>Dashboard</Title>
-        <Button variant="outline" onClick={logout}>
+        <Button variant="outlined" color="primary" onClick={logout}>
           Logout
         </Button>
       </Header>
@@ -167,9 +167,9 @@ export const DashboardPage: React.FC = () => {
           </Typography>
           
           {/* Quick stats */}
-          <Grid container spacing={3} mb={4}>
+          <MuiGrid container spacing={3} mb={4}>
             {/* Workout stats */}
-            <Grid item xs={12} md={6}>
+            <MuiGrid item xs={12} md={6}>
               <DashboardCard elevation={2}>
                 <Box p={3}>
                   <CardTitle variant="h6">
@@ -177,21 +177,21 @@ export const DashboardPage: React.FC = () => {
                   </CardTitle>
                   <Divider sx={{ mb: 2 }} />
                   {loading ? (
-                    <Grid container spacing={2}>
-                      <Grid item xs={6}>
+                    <MuiGrid container spacing={2}>
+                      <MuiGrid item xs={6}>
                         <Skeleton variant="text" width="50%" />
                         <Skeleton variant="text" width="70%" height="40px" />
                         <Skeleton variant="text" width="60%" />
-                      </Grid>
-                      <Grid item xs={6}>
+                      </MuiGrid>
+                      <MuiGrid item xs={6}>
                         <Skeleton variant="text" width="50%" />
                         <Skeleton variant="text" width="70%" height="40px" />
                         <Skeleton variant="text" width="60%" />
-                      </Grid>
-                    </Grid>
+                      </MuiGrid>
+                    </MuiGrid>
                   ) : (
-                    <Grid container spacing={2}>
-                      <Grid item xs={6}>
+                    <MuiGrid container spacing={2}>
+                      <MuiGrid item xs={6}>
                         <Typography variant="body2" color="textSecondary">
                           Total Workouts
                         </Typography>
@@ -201,8 +201,8 @@ export const DashboardPage: React.FC = () => {
                         <Typography variant="body2">
                           {workoutSummary?.completedThisWeek} this week
                         </Typography>
-                      </Grid>
-                      <Grid item xs={6}>
+                      </MuiGrid>
+                      <MuiGrid item xs={6}>
                         <Typography variant="body2" color="textSecondary">
                           Average Duration
                         </Typography>
@@ -212,15 +212,15 @@ export const DashboardPage: React.FC = () => {
                         <Button size="small" color="primary">
                           View Details
                         </Button>
-                      </Grid>
-                    </Grid>
+                      </MuiGrid>
+                    </MuiGrid>
                   )}
                 </Box>
               </DashboardCard>
-            </Grid>
+            </MuiGrid>
             
             {/* Form check stats */}
-            <Grid item xs={12} md={6}>
+            <MuiGrid item xs={12} md={6}>
               <DashboardCard elevation={2}>
                 <Box p={3}>
                   <CardTitle variant="h6">
@@ -228,21 +228,21 @@ export const DashboardPage: React.FC = () => {
                   </CardTitle>
                   <Divider sx={{ mb: 2 }} />
                   {loading ? (
-                    <Grid container spacing={2}>
-                      <Grid item xs={6}>
+                    <MuiGrid container spacing={2}>
+                      <MuiGrid item xs={6}>
                         <Skeleton variant="text" width="50%" />
                         <Skeleton variant="text" width="70%" height="40px" />
                         <Skeleton variant="text" width="60%" />
-                      </Grid>
-                      <Grid item xs={6}>
+                      </MuiGrid>
+                      <MuiGrid item xs={6}>
                         <Skeleton variant="text" width="50%" />
                         <Skeleton variant="text" width="70%" height="40px" />
                         <Skeleton variant="text" width="60%" />
-                      </Grid>
-                    </Grid>
+                      </MuiGrid>
+                    </MuiGrid>
                   ) : (
-                    <Grid container spacing={2}>
-                      <Grid item xs={6}>
+                    <MuiGrid container spacing={2}>
+                      <MuiGrid item xs={6}>
                         <Typography variant="body2" color="textSecondary">
                           Total Form Checks
                         </Typography>
@@ -252,8 +252,8 @@ export const DashboardPage: React.FC = () => {
                         <Typography variant="body2">
                           {formCheckSummary?.pending} pending analysis
                         </Typography>
-                      </Grid>
-                      <Grid item xs={6}>
+                      </MuiGrid>
+                      <MuiGrid item xs={6}>
                         <Typography variant="body2" color="textSecondary">
                           Latest Improvement
                         </Typography>
@@ -263,62 +263,50 @@ export const DashboardPage: React.FC = () => {
                         <Button size="small" color="primary">
                           Upload New Video
                         </Button>
-                      </Grid>
-                    </Grid>
+                      </MuiGrid>
+                    </MuiGrid>
                   )}
                 </Box>
               </DashboardCard>
-            </Grid>
-          </Grid>
+            </MuiGrid>
+          </MuiGrid>
           
           {/* Upcoming workout */}
-          <SectionHeader>
-            <Typography variant="h5">
-              Up Next
-            </Typography>
-            <Button color="primary">View All</Button>
-          </SectionHeader>
-          
-          <Card sx={{ mb: 4 }}>
-            {loading ? (
-              <CardContent>
-                <Box display="flex" justifyContent="space-between" alignItems="center">
-                  <Box>
-                    <Skeleton variant="text" width="200px" height="32px" />
-                    <Skeleton variant="text" width="150px" />
-                  </Box>
-                  <Skeleton variant="rectangular" width="100px" height="36px" borderRadius="4px" />
-                </Box>
-              </CardContent>
-            ) : workoutSummary?.upcomingWorkout ? (
-              <CardContent>
-                <Box display="flex" justifyContent="space-between" alignItems="center">
-                  <Box>
-                    <Typography variant="h6">
+          <DashboardGrid>
+            <DashboardCard elevation={2}>
+              <Box p={3}>
+                <Typography variant="h6" gutterBottom>
+                  Upcoming Workout
+                </Typography>
+                <Divider sx={{ mb: 2 }} />
+                {loading ? (
+                  <MuiGrid container spacing={2}>
+                    <MuiGrid item xs={12}>
+                      <Skeleton variant="text" width="60%" />
+                      <Skeleton variant="text" width="40%" />
+                      <Skeleton variant="text" width="30%" />
+                    </MuiGrid>
+                  </MuiGrid>
+                ) : workoutSummary?.upcomingWorkout ? (
+                  <>
+                    <Typography variant="h6" gutterBottom>
                       {workoutSummary.upcomingWorkout.name}
                     </Typography>
                     <Typography variant="body2" color="textSecondary">
-                      {workoutSummary.upcomingWorkout.date} • {workoutSummary.upcomingWorkout.type}
+                      {workoutSummary.upcomingWorkout.date}
                     </Typography>
-                  </Box>
-                  <Button variant="contained" color="primary">
-                    Start
-                  </Button>
-                </Box>
-              </CardContent>
-            ) : (
-              <CardContent>
-                <Typography variant="body1" align="center">
-                  No upcoming workouts scheduled
-                </Typography>
-                <Box textAlign="center" mt={1}>
-                  <Button color="primary">
-                    Schedule Workout
-                  </Button>
-                </Box>
-              </CardContent>
-            )}
-          </Card>
+                    <Typography variant="body2" color="textSecondary">
+                      Type: {workoutSummary.upcomingWorkout.type}
+                    </Typography>
+                  </>
+                ) : (
+                  <Typography variant="body2" color="textSecondary">
+                    No upcoming workouts scheduled
+                  </Typography>
+                )}
+              </Box>
+            </DashboardCard>
+          </DashboardGrid>
           
           {/* Recent activity */}
           <SectionHeader>

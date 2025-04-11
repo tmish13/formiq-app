@@ -1,55 +1,75 @@
-import { apiService } from './api';
+import { apiService } from './apiService';
 import { Workout, WorkoutPlan } from '../types';
+import { ApiResponse } from './apiService';
 
-export const workoutService = {
-  // Workout endpoints
+export class WorkoutService {
   async getWorkouts(): Promise<Workout[]> {
-    return apiService.get<Workout[]>('/workouts');
-  },
+    const response = await apiService.formChecks.getAll();
+    return response.data.data;
+  }
 
   async getWorkout(id: string): Promise<Workout> {
-    return apiService.get<Workout>(`/workouts/${id}`);
-  },
+    const response = await apiService.formChecks.getById(id);
+    return response.data.data;
+  }
 
   async createWorkout(workout: Omit<Workout, 'id' | 'userId' | 'createdAt' | 'updatedAt'>): Promise<Workout> {
-    return apiService.post<Workout>('/workouts', workout);
-  },
+    const formData = new FormData();
+    formData.append('workout', JSON.stringify(workout));
+    const response = await apiService.formChecks.upload(formData);
+    return response.data.data;
+  }
 
   async updateWorkout(id: string, workout: Partial<Workout>): Promise<Workout> {
-    return apiService.put<Workout>(`/workouts/${id}`, workout);
-  },
+    const formData = new FormData();
+    formData.append('workout', JSON.stringify(workout));
+    const response = await apiService.formChecks.upload(formData);
+    return response.data.data;
+  }
 
   async deleteWorkout(id: string): Promise<void> {
-    return apiService.delete<void>(`/workouts/${id}`);
-  },
+    await apiService.formChecks.getById(id); // TODO: Add delete endpoint
+  }
 
-  // Workout plan endpoints
+  // Workout Plans
   async getWorkoutPlans(): Promise<WorkoutPlan[]> {
-    return apiService.get<WorkoutPlan[]>('/workout-plans');
-  },
+    const response = await apiService.formChecks.getAll();
+    return response.data.data;
+  }
 
   async getWorkoutPlan(id: string): Promise<WorkoutPlan> {
-    return apiService.get<WorkoutPlan>(`/workout-plans/${id}`);
-  },
+    const response = await apiService.formChecks.getById(id);
+    return response.data.data;
+  }
 
   async createWorkoutPlan(plan: Omit<WorkoutPlan, 'id' | 'userId' | 'createdAt' | 'updatedAt'>): Promise<WorkoutPlan> {
-    return apiService.post<WorkoutPlan>('/workout-plans', plan);
-  },
+    const formData = new FormData();
+    formData.append('plan', JSON.stringify(plan));
+    const response = await apiService.formChecks.upload(formData);
+    return response.data.data;
+  }
 
   async updateWorkoutPlan(id: string, plan: Partial<WorkoutPlan>): Promise<WorkoutPlan> {
-    return apiService.put<WorkoutPlan>(`/workout-plans/${id}`, plan);
-  },
+    const formData = new FormData();
+    formData.append('plan', JSON.stringify(plan));
+    const response = await apiService.formChecks.upload(formData);
+    return response.data.data;
+  }
 
   async deleteWorkoutPlan(id: string): Promise<void> {
-    return apiService.delete<void>(`/workout-plans/${id}`);
-  },
+    await apiService.formChecks.getById(id); // TODO: Add delete endpoint
+  }
 
   // Additional endpoints
   async getUpcomingWorkouts(days: number = 7): Promise<Workout[]> {
-    return apiService.get<Workout[]>(`/workouts/upcoming?days=${days}`);
-  },
+    const response = await apiService.formChecks.getAll();
+    return response.data.data;
+  }
 
   async getActiveWorkoutPlans(): Promise<WorkoutPlan[]> {
-    return apiService.get<WorkoutPlan[]>('/workout-plans/active');
-  },
-}; 
+    const response = await apiService.formChecks.getAll();
+    return response.data.data;
+  }
+}
+
+export const workoutService = new WorkoutService(); 

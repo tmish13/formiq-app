@@ -1,6 +1,10 @@
 import '@testing-library/jest-dom';
+import { setupServer } from 'msw/node';
+import { handlers } from './handlers';
 import { configure } from '@testing-library/react';
-import { server } from './mocks/server';
+
+// This configures a request mocking server with the given request handlers.
+const server = setupServer(...handlers);
 
 // Establish API mocking before all tests
 beforeAll(() => server.listen());

@@ -12,6 +12,11 @@ export interface AuthState {
   error: string | null;
 }
 
+export interface TokenPayload {
+  token: string;
+  refreshToken: string;
+}
+
 const initialState: AuthState = {
   user: null,
   token: null,
@@ -35,6 +40,10 @@ const authSlice = createSlice({
     setRefreshToken: (state, action: PayloadAction<string | null>) => {
       state.refreshToken = action.payload;
     },
+    setTokens: (state, action: PayloadAction<TokenPayload>) => {
+      state.token = action.payload.token;
+      state.refreshToken = action.payload.refreshToken;
+    },
     setLoading: (state, action: PayloadAction<boolean>) => {
       state.isLoading = action.payload;
     },
@@ -55,6 +64,7 @@ export const {
   setUser,
   setToken,
   setRefreshToken,
+  setTokens,
   setLoading,
   setError,
   logout,

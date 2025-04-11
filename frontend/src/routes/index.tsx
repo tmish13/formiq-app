@@ -4,16 +4,19 @@ import { ProtectedRoute } from '../components/auth/ProtectedRoute';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { Skeleton } from '../components/common/SkeletonLoader';
 import styled from 'styled-components';
+import { Navigation } from '../components/navigation/Navigation';
+import { FormAnalysis } from '../pages/FormAnalysis';
+import { Progress } from '../pages/Progress';
+import Login from '../pages/auth/Login';
+import { RegisterPage } from '../pages/auth/RegisterPage';
+import { DashboardPage } from '../pages/dashboard/DashboardPage';
+import { FormCheckUploadPage } from '../pages/workout/FormCheckUploadPage';
+import { AnalysisPage } from '../pages/analysis/AnalysisPage';
+import { ProfilePage } from '../pages/profile/ProfilePage';
+import { NotFoundPage } from '../pages/NotFoundPage';
 
 // Lazy load components to improve performance
-const LoginPage = lazy(() => import('../pages/auth/LoginPage').then(module => ({ default: module.LoginPage })));
-const RegisterPage = lazy(() => import('../pages/auth/RegisterPage').then(module => ({ default: module.RegisterPage })));
-const DashboardPage = lazy(() => import('../pages/dashboard/DashboardPage').then(module => ({ default: module.DashboardPage })));
-const ProfilePage = lazy(() => import('../pages/profile/ProfilePage').then(module => ({ default: module.ProfilePage })));
 const WorkoutPage = lazy(() => import('../pages/workout/WorkoutPage').then(module => ({ default: module.WorkoutPage })));
-const FormCheckUploadPage = lazy(() => import('../pages/workout/FormCheckUploadPage').then(module => ({ default: module.FormCheckUploadPage })));
-const AnalysisPage = lazy(() => import('../pages/analysis/AnalysisPage').then(module => ({ default: module.AnalysisPage })));
-const NotFoundPage = lazy(() => import('../pages/NotFoundPage').then(module => ({ default: module.NotFoundPage })));
 
 // Enhanced loading component with skeletons for better UX
 const LoaderContainer = styled.div`
@@ -80,88 +83,41 @@ const PageLoader = () => (
 
 export const AppRoutes: React.FC = () => {
   return (
-    <Suspense fallback={<PageLoader />}>
-      <Routes>
-        {/* Public routes */}
-        <Route
-          path="/login"
-          element={
-            <ProtectedRoute requireAuth={false}>
-              <LoginPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/register"
-          element={
-            <ProtectedRoute requireAuth={false}>
-              <RegisterPage />
-            </ProtectedRoute>
-          }
-        />
-
-        {/* Protected routes */}
-        <Route
-          path="/dashboard"
-          element={
-            <ProtectedRoute>
-              <DashboardPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/profile"
-          element={
-            <ProtectedRoute>
-              <ProfilePage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/workout"
-          element={
-            <ProtectedRoute>
-              <WorkoutPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/workout/form-check/upload"
-          element={
-            <ProtectedRoute>
-              <FormCheckUploadPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/analysis"
-          element={
-            <ProtectedRoute>
-              <AnalysisPage />
-            </ProtectedRoute>
-          }
-        />
-
-        {/* Admin routes */}
-        <Route
-          path="/admin/*"
-          element={
-            <ProtectedRoute roles={['admin']}>
-              <AdminRoutes />
-            </ProtectedRoute>
-          }
-        />
-
-        {/* 404 page */}
-        <Route path="/404" element={<NotFoundPage />} />
-
-        {/* Redirect root to dashboard */}
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-
-        {/* Catch all route */}
-        <Route path="*" element={<Navigate to="/404" replace />} />
-      </Routes>
-    </Suspense>
+    <>
+      <Navigation />
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          {/* Public routes */}
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<RegisterPage />} />
+          
+          {/* Protected routes */}
+          <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+          <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+          <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+          <Route path="/form-analysis" element={<ProtectedRoute><FormAnalysis /></ProtectedRoute>} />
+          <Route path="/progress" element={<ProtectedRoute><Progress /></ProtectedRoute>} />
+          <Route path="/workout/form-check/upload" element={<ProtectedRoute><FormCheckUploadPage /></ProtectedRoute>} />
+          <Route path="/analysis" element={<ProtectedRoute><AnalysisPage /></ProtectedRoute>} />
+          
+          {/* Admin routes */}
+          <Route
+            path="/admin/*"
+            element={
+              <ProtectedRoute roles={['admin']}>
+                <AdminRoutes />
+              </ProtectedRoute>
+            }
+          />
+          
+          {/* 404 page */}
+          <Route path="/404" element={<NotFoundPage />} />
+          
+          {/* Catch all route */}
+          <Route path="*" element={<Navigate to="/404" replace />} />
+        </Routes>
+      </Suspense>
+    </>
   );
 };
 

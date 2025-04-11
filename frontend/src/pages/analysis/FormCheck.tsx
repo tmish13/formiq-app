@@ -18,7 +18,7 @@ const FormCheck: React.FC = () => {
     event.preventDefault();
     if (video) {
       try {
-        await submitFormCheck(video, 'squat', notes);
+        await submitFormCheck(video, 'squat', undefined);
         setVideo(null);
         setNotes('');
       } catch (err) {

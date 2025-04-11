@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
+import { getThemeValue, fallbacks } from '../../utils/themeUtils';
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
@@ -11,62 +12,55 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   variant?: 'outlined' | 'filled';
 }
 
-const InputWrapper = styled.div<{ fullWidth?: boolean }>`
+const InputWrapper = styled.div<{ fullWidth: boolean }>`
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  margin-bottom: 1rem;
   width: ${({ fullWidth }) => (fullWidth ? '100%' : 'auto')};
-  position: relative;
-  text-align: left;
 `;
 
 const Label = styled.label`
-  font-size: ${({ theme }) => theme.typography.fontSize.sm};
-  font-weight: ${({ theme }) => theme.typography.fontWeight.medium};
-  color: ${({ theme }) => theme.colors.text};
-  transition: all 0.2s ease;
-  margin-bottom: 4px;
-`;
-
-const IconWrapper = styled.div`
-  position: absolute;
-  top: 50%;
-  left: 0.75rem;
-  transform: translateY(-50%);
-  color: ${({ theme }) => theme.colors.textSecondary};
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-  z-index: 1;
-`;
-
-const EndIconWrapper = styled.div`
-  position: absolute;
-  top: 50%;
-  right: 0.75rem;
-  transform: translateY(-50%);
-  color: ${({ theme }) => theme.colors.textSecondary};
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1;
+  font-size: ${({ theme }) => getThemeValue(theme, 'typography.fontSize.small', '0.875rem')};
+  color: ${({ theme }) => getThemeValue(theme, 'colors.text', fallbacks.colors.text)};
+  margin-bottom: 0.5rem;
+  font-weight: ${({ theme }) => getThemeValue(theme, 'typography.fontWeight.medium', '500')};
 `;
 
 const InputContainer = styled.div`
   position: relative;
+  display: flex;
+  align-items: center;
   width: 100%;
+`;
+
+const IconWrapper = styled.div`
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: ${({ theme }) => getThemeValue(theme, 'colors.textSecondary', fallbacks.colors.textSecondary)};
   display: flex;
   align-items: center;
   justify-content: center;
 `;
 
-const StyledInput = styled.input<{ 
-  hasError?: boolean; 
-  hasIcon?: boolean; 
-  hasEndIcon?: boolean;
-  variant?: 'outlined' | 'filled';
-  isFocused?: boolean;
+const EndIconWrapper = styled.div`
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: ${({ theme }) => getThemeValue(theme, 'colors.textSecondary', fallbacks.colors.textSecondary)};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+`;
+
+const StyledInput = styled.input<{
+  hasError: boolean;
+  hasIcon: boolean;
+  hasEndIcon: boolean;
+  variant: 'outlined' | 'filled';
+  isFocused: boolean;
 }>`
   padding: ${({ hasIcon, hasEndIcon }) => {
     if (hasIcon && hasEndIcon) return '0.75rem 2.5rem';
@@ -74,17 +68,19 @@ const StyledInput = styled.input<{
     if (hasEndIcon) return '0.75rem 2.5rem 0.75rem 0.75rem';
     return '0.75rem 1rem';
   }};
-  border-radius: ${({ theme }) => theme.borderRadius.md};
+  border-radius: ${({ theme }) => getThemeValue(theme, 'borderRadius.md', '0.5rem')};
   border: 1px solid ${({ theme, hasError, isFocused }) => 
     hasError 
-      ? theme.colors.error 
+      ? getThemeValue(theme, 'colors.error', fallbacks.colors.error) 
       : isFocused 
-        ? theme.colors.primary 
-        : theme.colors.border};
+        ? getThemeValue(theme, 'colors.primary', fallbacks.colors.primary) 
+        : getThemeValue(theme, 'colors.border', fallbacks.colors.border)};
   background-color: ${({ theme, variant }) => 
-    variant === 'filled' ? `${theme.colors.border}40` : theme.colors.white};
-  font-size: ${({ theme }) => theme.typography.fontSize.base};
-  color: ${({ theme }) => theme.colors.text};
+    variant === 'filled' 
+      ? `${getThemeValue(theme, 'colors.border', fallbacks.colors.border)}40` 
+      : getThemeValue(theme, 'colors.white', fallbacks.colors.white)};
+  font-size: ${({ theme }) => getThemeValue(theme, 'typography.fontSize.medium', '1rem')};
+  color: ${({ theme }) => getThemeValue(theme, 'colors.text', fallbacks.colors.text)};
   transition: all 0.2s ease;
   width: 100%;
   height: 44px;
@@ -93,46 +89,50 @@ const StyledInput = styled.input<{
   &:focus {
     outline: none;
     border-color: ${({ theme, hasError }) => 
-      hasError ? theme.colors.error : theme.colors.primary};
+      hasError 
+        ? getThemeValue(theme, 'colors.error', fallbacks.colors.error) 
+        : getThemeValue(theme, 'colors.primary', fallbacks.colors.primary)};
     box-shadow: 0 0 0 3px ${({ theme, hasError }) => 
       hasError 
-        ? `${theme.colors.error}30` 
-        : `${theme.colors.primary}30`};
+        ? `${getThemeValue(theme, 'colors.error', fallbacks.colors.error)}30` 
+        : `${getThemeValue(theme, 'colors.primary', fallbacks.colors.primary)}30`};
     background-color: ${({ theme, variant }) => 
-      variant === 'filled' ? `${theme.colors.border}20` : theme.colors.white};
+      variant === 'filled' 
+        ? `${getThemeValue(theme, 'colors.border', fallbacks.colors.border)}20` 
+        : getThemeValue(theme, 'colors.white', fallbacks.colors.white)};
   }
   
   &:hover:not(:disabled) {
     border-color: ${({ theme, hasError, isFocused }) => 
       hasError 
-        ? theme.colors.error 
+        ? getThemeValue(theme, 'colors.error', fallbacks.colors.error) 
         : isFocused 
-          ? theme.colors.primary 
-          : theme.colors.textSecondary};
+          ? getThemeValue(theme, 'colors.primary', fallbacks.colors.primary) 
+          : getThemeValue(theme, 'colors.textSecondary', fallbacks.colors.textSecondary)};
   }
   
   &:disabled {
-    background-color: ${({ theme }) => theme.colors.disabled};
+    background-color: ${({ theme }) => getThemeValue(theme, 'colors.disabled', fallbacks.colors.disabled)};
     cursor: not-allowed;
     opacity: 0.7;
   }
   
   &::placeholder {
-    color: ${({ theme }) => theme.colors.textSecondary};
+    color: ${({ theme }) => getThemeValue(theme, 'colors.textSecondary', fallbacks.colors.textSecondary)};
     opacity: 0.7;
   }
 `;
 
 const ErrorText = styled.span`
-  color: ${({ theme }) => theme.colors.error};
-  font-size: ${({ theme }) => theme.typography.fontSize.xs};
+  color: ${({ theme }) => getThemeValue(theme, 'colors.error', fallbacks.colors.error)};
+  font-size: ${({ theme }) => getThemeValue(theme, 'typography.fontSize.small', '0.875rem')};
   margin-top: 0.25rem;
   text-align: left;
 `;
 
 const HelperText = styled.span`
-  color: ${({ theme }) => theme.colors.textSecondary};
-  font-size: ${({ theme }) => theme.typography.fontSize.xs};
+  color: ${({ theme }) => getThemeValue(theme, 'colors.textSecondary', fallbacks.colors.textSecondary)};
+  font-size: ${({ theme }) => getThemeValue(theme, 'typography.fontSize.small', '0.875rem')};
   margin-top: 0.25rem;
   text-align: left;
 `;
