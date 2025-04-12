@@ -4,181 +4,93 @@ import psutil
 import time
 import platform
 from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Response
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 import redis
 import gc
 import tracemalloc
 import json
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST, Counter, Gauge
 
 from app.core.deps import get_db
 from app.core.config import settings
-from app.core.logging import logger
+from app.core.logging import logger, get_logger
 from app.core.database import get_db_stats
 from app.core.cache import cache_service
 from app.utils.system import get_memory_usage, get_cpu_usage
+from app.core.rate_limit import rate_limit
+from app.services.health import HealthService
 
 # Create router
-router = APIRouter()
+router = APIRouter(prefix="/health", tags=["health"])
 
 # In-memory storage for memory snapshots
 _memory_snapshots = []
 _memory_snapshot_interval = 15  # minutes
 
-@router.get("/", response_model=Dict[str, Any])
-async def health_check(db: Session = Depends(get_db)) -> Dict[str, Any]:
-    """
-    Perform a comprehensive health check of all system components.
-    
-    This endpoint checks the health of the database, cache, storage,
-    and other dependencies, and returns a status report.
-    
-    Returns:
-        Health status report
-    """
-    start_time = time.time()
-    
-    health_data = {
-        "status": "ok",
-        "timestamp": datetime.now().isoformat(),
-        "environment": settings.ENVIRONMENT,
-        "version": settings.VERSION,
-        "services": {},
-        "system": {}
+# Prometheus metrics for rate limiting
+RATE_LIMIT_EXCEEDED = Counter(
+    'rate_limit_exceeded_total',
+    'Total number of rate limit exceeded events',
+    ['endpoint']
+)
+
+RATE_LIMIT_CURRENT = Gauge(
+    'rate_limit_current',
+    'Current number of requests within rate limit window',
+    ['endpoint']
+)
+
+@router.get(
+    "",
+    response_model=Dict[str, Any],
+    responses={
+        200: {
+            "description": "System health status",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": "healthy",
+                        "version": "1.0.0",
+                        "database": "connected",
+                        "redis": "connected",
+                        "storage": "connected"
+                    }
+                }
+            }
+        },
+        503: {
+            "description": "System unhealthy",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": "unhealthy",
+                        "database": "error: connection failed",
+                        "redis": "connected",
+                        "storage": "connected"
+                    }
+                }
+            }
+        }
     }
+)
+@rate_limit(limit=60, window=60)  # 60 requests per minute
+async def health_check() -> Dict[str, Any]:
+    """
+    Check system health status.
     
-    # Check database
-    try:
-        result = db.execute(text("SELECT 1")).scalar()
-        health_data["services"]["database"] = {
-            "status": "up" if result == 1 else "down",
-            "message": "Database connection successful" if result == 1 else "Database connection failed"
-        }
-    except Exception as e:
-        logger.error(f"Database health check failed: {str(e)}")
-        health_data["services"]["database"] = {
-            "status": "down",
-            "error": str(e)
-        }
-        health_data["status"] = "error"
+    Returns status of:
+    * API service
+    * Database connection
+    * Redis connection
+    * Storage service
+    * Current version
     
-    # Check Redis cache
-    try:
-        if cache_service.available:
-            redis_ping = await cache_service.ping()
-            health_data["services"]["cache"] = {
-                "status": "up" if redis_ping else "down",
-                "message": "Redis connection successful" if redis_ping else "Redis connection failed"
-            }
-        else:
-            health_data["services"]["cache"] = {
-                "status": "unavailable",
-                "message": "Redis not configured"
-            }
-            # Don't mark as error if Redis is intentionally disabled
-            if settings.ENVIRONMENT == "production":
-                health_data["status"] = "degraded"
-                health_data["warnings"] = health_data.get("warnings", []) + ["Redis cache not available in production"]
-    except Exception as e:
-        logger.error(f"Redis health check failed: {str(e)}")
-        health_data["services"]["cache"] = {
-            "status": "down",
-            "error": str(e)
-        }
-        health_data["status"] = "degraded"
-    
-    # Check storage
-    if settings.STORAGE_TYPE == "s3":
-        try:
-            # Only import if needed
-            from app.core.storage.s3 import check_s3_connection
-            
-            s3_status = await check_s3_connection()
-            health_data["services"]["storage"] = {
-                "status": "up" if s3_status else "down",
-                "type": "s3",
-                "bucket": settings.S3_BUCKET_NAME
-            }
-            
-            if not s3_status:
-                health_data["status"] = "error"
-        except Exception as e:
-            logger.error(f"S3 storage health check failed: {str(e)}")
-            health_data["services"]["storage"] = {
-                "status": "down",
-                "type": "s3",
-                "error": str(e)
-            }
-            health_data["status"] = "error"
-    else:
-        # Check local upload directory
-        upload_dir = settings.UPLOAD_DIR
-        try:
-            if not os.path.exists(upload_dir):
-                os.makedirs(upload_dir, exist_ok=True)
-                logger.info(f"Created upload directory: {upload_dir}")
-                
-            # Get free space in upload directory
-            upload_disk = psutil.disk_usage(os.path.abspath(upload_dir))
-            health_data["services"]["storage"] = {
-                "status": "up",
-                "type": "local",
-                "path": upload_dir,
-                "free_gb": round(upload_disk.free / (1024 * 1024 * 1024), 2),
-                "used_percent": upload_disk.percent
-            }
-            
-            # Warning if disk space low
-            if upload_disk.percent > 85:
-                health_data["status"] = "degraded"
-                health_data["warnings"] = health_data.get("warnings", []) + [
-                    f"Storage disk space low: {upload_disk.percent}% used"
-                ]
-        except Exception as e:
-            logger.error(f"Storage health check failed: {str(e)}")
-            health_data["services"]["storage"] = {
-                "status": "down",
-                "type": "local",
-                "error": str(e)
-            }
-            health_data["status"] = "degraded"
-    
-    # System metrics
-    try:
-        process = psutil.Process(os.getpid())
-        
-        # System info
-        health_data["system"] = {
-            "hostname": platform.node(),
-            "platform": platform.system(),
-            "platform_version": platform.version(),
-            "architecture": platform.machine(),
-            "python_version": platform.python_version(),
-            "process_id": os.getpid(),
-            "process_uptime_seconds": time.time() - process.create_time(),
-            "cpu": {
-                "usage_percent": get_cpu_usage(process),
-                "cores": psutil.cpu_count(logical=True)
-            },
-            "memory": get_memory_usage(process)
-        }
-        
-        # Set degraded status if memory usage is too high
-        if health_data["system"]["memory"]["percent"] > 85:
-            health_data["status"] = "degraded"
-            health_data["warnings"] = health_data.get("warnings", []) + [
-                f"Process memory usage critical: {health_data['system']['memory']['percent']}%"
-            ]
-            
-    except Exception as e:
-        logger.error(f"System metrics collection failed: {str(e)}")
-        health_data["system"] = {"error": str(e)}
-    
-    # Response time
-    health_data["response_time_ms"] = round((time.time() - start_time) * 1000, 2)
-    
-    return health_data
+    Rate limit: 60 requests per minute
+    """
+    health_service = HealthService()
+    return await health_service.check_health()
 
 @router.get("/db", response_model=Dict[str, Any])
 async def db_health_check(db: Session = Depends(get_db)) -> Dict[str, Any]:
@@ -353,32 +265,94 @@ async def logs_status() -> Dict[str, Any]:
             "error": str(e)
         }
 
-@router.get("/rate-limits", response_model=Dict[str, Any])
-async def rate_limit_status() -> Dict[str, Any]:
-    """
-    Get current rate limit status.
-    
-    Returns:
-        Current rate limit configuration and status
-    """
-    return {
-        "status": "ok",
-        "enabled": getattr(settings, "RATE_LIMIT_ENABLED", False),
-        "storage": getattr(settings, "RATE_LIMIT_STORAGE", "memory"),
-        "rate_limits": {
-            "default": {
-                "limit": getattr(settings, "RATE_LIMIT_REQUESTS", 60),
-                "window_seconds": getattr(settings, "RATE_LIMIT_WINDOW", 60),
-                "burst": getattr(settings, "RATE_LIMIT_BURST", 120)
-            },
-            "endpoints": {
-                "/api/v1/auth/login": {"rate": 5, "period": 60},
-                "/api/v1/auth/register": {"rate": 3, "period": 300},
-                "/api/v1/auth/reset-password": {"rate": 3, "period": 300},
-                "/api/v1/uploads/*": {"rate": 10, "period": 60}
+@router.get(
+    "/rate-limits",
+    response_model=Dict[str, Any],
+    responses={
+        200: {
+            "description": "Rate limit status and metrics",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": "healthy",
+                        "rate_limits": {
+                            "auth": {
+                                "limit": 5,
+                                "window": 60,
+                                "current_usage": 2
+                            },
+                            "form_analysis": {
+                                "limit": 10,
+                                "window": 120,
+                                "current_usage": 5
+                            }
+                        },
+                        "exceeded_count": {
+                            "total": 150,
+                            "last_hour": 5
+                        }
+                    }
+                }
             }
         }
     }
+)
+@rate_limit(limit=30, window=60)  # 30 requests per minute
+async def rate_limit_status() -> Dict[str, Any]:
+    """
+    Get rate limiting status and metrics.
+    
+    Returns:
+    * Current rate limit configuration
+    * Usage metrics per endpoint
+    * Rate limit exceeded events
+    * Historical data
+    
+    Rate limit: 30 requests per minute
+    """
+    health_service = HealthService()
+    return await health_service.get_rate_limit_metrics()
+
+@router.get(
+    "/metrics",
+    response_model=Dict[str, Any],
+    responses={
+        200: {
+            "description": "Prometheus metrics",
+            "content": {
+                "text/plain": {
+                    "example": """
+                    # HELP rate_limit_exceeded_total Total number of rate limit exceeded events
+                    # TYPE rate_limit_exceeded_total counter
+                    rate_limit_exceeded_total{endpoint="auth"} 150
+                    rate_limit_exceeded_total{endpoint="form_analysis"} 75
+                    
+                    # HELP rate_limit_current Current number of requests within rate limit window
+                    # TYPE rate_limit_current gauge
+                    rate_limit_current{endpoint="auth"} 2
+                    rate_limit_current{endpoint="form_analysis"} 5
+                    """
+                }
+            }
+        }
+    }
+)
+@rate_limit(limit=10, window=60)  # 10 requests per minute
+async def prometheus_metrics() -> str:
+    """
+    Get Prometheus metrics.
+    
+    Returns metrics for:
+    * Rate limiting
+    * API usage
+    * System health
+    * Performance indicators
+    
+    Rate limit: 10 requests per minute
+    Format: Prometheus text format
+    """
+    health_service = HealthService()
+    return await health_service.get_prometheus_metrics()
 
 @router.get("/ready", response_model=Dict[str, Any])
 async def readiness_check(db: Session = Depends(get_db)) -> Dict[str, Any]:

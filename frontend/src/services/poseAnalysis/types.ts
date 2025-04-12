@@ -7,19 +7,20 @@ export interface JointAngle {
   joint: string;
   angle: number;
   confidence: number;
+  isCorrect?: boolean;
 }
 
 export interface BodyAlignment {
-  isAligned: boolean;
-  deviation: number;
-  axis: 'vertical' | 'horizontal';
+  vertical: number;
+  lateral: number;
+  core: number;
+  issues: AlignmentIssue[];
 }
 
 export interface AlignmentIssue {
-  joint: string;
-  deviation: number;
-  axis: 'vertical' | 'horizontal';
+  type: 'vertical' | 'lateral' | 'core';
   severity: 'error' | 'warning';
+  description: string;
 }
 
 export interface MovementPathway {

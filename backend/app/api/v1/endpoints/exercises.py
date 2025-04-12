@@ -55,7 +55,7 @@ async def get_exercise(
     exercise_id: str,
     exercise_service: ExerciseService = Depends()
 ):
-    """Get a specific exercise with caching."""
+    """Get a specific exercise by ID with caching."""
     cache_key = f"exercises:detail:{exercise_id}"
     
     # Try to get from cache first
@@ -80,7 +80,7 @@ async def update_exercise(
     exercise: ExerciseUpdate,
     exercise_service: ExerciseService = Depends()
 ):
-    """Update an exercise and invalidate relevant caches."""
+    """Update an existing exercise and invalidate relevant caches."""
     updated_exercise = await exercise_service.update(exercise_id, exercise)
     if not updated_exercise:
         raise HTTPException(status_code=404, detail="Exercise not found")
@@ -106,4 +106,44 @@ async def delete_exercise(
     await cache_service.delete("exercises:list:*")
     await cache_service.delete(f"exercises:detail:{exercise_id}")
     
-    return {"message": "Exercise deleted successfully"} 
+    return {"message": "Exercise deleted successfully"}
+
+
+@router.get("/search/", response_model=List[ExerciseBase])
+async def search_exercises(
+    query: str = Query(..., min_length=1, description="Search query string"),
+    muscle_group: Optional[str] = Query(None, description="Filter by muscle group"),
+    difficulty: Optional[str] = Query(None, description="Filter by difficulty level"),
+    equipment: Optional[str] = Query(None, description="Filter by required equipment"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
+    exercise_service: ExerciseService = Depends()
+):
+    """
+    Search exercises with optional filters.
+    
+    The search looks through exercise names and descriptions.
+    Results can be filtered by muscle group, difficulty level, and required equipment.
+    Results are paginated and cached for performance.
+    """
+    cache_key = f"exercises:search:{query}:{muscle_group}:{difficulty}:{equipment}:{skip}:{limit}"
+    
+    # Try to get from cache first
+    cached_results = await cache_service.get(cache_key)
+    if cached_results:
+        return cached_results
+    
+    # If not in cache, search in database
+    results = await exercise_service.search(
+        query=query,
+        muscle_group=muscle_group,
+        difficulty=difficulty,
+        equipment=equipment,
+        skip=skip,
+        limit=limit
+    )
+    
+    # Cache the results
+    await cache_service.set(cache_key, results, expires_in=1800)  # Cache for 30 minutes
+    
+    return results 

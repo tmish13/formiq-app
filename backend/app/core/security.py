@@ -16,6 +16,8 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from uuid import UUID
 from app.core.validators import validate_password as validate_password_strength
+import uuid
+from fastapi import Request
 
 # Password hashing context with stronger settings
 pwd_context = CryptContext(
@@ -411,4 +413,243 @@ def decode_access_token(token: str) -> dict:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
             headers={"WWW-Authenticate": "Bearer"},
-        ) 
+        )
+
+def create_email_verification_token(email: str) -> str:
+    """Create email verification token.
+    
+    Args:
+        email: Email to create token for
+        
+    Returns:
+        str: JWT token containing email
+    """
+    delta = timedelta(hours=24)  # Token valid for 24 hours
+    now = datetime.utcnow()
+    expires = now + delta
+    
+    to_encode = {
+        "exp": expires,
+        "nbf": now,
+        "sub": email,
+        "type": "email_verification"
+    }
+    
+    encoded_jwt = jwt.encode(
+        to_encode,
+        settings.SECRET_KEY,
+        algorithm=settings.ALGORITHM
+    )
+    
+    return encoded_jwt
+
+def verify_email_token(token: str) -> Optional[str]:
+    """Verify email verification token.
+    
+    Args:
+        token: Token to verify
+        
+    Returns:
+        Optional[str]: Email if token is valid, None otherwise
+    """
+    try:
+        payload = jwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM]
+        )
+        
+        # Check token type
+        if payload.get("type") != "email_verification":
+            return None
+            
+        return payload["sub"]
+    except jwt.JWTError:
+        return None
+
+def create_session_token(user_id: UUID, device_info: Optional[Dict[str, Any]] = None) -> str:
+    """Create a session token.
+    
+    Args:
+        user_id: User ID
+        device_info: Optional device information
+        
+    Returns:
+        str: Session token
+    """
+    now = datetime.utcnow()
+    session_id = str(uuid.uuid4())
+    
+    to_encode = {
+        "exp": now + timedelta(days=settings.SESSION_EXPIRE_DAYS),
+        "nbf": now,
+        "iat": now,
+        "sub": str(user_id),
+        "sid": session_id,
+        "type": "session",
+        "device": device_info or {}
+    }
+    
+    encoded_jwt = jwt.encode(
+        to_encode,
+        settings.SECRET_KEY,
+        algorithm=settings.ALGORITHM
+    )
+    
+    return encoded_jwt
+
+def verify_session_token(token: str) -> Optional[Dict[str, Any]]:
+    """
+    Verify a session token and return the decoded payload.
+    
+    Args:
+        token: The session token to verify
+        
+    Returns:
+        The decoded token payload if valid, None otherwise
+        
+    The payload contains:
+        - user_id: The ID of the user
+        - session_id: The ID of the session
+        - exp: The expiration timestamp
+    """
+    try:
+        payload = jwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=[settings.JWT_ALGORITHM]
+        )
+        
+        # Verify required claims
+        if not all(k in payload for k in ["user_id", "session_id", "exp"]):
+            return None
+            
+        return payload
+    except JWTError:
+        return None
+
+def create_refresh_token(user_id: UUID, session_id: str) -> str:
+    """Create a refresh token.
+    
+    Args:
+        user_id: User ID
+        session_id: Session ID
+        
+    Returns:
+        str: Refresh token
+    """
+    now = datetime.utcnow()
+    
+    to_encode = {
+        "exp": now + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
+        "nbf": now,
+        "iat": now,
+        "sub": str(user_id),
+        "sid": session_id,
+        "type": "refresh"
+    }
+    
+    encoded_jwt = jwt.encode(
+        to_encode,
+        settings.SECRET_KEY,
+        algorithm=settings.ALGORITHM
+    )
+    
+    return encoded_jwt
+
+def verify_refresh_token(token: str) -> Optional[Dict[str, Any]]:
+    """Verify a refresh token.
+    
+    Args:
+        token: Refresh token to verify
+        
+    Returns:
+        Optional[Dict[str, Any]]: Token data if valid, None otherwise
+    """
+    try:
+        payload = jwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM]
+        )
+        
+        # Check token type
+        if payload.get("type") != "refresh":
+            return None
+            
+        return {
+            "user_id": UUID(payload["sub"]),
+            "session_id": payload["sid"],
+            "issued_at": datetime.fromtimestamp(payload["iat"]),
+            "expires_at": datetime.fromtimestamp(payload["exp"])
+        }
+    except (jwt.JWTError, ValueError):
+        return None
+
+def get_device_info(request: Request) -> Dict[str, Any]:
+    """Get device information from request.
+    
+    Args:
+        request: FastAPI request object
+        
+    Returns:
+        Dict[str, Any]: Device information
+    """
+    return {
+        "ip": request.client.host,
+        "user_agent": request.headers.get("user-agent"),
+        "platform": request.headers.get("sec-ch-ua-platform"),
+        "mobile": request.headers.get("sec-ch-ua-mobile"),
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+def create_jwt_token(
+    data: Dict[str, Any],
+    expires_delta: Optional[timedelta] = None
+) -> str:
+    """Create a JWT token."""
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(
+        to_encode,
+        settings.SECRET_KEY,
+        algorithm=settings.ALGORITHM
+    )
+    return encoded_jwt
+
+def create_access_token(
+    data: Dict[str, Any],
+    expires_delta: Optional[timedelta] = None
+) -> str:
+    """Create an access token."""
+    return create_jwt_token(
+        data=data,
+        expires_delta=expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    )
+
+def create_refresh_token(
+    data: Dict[str, Any],
+    expires_delta: Optional[timedelta] = None
+) -> str:
+    """Create a refresh token."""
+    return create_jwt_token(
+        data=data,
+        expires_delta=expires_delta or timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    )
+
+def decode_jwt_token(token: str) -> Dict[str, Any]:
+    """Decode and validate a JWT token."""
+    try:
+        decoded_token = jwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM]
+        )
+        return decoded_token
+    except JWTError as e:
+        raise ValueError(f"Invalid token: {str(e)}") 

@@ -15,6 +15,8 @@ interface AngleResult {
   confidence: number;
 }
 
+type IssueSeverity = 'error' | 'warning';
+
 /**
  * Finds a keypoint by name in the array of keypoints
  */
@@ -290,58 +292,25 @@ function calculateLateralAlignment(keypoints: poseDetection.Keypoint[]): number 
  * Calculates core stability score
  */
 function calculateCoreStability(keypoints: poseDetection.Keypoint[]): number {
-  const hipLeft = keypoints.find(kp => kp.name === 'left_hip');
-  const hipRight = keypoints.find(kp => kp.name === 'right_hip');
-  const shoulderLeft = keypoints.find(kp => kp.name === 'left_shoulder');
-  const shoulderRight = keypoints.find(kp => kp.name === 'right_shoulder');
+  const hipLeftPoint = findKeypoint(keypoints, "left_hip");
+  const hipRightPoint = findKeypoint(keypoints, "right_hip");
+  const shoulderLeftPoint = findKeypoint(keypoints, "left_shoulder");
+  const shoulderRightPoint = findKeypoint(keypoints, "right_shoulder");
 
-  if (!hipLeft?.score || !hipRight?.score || !shoulderLeft?.score || !shoulderRight?.score) {
+  if (!hipLeftPoint || !hipRightPoint || !shoulderLeftPoint || !shoulderRightPoint) {
     return 0;
   }
 
-  // Calculate torso angle
-  const torsoMidpointTop = {
-    x: (shoulderLeft.x + shoulderRight.x) / 2,
-    y: (shoulderLeft.y + shoulderRight.y) / 2
-  };
+  const hipDistance = calculateDistance(hipLeftPoint, hipRightPoint);
+  const shoulderDistance = calculateDistance(shoulderLeftPoint, shoulderRightPoint);
 
-  const torsoMidpointBottom = {
-    x: (hipLeft.x + hipRight.x) / 2,
-    y: (hipLeft.y + hipRight.y) / 2
-  };
-
-  const torsoAngle = Math.abs(Math.atan2(
-    torsoMidpointTop.y - torsoMidpointBottom.y,
-    torsoMidpointTop.x - torsoMidpointBottom.x
-  ) * (180 / Math.PI));
-
-  // Calculate hip stability
-  const hipWidth = calculateDistance(hipLeft, hipRight);
-  const shoulderWidth = calculateDistance(shoulderLeft, shoulderRight);
-  const hipStability = Math.min(hipWidth / shoulderWidth, shoulderWidth / hipWidth);
-
-  // Combine scores
-  const angleScore = Math.max(0, 1 - Math.abs(90 - torsoAngle) / 90);
-  const stabilityScore = Math.max(0, hipStability);
-
-  return (angleScore + stabilityScore) / 2;
+  const ratio = Math.abs(hipDistance - shoulderDistance) / Math.max(hipDistance, shoulderDistance);
+  return Math.max(0, 1 - ratio);
 }
 
 /**
  * Calculates overall confidence score for keypoints
  */
-function calculateConfidenceScore(keypoints: poseDetection.Keypoint[]): number {
-  if (!keypoints.length) return 0;
-  
-  // Calculate average confidence score
-  const totalConfidence = keypoints.reduce((sum, kp) => sum + (kp.score || 0), 0);
-  return totalConfidence / keypoints.length;
-}
-
-export function isMobileDevice(): boolean {
-  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-}
-
 export function calculateConfidenceScore(keypoints: Keypoint[]): number {
   const visibleKeypoints = keypoints.filter(kp => kp.score && kp.score > 0.3);
   if (!visibleKeypoints.length) return 0;
@@ -350,6 +319,10 @@ export function calculateConfidenceScore(keypoints: Keypoint[]): number {
   const coverageScore = visibleKeypoints.length / keypoints.length;
 
   return avgConfidence * coverageScore;
+}
+
+export function isMobileDevice(): boolean {
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 }
 
 export function calculateJointAngles(keypoints: Keypoint[]): JointAngle[] {
@@ -535,6 +508,11 @@ function calculateSmoothness(velocity: number, acceleration: number, jerk: numbe
   const jerkScore = 1 - (jerk / maxJerk);
 
   return (velocityScore + accelerationScore + jerkScore) / 3;
+}
+
+function calculateSeverity(value: number, target: number, tolerance: number): IssueSeverity {
+  const diff = Math.abs(value - target);
+  return diff > tolerance ? 'error' : 'warning';
 }
 
 export {

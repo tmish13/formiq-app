@@ -1,0 +1,30 @@
+# Testing
+pytest==7.4.0
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+pytest-timeout==2.2.0
+pytest-mock==3.11.1
+pytest-xdist==3.3.1
+pytest-rerunfailures==12.0
+coverage==7.3.2
+
+# Linting and formatting
+black==23.7.0
+isort==5.12.0
+flake8==6.1.0
+mypy==1.5.1
+
+# Type checking
+types-all==1.0.0
+types-requests==2.31.0.10
+types-PyYAML==6.0.12.12
+
+# Documentation
+mkdocs==1.5.3
+mkdocs-material==9.2.8
+mkdocstrings==0.22.0
+
+# Development tools
+ipython==8.14.0
+ipdb==0.13.13
+watchdog==3.0.0 

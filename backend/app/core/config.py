@@ -32,6 +32,7 @@ import base64
 from datetime import datetime, timedelta
 import secrets
 import logging
+import json
 
 # Load environment variables
 def load_environment():
@@ -495,6 +496,126 @@ class Settings(BaseSettings):
         description="Number of backup log files to keep"
     )
 
+    # Application
+    PROJECT_NAME: str = "FormIQ API"
+    VERSION: str = "1.0.0"
+    API_V1_STR: str = "/api/v1"
+    ENVIRONMENT: str = "development"
+    DEBUG: bool = True
+    
+    # Security
+    SECRET_KEY: str = secrets.token_urlsafe(32)
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60  # 1 hour
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 30  # 30 days
+    SESSION_EXPIRE_DAYS: int = 7  # 7 days
+    PASSWORD_RESET_TOKEN_EXPIRE_HOURS: int = 24  # 24 hours
+    EMAIL_VERIFICATION_TOKEN_EXPIRE_HOURS: int = 24  # 24 hours
+    
+    # Rate Limiting
+    RATE_LIMIT_REQUESTS: int = 60  # Default requests per window
+    RATE_LIMIT_WINDOW: int = 60  # Default window in seconds
+    RATE_LIMIT_BURST: int = 100  # Default burst limit
+    
+    # Session Management
+    MAX_FAILED_LOGIN_ATTEMPTS: int = 5  # Max failed attempts before lockout
+    ACCOUNT_LOCKOUT_MINUTES: int = 15  # Lockout duration after max failed attempts
+    MAX_SESSIONS_PER_USER: int = 5  # Maximum concurrent sessions per user
+    SESSION_REFRESH_GRACE_PERIOD: int = 300  # 5 minutes grace period for refresh
+    
+    # Frontend
+    FRONTEND_URL: str = "http://localhost:3000"
+    
+    # Email
+    SMTP_TLS: bool = True
+    SMTP_PORT: Optional[int] = None
+    SMTP_HOST: Optional[str] = None
+    SMTP_USER: Optional[str] = None
+    SMTP_PASSWORD: Optional[str] = None
+    EMAILS_FROM_EMAIL: Optional[str] = None
+    EMAILS_FROM_NAME: Optional[str] = None
+    EMAIL_TEMPLATES_DIR: str = "app/email-templates"
+    
+    # Database
+    POSTGRES_SERVER: str = "localhost"
+    POSTGRES_USER: str = "postgres"
+    POSTGRES_PASSWORD: str = "postgres"
+    POSTGRES_DB: str = "formiq"
+    SQLALCHEMY_DATABASE_URI: Optional[str] = None
+    
+    # Redis
+    REDIS_HOST: str = "localhost"
+    REDIS_PORT: int = 6379
+    REDIS_PASSWORD: Optional[str] = None
+    REDIS_DB: int = 0
+    
+    # Storage
+    STORAGE_TYPE: str = "local"  # "local" or "s3"
+    UPLOAD_DIR: str = "uploads"
+    S3_BUCKET_NAME: Optional[str] = None
+    AWS_ACCESS_KEY_ID: Optional[str] = None
+    AWS_SECRET_ACCESS_KEY: Optional[str] = None
+    AWS_REGION: Optional[str] = None
+    
+    # Admin
+    ADMIN_EMAIL: str = "admin@formiq.com"
+    ADMIN_PASSWORD: str = "admin"
+    ADMIN_REGISTRATION_CODE: str = "admin123"  # For initial admin setup
+
+    # Video processing settings
+    VIDEO_FRAME_RATE: int = int(os.getenv("VIDEO_FRAME_RATE", "30"))
+    MAX_VIDEO_FRAMES: int = int(os.getenv("MAX_VIDEO_FRAMES", "300"))
+    MAX_VIDEO_SIZE_MB: int = int(os.getenv("MAX_VIDEO_SIZE_MB", "100"))
+    MAX_VIDEO_DURATION: int = int(os.getenv("MAX_VIDEO_DURATION", "60"))
+    SUPPORTED_VIDEO_FORMATS: List[str] = ["mp4", "mov", "webm"]
+    
+    # Form analysis settings
+    MIN_CONFIDENCE_THRESHOLD: float = float(os.getenv("MIN_CONFIDENCE_THRESHOLD", "0.7"))
+    POSE_DETECTION_MODEL: str = os.getenv("POSE_DETECTION_MODEL", "movenet")  # movenet, mediapipe
+    EXERCISE_CONFIGS: Dict[str, Any] = {
+        "squat": {
+            "key_points": ["hip", "knee", "ankle"],
+            "target_angles": {"knee": 90, "hip": 90},
+            "angle_tolerances": {"knee": 15, "hip": 15},
+            "depth_threshold": 0.7
+        },
+        "pushup": {
+            "key_points": ["shoulder", "elbow", "wrist"],
+            "target_angles": {"elbow": 90},
+            "angle_tolerances": {"elbow": 15},
+            "body_alignment_threshold": 0.1
+        },
+        "plank": {
+            "key_points": ["shoulder", "hip", "ankle"],
+            "target_angles": {"shoulder": 180, "hip": 180},
+            "angle_tolerances": {"shoulder": 15, "hip": 15},
+            "sag_threshold": 0.1
+        }
+    }
+    
+    # WebSocket settings
+    WS_PING_INTERVAL: int = int(os.getenv("WS_PING_INTERVAL", "30"))  # seconds
+    WS_PING_TIMEOUT: int = int(os.getenv("WS_PING_TIMEOUT", "10"))  # seconds
+    WS_MAX_CONNECTIONS: int = int(os.getenv("WS_MAX_CONNECTIONS", "1000"))
+    WS_MAX_KEEPALIVE: int = int(os.getenv("WS_MAX_KEEPALIVE", "300"))  # seconds
+    
+    # CORS settings
+    CORS_ORIGINS: List[str] = json.loads(
+        os.getenv("CORS_ORIGINS", '["http://localhost:3000"]')
+    )
+    
+    # Rate limiting settings
+    RATE_LIMIT_DEFAULT_LIMIT: int = 100
+    RATE_LIMIT_DEFAULT_WINDOW: int = 60
+    
+    # Cache settings
+    CACHE_TTL: int = 3600  # 1 hour
+    CACHE_PREFIX: str = "formiq:"
+    
+    # Monitoring settings
+    ENABLE_METRICS: bool = True
+    METRICS_PREFIX: str = "formiq_"
+    
     model_config = SettingsConfigDict(
         case_sensitive=True,
         env_file=".env",

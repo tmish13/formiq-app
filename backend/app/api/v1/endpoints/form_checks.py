@@ -27,8 +27,138 @@ from app.core.logging import logger
 from app.core.validators import validate_video_file, ValidationException
 from app.core.config import settings
 from app.services.storage import StorageService
+from app.core.rate_limit import rate_limit
 
 router = APIRouter()
+
+@router.post("/", response_model=FormCheckResponse, status_code=status.HTTP_201_CREATED)
+@rate_limit(limit=20, window=60)  # 20 requests per minute
+async def create_form_check(
+    *,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
+    form_check_data: FormCheckCreate = Body(...),
+    _: SubscriptionTier = Depends(check_subscription_tier)
+) -> FormCheckResponse:
+    """
+    Create a new form check submission.
+    
+    This endpoint allows users to submit a new form check with video URL and metadata.
+    The user must have an active subscription to use this endpoint.
+    
+    Rate limited to 20 requests per minute per user.
+    """
+    try:
+        form_check_service = FormCheckService(db)
+        
+        # Create the form check
+        form_check = await form_check_service.create_form_check(
+            user_id=current_user.id,
+            form_check_data=form_check_data
+        )
+        
+        return form_check
+    except ValidationException as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error("Error creating form check", exc_info=e)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+@router.put("/{form_check_id}", response_model=FormCheckResponse)
+@rate_limit(limit=30, window=60)  # 30 requests per minute
+async def update_form_check(
+    *,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
+    form_check_id: str,
+    form_check_data: FormCheckUpdate = Body(...)
+) -> FormCheckResponse:
+    """
+    Update an existing form check.
+    
+    This endpoint allows users to update their form check metadata.
+    Users can only update their own form checks.
+    
+    Rate limited to 30 requests per minute per user.
+    """
+    try:
+        # Validate access
+        await validate_form_check_access(form_check_id, db, current_user)
+        
+        form_check_service = FormCheckService(db)
+        
+        # Update the form check
+        updated_form_check = await form_check_service.update_form_check(
+            form_check_id=form_check_id,
+            user_id=current_user.id,
+            form_check_data=form_check_data
+        )
+        
+        return updated_form_check
+    except ValidationException as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error("Error updating form check", exc_info=e)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+@router.get("/user/{user_id}", response_model=List[FormCheckResponse])
+@rate_limit(limit=60, window=60)  # 60 requests per minute
+async def get_user_form_checks(
+    *,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
+    user_id: str,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
+    status: Optional[FormCheckStatus] = None,
+    exercise_type: Optional[ExerciseType] = None
+) -> List[FormCheckResponse]:
+    """
+    Get all form checks for a specific user.
+    
+    This endpoint allows users to view their own form checks or admin users to view any user's form checks.
+    Results can be filtered by status and exercise type.
+    
+    Rate limited to 60 requests per minute.
+    """
+    try:
+        # Only allow users to view their own form checks unless they're admin
+        if user_id != str(current_user.id) and not current_user.is_superuser:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to view other users' form checks"
+            )
+        
+        form_check_service = FormCheckService(db)
+        
+        # Get form checks with filters
+        form_checks = await form_check_service.get_user_form_checks(
+            user_id=user_id,
+            skip=skip,
+            limit=limit,
+            status=status,
+            exercise_type=exercise_type
+        )
+        
+        return form_checks
+    except Exception as e:
+        logger.error("Error getting user form checks", exc_info=e)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
 
 @router.post("/", response_model=FormCheckResponse, status_code=status.HTTP_201_CREATED)
 async def submit_form_check(
@@ -90,6 +220,7 @@ async def submit_form_check(
         )
 
 @router.get("/", response_model=List[FormCheckResponse])
+@rate_limit(limit=60, window=60)  # 60 requests per minute
 async def get_form_checks(
     *,
     db: Session = Depends(get_db),
@@ -99,7 +230,12 @@ async def get_form_checks(
     page: int = Query(1, gt=0),
     per_page: int = Query(10, gt=0, le=100)
 ) -> List[FormCheckResponse]:
-    """Get user's form checks with optional filtering."""
+    """
+    Get user's form checks with optional filtering.
+    
+    This endpoint is rate limited to:
+    - 60 requests per minute
+    """
     try:
         form_check_service = FormCheckService(db)
         return await form_check_service.get_user_form_checks(
@@ -117,13 +253,19 @@ async def get_form_checks(
         )
 
 @router.get("/{form_check_id}", response_model=FormCheckResponse)
+@rate_limit(limit=60, window=60)  # 60 requests per minute
 async def get_form_check(
     *,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user),
     form_check_id: str
 ) -> FormCheckResponse:
-    """Get a specific form check."""
+    """
+    Get a specific form check.
+    
+    This endpoint is rate limited to:
+    - 60 requests per minute
+    """
     await validate_form_check_access(form_check_id, db, current_user)
     
     try:
@@ -337,13 +479,20 @@ async def get_presigned_upload_url(
         )
 
 @router.post("/with-url", response_model=FormCheckResponse, status_code=status.HTTP_201_CREATED)
+@rate_limit(limit=20, window=60, burst=40)  # 20 requests per minute, burst of 40
 async def submit_form_check_with_url(
     *,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user),
     data: Dict[str, Any] = Body(...)
 ) -> FormCheckResponse:
-    """Submit a form check using an already uploaded video URL."""
+    """
+    Submit a form check using an already uploaded video URL.
+    
+    This endpoint is rate limited to:
+    - 20 requests per minute
+    - Burst limit of 40 requests
+    """
     # Check subscription tier
     await check_subscription_tier(SubscriptionTier.BASIC, db, current_user)
     

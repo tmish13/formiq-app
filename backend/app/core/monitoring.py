@@ -1,4 +1,4 @@
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from prometheus_client import Counter, Histogram, Gauge, Summary
 from prometheus_fastapi_instrumentator import Instrumentator
 from prometheus_client import REGISTRY, PROCESS_COLLECTOR, PLATFORM_COLLECTOR
@@ -131,6 +131,146 @@ error_details = Counter(
     ["service", "endpoint", "error_type", "error_code"]
 )
 
+# Authentication metrics
+AUTH_FAILED_LOGINS = Counter(
+    'auth_failed_login_attempts_total',
+    'Total number of failed login attempts',
+    ['user_email', 'ip_address']
+)
+
+AUTH_PASSWORD_RESETS = Counter(
+    'auth_password_reset_requests_total',
+    'Total number of password reset requests',
+    ['user_email', 'status']
+)
+
+AUTH_EMAIL_VERIFICATIONS = Counter(
+    'auth_email_verification_attempts_total',
+    'Total number of email verification attempts',
+    ['user_email', 'status']
+)
+
+# Session metrics
+SESSION_DURATION = Histogram(
+    'auth_session_duration_seconds',
+    'Duration of user sessions',
+    ['user_id'],
+    buckets=(300, 900, 1800, 3600, 7200, 14400, 28800, 86400)  # 5m, 15m, 30m, 1h, 2h, 4h, 8h, 24h
+)
+
+ACTIVE_SESSIONS = Gauge(
+    'auth_active_sessions',
+    'Number of currently active sessions',
+    ['user_id']
+)
+
+# Rate limiting metrics
+RATE_LIMIT_HITS = Counter(
+    'auth_rate_limit_hits_total',
+    'Total number of rate limit hits',
+    ['endpoint', 'ip_address']
+)
+
+# Video processing metrics
+VIDEO_PROCESSING_DURATION = Histogram(
+    'video_processing_duration_seconds',
+    'Duration of video processing',
+    ['exercise_type'],
+    buckets=[1.0, 5.0, 10.0, 30.0, 60.0]
+)
+
+VIDEO_FRAME_COUNT = Histogram(
+    'video_frame_count',
+    'Number of frames processed per video',
+    ['exercise_type'],
+    buckets=[10, 30, 60, 120, 300]
+)
+
+VIDEO_PROCESSING_ERRORS = Counter(
+    'video_processing_errors_total',
+    'Total number of video processing errors',
+    ['error_type']
+)
+
+VIDEO_UPLOAD_SIZE = Histogram(
+    'video_upload_size_bytes',
+    'Size of uploaded videos in bytes',
+    ['exercise_type'],
+    buckets=(1e6, 5e6, 10e6, 50e6, 100e6)  # 1MB, 5MB, 10MB, 50MB, 100MB
+)
+
+# ML model metrics
+MODEL_INFERENCE_ERRORS = Counter(
+    'model_inference_errors_total',
+    'Total number of ML model inference errors',
+    ['model_type', 'error_type']
+)
+
+# Feedback system metrics
+FEEDBACK_MESSAGES_SENT = Counter(
+    'feedback_messages_sent_total',
+    'Total number of feedback messages sent',
+    ['exercise_type']
+)
+
+FEEDBACK_ITEMS_SENT = Counter(
+    'feedback_items_sent_total',
+    'Total number of feedback items sent',
+    ['user_id']
+)
+
+ACTIVE_WEBSOCKET_CONNECTIONS = Gauge(
+    'active_websocket_connections',
+    'Number of active WebSocket connections',
+    ['exercise_type']
+)
+
+WEBSOCKET_ERRORS = Counter(
+    'websocket_errors_total',
+    'Total number of WebSocket errors',
+    ['error_type']
+)
+
+# Progress tracking metrics
+PROGRESS_UPDATES = Counter(
+    'progress_updates_total',
+    'Total number of progress updates',
+    ['user_id', 'exercise_type']
+)
+
+EXERCISE_FORM_SCORES = Histogram(
+    'exercise_form_scores',
+    'Distribution of exercise form scores',
+    ['exercise_type'],
+    buckets=[0.1, 0.3, 0.5, 0.7, 0.9]
+)
+
+EXERCISE_CONSISTENCY_SCORES = Histogram(
+    'exercise_consistency_scores',
+    'Distribution of exercise consistency scores',
+    ['exercise_type'],
+    buckets=(0.1, 0.3, 0.5, 0.7, 0.9)
+)
+
+EXERCISE_REPS = Counter(
+    'exercise_reps_total',
+    'Total number of exercise repetitions',
+    ['user_id', 'exercise_type']
+)
+
+EXERCISE_REPS_COMPLETED = Counter(
+    'exercise_reps_completed_total',
+    'Total number of exercise repetitions completed',
+    ['exercise_type', 'user_id']
+)
+
+EXERCISE_DURATION = Histogram(
+    'exercise_duration_seconds',
+    'Duration of exercise sessions',
+    ['exercise_type'],
+    buckets=[30, 60, 120, 300, 600]
+)
+
 def setup_monitoring(app: FastAPI) -> None:
     """Configure monitoring for the application."""
     try:
@@ -225,25 +365,34 @@ def update_business_metrics(metrics: Dict[str, Any]) -> None:
     except Exception as e:
         logger.error(f"Failed to update business metrics: {str(e)}")
 
-def track_model_inference(model_type: str, operation: str, duration: float) -> None:
-    """Track AI model inference duration."""
-    try:
-        model_inference_duration.labels(
+def track_model_inference(
+    exercise_type: str,
+    frame_count: int,
+    has_errors: bool,
+    model_type: str,
+    duration: float,
+    confidence: float,
+    error_type: Optional[str] = None
+) -> None:
+    """Track ML model inference metrics."""
+    # Track inference duration
+    model_inference_duration.labels(
+        model_type=model_type,
+        operation=exercise_type
+    ).observe(duration)
+    
+    # Track confidence scores
+    model_confidence_scores.labels(
+        model_type=model_type,
+        keypoint_type=exercise_type
+    ).observe(confidence)
+    
+    # Track errors if any
+    if has_errors and error_type:
+        MODEL_INFERENCE_ERRORS.labels(
             model_type=model_type,
-            operation=operation
-        ).observe(duration)
-    except Exception as e:
-        logger.error(f"Failed to track model inference: {str(e)}")
-
-def track_model_confidence(model_type: str, keypoint_type: str, score: float) -> None:
-    """Track model confidence scores."""
-    try:
-        model_confidence_scores.labels(
-            model_type=model_type,
-            keypoint_type=keypoint_type
-        ).observe(score)
-    except Exception as e:
-        logger.error(f"Failed to track model confidence: {str(e)}")
+            error_type=error_type
+        ).inc()
 
 def track_model_error(model_type: str, error_type: str) -> None:
     """Track AI model errors."""
@@ -292,4 +441,139 @@ def track_detailed_error(
             }
         )
     except Exception as e:
-        logger.error(f"Failed to track error details: {str(e)}") 
+        logger.error(f"Failed to track error details: {str(e)}")
+
+def track_failed_login(email: str, ip_address: str) -> None:
+    """Track failed login attempt."""
+    AUTH_FAILED_LOGINS.labels(user_email=email, ip_address=ip_address).inc()
+
+def track_password_reset(email: str, status: str) -> None:
+    """Track password reset request."""
+    AUTH_PASSWORD_RESETS.labels(user_email=email, status=status).inc()
+
+def track_email_verification(email: str, status: str) -> None:
+    """Track email verification attempt."""
+    AUTH_EMAIL_VERIFICATIONS.labels(user_email=email, status=status).inc()
+
+def track_session_start(user_id: int) -> None:
+    """Track new session start."""
+    ACTIVE_SESSIONS.labels(user_id=str(user_id)).inc()
+
+def track_session_end(user_id: int, duration_seconds: float) -> None:
+    """Track session end and duration."""
+    ACTIVE_SESSIONS.labels(user_id=str(user_id)).dec()
+    SESSION_DURATION.labels(user_id=str(user_id)).observe(duration_seconds)
+
+def track_rate_limit_hit(endpoint: str, ip_address: str) -> None:
+    """Track rate limit hit."""
+    RATE_LIMIT_HITS.labels(endpoint=endpoint, ip_address=ip_address).inc()
+
+def track_video_processing(
+    exercise_type: str,
+    duration: float,
+    frame_count: int,
+    error_type: Optional[str] = None
+) -> None:
+    """Track video processing metrics."""
+    # Track processing duration
+    VIDEO_PROCESSING_DURATION.labels(
+        exercise_type=exercise_type
+    ).observe(duration)
+    
+    # Track frame count
+    VIDEO_FRAME_COUNT.labels(
+        exercise_type=exercise_type
+    ).observe(frame_count)
+    
+    # Track errors if any
+    if error_type:
+        VIDEO_PROCESSING_ERRORS.labels(
+            error_type=error_type
+        ).inc()
+
+def track_video_upload(exercise_type: str, size_bytes: int) -> None:
+    """Track video upload metrics."""
+    VIDEO_UPLOAD_SIZE.labels(exercise_type=exercise_type).observe(size_bytes)
+
+def track_feedback_sent(
+    exercise_type: str,
+    message_count: int = 1
+) -> None:
+    """Track feedback message metrics."""
+    FEEDBACK_MESSAGES_SENT.labels(
+        exercise_type=exercise_type
+    ).inc(message_count)
+
+def track_websocket_connection(
+    exercise_type: str,
+    is_connected: bool
+) -> None:
+    """Track WebSocket connection metrics."""
+    if is_connected:
+        ACTIVE_WEBSOCKET_CONNECTIONS.labels(
+            exercise_type=exercise_type
+        ).inc()
+    else:
+        ACTIVE_WEBSOCKET_CONNECTIONS.labels(
+            exercise_type=exercise_type
+        ).dec()
+
+def track_websocket_error(error_type: str) -> None:
+    """Track WebSocket error metrics."""
+    WEBSOCKET_ERRORS.labels(
+        error_type=error_type
+    ).inc()
+
+def track_progress_update(
+    user_id: int,
+    exercise_type: str,
+    metrics_updated: int,
+    form_score: Optional[float] = None,
+    consistency_score: Optional[float] = None,
+    reps: Optional[int] = None
+) -> None:
+    """Track progress update metrics."""
+    PROGRESS_UPDATES.labels(
+        user_id=str(user_id),
+        exercise_type=exercise_type
+    ).inc()
+    
+    if form_score is not None:
+        EXERCISE_FORM_SCORES.labels(
+            exercise_type=exercise_type
+        ).observe(form_score)
+    
+    if consistency_score is not None:
+        EXERCISE_CONSISTENCY_SCORES.labels(
+            exercise_type=exercise_type
+        ).observe(consistency_score)
+    
+    if reps is not None:
+        EXERCISE_REPS.labels(
+            user_id=str(user_id),
+            exercise_type=exercise_type
+        ).inc(reps)
+
+def track_exercise_progress(
+    exercise_type: str,
+    user_id: str,
+    reps: int,
+    form_score: float,
+    duration: float
+) -> None:
+    """Track exercise progress metrics."""
+    # Track completed reps
+    EXERCISE_REPS_COMPLETED.labels(
+        exercise_type=exercise_type,
+        user_id=user_id
+    ).inc(reps)
+    
+    # Track form score
+    EXERCISE_FORM_SCORES.labels(
+        exercise_type=exercise_type
+    ).observe(form_score)
+    
+    # Track exercise duration
+    EXERCISE_DURATION.labels(
+        exercise_type=exercise_type
+    ).observe(duration) 

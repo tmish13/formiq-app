@@ -1,30 +1,36 @@
-"""User schema module."""
+"""User related schemas."""
 from typing import Optional, List
 from datetime import datetime
 from uuid import UUID
-from pydantic import BaseModel, EmailStr, Field, validator, constr
+from pydantic import BaseModel, EmailStr, Field, validator, constr, UUID4
 from app.core.validators import validate_password
 import re
 
 from app.core.config import settings
 
 class UserBase(BaseModel):
-    """
-    Base user schema with common fields.
-    
-    Attributes:
-        email: User's email address
-        is_active: Whether the user account is active
-        full_name: User's full name (optional)
-        username: User's username for login
-    """
-    email: Optional[EmailStr] = Field(None, description="User's email address")
-    is_active: Optional[bool] = Field(True, description="Whether the user account is active")
-    full_name: Optional[str] = Field(None, description="User's full name")
+    """Base user schema with common attributes."""
+    email: EmailStr = Field(
+        ...,
+        description="User's email address",
+        example="user@example.com"
+    )
+    full_name: str = Field(
+        ...,
+        description="User's full name",
+        example="John Doe",
+        min_length=1,
+        max_length=100
+    )
+    is_active: bool = Field(
+        True,
+        description="Whether the user account is active"
+    )
     username: Optional[constr(min_length=3, max_length=50)] = Field(
         None, 
         description="Username for login (3-50 characters)"
     )
+    is_verified: bool = Field(False, description="Whether the user is verified")
     
     @validator("username")
     def validate_username(cls, v):
@@ -36,19 +42,30 @@ class UserBase(BaseModel):
         return v
 
 class UserCreate(UserBase):
-    """
-    Schema for creating a new user.
-    
-    Requires email and password. Username is optional and defaults to using email.
-    """
-    email: EmailStr = Field(..., description="User's email address")
+    """Schema for creating a new user."""
+    password: constr(min_length=8, max_length=100) = Field(
+        ...,
+        description="""
+        User's password. Must be:
+        * At least 8 characters long
+        * Contain at least one number
+        * Contain at least one uppercase letter
+        * Contain at least one lowercase letter
+        """,
+        example="StrongPass123"
+    )
     username: Optional[constr(min_length=3, max_length=50)] = Field(
         None, 
         description="Username (3-50 characters). If not provided, email will be used"
     )
-    password: constr(min_length=8) = Field(..., description="Password (min 8 characters)")
     full_name: Optional[str] = Field(None, description="User's full name")
     is_superuser: Optional[bool] = Field(False, description="Whether user is a superuser")
+    confirm_password: str = Field(
+        ...,
+        description="Confirm the password",
+        min_length=8,
+        max_length=100
+    )
 
     @validator("username")
     def set_username_default(cls, v, values):
@@ -73,13 +90,20 @@ class UserCreate(UserBase):
             raise ValueError("Password must contain at least one special character")
         return v
 
+    @validator('confirm_password')
+    def passwords_match(cls, v, values, **kwargs):
+        """Validate that passwords match."""
+        if 'password' in values and v != values['password']:
+            raise ValueError('Passwords do not match')
+        return v
+
 class UserUpdate(UserBase):
-    """
-    Schema for updating an existing user.
-    
-    All fields are optional to allow partial updates.
-    """
-    password: Optional[constr(min_length=8)] = Field(None, description="New password")
+    """Schema for updating user information."""
+    password: Optional[constr(min_length=8, max_length=100)] = Field(
+        None,
+        description="New password (must meet password requirements)",
+        example="NewStrongPass123"
+    )
     subscription_tier: Optional[str] = Field(None, description="User's subscription tier")
     is_superuser: Optional[bool] = Field(None, description="Whether user is a superuser")
 
@@ -107,14 +131,22 @@ class UserUpdate(UserBase):
         return v
 
 class UserInDBBase(UserBase):
-    """
-    Base schema for user data stored in the database.
-    
-    Includes database-specific fields like ID and timestamps.
-    """
-    id: Optional[UUID] = None
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+    """Base schema for user in database."""
+    id: UUID4 = Field(
+        ...,
+        description="Unique identifier for the user",
+        example="123e4567-e89b-12d3-a456-426614174000"
+    )
+    created_at: datetime = Field(
+        ...,
+        description="When the user account was created",
+        example="2024-01-20T10:30:00Z"
+    )
+    updated_at: Optional[datetime] = Field(
+        None,
+        description="When the user account was last updated",
+        example="2024-01-20T10:35:00Z"
+    )
     is_superuser: Optional[bool] = False
     is_verified: Optional[bool] = False
     is_email_verified: Optional[bool] = False
@@ -122,7 +154,7 @@ class UserInDBBase(UserBase):
     subscription_end_date: Optional[datetime] = None
 
     class Config:
-        """Pydantic config."""
+        """Pydantic model configuration."""
         from_attributes = True
 
 class User(UserInDBBase):
@@ -142,12 +174,43 @@ class User(UserInDBBase):
         return v
 
 class UserInDB(UserInDBBase):
-    """
-    Complete user schema for database operations.
-    
-    Includes sensitive information like hashed_password.
-    """
-    hashed_password: str = Field(..., description="Hashed password (not returned in API responses)")
+    """Schema for user in database with hashed password."""
+    hashed_password: str = Field(
+        ...,
+        description="Hashed version of the user's password",
+        example="$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewYVx3"
+    )
+    failed_login_attempts: int = Field(0, description="Number of failed login attempts")
+    locked_until: Optional[datetime] = Field(None, description="Lockout until")
+
+class UserResponse(UserInDBBase):
+    """Schema for user response (without password)."""
+    subscription_status: Optional[str] = Field(
+        None,
+        description="User's subscription status",
+        example="premium",
+        pattern="^(free|basic|premium)$"
+    )
+    profile_image_url: Optional[str] = Field(
+        None,
+        description="URL to user's profile image",
+        example="https://storage.formiq.com/profiles/user123.jpg"
+    )
+
+    class Config:
+        """Pydantic model configuration."""
+        json_schema_extra = {
+            "example": {
+                "id": "123e4567-e89b-12d3-a456-426614174000",
+                "email": "user@example.com",
+                "full_name": "John Doe",
+                "is_active": True,
+                "subscription_status": "premium",
+                "profile_image_url": "https://storage.formiq.com/profiles/user123.jpg",
+                "created_at": "2024-01-20T10:30:00Z",
+                "updated_at": "2024-01-20T10:35:00Z"
+            }
+        }
 
 class UserFilter(BaseModel):
     """
@@ -212,6 +275,12 @@ class UserPasswordReset(BaseModel):
         min_length=8,
         max_length=128
     )
+    confirm_password: str = Field(
+        ...,
+        description="Confirm the new password",
+        min_length=8,
+        max_length=128
+    )
     
     @validator("new_password")
     def validate_password(cls, v):
@@ -232,4 +301,37 @@ class UserPasswordReset(BaseModel):
         if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", v):
             raise ValueError("Password must contain at least one special character")
         
-        return v 
+        return v
+
+    @validator('confirm_password')
+    def passwords_match(cls, v, values, **kwargs):
+        """Validate that passwords match."""
+        if 'new_password' in values and v != values['new_password']:
+            raise ValueError('Passwords do not match')
+        return v
+
+class PasswordReset(BaseModel):
+    """Schema for password reset."""
+    token: str = Field(
+        ...,
+        description="Password reset token from email",
+        example="eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
+    )
+    new_password: constr(min_length=8, max_length=100) = Field(
+        ...,
+        description="New password (must meet password requirements)",
+        example="NewStrongPass123"
+    )
+
+class PasswordChange(BaseModel):
+    """Schema for password change."""
+    current_password: str = Field(
+        ...,
+        description="Current password for verification",
+        example="OldStrongPass123"
+    )
+    new_password: constr(min_length=8, max_length=100) = Field(
+        ...,
+        description="New password (must meet password requirements)",
+        example="NewStrongPass123"
+    ) 

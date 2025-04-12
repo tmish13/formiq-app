@@ -1,158 +1,137 @@
-"""Error handling middleware module."""
+"""Global error handler middleware for FastAPI application."""
+import logging
 import traceback
-from typing import Callable
+from typing import Callable, Dict, Any, Optional
 
-from fastapi import Request, status
+from fastapi import Request, Response
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
+from pydantic import ValidationError as PydanticValidationError
+from sqlalchemy.exc import SQLAlchemyError
 
-from app.core.config import settings
-from app.core.exceptions import (
-    AuthenticationException,
-    PermissionDeniedException,
-    ValidationException,
-    ResourceNotFoundException,
-    ConflictException,
-    RateLimitExceededException,
+from app.core.exceptions import BaseAPIException
+from app.core.error_utils import (
+    handle_validation_error,
+    handle_database_error,
+    convert_http_exception
 )
-from app.core.logging import get_logger
+from app.core.monitoring import track_error
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 class ErrorHandlerMiddleware(BaseHTTPMiddleware):
-    """Middleware for consistent error handling across the application.
-    
-    This middleware catches all exceptions and converts them to appropriate HTTP responses.
-    It also ensures proper logging of errors and provides different levels of detail
-    based on the environment (development vs production).
-    """
+    """Global error handler middleware that catches and formats all exceptions."""
     
     async def dispatch(
         self, request: Request, call_next: Callable
-    ) -> JSONResponse:
-        """Process the request and handle any errors that occur.
-        
-        Args:
-            request: The incoming request
-            call_next: The next middleware/route handler in the chain
-            
-        Returns:
-            A JSON response with appropriate error details
-        """
+    ) -> Response:
+        """Process the request and handle any errors that occur."""
         try:
             return await call_next(request)
             
-        except AuthenticationException as e:
-            return self._create_error_response(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                error_type="authentication_error",
-                detail=str(e),
-                request=request,
+        except BaseAPIException as exc:
+            # Handle our custom exceptions
+            track_error(
+                error_type=type(exc).__name__,
+                error_code=exc.error_code,
+                is_operational=True
             )
             
-        except PermissionDeniedException as e:
-            return self._create_error_response(
-                status_code=status.HTTP_403_FORBIDDEN,
-                error_type="permission_denied",
-                detail=str(e),
-                request=request,
+            if exc.is_critical:
+                logger.critical(
+                    f"Critical error occurred: {exc.message}",
+                    extra={
+                        "error_code": exc.error_code,
+                        "details": exc.details,
+                        "path": request.url.path
+                    }
+                )
+            
+            headers = exc.headers or {}
+            if exc.retry_after:
+                headers["Retry-After"] = str(exc.retry_after)
+                
+            return JSONResponse(
+                status_code=exc.status_code,
+                content={
+                    "error": {
+                        "type": type(exc).__name__,
+                        "code": exc.error_code,
+                        "message": exc.message,
+                        "details": exc.details
+                    }
+                },
+                headers=headers
             )
             
-        except ValidationException as e:
-            return self._create_error_response(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                error_type="validation_error",
-                detail=str(e),
-                request=request,
-                extra_data={"fields": e.fields} if hasattr(e, "fields") else None,
+        except PydanticValidationError as exc:
+            # Convert Pydantic validation errors
+            api_error = handle_validation_error(exc)
+            track_error(
+                error_type="ValidationError",
+                error_code="VALIDATION_ERROR",
+                is_operational=True
             )
-            
-        except ResourceNotFoundException as e:
-            return self._create_error_response(
-                status_code=status.HTTP_404_NOT_FOUND,
-                error_type="not_found",
-                detail=str(e),
-                request=request,
-            )
-            
-        except ConflictException as e:
-            return self._create_error_response(
-                status_code=status.HTTP_409_CONFLICT,
-                error_type="conflict",
-                detail=str(e),
-                request=request,
-            )
-            
-        except RateLimitExceededException as e:
-            return self._create_error_response(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                error_type="rate_limit_exceeded",
-                detail=str(e),
-                request=request,
-                extra_data={"retry_after": e.retry_after} if hasattr(e, "retry_after") else None,
-            )
-            
-        except Exception as e:
-            # Log unexpected errors with full details
-            logger.error(
-                "Unhandled error occurred",
-                extra={
-                    "error": str(e),
-                    "error_type": type(e).__name__,
-                    "traceback": traceback.format_exc(),
-                    "path": request.url.path,
-                    "method": request.method,
-                    "client_ip": request.client.host if request.client else "unknown",
+            return JSONResponse(
+                status_code=api_error.status_code,
+                content={
+                    "error": {
+                        "type": "ValidationError",
+                        "code": "VALIDATION_ERROR",
+                        "message": api_error.message,
+                        "details": api_error.details
+                    }
                 }
             )
             
-            return self._create_error_response(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                error_type="internal_server_error",
-                detail="An unexpected error occurred" if settings.ENVIRONMENT == "production" else str(e),
-                request=request,
-                include_traceback=settings.ENVIRONMENT != "production",
+        except SQLAlchemyError as exc:
+            # Convert database errors
+            api_error = handle_database_error(exc, request.url.path)
+            track_error(
+                error_type="DatabaseError",
+                error_code=api_error.error_code,
+                is_operational=True
             )
-    
-    def _create_error_response(
-        self,
-        *,
-        status_code: int,
-        error_type: str,
-        detail: str,
-        request: Request,
-        extra_data: dict = None,
-        include_traceback: bool = False,
-    ) -> JSONResponse:
-        """Create a consistent error response.
-        
-        Args:
-            status_code: HTTP status code
-            error_type: String identifier for the type of error
-            detail: Human-readable error message
-            request: The request that caused the error
-            extra_data: Optional additional error data
-            include_traceback: Whether to include the traceback in the response
+            return JSONResponse(
+                status_code=api_error.status_code,
+                content={
+                    "error": {
+                        "type": "DatabaseError",
+                        "code": api_error.error_code,
+                        "message": api_error.message,
+                        "details": api_error.details
+                    }
+                }
+            )
             
-        Returns:
-            A JSON response with error details
-        """
-        response_data = {
-            "error": {
-                "type": error_type,
-                "detail": detail,
-                "status_code": status_code,
-                "path": request.url.path,
-            }
-        }
-        
-        if extra_data:
-            response_data["error"].update(extra_data)
+        except Exception as exc:
+            # Handle unexpected errors
+            error_id = track_error(
+                error_type=type(exc).__name__,
+                error_code="INTERNAL_SERVER_ERROR",
+                is_operational=False
+            )
             
-        if include_traceback:
-            response_data["error"]["traceback"] = traceback.format_exc()
+            # Log detailed error information
+            logger.error(
+                f"Unexpected error occurred: {str(exc)}",
+                extra={
+                    "error_id": error_id,
+                    "path": request.url.path,
+                    "method": request.method,
+                    "client_host": request.client.host,
+                    "traceback": traceback.format_exc()
+                }
+            )
             
-        return JSONResponse(
-            status_code=status_code,
-            content=response_data,
-        ) 
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "error": {
+                        "type": "InternalServerError",
+                        "code": "INTERNAL_SERVER_ERROR",
+                        "message": "An unexpected error occurred",
+                        "error_id": error_id
+                    }
+                }
+            ) 

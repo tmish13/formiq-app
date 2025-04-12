@@ -78,7 +78,8 @@
     "start": "react-scripts start",
     "build": "npm run build:wasm && npm run copy:wasm && react-scripts build",
     "test": "react-scripts test --watchAll=false --transformIgnorePatterns \"node_modules/(?!@capacitor)/\" --setupFiles ./src/polyfills.js --setupFilesAfterEnv ./src/setupTests.ts",
-    "test:coverage": "jest --coverage",
+    "test:coverage": "react-scripts test --coverage --watchAll=false --transformIgnorePatterns \"node_modules/(?!@capacitor)/\" --setupFiles ./src/polyfills.js --setupFilesAfterEnv ./src/setupTests.ts",
+    "test:ci": "npm run test:coverage -- --ci --coverageThreshold='{\"global\":{\"branches\":80,\"functions\":85,\"lines\":85,\"statements\":85}}'",
     "cap:sync": "npx cap sync",
     "cap:build": "npm run build && npx cap sync",
     "cap:android": "npx cap run android",
@@ -109,5 +110,24 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "jest": {
+    "collectCoverageFrom": [
+      "src/**/*.{js,jsx,ts,tsx}",
+      "!src/**/*.d.ts",
+      "!src/index.tsx",
+      "!src/serviceWorker.ts",
+      "!src/**/*.stories.{js,jsx,ts,tsx}",
+      "!src/**/*.test.{js,jsx,ts,tsx}",
+      "!src/**/__tests__/**"
+    ],
+    "coverageThreshold": {
+      "global": {
+        "branches": 80,
+        "functions": 85,
+        "lines": 85,
+        "statements": 85
+      }
+    }
   }
 }

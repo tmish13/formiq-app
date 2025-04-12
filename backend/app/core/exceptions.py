@@ -1,6 +1,359 @@
 from typing import Any, Dict, List, Optional, Union
 from fastapi import HTTPException, status
 from app.core.logging import logger
+from http import HTTPStatus
+
+class BaseAPIException(Exception):
+    """Base exception class for API errors.
+    
+    Attributes:
+        message (str): Human readable error description
+        error_code (str): Machine readable error code
+        status_code (int): HTTP status code
+        details (Optional[Dict[str, Any]]): Additional error details
+    """
+    def __init__(
+        self,
+        message: str,
+        error_code: str,
+        status_code: int = HTTPStatus.INTERNAL_SERVER_ERROR,
+        details: Optional[Dict[str, Any]] = None
+    ):
+        super().__init__(message)
+        self.message = message
+        self.error_code = error_code
+        self.status_code = status_code
+        self.details = details or {}
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert exception to dictionary format."""
+        return {
+            "error": {
+                "message": self.message,
+                "code": self.error_code,
+                "details": self.details
+            }
+        }
+
+class ValidationError(BaseAPIException):
+    """Raised when request validation fails."""
+    def __init__(
+        self,
+        message: str = "Invalid request data",
+        error_code: str = "VALIDATION_ERROR",
+        details: Optional[Dict[str, Any]] = None
+    ):
+        super().__init__(
+            message=message,
+            error_code=error_code,
+            status_code=HTTPStatus.BAD_REQUEST,
+            details=details
+        )
+
+class AuthenticationError(BaseAPIException):
+    """Raised when authentication fails."""
+    def __init__(
+        self,
+        message: str = "Authentication failed",
+        error_code: str = "AUTHENTICATION_ERROR",
+        details: Optional[Dict[str, Any]] = None
+    ):
+        super().__init__(
+            message=message,
+            error_code=error_code,
+            status_code=HTTPStatus.UNAUTHORIZED,
+            details=details
+        )
+
+class AuthorizationError(BaseAPIException):
+    """Raised when user lacks required permissions."""
+    def __init__(
+        self,
+        message: str = "Permission denied",
+        error_code: str = "AUTHORIZATION_ERROR",
+        details: Optional[Dict[str, Any]] = None
+    ):
+        super().__init__(
+            message=message,
+            error_code=error_code,
+            status_code=HTTPStatus.FORBIDDEN,
+            details=details
+        )
+
+class ResourceNotFoundError(BaseAPIException):
+    """Raised when requested resource is not found."""
+    def __init__(
+        self,
+        message: str = "Resource not found",
+        error_code: str = "RESOURCE_NOT_FOUND",
+        details: Optional[Dict[str, Any]] = None
+    ):
+        super().__init__(
+            message=message,
+            error_code=error_code,
+            status_code=HTTPStatus.NOT_FOUND,
+            details=details
+        )
+
+class BusinessError(BaseAPIException):
+    """Raised when a business rule is violated."""
+    def __init__(
+        self,
+        message: str = "Business rule violation",
+        error_code: str = "BUSINESS_ERROR",
+        details: Optional[Dict[str, Any]] = None
+    ):
+        super().__init__(
+            message=message,
+            error_code=error_code,
+            status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
+            details=details
+        )
+
+class RateLimitError(BaseAPIException):
+    """Raised when rate limit is exceeded."""
+    def __init__(
+        self,
+        message: str = "Rate limit exceeded",
+        error_code: str = "RATE_LIMIT_ERROR",
+        details: Optional[Dict[str, Any]] = None
+    ):
+        super().__init__(
+            message=message,
+            error_code=error_code,
+            status_code=HTTPStatus.TOO_MANY_REQUESTS,
+            details=details
+        )
+
+class DatabaseError(BaseAPIException):
+    """Raised when database operations fail."""
+    def __init__(
+        self,
+        message: str = "Database operation failed",
+        error_code: str = "DATABASE_ERROR",
+        details: Optional[Dict[str, Any]] = None
+    ):
+        super().__init__(
+            message=message,
+            error_code=error_code,
+            status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
+            details=details
+        )
+
+class ConfigurationError(BaseAPIException):
+    """Raised when there are configuration issues."""
+    def __init__(
+        self,
+        message: str = "Configuration error",
+        error_code: str = "CONFIGURATION_ERROR",
+        details: Optional[Dict[str, Any]] = None
+    ):
+        super().__init__(
+            message=message,
+            error_code=error_code,
+            status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
+            details=details
+        )
+
+class ExternalServiceError(BaseAPIException):
+    """Raised when external service calls fail."""
+    def __init__(
+        self,
+        message: str = "External service error",
+        error_code: str = "EXTERNAL_SERVICE_ERROR",
+        details: Optional[Dict[str, Any]] = None
+    ):
+        super().__init__(
+            message=message,
+            error_code=error_code,
+            status_code=HTTPStatus.BAD_GATEWAY,
+            details=details
+        )
+
+# Authentication Errors
+class InvalidCredentialsError(AuthenticationError):
+    """Raised when credentials are invalid."""
+    def __init__(self, message: str = "Invalid credentials provided"):
+        super().__init__(message=message, error_code="INVALID_CREDENTIALS")
+
+class TokenExpiredError(AuthenticationError):
+    """Raised when authentication token has expired."""
+    def __init__(self, message: str = "Authentication token has expired"):
+        super().__init__(
+            message=message,
+            error_code="TOKEN_EXPIRED",
+            details={"should_refresh": True}
+        )
+
+# Authorization Errors
+class InsufficientPermissionsError(AuthorizationError):
+    """Raised when user lacks required permissions."""
+    def __init__(
+        self,
+        message: str = "Insufficient permissions",
+        required_permissions: Optional[List[str]] = None
+    ):
+        details = {"required_permissions": required_permissions} if required_permissions else None
+        super().__init__(message=message, error_code="INSUFFICIENT_PERMISSIONS", details=details)
+
+# Validation Errors
+class InvalidInputError(ValidationError):
+    """Raised when input data is invalid."""
+    def __init__(
+        self,
+        message: str = "Invalid input data",
+        field_errors: Optional[Dict[str, List[str]]] = None
+    ):
+        super().__init__(message=message, field_errors=field_errors, error_code="INVALID_INPUT")
+
+# Resource Errors
+class ResourceError(BaseAPIException):
+    """Base class for resource-related errors."""
+    def __init__(
+        self,
+        message: str,
+        resource_type: str,
+        resource_id: Optional[Union[str, int]] = None,
+        error_code: str = "RESOURCE_ERROR"
+    ):
+        details = {
+            "resource_type": resource_type,
+            "resource_id": resource_id
+        } if resource_id else {"resource_type": resource_type}
+        
+        super().__init__(
+            message=message,
+            error_code=error_code,
+            status_code=HTTPStatus.NOT_FOUND,
+            details=details
+        )
+
+class ResourceNotFoundError(ResourceError):
+    """Raised when a requested resource is not found."""
+    def __init__(
+        self,
+        resource_type: str,
+        resource_id: Optional[Union[str, int]] = None
+    ):
+        message = f"{resource_type} not found"
+        if resource_id:
+            message = f"{resource_type} with id {resource_id} not found"
+        super().__init__(
+            message=message,
+            resource_type=resource_type,
+            resource_id=resource_id,
+            error_code="RESOURCE_NOT_FOUND"
+        )
+
+# Service Errors
+class ServiceError(BaseAPIException):
+    """Base class for service-related errors."""
+    def __init__(
+        self,
+        message: str,
+        service_name: str,
+        is_temporary: bool = True,
+        retry_after: Optional[int] = None,
+        error_code: str = "SERVICE_ERROR"
+    ):
+        details = {"service": service_name, "is_temporary": is_temporary}
+        if retry_after is not None:
+            details["retry_after"] = retry_after
+        super().__init__(
+            message=message,
+            error_code=error_code,
+            status_code=HTTPStatus.SERVICE_UNAVAILABLE if is_temporary else HTTPStatus.INTERNAL_SERVER_ERROR,
+            details=details
+        )
+
+class DatabaseError(ServiceError):
+    """Raised when a database operation fails."""
+    def __init__(
+        self,
+        message: str = "Database operation failed",
+        is_temporary: bool = True,
+        retry_after: Optional[int] = 30
+    ):
+        super().__init__(
+            message=message,
+            service_name="database",
+            is_temporary=is_temporary,
+            retry_after=retry_after,
+            error_code="DATABASE_ERROR"
+        )
+
+class CacheError(ServiceError):
+    """Raised when a cache operation fails."""
+    def __init__(
+        self,
+        message: str = "Cache operation failed",
+        is_temporary: bool = True,
+        retry_after: Optional[int] = 5
+    ):
+        super().__init__(
+            message=message,
+            service_name="cache",
+            is_temporary=is_temporary,
+            retry_after=retry_after,
+            error_code="CACHE_ERROR"
+        )
+
+# Rate Limiting Errors
+class RateLimitError(BaseAPIException):
+    """Raised when rate limit is exceeded."""
+    def __init__(
+        self,
+        message: str = "Rate limit exceeded",
+        retry_after: int = 60,
+        limit: Optional[int] = None,
+        window: Optional[int] = None
+    ):
+        details = {
+            "retry_after": retry_after,
+            "limit": limit,
+            "window": window
+        }
+        super().__init__(
+            message=message,
+            error_code="RATE_LIMIT_EXCEEDED",
+            status_code=HTTPStatus.TOO_MANY_REQUESTS,
+            details=details
+        )
+
+# Business Logic Errors
+class InvalidStateError(BusinessError):
+    """Raised when an operation is invalid in the current state."""
+    def __init__(
+        self,
+        message: str,
+        current_state: str,
+        expected_state: Optional[str] = None
+    ):
+        details = {
+            "current_state": current_state,
+            "expected_state": expected_state
+        } if expected_state else {"current_state": current_state}
+        super().__init__(
+            message=message,
+            error_code="INVALID_STATE",
+            details=details
+        )
+
+# System Errors
+class SystemError(BaseAPIException):
+    """Base class for system-level errors."""
+    def __init__(
+        self,
+        message: str,
+        error_code: str = "SYSTEM_ERROR",
+        details: Optional[Dict[str, Any]] = None
+    ):
+        super().__init__(
+            message=message,
+            error_code=error_code,
+            status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
+            details=details
+        )
 
 class ApplicationException(Exception):
     """Base exception for all application-specific exceptions."""
@@ -8,7 +361,7 @@ class ApplicationException(Exception):
     def __init__(
         self,
         message: str,
-        status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR,
+        status_code: int = HTTPStatus.INTERNAL_SERVER_ERROR,
         error_code: str = "internal_error",
         details: Optional[Dict[str, Any]] = None
     ):
@@ -42,7 +395,7 @@ class AuthenticationException(ApplicationException):
     ):
         super().__init__(
             message=message,
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=HTTPStatus.UNAUTHORIZED,
             error_code=error_code,
             details=details
         )
@@ -59,7 +412,7 @@ class PermissionDeniedException(ApplicationException):
     ):
         super().__init__(
             message=message,
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=HTTPStatus.FORBIDDEN,
             error_code=error_code,
             details=details
         )
@@ -81,7 +434,7 @@ class ValidationException(ApplicationException):
             
         super().__init__(
             message=message,
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
             error_code=error_code,
             details=details
         )
@@ -106,7 +459,7 @@ class ResourceNotFoundException(ApplicationException):
             
         super().__init__(
             message=message,
-            status_code=status.HTTP_404_NOT_FOUND,
+            status_code=HTTPStatus.NOT_FOUND,
             error_code=error_code,
             details=details
         )
@@ -123,7 +476,7 @@ class ConflictException(ApplicationException):
     ):
         super().__init__(
             message=message,
-            status_code=status.HTTP_409_CONFLICT,
+            status_code=HTTPStatus.CONFLICT,
             error_code=error_code,
             details=details
         )
@@ -145,7 +498,7 @@ class RateLimitExceededException(ApplicationException):
             
         super().__init__(
             message=message,
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            status_code=HTTPStatus.TOO_MANY_REQUESTS,
             error_code=error_code,
             details=details
         )
@@ -167,7 +520,7 @@ class ServiceUnavailableException(ApplicationException):
             
         super().__init__(
             message=message,
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            status_code=HTTPStatus.SERVICE_UNAVAILABLE,
             error_code=error_code,
             details=details
         )
@@ -184,7 +537,7 @@ class DatabaseException(ApplicationException):
     ):
         super().__init__(
             message=message,
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
             error_code=error_code,
             details=details
         )
@@ -201,7 +554,7 @@ class ConfigurationException(ApplicationException):
     ):
         super().__init__(
             message=message,
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
             error_code=error_code,
             details=details
         )
@@ -230,7 +583,7 @@ class AppException(HTTPException):
         self,
         message: str,
         code: str,
-        status_code: int = 500,
+        status_code: int = HTTPStatus.INTERNAL_SERVER_ERROR,
         details: Optional[Dict[str, Any]] = None
     ):
         super().__init__(status_code=status_code, detail=message)
@@ -245,7 +598,7 @@ class NotFoundError(AppException):
         super().__init__(
             message=message,
             code="NOT_FOUND",
-            status_code=status.HTTP_404_NOT_FOUND
+            status_code=HTTPStatus.NOT_FOUND
         )
 
 class ValidationError(AppException):
@@ -254,7 +607,7 @@ class ValidationError(AppException):
         super().__init__(
             message=message,
             code="VALIDATION_ERROR",
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
             details=details
         )
 
@@ -264,7 +617,7 @@ class AuthenticationError(AppException):
         super().__init__(
             message=message,
             code="AUTHENTICATION_ERROR",
-            status_code=status.HTTP_401_UNAUTHORIZED
+            status_code=HTTPStatus.UNAUTHORIZED
         )
 
 class AuthorizationError(AppException):
@@ -273,7 +626,7 @@ class AuthorizationError(AppException):
         super().__init__(
             message=message,
             code="AUTHORIZATION_ERROR",
-            status_code=status.HTTP_403_FORBIDDEN
+            status_code=HTTPStatus.FORBIDDEN
         )
 
 class ConflictError(AppException):
@@ -282,7 +635,7 @@ class ConflictError(AppException):
         super().__init__(
             message=message,
             code="CONFLICT",
-            status_code=status.HTTP_409_CONFLICT
+            status_code=HTTPStatus.CONFLICT
         )
 
 class RateLimitError(AppException):
@@ -291,7 +644,7 @@ class RateLimitError(AppException):
         super().__init__(
             message=message,
             code="RATE_LIMIT_EXCEEDED",
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS
+            status_code=HTTPStatus.TOO_MANY_REQUESTS
         )
 
 class ServiceUnavailableError(AppException):
@@ -300,7 +653,7 @@ class ServiceUnavailableError(AppException):
         super().__init__(
             message=message,
             code="SERVICE_UNAVAILABLE",
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE
+            status_code=HTTPStatus.SERVICE_UNAVAILABLE
         )
 
 class AuthorizationException(AppException):
@@ -310,7 +663,7 @@ class AuthorizationException(AppException):
         super().__init__(
             message=message,
             code="AUTHORIZATION_ERROR",
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=HTTPStatus.FORBIDDEN,
             details=details
         )
 
@@ -321,7 +674,7 @@ class DatabaseError(AppException):
         self,
         message: str = "Database error occurred",
         details: Optional[Dict[str, Any]] = None,
-        status_code: int = 500
+        status_code: int = HTTPStatus.INTERNAL_SERVER_ERROR
     ):
         super().__init__(
             message=message,
@@ -337,7 +690,7 @@ class CacheException(AppException):
         super().__init__(
             message=message,
             code="CACHE_ERROR",
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
             details=details
         )
 
@@ -348,7 +701,7 @@ class ExternalServiceException(AppException):
         super().__init__(
             message=message,
             code="EXTERNAL_SERVICE_ERROR",
-            status_code=status.HTTP_502_BAD_GATEWAY,
+            status_code=HTTPStatus.BAD_GATEWAY,
             details=details
         )
 
@@ -363,7 +716,7 @@ class PaymentError(AppException):
         super().__init__(
             message=message,
             code="PAYMENT_ERROR",
-            status_code=400,
+            status_code=HTTPStatus.BAD_REQUEST,
             details=details
         )
 
@@ -378,25 +731,25 @@ class ProcessingError(AppException):
         super().__init__(
             message=message,
             code="PROCESSING_ERROR",
-            status_code=500,
+            status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
             details=details
         )
 
 class ServiceError(AppException):
     """Base exception for service-level errors."""
-    def __init__(self, message: str, code: str = "SERVICE_ERROR", status_code: int = 500):
+    def __init__(self, message: str, code: str = "SERVICE_ERROR", status_code: int = HTTPStatus.INTERNAL_SERVER_ERROR):
         super().__init__(message, code, status_code)
 
 class RateLimitException(HTTPException):
     """Exception raised when rate limit is exceeded."""
     def __init__(self, detail: str = "Rate limit exceeded", details: Optional[Dict[str, Any]] = None):
-        super().__init__(status_code=429, detail=detail)
+        super().__init__(status_code=HTTPStatus.TOO_MANY_REQUESTS, detail=detail)
         self.details = details or {}
 
 class ValidationException(HTTPException):
     """Exception raised for validation errors."""
     def __init__(self, detail: str = "Validation error", details: Optional[Dict[str, Any]] = None):
-        super().__init__(status_code=422, detail=detail)
+        super().__init__(status_code=HTTPStatus.UNPROCESSABLE_ENTITY, detail=detail)
         self.details = details or {}
 
 """Custom exceptions."""
@@ -572,7 +925,7 @@ class StorageError(AppException):
         super().__init__(
             message=message,
             code="STORAGE_ERROR",
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
             details=details
         )
 
@@ -618,27 +971,27 @@ class FileDeleteError(StorageError):
 class NotFoundException(AppException):
     """Exception raised when a resource is not found."""
     def __init__(self, detail: str = "Resource not found"):
-        super().__init__(status_code=status.HTTP_404_NOT_FOUND, detail=detail)
+        super().__init__(status_code=HTTPStatus.NOT_FOUND, detail=detail)
 
 class AuthenticationException(AppException):
     """Exception raised for authentication errors."""
     def __init__(self, detail: str = "Authentication failed"):
-        super().__init__(status_code=status.HTTP_401_UNAUTHORIZED, detail=detail)
+        super().__init__(status_code=HTTPStatus.UNAUTHORIZED, detail=detail)
 
 class AuthorizationException(AppException):
     """Exception raised for authorization errors."""
     def __init__(self, detail: str = "Not authorized"):
-        super().__init__(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
+        super().__init__(status_code=HTTPStatus.FORBIDDEN, detail=detail)
 
 class DatabaseException(AppException):
     """Exception raised for database errors."""
     def __init__(self, detail: str = "Database error"):
-        super().__init__(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=detail)
+        super().__init__(status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail=detail)
 
 class VideoProcessingError(AppException):
     """Base class for video processing errors."""
     def __init__(self, detail: str = "Video processing error"):
-        super().__init__(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=detail)
+        super().__init__(status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail=detail)
 
 class VideoValidationError(ValidationException):
     """Base class for video validation errors."""
@@ -691,7 +1044,7 @@ class StorageError(AppException):
         super().__init__(
             message=message,
             code="STORAGE_ERROR",
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
             details=details
         )
 
@@ -739,7 +1092,7 @@ class NotFoundException(HTTPException):
 
     def __init__(self, detail: str = "Not found"):
         """Initialize exception."""
-        super().__init__(status_code=status.HTTP_404_NOT_FOUND, detail=detail)
+        super().__init__(status_code=HTTPStatus.NOT_FOUND, detail=detail)
 
 class UnauthorizedException(HTTPException):
     """Unauthorized exception."""
@@ -747,7 +1100,7 @@ class UnauthorizedException(HTTPException):
     def __init__(self, detail: str = "Unauthorized"):
         """Initialize exception."""
         super().__init__(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=HTTPStatus.UNAUTHORIZED,
             detail=detail,
             headers={"WWW-Authenticate": "Bearer"},
         )
@@ -757,14 +1110,14 @@ class ForbiddenException(HTTPException):
 
     def __init__(self, detail: str = "Forbidden"):
         """Initialize exception."""
-        super().__init__(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
+        super().__init__(status_code=HTTPStatus.FORBIDDEN, detail=detail)
 
 class BadRequestException(HTTPException):
     """Bad request exception."""
 
     def __init__(self, detail: str = "Bad request"):
         """Initialize exception."""
-        super().__init__(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
+        super().__init__(status_code=HTTPStatus.BAD_REQUEST, detail=detail)
 
 """Core exceptions module."""
 from typing import Any, Dict, Optional
@@ -776,7 +1129,7 @@ class BaseAPIException(Exception):
     def __init__(
         self,
         message: str,
-        status_code: int = 500,
+        status_code: int = HTTPStatus.INTERNAL_SERVER_ERROR,
         error_code: Optional[str] = None,
         details: Optional[Dict[str, Any]] = None
     ):
@@ -806,7 +1159,7 @@ class AuthenticationException(BaseAPIException):
     ):
         super().__init__(
             message=message,
-            status_code=401,
+            status_code=HTTPStatus.UNAUTHORIZED,
             error_code=error_code,
             details=details
         )
@@ -823,7 +1176,7 @@ class PermissionDeniedException(BaseAPIException):
     ):
         super().__init__(
             message=message,
-            status_code=403,
+            status_code=HTTPStatus.FORBIDDEN,
             error_code=error_code,
             details=details
         )
@@ -840,7 +1193,7 @@ class ValidationException(BaseAPIException):
     ):
         super().__init__(
             message=message,
-            status_code=422,
+            status_code=HTTPStatus.BAD_REQUEST,
             error_code=error_code,
             details=details
         )
@@ -857,7 +1210,7 @@ class NotFoundException(BaseAPIException):
     ):
         super().__init__(
             message=message,
-            status_code=404,
+            status_code=HTTPStatus.NOT_FOUND,
             error_code=error_code,
             details=details
         )
@@ -874,7 +1227,7 @@ class ConflictException(BaseAPIException):
     ):
         super().__init__(
             message=message,
-            status_code=409,
+            status_code=HTTPStatus.CONFLICT,
             error_code=error_code,
             details=details
         )
@@ -891,7 +1244,7 @@ class RateLimitException(BaseAPIException):
     ):
         super().__init__(
             message=message,
-            status_code=429,
+            status_code=HTTPStatus.TOO_MANY_REQUESTS,
             error_code=error_code,
             details=details
         )
@@ -908,7 +1261,7 @@ class ServiceUnavailableException(BaseAPIException):
     ):
         super().__init__(
             message=message,
-            status_code=503,
+            status_code=HTTPStatus.SERVICE_UNAVAILABLE,
             error_code=error_code,
             details=details
         )
@@ -921,7 +1274,7 @@ class DatabaseException(BaseAPIException):
         self,
         message: str = "Database error occurred",
         details: Optional[Dict[str, Any]] = None,
-        status_code: int = 500
+        status_code: int = HTTPStatus.INTERNAL_SERVER_ERROR
     ):
         super().__init__(
             message=message,
@@ -941,7 +1294,7 @@ class CacheException(BaseAPIException):
     ):
         super().__init__(
             message=message,
-            status_code=500,
+            status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
             error_code="CACHE_ERROR",
             details=details
         )
@@ -957,7 +1310,7 @@ class ExternalServiceException(BaseAPIException):
     ):
         super().__init__(
             message=message,
-            status_code=502,
+            status_code=HTTPStatus.BAD_GATEWAY,
             error_code="EXTERNAL_SERVICE_ERROR",
             details=details
         )
@@ -974,7 +1327,7 @@ class VideoProcessingException(BaseAPIException):
     ):
         super().__init__(
             message=message,
-            status_code=422,
+            status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
             error_code=error_code,
             details=details
         )
@@ -1005,7 +1358,7 @@ class StorageException(BaseAPIException):
     ):
         super().__init__(
             message=message,
-            status_code=500,
+            status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
             error_code="STORAGE_ERROR",
             details=details
         )
@@ -1057,4 +1410,20 @@ class FileDownloadException(StorageException):
 class FileDeleteException(StorageException):
     """Exception for file deletion failures."""
     def __init__(self, message: str = "Failed to delete file", details: Optional[Dict[str, Any]] = None):
-        super().__init__(message=message, details={"operation": "delete", **details} if details else {"operation": "delete"}) 
+        super().__init__(message=message, details={"operation": "delete", **details} if details else {"operation": "delete"})
+
+class EmailError(ApplicationException):
+    """Exception raised for email-related errors."""
+    def __init__(
+        self,
+        message: str,
+        error_code: str = "EMAIL_ERROR",
+        status_code: int = HTTPStatus.INTERNAL_SERVER_ERROR,
+        details: Optional[Dict[str, Any]] = None
+    ):
+        super().__init__(
+            message=message,
+            error_code=error_code,
+            status_code=status_code,
+            details=details
+        ) 

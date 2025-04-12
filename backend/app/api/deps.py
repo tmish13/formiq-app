@@ -10,13 +10,23 @@ from app.core.deps import (
     check_subscription_tier
 ) 
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
+from jose import jwt
+from fastapi.security import OAuth2PasswordBearer
+
 from app.db.session import get_db
 from app.repositories.user_repository import UserRepository
 from app.services.user_service import UserService
 from app.core.security import oauth2_scheme
-from typing import Dict, Any, Callable
+from app.core.config import settings
+from app.core.security import verify_session_token
+from app.db.session import SessionLocal
+from app.models.user import User
+from app.services.session_service import SessionService
+from app.repositories.session_repository import SessionRepository
+from typing import Dict, Any, Callable, Generator, Optional
 
 # Dictionary of services and repositories to be used as dependencies
 dependencies: Dict[str, Any] = {}

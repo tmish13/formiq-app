@@ -11,12 +11,16 @@ from app.core.security import (
     get_password_hash,
     verify_password,
     create_access_token,
-    create_refresh_token
+    create_refresh_token,
+    create_email_verification_token,
+    verify_email_token
 )
 from app.core.exceptions import (
     AuthenticationException,
     ValidationException,
-    NotFoundException
+    NotFoundException,
+    EmailError,
+    ValidationError
 )
 from app.repositories.user_repository import UserRepository
 from app.schemas.user import (
@@ -27,6 +31,7 @@ from app.schemas.user import (
     UserInDB
 )
 from app.schemas.token import Token
+from app.services.email_service import EmailService
 
 class UserService:
     """User service."""
@@ -102,16 +107,77 @@ class UserService:
         """Delete a user."""
         return await self.repository.delete(user_id)
 
-    async def authenticate(self, email: str, password: str) -> Optional[User]:
-        """Authenticate a user."""
-        user = await self.get_by_email(email)
-        if not user:
-            return None
+    async def authenticate(
+        self,
+        email: str,
+        password: str,
+        device_info: Optional[Dict[str, Any]] = None
+    ) -> Optional[User]:
+        """Authenticate a user.
         
-        if not verify_password(password, user.hashed_password):
-            return None
+        Args:
+            email: User's email
+            password: User's password
+            device_info: Optional device information for session tracking
             
-        return user
+        Returns:
+            Optional[User]: Authenticated user or None
+            
+        Raises:
+            AuthenticationException: If authentication fails
+        """
+        try:
+            # Get user by email
+            user = await self.get_by_email(email)
+            if not user:
+                # Use constant time comparison to prevent timing attacks
+                verify_password("dummy", "dummy")
+                return None
+            
+            # Check if account is locked
+            if user.locked_until and user.locked_until > datetime.utcnow():
+                raise AuthenticationException(
+                    "Account is locked. Try again later.",
+                    retry_after=int((user.locked_until - datetime.utcnow()).total_seconds())
+                )
+            
+            # Verify password
+            if not verify_password(password, user.hashed_password):
+                # Increment failed attempts
+                failed_attempts = user.failed_login_attempts + 1
+                lock_data = {}
+                
+                # Lock account after 5 failed attempts
+                if failed_attempts >= 5:
+                    lock_duration = timedelta(minutes=15)  # 15 minutes lockout
+                    lock_data["locked_until"] = datetime.utcnow() + lock_duration
+                
+                # Update user
+                await self.repository.update(
+                    user.id,
+                    {
+                        "failed_login_attempts": failed_attempts,
+                        **lock_data
+                    }
+                )
+                
+                return None
+            
+            # Authentication successful - update user
+            await self.repository.update(
+                user.id,
+                {
+                    "last_login": datetime.utcnow(),
+                    "failed_login_attempts": 0,
+                    "locked_until": None
+                }
+            )
+            
+            return user
+            
+        except Exception as e:
+            logger.error(f"Authentication failed: {str(e)}")
+            raise AuthenticationException("Authentication failed")
 
     def is_active(self, user: User) -> bool:
         """Check if user is active.
@@ -153,3 +219,73 @@ class UserService:
             return self.create_access_token(user_id=user_id)
         except (jwt.JWTError, ValueError):
             raise AuthenticationException("Invalid refresh token")
+
+    async def send_verification_email(self, user: User) -> None:
+        """Send email verification link to user.
+        
+        Args:
+            user: User to send verification email to
+            
+        Raises:
+            EmailError: If email sending fails
+        """
+        # Generate verification token
+        token = create_email_verification_token(user.email)
+        
+        # Create verification URL
+        verify_url = f"{settings.FRONTEND_URL}/verify-email?token={token}"
+        
+        # Send email
+        try:
+            email_service = EmailService()
+            await email_service.send_email(
+                to_email=user.email,
+                subject="Verify your FormIQ account",
+                body=f"""
+                <html>
+                    <body>
+                        <h2>Welcome to FormIQ!</h2>
+                        <p>Please verify your email address by clicking the link below:</p>
+                        <p><a href="{verify_url}">Verify Email</a></p>
+                        <p>This link will expire in 24 hours.</p>
+                        <p>If you did not create an account, please ignore this email.</p>
+                        <p>Best regards,<br>The FormIQ Team</p>
+                    </body>
+                </html>
+                """,
+                is_html=True
+            )
+            logger.info(f"Sent verification email to {user.email}")
+        except Exception as e:
+            logger.error(f"Failed to send verification email: {str(e)}")
+            raise EmailError(f"Failed to send verification email: {str(e)}")
+
+    async def verify_email(self, token: str) -> None:
+        """Verify user's email using verification token.
+        
+        Args:
+            token: Email verification token
+            
+        Raises:
+            ValidationError: If token is invalid or expired
+        """
+        try:
+            # Verify token and get email
+            email = verify_email_token(token)
+            if not email:
+                raise ValidationError("Invalid or expired verification token")
+            
+            # Get user by email
+            user = await self.get_by_email(email)
+            if not user:
+                raise ValidationError("User not found")
+            
+            # Update user verification status
+            user.is_verified = True
+            user.verified_at = datetime.now()
+            await self.repository.update(user.id, {"is_verified": True, "verified_at": user.verified_at})
+            
+            logger.info(f"Verified email for user {user.id}")
+        except Exception as e:
+            logger.error(f"Failed to verify email: {str(e)}")
+            raise ValidationError(f"Failed to verify email: {str(e)}")

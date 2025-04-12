@@ -79,3 +79,47 @@ android/build/
 .cache/
 .pytest_cache/
 .eslintcache
+
+# Environment variables and secrets
+.env.*
+.env.example
+*.env
+
+# Node
+.pnpm-debug.log*
+
+# Media files
+media/
+uploads/
+videos/
+*.mp4
+*.mov
+*.avi
+
+# Secrets and keys
+*.pem
+*.key
+*.crt
+*.csr
+*.cert
+secrets/
+credentials/
+config/secrets.yaml
+config/credentials.json
+
+# Build artifacts
+*.pyc
+*.pyo
+*.pyd
+*.so
+*.dylib
+*.dll
+*.class
+*.jar
+
+# Docker
+.docker/
+docker-compose.override.yml
+
+# Local development
+.local/

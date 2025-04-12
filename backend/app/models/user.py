@@ -41,6 +41,12 @@ class User(BaseModel):
         verification_token (str): Token for email verification
         is_verified (bool): Whether the user is verified
         is_superuser (bool): Whether the user is a superuser
+        verified_at (datetime): When the user was verified
+        created_at (datetime): When the user account was created
+        updated_at (datetime): When the user account was last updated
+        last_login (datetime): When the user last logged in
+        failed_login_attempts (int): Number of failed login attempts
+        locked_until (datetime): When the user account will be unlocked
     """
     __tablename__ = "users"
 
@@ -66,6 +72,12 @@ class User(BaseModel):
     verification_token = Column(String(255), nullable=True)
     is_verified = Column(Boolean, default=False, nullable=False)
     is_superuser = Column(Boolean, default=False, nullable=False)
+    verified_at = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_login = Column(DateTime)
+    failed_login_attempts = Column(Integer, default=0)
+    locked_until = Column(DateTime)
 
     # Relationships
     form_checks = relationship("FormCheck", back_populates="user")
@@ -87,6 +99,8 @@ class User(BaseModel):
         cascade="all, delete-orphan",
         lazy="select"
     )
+    settings = relationship("UserSettings", back_populates="user", uselist=False)
+    sessions = relationship("UserSession", back_populates="user", cascade="all, delete-orphan")
 
     @validates('email')
     def validate_email(self, key: str, email: str) -> str:

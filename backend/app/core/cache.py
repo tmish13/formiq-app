@@ -12,6 +12,67 @@ from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 
+# Redis connection pool
+_redis_pool: Optional[redis.Redis] = None
+
+async def init_redis_pool() -> None:
+    """Initialize Redis connection pool."""
+    global _redis_pool
+    try:
+        if not _redis_pool:
+            _redis_pool = redis.from_url(
+                settings.REDIS_URL,
+                encoding="utf-8",
+                decode_responses=True
+            )
+            logger.info("Redis connection pool initialized")
+    except Exception as e:
+        logger.error(f"Failed to initialize Redis pool: {e}")
+        raise
+
+async def get_redis() -> redis.Redis:
+    """Get Redis connection from pool."""
+    if not _redis_pool:
+        await init_redis_pool()
+    return _redis_pool
+
+async def close_redis_pool() -> None:
+    """Close Redis connection pool."""
+    global _redis_pool
+    if _redis_pool:
+        await _redis_pool.close()
+        _redis_pool = None
+        logger.info("Redis connection pool closed")
+
+async def set_cache(key: str, value: Any, expire: int = 3600) -> None:
+    """Set value in cache with expiration."""
+    redis = await get_redis()
+    await redis.set(key, value, ex=expire)
+
+async def get_cache(key: str) -> Optional[str]:
+    """Get value from cache."""
+    redis = await get_redis()
+    return await redis.get(key)
+
+async def delete_cache(key: str) -> None:
+    """Delete value from cache."""
+    redis = await get_redis()
+    await redis.delete(key)
+
+async def increment_counter(key: str, expire: int = 3600) -> int:
+    """Increment counter and return new value."""
+    redis = await get_redis()
+    value = await redis.incr(key)
+    if expire:
+        await redis.expire(key, expire)
+    return value
+
+async def get_counter(key: str) -> int:
+    """Get counter value."""
+    redis = await get_redis()
+    value = await redis.get(key)
+    return int(value) if value else 0
+
 class CacheService:
     """Redis cache service for application-wide caching.
     

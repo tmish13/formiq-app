@@ -16,7 +16,11 @@
     "fix:java": "node fix-java-version.js"
   },
   "dependencies": {
-    "@capacitor/ios": "^7.2.0"
+    "@capacitor/camera": "^7.0.1",
+    "@capacitor/filesystem": "^7.0.1",
+    "@capacitor/ios": "^7.2.0",
+    "@capacitor/network": "^7.0.1",
+    "@capacitor/preferences": "^7.0.1"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.6.3",

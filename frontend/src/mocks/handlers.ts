@@ -1,7 +1,7 @@
-import { http, HttpResponse } from 'msw';
+import { rest } from 'msw';
 import { ExerciseType, FormCheck, User, SubscriptionTier } from '../types';
 
-const baseUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const baseUrl = process.env.REACT_APP_API_URL || '/api';
 
 const mockUser: User = {
   id: '1',
@@ -43,39 +43,91 @@ const mockFormChecks: FormCheck[] = [
 
 export const handlers = [
   // Auth endpoints
-  http.post(`${baseUrl}/auth/login`, () => {
-    return HttpResponse.json({
-      access_token: 'mock-token',
-      user: mockUser,
-    }, { status: 200 });
+  rest.post(`${baseUrl}/auth/register`, (req, res, ctx) => {
+    return res(
+      ctx.status(201),
+      ctx.json({
+        id: '123',
+        email: 'test@example.com',
+        token: 'fake-jwt-token'
+      })
+    );
   }),
 
-  http.post(`${baseUrl}/auth/register`, () => {
-    return HttpResponse.json({
-      access_token: 'mock-token',
-      user: mockUser,
-    }, { status: 201 });
+  rest.post(`${baseUrl}/auth/login`, (req, res, ctx) => {
+    return res(
+      ctx.status(200),
+      ctx.json({
+        token: 'fake-jwt-token',
+        user: {
+          id: '123',
+          email: 'test@example.com',
+          fullName: 'Test User'
+        }
+      })
+    );
   }),
 
-  http.post(`${baseUrl}/auth/logout`, () => {
-    return new HttpResponse(null, { status: 200 });
+  rest.post(`${baseUrl}/auth/logout`, (req, res, ctx) => {
+    return res(ctx.status(200));
   }),
 
-  http.get(`${baseUrl}/users/me`, ({ request }) => {
-    const auth = request.headers.get('Authorization');
-    
-    if (!auth?.startsWith('Bearer ')) {
-      return HttpResponse.json(
-        { message: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+  // Form check endpoints
+  rest.post(`${baseUrl}/form-checks/analyze`, (req, res, ctx) => {
+    return res(
+      ctx.status(200),
+      ctx.json({
+        id: '456',
+        exercise: 'squat',
+        feedback: ['Good depth', 'Keep chest up'],
+        score: 85
+      })
+    );
+  }),
 
-    return HttpResponse.json(mockUser, { status: 200 });
+  rest.get(`${baseUrl}/form-checks`, (req, res, ctx) => {
+    return res(
+      ctx.status(200),
+      ctx.json([
+        {
+          id: '456',
+          exercise: 'squat',
+          feedback: ['Good depth', 'Keep chest up'],
+          score: 85,
+          createdAt: new Date().toISOString()
+        }
+      ])
+    );
+  }),
+
+  rest.get(`${baseUrl}/form-checks/:id`, (req, res, ctx) => {
+    const id = req.params.id;
+    return res(
+      ctx.status(200),
+      ctx.json({
+        id,
+        exercise: 'squat',
+        feedback: ['Good depth', 'Keep chest up'],
+        score: 85,
+        createdAt: new Date().toISOString()
+      })
+    );
+  }),
+
+  // User endpoints
+  rest.get(`${baseUrl}/users/me`, (req, res, ctx) => {
+    return res(
+      ctx.status(200),
+      ctx.json({
+        id: '123',
+        email: 'test@example.com',
+        fullName: 'Test User'
+      })
+    );
   }),
 
   // Subscription endpoints
-  http.get(`${baseUrl}/subscriptions/plans`, () => {
+  rest.get(`${baseUrl}/subscriptions/plans`, () => {
     return HttpResponse.json([
       {
         id: '1',
@@ -106,7 +158,7 @@ export const handlers = [
     ], { status: 200 });
   }),
 
-  http.post(`${baseUrl}/subscriptions`, () => {
+  rest.post(`${baseUrl}/subscriptions`, () => {
     return HttpResponse.json({
       id: '1',
       user_id: mockUser.id,
@@ -120,25 +172,7 @@ export const handlers = [
     }, { status: 200 });
   }),
 
-  // Form checks endpoints
-  http.get(`${baseUrl}/form-checks`, () => {
-    return HttpResponse.json(mockFormChecks, { status: 200 });
-  }),
-
-  http.get(`${baseUrl}/form-checks/:id`, ({ params }) => {
-    const formCheck = mockFormChecks.find(check => check.id === Number(params.id));
-    
-    if (!formCheck) {
-      return HttpResponse.json(
-        { detail: 'Form check not found' },
-        { status: 404 }
-      );
-    }
-
-    return HttpResponse.json(formCheck, { status: 200 });
-  }),
-
-  http.post(`${baseUrl}/form-checks`, async ({ request }) => {
+  rest.post(`${baseUrl}/form-checks`, async ({ request }) => {
     const formData = await request.json() as {
       exercise_type: ExerciseType;
       video_url: string;

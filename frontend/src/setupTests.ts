@@ -23,11 +23,11 @@ configure({
 
 // Mock IntersectionObserver
 const mockIntersectionObserver = jest.fn();
-mockIntersectionObserver.mockImplementation(() => ({
+mockIntersectionObserver.mockReturnValue({
   observe: () => null,
   unobserve: () => null,
-  disconnect: () => null,
-}));
+  disconnect: () => null
+});
 window.IntersectionObserver = mockIntersectionObserver;
 
 // Mock ResizeObserver
@@ -44,10 +44,29 @@ Object.defineProperty(window, 'matchMedia', {
     matches: false,
     media: query,
     onchange: null,
-    addListener: jest.fn(),
-    removeListener: jest.fn(),
+    addListener: jest.fn(), // deprecated
+    removeListener: jest.fn(), // deprecated
     addEventListener: jest.fn(),
     removeEventListener: jest.fn(),
     dispatchEvent: jest.fn(),
   })),
-}); 
+});
+
+// jest-dom adds custom jest matchers for asserting on DOM nodes.
+// allows you to do things like:
+// expect(element).toHaveTextContent(/react/i)
+// learn more: https://github.com/testing-library/jest-dom
+
+// Extend expect
+declare global {
+  namespace jest {
+    interface Matchers<R> {
+      toBeInTheDocument(): R;
+      toHaveStyle(style: Record<string, any>): R;
+      toHaveClass(className: string): R;
+      toBeVisible(): R;
+      toBeDisabled(): R;
+      toHaveAttribute(attr: string, value?: string): R;
+    }
+  }
+} 

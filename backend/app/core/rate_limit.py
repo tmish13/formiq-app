@@ -1,77 +1,209 @@
 """Rate limiting functionality for API endpoints."""
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, Callable, Any
 from datetime import datetime, timedelta
-from fastapi import HTTPException, Request
+from fastapi import HTTPException, Request, Response
+from functools import wraps
 import time
+from redis.asyncio import Redis
 from app.core.logging import get_logger
+from app.core.config import settings
+from app.core.cache import get_redis
 
 logger = get_logger(__name__)
 
-class RateLimiter:
-    """Rate limiter implementation using in-memory storage."""
+class RateLimitExceeded(HTTPException):
+    """Exception raised when rate limit is exceeded."""
+    def __init__(self, retry_after: int):
+        super().__init__(
+            status_code=429,
+            detail="Too many requests",
+            headers={
+                "Retry-After": str(retry_after),
+                "X-RateLimit-Reset": str(int(time.time()) + retry_after)
+            }
+        )
+
+class RedisRateLimiter:
+    """Redis-based rate limiter for API endpoints."""
     
-    def __init__(self, requests_per_minute: int = 60):
-        """Initialize rate limiter with requests per minute limit."""
-        self.requests_per_minute = requests_per_minute
-        self.requests: Dict[str, list] = {}  # Store request timestamps per IP
-        self._cleanup_interval = 5 * 60  # Cleanup every 5 minutes
-        self._last_cleanup = time.time()
-
-    def _cleanup_old_requests(self) -> None:
-        """Remove request records older than 1 minute."""
-        current_time = time.time()
-        if current_time - self._last_cleanup >= self._cleanup_interval:
-            cutoff_time = current_time - 60
-            for ip in list(self.requests.keys()):
-                self.requests[ip] = [ts for ts in self.requests[ip] if ts > cutoff_time]
-                if not self.requests[ip]:
-                    del self.requests[ip]
-            self._last_cleanup = current_time
-
-    def is_rate_limited(self, request: Request) -> Tuple[bool, Optional[float]]:
-        """Check if the request should be rate limited.
+    def __init__(self, redis_client: Optional[Redis] = None):
+        """Initialize rate limiter with Redis client."""
+        self.redis = redis_client
+        self.default_limit = settings.RATE_LIMIT_REQUESTS
+        self.default_window = settings.RATE_LIMIT_WINDOW
+        self.default_burst = settings.RATE_LIMIT_BURST
         
+        # Default rate limits for different endpoint types
+        self.endpoint_limits = {
+            # Auth endpoints
+            "auth": {
+                "limit": 5,
+                "burst": 10,
+                "window": 60
+            },
+            # Form check analysis (resource intensive)
+            "analysis": {
+                "limit": 10,
+                "burst": 20,
+                "window": 120
+            },
+            # Video upload endpoints
+            "upload": {
+                "limit": 20,
+                "burst": 40,
+                "window": 60
+            },
+            # Standard API endpoints
+            "api": {
+                "limit": 60,
+                "burst": 120,
+                "window": 60
+            }
+        }
+    
+    async def get_redis(self) -> Redis:
+        """Get Redis client, creating if necessary."""
+        if not self.redis:
+            self.redis = await get_redis()
+        return self.redis
+
+    async def check_rate_limit(
+        self,
+        key: str,
+        limit: int,
+        window: int,
+        burst: Optional[int] = None
+    ) -> Tuple[bool, int, int]:
+        """Check if rate limit is exceeded for a key.
+        
+        Args:
+            key: Rate limit key
+            limit: Number of requests allowed
+            window: Time window in seconds
+            burst: Burst limit (optional)
+            
         Returns:
-            Tuple[bool, Optional[float]]: (is_limited, retry_after)
-            - is_limited: True if request should be rate limited
-            - retry_after: Seconds until next request is allowed (if rate limited)
+            Tuple[bool, int, int]: (is_allowed, current_count, retry_after)
         """
-        self._cleanup_old_requests()
+        redis = await self.get_redis()
+        now = int(time.time())
+        window_key = f"{key}:{now // window}"
         
-        client_ip = request.client.host
-        current_time = time.time()
-        
-        # Initialize request list for new IPs
-        if client_ip not in self.requests:
-            self.requests[client_ip] = []
-        
-        # Remove requests older than 1 minute
-        self.requests[client_ip] = [
-            ts for ts in self.requests[client_ip] 
-            if ts > current_time - 60
-        ]
-        
-        # Check if rate limit is exceeded
-        if len(self.requests[client_ip]) >= self.requests_per_minute:
-            oldest_request = min(self.requests[client_ip])
-            retry_after = 60 - (current_time - oldest_request)
-            logger.warning(f"Rate limit exceeded for IP {client_ip}")
-            return True, max(0, retry_after)
-        
-        # Add current request
-        self.requests[client_ip].append(current_time)
-        return False, None
-
-    def check_rate_limit(self, request: Request) -> None:
-        """Check rate limit and raise HTTPException if exceeded."""
-        is_limited, retry_after = self.is_rate_limited(request)
-        if is_limited:
-            raise HTTPException(
-                status_code=429,
-                detail="Too many requests",
-                headers={"Retry-After": str(int(retry_after or 60))}
+        try:
+            # Use pipeline for atomic operations
+            pipe = redis.pipeline()
+            
+            # Increment counter for current window
+            pipe.incr(window_key)
+            pipe.expire(window_key, window * 2)  # Keep an extra window for sliding window calc
+            
+            # Get counts from current and previous windows
+            prev_key = f"{key}:{(now // window) - 1}"
+            pipe.get(prev_key)
+            
+            # Execute pipeline
+            current_count, _, prev_count = await pipe.execute()
+            prev_count = int(prev_count or 0)
+            
+            # Calculate position in current window (0 to 1)
+            window_position = (now % window) / window
+            
+            # Calculate weighted count for sliding window
+            weighted_count = int(
+                prev_count * (1 - window_position) +
+                current_count * window_position
             )
+            
+            # Check burst limit first if specified
+            if burst and weighted_count > burst:
+                logger.warning(f"Burst limit exceeded for {key}: {weighted_count}/{burst}")
+                return False, weighted_count, window
+            
+            # Check normal limit
+            is_allowed = weighted_count <= limit
+            retry_after = window - (now % window) if not is_allowed else 0
+            
+            return is_allowed, weighted_count, retry_after
+            
+        except Exception as e:
+            logger.error(f"Redis rate limit error: {str(e)}")
+            # Default to allowing request on Redis failure
+            return True, 0, 0
 
-    async def __call__(self, request: Request) -> None:
-        """Middleware callable to check rate limit."""
-        self.check_rate_limit(request) 
+def rate_limit(
+    limit: Optional[int] = None,
+    window: Optional[int] = None,
+    burst: Optional[int] = None,
+    key_func: Optional[Callable[[Request], str]] = None
+):
+    """Decorator for rate limiting FastAPI routes.
+    
+    Args:
+        limit: Requests allowed per window
+        window: Time window in seconds
+        burst: Maximum burst allowed
+        key_func: Function to generate rate limit key from request
+    """
+    def decorator(func: Callable) -> Callable:
+        @wraps(func)
+        async def wrapper(*args, **kwargs) -> Any:
+            # Get request object
+            request = None
+            for arg in args:
+                if isinstance(arg, Request):
+                    request = arg
+                    break
+            
+            if not request:
+                logger.error("No request object found in route arguments")
+                return await func(*args, **kwargs)
+            
+            # Get rate limiter instance
+            limiter = RedisRateLimiter()
+            
+            # Generate rate limit key
+            if key_func:
+                key = key_func(request)
+            else:
+                # Default to IP-based limiting
+                client_ip = request.headers.get("X-Forwarded-For", request.client.host)
+                endpoint = request.url.path
+                key = f"rate_limit:{client_ip}:{endpoint}"
+            
+            # Get limits (use defaults if not specified)
+            endpoint_type = (
+                "auth" if "/auth/" in request.url.path
+                else "analysis" if "/analyze" in request.url.path
+                else "upload" if "/upload" in request.url.path
+                else "api"
+            )
+            
+            default_limits = limiter.endpoint_limits[endpoint_type]
+            actual_limit = limit or default_limits["limit"]
+            actual_window = window or default_limits["window"]
+            actual_burst = burst or default_limits["burst"]
+            
+            # Check rate limit
+            is_allowed, count, retry_after = await limiter.check_rate_limit(
+                key,
+                actual_limit,
+                actual_window,
+                actual_burst
+            )
+            
+            if not is_allowed:
+                raise RateLimitExceeded(retry_after)
+            
+            # Execute route handler
+            response = await func(*args, **kwargs)
+            
+            # Add rate limit headers to response
+            if isinstance(response, Response):
+                response.headers["X-RateLimit-Limit"] = str(actual_limit)
+                response.headers["X-RateLimit-Remaining"] = str(max(0, actual_limit - count))
+                response.headers["X-RateLimit-Reset"] = str(int(time.time()) + actual_window)
+            
+            return response
+            
+        return wrapper
+    return decorator 

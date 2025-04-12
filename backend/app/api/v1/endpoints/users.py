@@ -1,13 +1,14 @@
 """Users router module."""
-from typing import Any, List
+from typing import Any, List, Dict
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Body
 from sqlalchemy.orm import Session
 
 from app.api import deps
 from app.models.user import User
 from app.schemas.user import User as UserSchema, UserCreate, UserUpdate
 from app.services.user_service import UserService
+from app.utils.rate_limit import rate_limit
 
 router = APIRouter()
 
@@ -192,4 +193,125 @@ def delete_user(
             status_code=404,
             detail="The user with this id does not exist in the system",
         )
-    return user_service.delete(user) 
+    return user_service.delete(user)
+
+
+@router.put("/me/password", response_model=Message)
+@rate_limit(limit=5, window=300)  # 5 requests per 5 minutes
+async def change_password(
+    *,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+    password_data: dict = Body(..., example={
+        "current_password": "oldpass123",
+        "new_password": "newpass123",
+        "confirm_password": "newpass123"
+    })
+) -> Any:
+    """
+    Change the current user's password.
+    
+    Requires current password verification.
+    New password must meet security requirements.
+    Rate limited to 5 requests per 5 minutes.
+    """
+    user_service: UserService = deps.get_user_service()
+    
+    # Verify current password
+    if not user_service.verify_password(password_data["current_password"], current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Incorrect password"
+        )
+    
+    # Verify new password matches confirmation
+    if password_data["new_password"] != password_data["confirm_password"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New passwords do not match"
+        )
+    
+    # Update password
+    await user_service.change_password(current_user.id, password_data["new_password"])
+    
+    return {"message": "Password updated successfully"}
+
+@router.put("/me/profile", response_model=UserSchema)
+@rate_limit(limit=10, window=60)  # 10 requests per minute
+async def update_profile(
+    *,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+    profile_data: UserUpdate = Body(...)
+) -> Any:
+    """
+    Update the current user's profile information.
+    
+    Allows updating:
+    - Full name
+    - Email (requires verification)
+    - Bio
+    - Avatar
+    - Preferences
+    
+    Rate limited to 10 requests per minute.
+    """
+    user_service: UserService = deps.get_user_service()
+    
+    # If email is being changed, verify it's not already taken
+    if profile_data.email and profile_data.email != current_user.email:
+        if user_service.get_by_email(profile_data.email):
+            raise HTTPException(
+                status_code=400,
+                detail="Email already registered"
+            )
+    
+    updated_user = await user_service.update(current_user, profile_data)
+    return updated_user
+
+@router.get("/me/settings", response_model=Dict[str, Any])
+@rate_limit(limit=60, window=60)  # 60 requests per minute
+async def get_settings(
+    current_user: User = Depends(deps.get_current_user),
+    user_service: UserService = Depends(deps.get_user_service)
+) -> Any:
+    """
+    Get the current user's settings and preferences.
+    
+    Returns:
+    - Notification preferences
+    - Privacy settings
+    - UI preferences
+    - Exercise preferences
+    - Subscription details
+    
+    Rate limited to 60 requests per minute.
+    """
+    settings = await user_service.get_user_settings(current_user.id)
+    return settings
+
+@router.put("/me/settings", response_model=Dict[str, Any])
+@rate_limit(limit=10, window=60)  # 10 requests per minute
+async def update_settings(
+    *,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+    settings_data: Dict[str, Any] = Body(...),
+    user_service: UserService = Depends(deps.get_user_service)
+) -> Any:
+    """
+    Update the current user's settings and preferences.
+    
+    Allows updating:
+    - Notification preferences
+    - Privacy settings
+    - UI preferences
+    - Exercise preferences
+    
+    Rate limited to 10 requests per minute.
+    """
+    updated_settings = await user_service.update_user_settings(
+        user_id=current_user.id,
+        settings=settings_data
+    )
+    return updated_settings 

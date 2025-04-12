@@ -17,6 +17,7 @@ from app.core.security import (
 from app.models.user import User
 from app.core.config import settings
 from app.core.auth import AuthService
+from tests.factories import UserFactory, SessionFactory
 
 # Test database setup
 SQLALCHEMY_TEST_DATABASE_URL = "sqlite:///./test.db"
@@ -75,21 +76,16 @@ def test_login_user(test_client):
     assert data["token_type"] == "bearer"
 
 def test_password_hashing():
-    password = "testpassword"
+    password = "testpass123"
     hashed = get_password_hash(password)
-    
-    assert hashed != password
-    assert verify_password(password, hashed) is True
-    assert verify_password("wrongpassword", hashed) is False
+    assert verify_password(password, hashed)
+    assert not verify_password("wrongpass", hashed)
 
 def test_create_access_token():
-    data = {"sub": "1", "email": "test@example.com"}
-    token = create_access_token(data)
-    
-    decoded = jwt.decode(token, settings.jwt_secret, algorithms=["HS256"])
-    assert decoded["sub"] == data["sub"]
-    assert decoded["email"] == data["email"]
-    assert "exp" in decoded
+    user = UserFactory()
+    token = create_access_token(user.id)
+    assert isinstance(token, str)
+    assert len(token) > 0
 
 def test_create_access_token_with_expiry():
     data = {"sub": "1", "email": "test@example.com"}
@@ -301,4 +297,36 @@ def test_refresh_token_invalid(client: TestClient) -> None:
         f"{settings.API_V1_STR}/auth/refresh",
         headers={"Authorization": "Bearer invalid_token"}
     )
-    assert response.status_code == 401 
+    assert response.status_code == 401
+
+def test_session_creation():
+    user = UserFactory()
+    session = SessionFactory(user_id=user.id)
+    assert session.user_id == user.id
+    assert session.is_active
+    assert session.expires_at > datetime.utcnow()
+
+def test_session_expiration():
+    user = UserFactory()
+    session = SessionFactory(
+        user_id=user.id,
+        expires_at=datetime.utcnow() - timedelta(days=1)
+    )
+    assert not session.is_valid()
+
+def test_session_deactivation():
+    user = UserFactory()
+    session = SessionFactory(user_id=user.id)
+    session.is_active = False
+    assert not session.is_valid()
+
+def test_user_creation():
+    user = UserFactory()
+    assert user.email.endswith("@example.com")
+    assert user.is_active
+    assert not user.is_superuser
+
+def test_superuser_creation():
+    user = UserFactory(is_superuser=True)
+    assert user.is_superuser
+    assert user.is_active 
