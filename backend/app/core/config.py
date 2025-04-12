@@ -435,8 +435,9 @@ class Settings(BaseSettings):
     def validate_jwt_secret(cls, v, values):
         """Validate JWT secret key."""
         if not v:
-            # If JWT_SECRET is not set, use SECRET_KEY
-            return values.get("SECRET_KEY", "")
+            raise ValueError("JWT_SECRET must be set in production environment")
+        if len(v) < 32:
+            raise ValueError("JWT_SECRET must be at least 32 characters long")
         return v
         
     JWT_ALGORITHM: str = Field(

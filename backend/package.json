@@ -1,0 +1,6 @@
+{
+  "devDependencies": {
+    "@types/helmet": "^4.0.0",
+    "@types/pg": "^8.11.12"
+  }
+}

@@ -21,6 +21,10 @@ export class PoseAnalysisService {
   private static instance: PoseAnalysisService;
   private detector: poseDetection.PoseDetector | null = null;
   private isAnalyzing: boolean = false;
+  private readonly MIN_CONFIDENCE_THRESHOLD = 0.3;
+  private readonly MAX_RETRY_ATTEMPTS = 3;
+  private retryCount = 0;
+  private fallbackDetector: poseDetection.PoseDetector | null = null;
   private config: PoseAnalysisConfig;
   private videoProcessor: VideoProcessor;
   private previousKeypoints: poseDetection.Keypoint[] = [];
@@ -132,26 +136,122 @@ export class PoseAnalysisService {
     try {
       await this.optimizePerformance();
       
-      const modelConfig = this.config.modelType === 'MoveNet' 
-        ? {
-            modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING,
-            enableSmoothing: this.config.deviceOptimization?.enableSmoothing
-          }
-        : {
-            runtime: 'tfjs',
-            enableSmoothing: this.config.deviceOptimization?.enableSmoothing
-          };
+      // Initialize primary detector
+      const modelConfig = this.getPrimaryModelConfig();
+      this.detector = await this.createDetector(modelConfig);
 
-      this.detector = await poseDetection.createDetector(
-        this.config.modelType === 'MoveNet' 
-          ? poseDetection.SupportedModels.MoveNet
-          : poseDetection.SupportedModels.BlazePose,
-        modelConfig
-      );
+      // Initialize fallback detector with simpler model
+      const fallbackConfig = this.getFallbackModelConfig();
+      this.fallbackDetector = await this.createDetector(fallbackConfig);
+
+      this.emit('detectorReady');
     } catch (error) {
       console.error('Failed to initialize pose detector:', error);
+      this.emit('detectorError', error);
+      throw new Error('Failed to initialize pose detection model: ' + error.message);
+    }
+  }
+
+  private getPrimaryModelConfig(): poseDetection.ModelConfig {
+    return {
+      modelType: poseDetection.movenet.modelType.SINGLEPOSE_THUNDER,
+      enableSmoothing: true,
+      minPoseScore: this.MIN_CONFIDENCE_THRESHOLD
+    };
+  }
+
+  private getFallbackModelConfig(): poseDetection.ModelConfig {
+    return {
+      modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING,
+      enableSmoothing: true,
+      minPoseScore: this.MIN_CONFIDENCE_THRESHOLD * 0.8 // Lower threshold for fallback
+    };
+  }
+
+  private async createDetector(config: poseDetection.ModelConfig): Promise<poseDetection.PoseDetector> {
+    try {
+      return await poseDetection.createDetector(
+        poseDetection.SupportedModels.MoveNet,
+        config
+      );
+    } catch (error) {
+      console.error('Failed to create detector:', error);
       throw error;
     }
+  }
+
+  public async detectPose(videoElement: HTMLVideoElement): Promise<PoseAnalysisResult> {
+    if (!this.detector && !this.fallbackDetector) {
+      throw new Error('Pose detectors not initialized');
+    }
+
+    try {
+      // Try primary detector first
+      if (this.detector) {
+        const poses = await this.detector.estimatePoses(videoElement, {
+          maxPoses: 1,
+          flipHorizontal: false
+        });
+
+        if (this.validatePoseResult(poses)) {
+          this.retryCount = 0; // Reset retry count on success
+          return this.processPoseResult(poses[0]);
+        }
+      }
+
+      // Fall back to simpler model if primary fails
+      if (this.fallbackDetector && this.retryCount < this.MAX_RETRY_ATTEMPTS) {
+        this.retryCount++;
+        console.warn(`Falling back to simpler model, attempt ${this.retryCount}`);
+        
+        const poses = await this.fallbackDetector.estimatePoses(videoElement, {
+          maxPoses: 1,
+          flipHorizontal: false
+        });
+
+        if (this.validatePoseResult(poses)) {
+          return this.processPoseResult(poses[0]);
+        }
+      }
+
+      throw new Error('Failed to detect pose with both primary and fallback models');
+    } catch (error) {
+      console.error('Error during pose detection:', error);
+      this.emit('detectionError', error);
+      throw error;
+    }
+  }
+
+  private validatePoseResult(poses: poseDetection.Pose[]): boolean {
+    if (!poses || poses.length === 0) return false;
+
+    const pose = poses[0];
+    if (!pose.keypoints || pose.keypoints.length === 0) return false;
+
+    // Check if enough keypoints have sufficient confidence
+    const confidentKeypoints = pose.keypoints.filter(
+      kp => kp.score && kp.score >= this.MIN_CONFIDENCE_THRESHOLD
+    );
+
+    return confidentKeypoints.length >= pose.keypoints.length * 0.7; // At least 70% confident keypoints
+  }
+
+  private processPoseResult(pose: poseDetection.Pose): PoseAnalysisResult {
+    return {
+      keypoints: this.normalizeKeypoints(pose.keypoints),
+      confidence: this.calculateOverallConfidence(pose.keypoints),
+      timestamp: Date.now()
+    };
+  }
+
+  private calculateOverallConfidence(keypoints: poseDetection.Keypoint[]): number {
+    const scores = keypoints
+      .map(kp => kp.score || 0)
+      .filter(score => score > 0);
+    
+    return scores.length > 0 ? 
+      scores.reduce((sum, score) => sum + score, 0) / scores.length : 
+      0;
   }
 
   private async analyzeFrame(videoElement: HTMLVideoElement): Promise<void> {

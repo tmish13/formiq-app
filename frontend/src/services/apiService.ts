@@ -108,14 +108,48 @@ export class ApiService {
       config.headers.Authorization = `Bearer ${tokens.accessToken}`;
     }
 
+    // Get CSRF token from cookie
+    const csrfToken = this.getCsrfTokenFromCookie();
+    if (!csrfToken) {
+      // Fetch new CSRF token if not present
+      await this.fetchCsrfToken();
+    }
+
     const headers = new AxiosHeaders({
       'X-CSRF-Token': this.csrfToken || '',
       'X-Content-Type-Options': 'nosniff',
       'X-Frame-Options': 'DENY',
       'X-XSS-Protection': '1; mode=block',
+      'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+      'Content-Security-Policy': "default-src 'self'; img-src 'self' data: https://*.s3.amazonaws.com; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' https://api.stripe.com;"
     });
 
     return { ...config, headers };
+  }
+
+  private getCsrfTokenFromCookie(): string | null {
+    const name = 'csrf_token=';
+    const decodedCookie = decodeURIComponent(document.cookie);
+    const cookieArray = decodedCookie.split(';');
+    for (let cookie of cookieArray) {
+      cookie = cookie.trim();
+      if (cookie.indexOf(name) === 0) {
+        return cookie.substring(name.length, cookie.length);
+      }
+    }
+    return null;
+  }
+
+  private async fetchCsrfToken(): Promise<void> {
+    try {
+      const response = await axios.get('/api/v1/auth/csrf-token');
+      this.csrfToken = response.data.token;
+      // Store token in cookie with secure attributes
+      document.cookie = `csrf_token=${this.csrfToken}; path=/; secure; samesite=strict`;
+    } catch (error) {
+      console.error('Failed to fetch CSRF token:', error);
+      throw error;
+    }
   }
 
   private async handleResponseError(error: AxiosError<ErrorResponse>): Promise<any> {

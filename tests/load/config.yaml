@@ -1,0 +1,52 @@
+# Load Testing Configuration
+
+# Test scenarios
+scenarios:
+  normal_load:
+    description: "Simulates normal daily traffic"
+    users: 50
+    spawn_rate: 5
+    run_time: "30m"
+    host: "http://localhost:8000"
+    
+  peak_load:
+    description: "Simulates peak traffic hours"
+    users: 200
+    spawn_rate: 20
+    run_time: "15m"
+    host: "http://localhost:8000"
+    
+  stress_test:
+    description: "Tests system limits"
+    users: 500
+    spawn_rate: 50
+    run_time: "10m"
+    host: "http://localhost:8000"
+    
+  endurance_test:
+    description: "Tests system stability over time"
+    users: 100
+    spawn_rate: 10
+    run_time: "2h"
+    host: "http://localhost:8000"
+
+# Test data
+sample_data:
+  video_path: "tests/load/sample_video.mp4"
+  
+# Performance thresholds
+thresholds:
+  response_time_p95: 2000  # 95th percentile response time in ms
+  error_rate: 1  # Maximum acceptable error rate in percentage
+  
+# Monitoring
+monitoring:
+  statsd_host: "localhost"
+  statsd_port: 8125
+  graphite_port: 2003
+  
+# Reporting
+report:
+  output_dir: "tests/load/reports"
+  save_stats: true
+  save_distribution: true 

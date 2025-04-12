@@ -15,6 +15,7 @@ from typing import Generator, Dict, Any, AsyncGenerator, List
 from app.core.config import settings
 from app.core.logging import logger
 from app.core.exceptions import DatabaseError
+from app.core.monitoring import track_db_operation, db_connections
 
 import time
 
@@ -219,42 +220,51 @@ async_session = sessionmaker(
     autoflush=False,
 )
 
-def get_db() -> Generator[Session, None, None]:
-    """
-    Get sync database session with proper error handling.
-    
-    This is a dependency injectable session provider for synchronous routes.
-    
-    Yields:
-        Session: SQLAlchemy session
-        
-    Raises:
-        DatabaseError: On database errors with detailed message
-    """
+def get_engine():
+    """Create SQLAlchemy engine with optimized connection pooling."""
+    return create_engine(
+        settings.SQLALCHEMY_DATABASE_URI,
+        poolclass=QueuePool,
+        pool_size=settings.DB_POOL_SIZE,
+        max_overflow=settings.DB_MAX_OVERFLOW,
+        pool_timeout=settings.DB_POOL_TIMEOUT,
+        pool_recycle=settings.DB_POOL_RECYCLE,
+        pool_pre_ping=True,
+        echo=settings.DB_ECHO
+    )
+
+engine = get_engine()
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+@contextlib.contextmanager
+def get_db() -> Session:
+    """Get database session with monitoring."""
     db = SessionLocal()
     start_time = time.time()
     try:
+        # Update active connections metric
+        db_connections.labels(state="active").inc()
         yield db
-    except SQLAlchemyError as e:
-        logger.error(f"Database error: {str(e)}", exc_info=True)
-        try:
-            db.rollback()
-        except Exception as rollback_error:
-            logger.error(f"Error during rollback: {str(rollback_error)}")
-        raise DatabaseError(f"Database error occurred: {str(e)}", original_error=e)
-    except Exception as e:
-        logger.error(f"Unexpected error in database session: {str(e)}", exc_info=True)
-        try:
-            db.rollback()
-        except Exception as rollback_error:
-            logger.error(f"Error during rollback: {str(rollback_error)}")
-        raise
     finally:
-        db.close()
         duration = time.time() - start_time
-        if duration > 1.0:  # Log slow operations (>1s)
-            logger.warning(f"Slow database operation: {duration:.2f}s")
-        logger.debug(f"Database session used for {duration:.4f}s")
+        # Track operation duration
+        track_db_operation("session", "all", duration)
+        db_connections.labels(state="active").dec()
+        db.close()
+
+def check_db_connection():
+    """Verify database connection and connection pooling."""
+    try:
+        with get_db() as db:
+            db.execute("SELECT 1")
+        return True
+    except Exception as e:
+        track_db_operation("connection_error", "all", 0)
+        raise e
+
+# Initialize connection pool
+engine.pool.dispose()
+check_db_connection()
 
 async def get_async_db() -> AsyncGenerator[AsyncSession, None]:
     """

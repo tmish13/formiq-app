@@ -8,6 +8,7 @@ from app.core.logging import get_logger
 from app.core.config import settings
 import psutil
 import time
+from datetime import datetime
 
 logger = get_logger(__name__)
 
@@ -94,6 +95,40 @@ workouts_completed = Counter(
     "workouts_completed_total",
     "Total number of completed workouts",
     ["type"]
+)
+
+# AI Model metrics
+model_inference_duration = Histogram(
+    "model_inference_duration_seconds",
+    "AI model inference duration in seconds",
+    ["model_type", "operation"],
+    buckets=[0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.0]
+)
+
+model_confidence_scores = Histogram(
+    "model_confidence_scores",
+    "Distribution of model confidence scores",
+    ["model_type", "keypoint_type"],
+    buckets=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+)
+
+model_errors = Counter(
+    "model_errors_total",
+    "Total number of AI model errors",
+    ["model_type", "error_type"]
+)
+
+model_fallbacks = Counter(
+    "model_fallbacks_total",
+    "Number of times fallback model was used",
+    ["primary_model", "fallback_model"]
+)
+
+# Enhanced error tracking
+error_details = Counter(
+    "error_details_total",
+    "Detailed error tracking",
+    ["service", "endpoint", "error_type", "error_code"]
 )
 
 def setup_monitoring(app: FastAPI) -> None:
@@ -188,4 +223,73 @@ def update_business_metrics(metrics: Dict[str, Any]) -> None:
                 workouts_completed.labels(type=type_).inc(count)
                 
     except Exception as e:
-        logger.error(f"Failed to update business metrics: {str(e)}") 
+        logger.error(f"Failed to update business metrics: {str(e)}")
+
+def track_model_inference(model_type: str, operation: str, duration: float) -> None:
+    """Track AI model inference duration."""
+    try:
+        model_inference_duration.labels(
+            model_type=model_type,
+            operation=operation
+        ).observe(duration)
+    except Exception as e:
+        logger.error(f"Failed to track model inference: {str(e)}")
+
+def track_model_confidence(model_type: str, keypoint_type: str, score: float) -> None:
+    """Track model confidence scores."""
+    try:
+        model_confidence_scores.labels(
+            model_type=model_type,
+            keypoint_type=keypoint_type
+        ).observe(score)
+    except Exception as e:
+        logger.error(f"Failed to track model confidence: {str(e)}")
+
+def track_model_error(model_type: str, error_type: str) -> None:
+    """Track AI model errors."""
+    try:
+        model_errors.labels(
+            model_type=model_type,
+            error_type=error_type
+        ).inc()
+    except Exception as e:
+        logger.error(f"Failed to track model error: {str(e)}")
+
+def track_model_fallback(primary_model: str, fallback_model: str) -> None:
+    """Track when fallback model is used."""
+    try:
+        model_fallbacks.labels(
+            primary_model=primary_model,
+            fallback_model=fallback_model
+        ).inc()
+    except Exception as e:
+        logger.error(f"Failed to track model fallback: {str(e)}")
+
+def track_detailed_error(
+    service: str,
+    endpoint: str,
+    error_type: str,
+    error_code: str
+) -> None:
+    """Track detailed error information."""
+    try:
+        error_details.labels(
+            service=service,
+            endpoint=endpoint,
+            error_type=error_type,
+            error_code=error_code
+        ).inc()
+        
+        # Log error details
+        logger.error(
+            "Application error",
+            extra={
+                "service": service,
+                "endpoint": endpoint,
+                "error_type": error_type,
+                "error_code": error_code,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        )
+    except Exception as e:
+        logger.error(f"Failed to track error details: {str(e)}") 

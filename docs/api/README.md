@@ -1,314 +1,199 @@
-# API Documentation
+# FormIQ API Documentation
 
 ## Overview
 
-The Formiq API is built using FastAPI and provides a comprehensive set of endpoints for managing workouts, form checks, subscriptions, and user authentication.
-
-## Base URL
-
-```
-http://localhost:8000/api/v1
-```
+FormIQ provides a RESTful API for form analysis and exercise tracking. This documentation covers all available endpoints, authentication methods, and common use cases.
 
 ## Authentication
 
-All API endpoints except `/auth/register` and `/auth/login` require authentication using a Bearer token.
+All API requests require authentication using JWT tokens.
+
+### Obtaining a Token
 
 ```http
-Authorization: Bearer <your_access_token>
-```
+POST /api/v1/auth/login
+Content-Type: application/json
 
-## Endpoints
-
-### Authentication
-
-#### Register User
-```http
-POST /auth/register
-```
-
-Request body:
-```json
 {
-    "email": "user@example.com",
-    "password": "securepassword",
-    "full_name": "John Doe"
+  "email": "user@example.com",
+  "password": "password123"
 }
 ```
 
 Response:
 ```json
 {
-    "id": "uuid",
-    "email": "user@example.com",
-    "full_name": "John Doe",
-    "is_active": true,
-    "is_verified": false
+  "tokens": {
+    "accessToken": "eyJhbG...",
+    "refreshToken": "eyJhbG..."
+  },
+  "user": {
+    "id": "123",
+    "email": "user@example.com"
+  }
 }
 ```
 
-#### Login
+### Using the Token
+
+Include the token in the Authorization header:
 ```http
-POST /auth/login
+Authorization: Bearer eyJhbG...
 ```
 
-Request body:
-```json
-{
-    "email": "user@example.com",
-    "password": "securepassword"
-}
+## Form Analysis Endpoints
+
+### Submit Form Analysis
+
+```http
+POST /api/v1/form-analysis/analyze
+Content-Type: multipart/form-data
+
+Parameters:
+- video: Video file (required)
+- exerciseType: string (optional)
 ```
 
 Response:
 ```json
 {
-    "access_token": "jwt_token",
-    "token_type": "bearer",
-    "user": {
-        "id": "uuid",
-        "email": "user@example.com",
-        "full_name": "John Doe",
-        "is_active": true,
-        "is_verified": true
+  "id": "analysis_123",
+  "status": "completed",
+  "confidence": 0.95,
+  "poses": [...],
+  "recommendations": [...]
+}
+```
+
+### Get Analysis History
+
+```http
+GET /api/v1/form-analysis/history
+```
+
+Response:
+```json
+{
+  "analyses": [
+    {
+      "id": "analysis_123",
+      "createdAt": "2024-03-15T10:00:00Z",
+      "status": "completed",
+      "exerciseType": "squat"
     }
+  ]
 }
 ```
 
-### Form Checks
+## Error Handling
 
-#### Submit Form Check
-```http
-POST /form-checks
-```
+The API uses standard HTTP status codes:
 
-Request body:
+- 200: Success
+- 400: Bad Request
+- 401: Unauthorized
+- 403: Forbidden
+- 404: Not Found
+- 429: Too Many Requests
+- 500: Internal Server Error
+
+Error Response Format:
 ```json
 {
-    "exercise_type": "squat",
-    "video_url": "https://example.com/video.mp4",
-    "notes": "Optional notes about the form"
-}
-```
-
-Response:
-```json
-{
-    "id": "uuid",
-    "user_id": "uuid",
-    "exercise_type": "squat",
-    "video_url": "https://example.com/video.mp4",
-    "status": "pending",
-    "score": null,
-    "feedback": null,
-    "created_at": "2024-03-29T12:00:00Z"
-}
-```
-
-#### Get Form Checks
-```http
-GET /form-checks
-```
-
-Query Parameters:
-- `status`: Filter by status (pending, analyzing, completed)
-- `exercise_type`: Filter by exercise type
-- `skip`: Number of records to skip (pagination)
-- `limit`: Number of records to return (pagination)
-
-Response:
-```json
-{
-    "items": [
-        {
-            "id": "uuid",
-            "user_id": "uuid",
-            "exercise_type": "squat",
-            "video_url": "https://example.com/video.mp4",
-            "status": "completed",
-            "score": 85,
-            "feedback": "Good form overall...",
-            "created_at": "2024-03-29T12:00:00Z"
-        }
-    ],
-    "total": 1,
-    "skip": 0,
-    "limit": 10
-}
-```
-
-### Workouts
-
-#### Create Workout
-```http
-POST /workouts
-```
-
-Request body:
-```json
-{
-    "name": "Leg Day",
-    "description": "Focus on lower body exercises",
-    "exercises": [
-        {
-            "name": "Squat",
-            "sets": 3,
-            "reps": 12,
-            "weight": 100
-        }
-    ]
-}
-```
-
-Response:
-```json
-{
-    "id": "uuid",
-    "user_id": "uuid",
-    "name": "Leg Day",
-    "description": "Focus on lower body exercises",
-    "exercises": [
-        {
-            "id": "uuid",
-            "name": "Squat",
-            "sets": 3,
-            "reps": 12,
-            "weight": 100
-        }
-    ],
-    "created_at": "2024-03-29T12:00:00Z"
-}
-```
-
-#### Get Workouts
-```http
-GET /workouts
-```
-
-Query Parameters:
-- `skip`: Number of records to skip (pagination)
-- `limit`: Number of records to return (pagination)
-
-Response:
-```json
-{
-    "items": [
-        {
-            "id": "uuid",
-            "user_id": "uuid",
-            "name": "Leg Day",
-            "description": "Focus on lower body exercises",
-            "exercises": [...],
-            "created_at": "2024-03-29T12:00:00Z"
-        }
-    ],
-    "total": 1,
-    "skip": 0,
-    "limit": 10
-}
-```
-
-### Subscriptions
-
-#### Create Subscription
-```http
-POST /subscriptions
-```
-
-Request body:
-```json
-{
-    "tier": "PRO",
-    "payment_method_id": "pm_xxx"
-}
-```
-
-Response:
-```json
-{
-    "id": "uuid",
-    "user_id": "uuid",
-    "tier": "PRO",
-    "status": "active",
-    "current_period_start": "2024-03-29T12:00:00Z",
-    "current_period_end": "2024-04-29T12:00:00Z"
-}
-```
-
-#### Get Current Subscription
-```http
-GET /subscriptions/current
-```
-
-Response:
-```json
-{
-    "id": "uuid",
-    "user_id": "uuid",
-    "tier": "PRO",
-    "status": "active",
-    "current_period_start": "2024-03-29T12:00:00Z",
-    "current_period_end": "2024-04-29T12:00:00Z"
-}
-```
-
-## Error Responses
-
-All endpoints may return the following error responses:
-
-### 400 Bad Request
-```json
-{
-    "detail": "Invalid input data"
-}
-```
-
-### 401 Unauthorized
-```json
-{
-    "detail": "Not authenticated"
-}
-```
-
-### 403 Forbidden
-```json
-{
-    "detail": "Not enough permissions"
-}
-```
-
-### 404 Not Found
-```json
-{
-    "detail": "Resource not found"
-}
-```
-
-### 422 Validation Error
-```json
-{
-    "detail": [
-        {
-            "loc": ["body", "email"],
-            "msg": "field required",
-            "type": "value_error.missing"
-        }
-    ]
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Invalid input parameters",
+    "details": {...}
+  }
 }
 ```
 
 ## Rate Limiting
 
-The API implements rate limiting based on subscription tiers:
+- Global: 100 requests per 15 minutes
+- Auth endpoints: 5 attempts per hour
+- API endpoints: 50 requests per 15 minutes
 
-- Free: 50 requests per minute
-- Pro: 200 requests per minute
-- Enterprise: 1000 requests per minute
+## Security
 
-Rate limit headers are included in all responses:
+### CSRF Protection
+
+All POST/PUT/DELETE requests require a CSRF token:
+```http
+X-XSRF-TOKEN: token_from_cookie
+```
+
+### Content Security Policy
+
+The API enforces strict CSP headers. See security documentation for details.
+
+## Monitoring
+
+### Health Check
 
 ```http
-X-RateLimit-Limit: 200
-X-RateLimit-Remaining: 199
-X-RateLimit-Reset: 1616789012
-``` 
+GET /api/health
+```
+
+Response:
+```json
+{
+  "status": "healthy",
+  "version": "1.0.0",
+  "timestamp": "2024-03-15T10:00:00Z"
+}
+```
+
+## WebSocket API
+
+### Real-time Form Analysis
+
+Connect to:
+```
+ws://api.formiq.com/ws
+```
+
+Message format:
+```json
+{
+  "type": "form_analysis",
+  "data": {
+    "timestamp": 1234567890,
+    "keypoints": [...]
+  }
+}
+```
+
+## Development
+
+### Local Setup
+
+1. Clone the repository
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Set up environment variables:
+   ```bash
+   cp .env.example .env
+   ```
+4. Start development server:
+   ```bash
+   npm run dev
+   ```
+
+### Testing
+
+Run tests:
+```bash
+npm test
+```
+
+Run specific test suite:
+```bash
+npm test -- --grep "Form Analysis"
+```
+
+## Deployment
+
+See [deployment.md](../deployment/deployment.md) for detailed deployment instructions. 
