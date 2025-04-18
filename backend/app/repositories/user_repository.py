@@ -4,9 +4,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import update, delete
 from sqlalchemy.orm import Session
+from fastapi import Depends
 
 from app.models.user import User
 from app.schemas.user import UserCreate, UserUpdate
+from app.core.database import get_db
 
 class UserRepository:
     """Repository for user database operations."""
@@ -124,3 +126,14 @@ class UserRepository:
             self.db.commit()
             
         return True 
+
+def get_user_repository(db: Session = Depends(get_db)) -> UserRepository:
+    """Get user repository instance.
+    
+    Args:
+        db: Database session
+        
+    Returns:
+        User repository instance
+    """
+    return UserRepository(db=db) 

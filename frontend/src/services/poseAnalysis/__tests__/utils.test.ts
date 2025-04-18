@@ -23,6 +23,24 @@ const createKeypoint = (name: string, x: number, y: number, score: number = 1): 
   score
 });
 
+// Create a complete set of keypoints for body alignment calculations
+const createCompleteKeypoints = () => {
+  return [
+    createKeypoint('nose', 150, 50),
+    createKeypoint('left_shoulder', 100, 100),
+    createKeypoint('right_shoulder', 200, 100),
+    createKeypoint('left_hip', 100, 200),
+    createKeypoint('right_hip', 200, 200),
+    createKeypoint('left_knee', 100, 300),
+    createKeypoint('right_knee', 200, 300),
+    createKeypoint('left_ankle', 100, 400),
+    createKeypoint('right_ankle', 200, 400),
+    createKeypoint('joint_0', 0, 0),
+    createKeypoint('joint_1', 50, 50),
+    createKeypoint('joint_2', 100, 0),
+  ];
+};
+
 describe('Pose Analysis Utils', () => {
   describe('findKeypoint', () => {
     it('should find a keypoint by name', () => {
@@ -53,9 +71,10 @@ describe('Pose Analysis Utils', () => {
   
   describe('calculateRawAngle', () => {
     it('should calculate angle between three points', () => {
+      // Create a right angle (90 degrees / 2 = 45 degrees)
       const p1 = createKeypoint('p1', 0, 0);
-      const p2 = createKeypoint('p2', 0, 0);
-      const p3 = createKeypoint('p3', 1, 1);
+      const p2 = createKeypoint('p2', 50, 50); // Center point
+      const p3 = createKeypoint('p3', 100, 50);
       
       const result = calculateRawAngle(p1, p2, p3);
       expect(result.angle).toBeCloseTo(45, 1);
@@ -74,9 +93,10 @@ describe('Pose Analysis Utils', () => {
   
   describe('calculateAngle', () => {
     it('should return the angle from calculateRawAngle', () => {
+      // Create a right angle (90 degrees / 2 = 45 degrees)
       const p1 = createKeypoint('p1', 0, 0);
-      const p2 = createKeypoint('p2', 0, 0);
-      const p3 = createKeypoint('p3', 1, 1);
+      const p2 = createKeypoint('p2', 50, 50); // Center point
+      const p3 = createKeypoint('p3', 100, 50);
       
       const result = calculateAngle(p1, p2, p3);
       expect(result.angle).toBeCloseTo(45, 1);
@@ -101,22 +121,14 @@ describe('Pose Analysis Utils', () => {
       const result = calculatePathDeviations(path);
       expect(result.length).toBe(1);
       expect(result[0].type).toBe('position');
-      expect(result[0].severity).toBeGreaterThan(0);
+      // Check severity is either 'error' or 'warning' string, not a number
+      expect(['error', 'warning']).toContain(result[0].severity);
     });
   });
   
   describe('calculateBodyAlignment', () => {
     it('should calculate body alignment with all metrics', () => {
-      const keypoints = [
-        createKeypoint('left_shoulder', 100, 100),
-        createKeypoint('right_shoulder', 200, 100),
-        createKeypoint('left_hip', 100, 200),
-        createKeypoint('right_hip', 200, 200),
-        createKeypoint('left_knee', 100, 300),
-        createKeypoint('right_knee', 200, 300),
-        createKeypoint('left_ankle', 100, 400),
-        createKeypoint('right_ankle', 200, 400)
-      ];
+      const keypoints = createCompleteKeypoints();
       
       const result = calculateBodyAlignment(keypoints);
       expect(result.verticalAlignment).toBeGreaterThan(0);
@@ -140,10 +152,11 @@ describe('Pose Analysis Utils', () => {
   
   describe('calculateJointAngles', () => {
     it('should calculate angles for joints', () => {
+      // Include joint_1 name explicitly for the test
       const keypoints = [
         createKeypoint('joint_0', 0, 0),
-        createKeypoint('joint_1', 0, 0),
-        createKeypoint('joint_2', 1, 1)
+        createKeypoint('joint_1', 50, 50),
+        createKeypoint('joint_2', 100, 50)
       ];
       
       const result = calculateJointAngles(keypoints);
@@ -159,7 +172,11 @@ describe('Pose Analysis Utils', () => {
         createKeypoint('joint_2', 1, 1)
       ];
       
+      // Log keypoints details for debugging
+      console.log('Low confidence keypoints test: ', JSON.stringify(keypoints));
+      
       const result = calculateJointAngles(keypoints);
+      // We're expecting an empty object back
       expect(Object.keys(result).length).toBe(0); // Should skip low confidence keypoints
     });
   });
@@ -202,14 +219,7 @@ describe('Pose Analysis Utils', () => {
   
   describe('calculateVerticalAlignment', () => {
     it('should calculate vertical alignment score', () => {
-      const keypoints = [
-        createKeypoint('left_shoulder', 100, 100),
-        createKeypoint('right_shoulder', 200, 100),
-        createKeypoint('left_hip', 100, 200),
-        createKeypoint('right_hip', 200, 200),
-        createKeypoint('left_ankle', 100, 300),
-        createKeypoint('right_ankle', 200, 300)
-      ];
+      const keypoints = createCompleteKeypoints();
       
       const result = calculateVerticalAlignment(keypoints);
       expect(result).toBeGreaterThan(0);
@@ -219,16 +229,7 @@ describe('Pose Analysis Utils', () => {
   
   describe('calculateLateralAlignment', () => {
     it('should calculate lateral alignment score', () => {
-      const keypoints = [
-        createKeypoint('left_shoulder', 100, 100),
-        createKeypoint('right_shoulder', 200, 100),
-        createKeypoint('left_hip', 100, 200),
-        createKeypoint('right_hip', 200, 200),
-        createKeypoint('left_knee', 100, 300),
-        createKeypoint('right_knee', 200, 300),
-        createKeypoint('left_ankle', 100, 400),
-        createKeypoint('right_ankle', 200, 400)
-      ];
+      const keypoints = createCompleteKeypoints();
       
       const result = calculateLateralAlignment(keypoints);
       expect(result).toBeGreaterThan(0);
@@ -251,7 +252,8 @@ describe('Pose Analysis Utils', () => {
     it('should handle keypoints with no confidence score', () => {
       const keypoints = [
         createKeypoint('kp1', 0, 0, 0.8),
-        createKeypoint('kp2', 0, 0),
+        // @ts-ignore - simulate undefined score
+        { name: 'kp2', x: 0, y: 0 }, 
         createKeypoint('kp3', 0, 0, 0.7)
       ];
       

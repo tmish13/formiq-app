@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.api import deps
 from app.models.user import User
 from app.schemas.user import User as UserSchema, UserCreate, UserUpdate
+from app.schemas.common import Message
 from app.services.user_service import UserService
 from app.utils.rate_limit import rate_limit
 

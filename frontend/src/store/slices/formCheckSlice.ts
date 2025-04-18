@@ -25,9 +25,11 @@ const formCheckSlice = createSlice({
     },
     setCurrentFormCheck: (state, action: PayloadAction<FormCheck | null>) => {
       state.currentFormCheck = action.payload;
+      state.error = null;
     },
     addFormCheck: (state, action: PayloadAction<FormCheck>) => {
       state.formChecks.push(action.payload);
+      state.error = null;
     },
     updateFormCheck: (state, action: PayloadAction<FormCheck>) => {
       const index = state.formChecks.findIndex(fc => fc.id === action.payload.id);

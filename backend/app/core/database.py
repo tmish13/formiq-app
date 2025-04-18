@@ -67,15 +67,43 @@ def get_async_database_url() -> str:
         return db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
     return db_url
 
+def get_engine_settings(url: str) -> Dict[str, Any]:
+    """
+    Get database engine settings based on URL.
+    
+    Args:
+        url: Database URL
+        
+    Returns:
+        Dict[str, Any]: Engine settings
+    """
+    is_sqlite = url.startswith("sqlite")
+    is_test = os.environ.get("ENVIRONMENT") == "test"
+    
+    settings = {
+        "echo": settings.DB_ECHO,
+        "poolclass": NullPool if is_test or is_sqlite else QueuePool,
+    }
+    
+    if not is_sqlite and not is_test:
+        settings.update({
+            "pool_size": settings.DB_POOL_SIZE,
+            "max_overflow": settings.DB_MAX_OVERFLOW,
+            "pool_timeout": settings.DB_POOL_TIMEOUT,
+            "pool_recycle": settings.DB_POOL_RECYCLE,
+        })
+    
+    return settings
+
 # Create async engine
 async_engine = create_async_engine(
     get_async_database_url(),
     echo=settings.DB_ECHO,
-    poolclass=NullPool if os.environ.get("ENVIRONMENT") == "test" else QueuePool,
-    pool_size=settings.DB_POOL_SIZE,
-    max_overflow=settings.DB_MAX_OVERFLOW,
-    pool_timeout=settings.DB_POOL_TIMEOUT,
-    pool_recycle=settings.DB_POOL_RECYCLE,
+    poolclass=NullPool if os.environ.get("ENVIRONMENT") == "test" or get_async_database_url().startswith("sqlite") else QueuePool,
+    **({"pool_size": settings.DB_POOL_SIZE,
+        "max_overflow": settings.DB_MAX_OVERFLOW,
+        "pool_timeout": settings.DB_POOL_TIMEOUT,
+        "pool_recycle": settings.DB_POOL_RECYCLE} if not os.environ.get("ENVIRONMENT") == "test" and not get_async_database_url().startswith("sqlite") else {})
 )
 
 # Create async session factory
@@ -89,11 +117,11 @@ async_session = sessionmaker(
 sync_engine = create_engine(
     get_database_url(),
     echo=settings.DB_ECHO,
-    poolclass=NullPool if os.environ.get("ENVIRONMENT") == "test" else QueuePool,
-    pool_size=settings.DB_POOL_SIZE,
-    max_overflow=settings.DB_MAX_OVERFLOW,
-    pool_timeout=settings.DB_POOL_TIMEOUT,
-    pool_recycle=settings.DB_POOL_RECYCLE,
+    poolclass=NullPool if os.environ.get("ENVIRONMENT") == "test" or get_database_url().startswith("sqlite") else QueuePool,
+    **({"pool_size": settings.DB_POOL_SIZE,
+        "max_overflow": settings.DB_MAX_OVERFLOW,
+        "pool_timeout": settings.DB_POOL_TIMEOUT,
+        "pool_recycle": settings.DB_POOL_RECYCLE} if not os.environ.get("ENVIRONMENT") == "test" and not get_database_url().startswith("sqlite") else {})
 )
 
 # Create sync session factory
@@ -271,4 +299,19 @@ def optimize_sqlalchemy_query(query):
         Query: Optimized SQLAlchemy query
     """
     # Add query optimization logic here
-    return query 
+    return query
+
+class DatabaseSession:
+    """Database session manager."""
+    
+    def __init__(self, session: Session):
+        """Initialize session manager."""
+        self.session = session
+    
+    def __enter__(self) -> Session:
+        """Enter context manager."""
+        return self.session
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Exit context manager."""
+        self.session.close() 

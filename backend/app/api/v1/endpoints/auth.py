@@ -4,7 +4,7 @@ from typing import Any, Dict, Optional
 import time
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, Response, Cookie, Body
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
@@ -42,6 +42,8 @@ from app.core.monitoring import (
 )
 
 router = APIRouter()
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 
 @router.post(

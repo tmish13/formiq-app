@@ -1,12 +1,12 @@
-import { renderHook, act } from '@testing-library/react-hooks';
+import React, { act } from 'react';
+import { renderHook } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
 import { useWorkout } from '../useWorkout';
-import workoutReducer from '../../store/slices/workoutSlice';
+import workoutReducer, { WorkoutState } from '../../store/slices/workoutSlice';
 import { Workout, WorkoutPlan } from '../../types';
-import { WorkoutState } from '../../store/slices/workoutSlice';
 
-// Mock the workout service
+// Mock modules
 jest.mock('../../services/workoutService', () => ({
   workoutService: {
     getWorkouts: jest.fn(),
@@ -79,22 +79,24 @@ const createTestStore = (preloadedState: WorkoutState = initialState) => {
 };
 
 describe('useWorkout', () => {
-  let store: ReturnType<typeof createTestStore>;
+  const store = createTestStore();
 
-  beforeEach(() => {
-    store = createTestStore();
-    jest.clearAllMocks();
-  });
+  interface TestWrapperProps {
+    children: React.ReactNode;
+    preloadedState?: WorkoutState;
+  }
 
-  const TestWrapper = ({ children }: { children: React.ReactNode }) => (
-    <Provider store={store}>{children}</Provider>
+  const TestWrapper: React.FC<TestWrapperProps> = ({ children, preloadedState = initialState }) => (
+    <Provider store={createTestStore(preloadedState)}>{children}</Provider>
   );
 
   it('should fetch workouts successfully', async () => {
     const mockWorkouts = [mockWorkout];
     (require('../../services/workoutService').workoutService.getWorkouts as jest.Mock).mockResolvedValue(mockWorkouts);
 
-    const { result } = renderHook(() => useWorkout(), { wrapper: TestWrapper });
+    const { result } = renderHook(() => useWorkout(), { 
+      wrapper: ({ children }) => <TestWrapper>{children}</TestWrapper>
+    });
 
     await act(async () => {
       await result.current.fetchWorkouts();
@@ -106,27 +108,45 @@ describe('useWorkout', () => {
   });
 
   it('should handle error when fetching workouts', async () => {
-    const error = new Error('Failed to fetch workouts');
-    (require('../../services/workoutService').workoutService.getWorkouts as jest.Mock).mockRejectedValue(error);
+    const mockError = new Error('Failed to fetch workouts');
+    (require('../../services/workoutService').workoutService.getWorkouts as jest.Mock).mockRejectedValue(mockError);
 
-    const { result } = renderHook(() => useWorkout(), { wrapper: TestWrapper });
+    const { result } = renderHook(() => useWorkout(), { 
+      wrapper: ({ children }) => <TestWrapper>{children}</TestWrapper>
+    });
 
     await act(async () => {
       await result.current.fetchWorkouts();
     });
 
-    expect(result.current.error).toBe(error.message);
+    expect(result.current.error).toBe(mockError.message);
     expect(result.current.isLoading).toBe(false);
   });
 
   it('should create a workout successfully', async () => {
-    const newWorkout = { ...mockWorkout, id: undefined, userId: undefined, createdAt: undefined, updatedAt: undefined };
     (require('../../services/workoutService').workoutService.createWorkout as jest.Mock).mockResolvedValue(mockWorkout);
 
-    const { result } = renderHook(() => useWorkout(), { wrapper: TestWrapper });
+    const { result } = renderHook(() => useWorkout(), { 
+      wrapper: ({ children }) => <TestWrapper>{children}</TestWrapper>
+    });
 
     await act(async () => {
-      await result.current.createWorkout(newWorkout);
+      await result.current.createWorkout({
+        name: 'Test Workout',
+        description: 'Test Description',
+        difficulty: 'intermediate',
+        duration: 60,
+        exercises: [
+          {
+            id: '1',
+            name: 'Test Exercise',
+            sets: 3,
+            reps: 10,
+            weight: 100,
+            notes: 'Test Notes',
+          },
+        ],
+      });
     });
 
     expect(result.current.workouts).toContainEqual(mockWorkout);
@@ -138,7 +158,19 @@ describe('useWorkout', () => {
     const updatedWorkout = { ...mockWorkout, name: 'Updated Workout' };
     (require('../../services/workoutService').workoutService.updateWorkout as jest.Mock).mockResolvedValue(updatedWorkout);
 
-    const { result } = renderHook(() => useWorkout(), { wrapper: TestWrapper });
+    // Create a pre-populated state with the mock workout
+    const preloadedState = {
+      ...initialState,
+      workouts: [mockWorkout]
+    };
+
+    const { result } = renderHook(() => useWorkout(), { 
+      wrapper: ({ children }) => (
+        <TestWrapper preloadedState={preloadedState}>
+          {children}
+        </TestWrapper>
+      )
+    });
 
     await act(async () => {
       await result.current.updateWorkout('1', { name: 'Updated Workout' });
@@ -152,7 +184,9 @@ describe('useWorkout', () => {
   it('should delete a workout successfully', async () => {
     (require('../../services/workoutService').workoutService.deleteWorkout as jest.Mock).mockResolvedValue(undefined);
 
-    const { result } = renderHook(() => useWorkout(), { wrapper: TestWrapper });
+    const { result } = renderHook(() => useWorkout(), { 
+      wrapper: ({ children }) => <TestWrapper>{children}</TestWrapper>
+    });
 
     await act(async () => {
       await result.current.deleteWorkout('1');
@@ -167,7 +201,9 @@ describe('useWorkout', () => {
     const mockPlans = [mockWorkoutPlan];
     (require('../../services/workoutService').workoutService.getWorkoutPlans as jest.Mock).mockResolvedValue(mockPlans);
 
-    const { result } = renderHook(() => useWorkout(), { wrapper: TestWrapper });
+    const { result } = renderHook(() => useWorkout(), { 
+      wrapper: ({ children }) => <TestWrapper>{children}</TestWrapper>
+    });
 
     await act(async () => {
       await result.current.fetchWorkoutPlans();
@@ -182,7 +218,9 @@ describe('useWorkout', () => {
     const newPlan = { ...mockWorkoutPlan, id: undefined, userId: undefined, createdAt: undefined, updatedAt: undefined };
     (require('../../services/workoutService').workoutService.createWorkoutPlan as jest.Mock).mockResolvedValue(mockWorkoutPlan);
 
-    const { result } = renderHook(() => useWorkout(), { wrapper: TestWrapper });
+    const { result } = renderHook(() => useWorkout(), { 
+      wrapper: ({ children }) => <TestWrapper>{children}</TestWrapper>
+    });
 
     await act(async () => {
       await result.current.createWorkoutPlan(newPlan);
@@ -197,7 +235,19 @@ describe('useWorkout', () => {
     const updatedPlan = { ...mockWorkoutPlan, name: 'Updated Plan' };
     (require('../../services/workoutService').workoutService.updateWorkoutPlan as jest.Mock).mockResolvedValue(updatedPlan);
 
-    const { result } = renderHook(() => useWorkout(), { wrapper: TestWrapper });
+    // Create a pre-populated state with the mock workout plan
+    const preloadedState = {
+      ...initialState,
+      workoutPlans: [mockWorkoutPlan]
+    };
+
+    const { result } = renderHook(() => useWorkout(), { 
+      wrapper: ({ children }) => (
+        <TestWrapper preloadedState={preloadedState}>
+          {children}
+        </TestWrapper>
+      )
+    });
 
     await act(async () => {
       await result.current.updateWorkoutPlan('1', { name: 'Updated Plan' });
@@ -211,7 +261,9 @@ describe('useWorkout', () => {
   it('should delete a workout plan successfully', async () => {
     (require('../../services/workoutService').workoutService.deleteWorkoutPlan as jest.Mock).mockResolvedValue(undefined);
 
-    const { result } = renderHook(() => useWorkout(), { wrapper: TestWrapper });
+    const { result } = renderHook(() => useWorkout(), { 
+      wrapper: ({ children }) => <TestWrapper>{children}</TestWrapper>
+    });
 
     await act(async () => {
       await result.current.deleteWorkoutPlan('1');
@@ -226,7 +278,9 @@ describe('useWorkout', () => {
     const mockUpcomingWorkouts = [mockWorkout];
     (require('../../services/workoutService').workoutService.getUpcomingWorkouts as jest.Mock).mockResolvedValue(mockUpcomingWorkouts);
 
-    const { result } = renderHook(() => useWorkout(), { wrapper: TestWrapper });
+    const { result } = renderHook(() => useWorkout(), { 
+      wrapper: ({ children }) => <TestWrapper>{children}</TestWrapper>
+    });
 
     const upcomingWorkouts = await act(async () => {
       return await result.current.fetchUpcomingWorkouts();
@@ -241,7 +295,9 @@ describe('useWorkout', () => {
     const mockActivePlans = [mockWorkoutPlan];
     (require('../../services/workoutService').workoutService.getActiveWorkoutPlans as jest.Mock).mockResolvedValue(mockActivePlans);
 
-    const { result } = renderHook(() => useWorkout(), { wrapper: TestWrapper });
+    const { result } = renderHook(() => useWorkout(), { 
+      wrapper: ({ children }) => <TestWrapper>{children}</TestWrapper>
+    });
 
     const activePlans = await act(async () => {
       return await result.current.fetchActiveWorkoutPlans();

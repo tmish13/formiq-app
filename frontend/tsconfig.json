@@ -16,8 +16,15 @@
     "noEmit": true,
     "jsx": "react-jsx",
     "baseUrl": "src",
-    "typeRoots": ["./node_modules/@types"]
+    "typeRoots": ["./node_modules/@types"],
+    "types": ["jest", "node"],
+    "paths": {
+      "@/*": ["./*"]
+    }
   },
-  "include": ["src/**/*"],
+  "include": [
+    "src/**/*",
+    "tests/**/*"
+  ],
   "exclude": ["node_modules"]
 } 

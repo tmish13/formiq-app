@@ -2,9 +2,11 @@
 from typing import List, Optional
 from uuid import UUID
 from sqlalchemy.orm import Session
+from fastapi import Depends
 
 from app.models.exercise import ExerciseTemplate
 from app.repositories.base import BaseRepository
+from app.core.deps import get_db
 
 
 class ExerciseRepository(BaseRepository):
@@ -32,4 +34,16 @@ class ExerciseRepository(BaseRepository):
 
     async def delete(self, exercise_id: UUID) -> bool:
         """Delete an exercise."""
-        return await self._delete(exercise_id) 
+        return await self._delete(exercise_id)
+
+
+def get_exercise_repository(db: Session = Depends(get_db)) -> ExerciseRepository:
+    """Get exercise repository instance.
+    
+    Args:
+        db: Database session
+        
+    Returns:
+        Exercise repository instance
+    """
+    return ExerciseRepository(db=db) 

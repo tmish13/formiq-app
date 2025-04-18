@@ -1,64 +1,87 @@
 import 'styled-components';
 
+interface ColorPalette {
+  light: string;
+  main: string;
+  dark: string;
+}
+
 interface ColorShade {
-  primary: string;
-  primaryDark: string;
-  secondary: string;
-  success: string;
-  successLight: string;
-  warning: string;
-  warningLight: string;
-  error: string;
-  errorLight: string;
-  background: string;
-  surface: string;
-  text: string;
-  textSecondary: string;
-  border: string;
+  primary: ColorPalette;
+  secondary: ColorPalette;
+  error: ColorPalette;
+  warning: ColorPalette;
+  success: ColorPalette;
+  info: ColorPalette;
+  background: {
+    main: string;
+    secondary: string;
+    paper: string;
+  };
+  text: {
+    primary: string;
+    secondary: string;
+    disabled: string;
+    inverse: string;
+  };
+  border: {
+    main: string;
+    light: string;
+  };
   disabled: string;
 }
 
 interface Typography {
-  fontFamily: string;
+  fontFamily: {
+    primary: string;
+    secondary: string;
+    mono: string;
+  };
   fontSize: {
+    xxs: string;
     xs: string;
     sm: string;
     md: string;
     lg: string;
     xl: string;
+    xxl: string;
   };
   fontWeight: {
+    light: number;
     regular: number;
     medium: number;
+    semibold: number;
     bold: number;
+  };
+  lineHeight: {
+    tight: string;
+    normal: string;
+    relaxed: string;
   };
 }
 
 interface Spacing {
+  xxs: string;
   xs: string;
   sm: string;
   md: string;
   lg: string;
   xl: string;
+  xxl: string;
 }
 
 interface BorderRadius {
   sm: string;
   md: string;
   lg: string;
-  round: string;
+  full: string;
 }
 
 interface Shadows {
-  sm: string;
-  md: string;
-  lg: string;
-}
-
-interface Transitions {
-  fast: string;
+  none: string;
+  small: string;
   medium: string;
-  slow: string;
+  large: string;
 }
 
 export interface Theme {
@@ -67,7 +90,6 @@ export interface Theme {
   spacing: Spacing;
   borderRadius: BorderRadius;
   shadows: Shadows;
-  transitions: Transitions;
 }
 
 declare module 'styled-components' {

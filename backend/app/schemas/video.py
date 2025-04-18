@@ -1,7 +1,8 @@
 """Video upload schemas for validation."""
-from typing import Optional
+from typing import Optional, Dict, Any, List
 from pydantic import BaseModel, Field, validator, constr
 from fastapi import UploadFile
+from datetime import datetime
 
 from app.core.config import settings
 
@@ -17,6 +18,33 @@ class VideoUploadBase(BaseModel):
         if not v.strip():
             raise ValueError("Title cannot be empty or just whitespace")
         return v.strip()
+
+class VideoCreate(VideoUploadBase):
+    """Schema for creating a video record."""
+    user_id: str = Field(..., description="ID of the user who uploaded the video")
+    url: str = Field(..., description="URL where the video is stored")
+    filename: str = Field(..., description="Original filename of the video")
+    
+    class Config:
+        """Pydantic configuration."""
+        from_attributes = True
+
+class VideoAnalysis(BaseModel):
+    """Schema for video analysis results."""
+    video_id: str = Field(..., description="ID of the analyzed video")
+    score: float = Field(..., ge=0, le=100, description="Overall form score")
+    feedback: List[str] = Field(default_factory=list, description="List of feedback points")
+    joint_angles: Dict[str, float] = Field(default_factory=dict, description="Joint angles detected")
+    spine_alignment: float = Field(..., ge=0, le=1, description="Spine alignment score")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional analysis metadata")
+    
+    class Config:
+        """Pydantic configuration."""
+        from_attributes = True
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
 
 class VideoUploadRequest(VideoUploadBase):
     """Schema for video upload request."""

@@ -11,9 +11,9 @@ export interface JointAngle {
 }
 
 export interface BodyAlignment {
-  vertical: number;
-  lateral: number;
-  core: number;
+  verticalAlignment: number;
+  lateralAlignment: number;
+  coreStability: number;
   issues: AlignmentIssue[];
 }
 
@@ -43,6 +43,7 @@ export interface PathwayDeviation {
     y: number;
   };
   distance: number;
+  type: string;
   severity: 'error' | 'warning';
 }
 

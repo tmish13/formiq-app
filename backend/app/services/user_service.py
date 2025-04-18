@@ -5,11 +5,10 @@ from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy.ext.asyncio import AsyncSession
 from jose import jwt
+from fastapi import Depends, HTTPException, status
 
 from app.core.config import settings
-from app.core.security import (
-    get_password_hash,
-    verify_password,
+from app.core.token import (
     create_access_token,
     create_refresh_token,
     create_email_verification_token,
@@ -22,7 +21,7 @@ from app.core.exceptions import (
     EmailError,
     ValidationError
 )
-from app.repositories.user_repository import UserRepository
+from app.repositories.user_repository import UserRepository, get_user_repository
 from app.schemas.user import (
     UserCreate,
     UserUpdate,
@@ -32,6 +31,10 @@ from app.schemas.user import (
 )
 from app.schemas.token import Token
 from app.services.email_service import EmailService
+from app.core.database import get_db
+from app.core.password import get_password_hash, verify_password
+from app.models.user import User as DBUser
+from app.services.base import BaseService
 
 class UserService:
     """User service."""
@@ -289,3 +292,16 @@ class UserService:
         except Exception as e:
             logger.error(f"Failed to verify email: {str(e)}")
             raise ValidationError(f"Failed to verify email: {str(e)}")
+
+def get_user_service(
+    repository: UserRepository = Depends(get_user_repository),
+) -> UserService:
+    """Get user service instance.
+    
+    Args:
+        repository: User repository instance
+        
+    Returns:
+        User service instance
+    """
+    return UserService(repository=repository)

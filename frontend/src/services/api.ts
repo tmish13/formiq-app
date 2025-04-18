@@ -65,4 +65,7 @@ api.interceptors.response.use(
   }
 );
 
+// Export the API instance for use in services
+export const apiService = api;
+
 export default api; 

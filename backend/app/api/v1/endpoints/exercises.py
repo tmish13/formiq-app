@@ -5,19 +5,19 @@ from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_active_user, get_db
 from app.repositories.exercise_repository import ExerciseRepository
-from app.schemas.exercise import Exercise, ExerciseCreate, ExerciseUpdate, ExerciseBase
+from app.schemas.exercise import ExerciseResponse, ExerciseCreate, ExerciseUpdate
 from app.core.cache import cache_service
 from app.models.exercise import ExerciseTemplate
-from app.services.exercise_service import ExerciseService
+from app.services.exercise_service import ExerciseService, get_exercise_service
 
 router = APIRouter()
 
 
-@router.get("/", response_model=List[ExerciseBase])
+@router.get("/", response_model=List[ExerciseResponse])
 async def get_exercises(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=100),
-    exercise_service: ExerciseService = Depends()
+    exercise_service: ExerciseService = Depends(get_exercise_service)
 ):
     """Get all exercises with caching."""
     cache_key = f"exercises:list:{skip}:{limit}"
@@ -36,10 +36,10 @@ async def get_exercises(
     return exercises
 
 
-@router.post("/", response_model=ExerciseBase)
+@router.post("/", response_model=ExerciseResponse)
 async def create_exercise(
     exercise: ExerciseCreate,
-    exercise_service: ExerciseService = Depends()
+    exercise_service: ExerciseService = Depends(get_exercise_service)
 ):
     """Create a new exercise and invalidate relevant caches."""
     new_exercise = await exercise_service.create(exercise)
@@ -50,10 +50,10 @@ async def create_exercise(
     return new_exercise
 
 
-@router.get("/{exercise_id}", response_model=ExerciseBase)
+@router.get("/{exercise_id}", response_model=ExerciseResponse)
 async def get_exercise(
     exercise_id: str,
-    exercise_service: ExerciseService = Depends()
+    exercise_service: ExerciseService = Depends(get_exercise_service)
 ):
     """Get a specific exercise by ID with caching."""
     cache_key = f"exercises:detail:{exercise_id}"
@@ -74,11 +74,11 @@ async def get_exercise(
     return exercise
 
 
-@router.put("/{exercise_id}", response_model=ExerciseBase)
+@router.put("/{exercise_id}", response_model=ExerciseResponse)
 async def update_exercise(
     exercise_id: str,
     exercise: ExerciseUpdate,
-    exercise_service: ExerciseService = Depends()
+    exercise_service: ExerciseService = Depends(get_exercise_service)
 ):
     """Update an existing exercise and invalidate relevant caches."""
     updated_exercise = await exercise_service.update(exercise_id, exercise)
@@ -95,7 +95,7 @@ async def update_exercise(
 @router.delete("/{exercise_id}")
 async def delete_exercise(
     exercise_id: str,
-    exercise_service: ExerciseService = Depends()
+    exercise_service: ExerciseService = Depends(get_exercise_service)
 ):
     """Delete an exercise and invalidate relevant caches."""
     deleted = await exercise_service.delete(exercise_id)
@@ -109,7 +109,7 @@ async def delete_exercise(
     return {"message": "Exercise deleted successfully"}
 
 
-@router.get("/search/", response_model=List[ExerciseBase])
+@router.get("/search/", response_model=List[ExerciseResponse])
 async def search_exercises(
     query: str = Query(..., min_length=1, description="Search query string"),
     muscle_group: Optional[str] = Query(None, description="Filter by muscle group"),
@@ -117,7 +117,7 @@ async def search_exercises(
     equipment: Optional[str] = Query(None, description="Filter by required equipment"),
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
-    exercise_service: ExerciseService = Depends()
+    exercise_service: ExerciseService = Depends(get_exercise_service)
 ):
     """
     Search exercises with optional filters.

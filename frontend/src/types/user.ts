@@ -1,10 +1,14 @@
+export type SubscriptionTier = 'free' | 'basic' | 'premium';
+export type UserRole = 'user' | 'admin' | 'trainer';
+
 export interface User {
   id: string;
   email: string;
   name: string;
-  role: 'user' | 'admin' | 'trainer';
+  role: UserRole;
   isActive: boolean;
-  subscriptionTier: 'free' | 'basic' | 'premium';
+  isVerified: boolean;
+  subscriptionTier: SubscriptionTier;
   subscriptionEndDate?: string;
   stripeCustomerId?: string;
   stripeSubscriptionId?: string;

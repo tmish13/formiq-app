@@ -1,7 +1,8 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Dict, Any
 from fastapi import UploadFile
 from datetime import datetime
+from uuid import UUID
 
 class FormAnalysisMetrics(BaseModel):
     alignment: float = Field(..., ge=0.0, le=1.0)
@@ -11,32 +12,33 @@ class FormAnalysisMetrics(BaseModel):
     joint_accuracy: float = Field(..., ge=0.0, le=1.0)
     movement_quality: float = Field(..., ge=0.0, le=1.0)
 
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
 class FormAnalysisRequest(BaseModel):
-    video: UploadFile
-    keypoints: List[Dict[str, Any]]
-    exercise_type: Optional[str] = None
-    duration: float
-    user_id: str
+    """Form analysis request model."""
+    
+    video_id: UUID
+    exercise_type: str = Field(..., description="Type of exercise being analyzed")
+    user_id: Optional[UUID] = None
+    settings: Optional[Dict[str, Any]] = None
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 class FormAnalysisResult(BaseModel):
-    id: str
-    exercise_type: Optional[str] = None
-    confidence: float = Field(..., ge=0.0, le=1.0)
-    keypoints: List[Dict[str, Any]]
-    metrics: FormAnalysisMetrics
-    feedback: List[str]
-    suggestions: List[str]
-    risk_level: str = Field(..., regex="^(low|medium|high)$")
-    comparison_score: Optional[float] = Field(None, ge=0.0, le=1.0)
-    joint_analysis: Optional[List[float]] = None
-    movement_analysis: Optional[List[float]] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    """Form analysis result model."""
+    
+    video_id: UUID
+    score: float = Field(..., ge=0, le=100)
+    feedback: str
+    joint_angles: Dict[str, float]
+    spine_alignment: float = Field(..., ge=0, le=1)
+    symmetry_score: float = Field(..., ge=0, le=1)
+    risk_level: str = Field(..., pattern="^(low|medium|high)$")
+    confidence_score: float = Field(..., ge=0, le=1)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    metadata: Optional[Dict[str, Any]] = None
 
-    class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 class FormAnalysisHistory(BaseModel):
     id: str
@@ -47,14 +49,30 @@ class FormAnalysisHistory(BaseModel):
     created_at: datetime
     summary: Optional[str] = None
 
-    class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        json_encoders={datetime: lambda v: v.isoformat()}
+    )
 
 class FormAnalysisDB(FormAnalysisResult):
     user_id: str
     video_url: str
 
-    class Config:
-        orm_mode = True 
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        from_attributes=True
+    )
+
+class FormAnalysis(BaseModel):
+    """Form analysis model."""
+    
+    id: UUID
+    request: FormAnalysisRequest
+    result: FormAnalysisResult
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        json_encoders={datetime: lambda v: v.isoformat()}
+    ) 

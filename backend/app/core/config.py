@@ -33,6 +33,7 @@ from datetime import datetime, timedelta
 import secrets
 import logging
 import json
+from cryptography.fernet import Fernet
 
 # Load environment variables
 def load_environment():
@@ -66,7 +67,15 @@ def load_environment():
 load_environment()
 
 # Generate a default Fernet key (32 url-safe base64-encoded bytes)
-DEFAULT_ENCRYPTION_KEY = base64.urlsafe_b64encode(os.urandom(32)).decode()
+def generate_fernet_key() -> str:
+    """Generate a valid Fernet key."""
+    try:
+        key = Fernet.generate_key()
+        return key.decode()
+    except Exception as e:
+        raise ValueError(f"Failed to generate Fernet key: {str(e)}")
+
+DEFAULT_ENCRYPTION_KEY = generate_fernet_key()
 
 # Default values for file upload limits
 DEFAULT_MAX_CONTENT_LENGTH = 100 * 1024 * 1024  # 100MB
@@ -249,19 +258,19 @@ class Settings(BaseSettings):
         description="Enable SQLAlchemy query logging"
     )
     DB_POOL_SIZE: int = Field(
-        default=safe_int(os.getenv("DB_POOL_SIZE"), 20),
+        default=safe_int(os.getenv("DB_POOL_SIZE"), 20) if not os.getenv("SQLALCHEMY_DATABASE_URI", "").startswith("sqlite") else None,
         description="Database connection pool size"
     )
     DB_MAX_OVERFLOW: int = Field(
-        default=safe_int(os.getenv("DB_MAX_OVERFLOW"), 30),
+        default=safe_int(os.getenv("DB_MAX_OVERFLOW"), 30) if not os.getenv("SQLALCHEMY_DATABASE_URI", "").startswith("sqlite") else None,
         description="Maximum overflow connections in the pool"
     )
     DB_POOL_TIMEOUT: int = Field(
-        default=safe_int(os.getenv("DB_POOL_TIMEOUT"), 60),
+        default=safe_int(os.getenv("DB_POOL_TIMEOUT"), 60) if not os.getenv("SQLALCHEMY_DATABASE_URI", "").startswith("sqlite") else None,
         description="Connection pool timeout in seconds"
     )
     DB_POOL_RECYCLE: int = Field(
-        default=safe_int(os.getenv("DB_POOL_RECYCLE"), 1800),  # 30 minutes
+        default=safe_int(os.getenv("DB_POOL_RECYCLE"), 1800) if not os.getenv("SQLALCHEMY_DATABASE_URI", "").startswith("sqlite") else None,  # 30 minutes
         description="Connection recycle time in seconds"
     )
     SSL_REQUIRED: bool = Field(
@@ -416,6 +425,10 @@ class Settings(BaseSettings):
     RATE_LIMIT_WINDOW: int = Field(
         default=safe_int(os.getenv("RATE_LIMIT_WINDOW"), 60),
         description="Default rate limit window in seconds"
+    )
+    RATE_LIMIT_PER_MINUTE: int = Field(
+        default=safe_int(os.getenv("RATE_LIMIT_PER_MINUTE"), 60),
+        description="Rate limit requests per minute"
     )
     RATE_LIMIT_ENABLED: bool = Field(
         default=os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "true",
@@ -616,6 +629,33 @@ class Settings(BaseSettings):
     ENABLE_METRICS: bool = True
     METRICS_PREFIX: str = "formiq_"
     
+    @validator("ENCRYPTION_KEY")
+    def validate_encryption_key(cls, v: str) -> str:
+        """
+        Validate that the encryption key is a valid Fernet key.
+        
+        Args:
+            v: The encryption key value
+            
+        Returns:
+            str: Valid Fernet key
+            
+        Raises:
+            ValueError: If the key is not in valid Fernet format
+        """
+        try:
+            # If the key is not provided, generate a new one
+            if not v:
+                return generate_fernet_key()
+                
+            # Try to create a Fernet instance with the key
+            key_bytes = v.encode()
+            Fernet(key_bytes)
+            return v
+        except Exception as e:
+            # If the key is invalid, generate a new one
+            return generate_fernet_key()
+
     model_config = SettingsConfigDict(
         case_sensitive=True,
         env_file=".env",

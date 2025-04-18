@@ -10,12 +10,20 @@ from prometheus_client import Counter, Histogram, Gauge
 from app.core.cache import CacheService
 from fastapi.responses import JSONResponse
 import logging
+from app.core.config import settings
+from app.core.redis import get_redis
 
 # Prometheus metrics
 RATE_LIMIT_EXCEEDED = Counter(
-    "rate_limit_exceeded_total",
-    "Total number of rate limit exceeded events",
-    ["path"]
+    'rate_limit_exceeded_counter',  # Changed metric name to avoid conflicts
+    'Number of requests that exceeded rate limit',
+    ['endpoint']
+)
+
+RATE_LIMIT_REMAINING = Gauge(
+    'rate_limit_remaining_gauge',  # Changed metric name to avoid conflicts
+    'Number of requests remaining before rate limit',
+    ['endpoint']
 )
 
 RATE_LIMIT_LATENCY = Histogram(
@@ -93,225 +101,118 @@ class RateLimiterMiddleware(BaseHTTPMiddleware):
             raise
 
 class EnhancedRateLimiter(BaseHTTPMiddleware):
+    """Enhanced rate limiter middleware with Redis backend."""
+
     def __init__(
         self,
         app: ASGIApp,
-        redis_client: Redis,
-        requests_per_minute: int = 100,
-        burst_size: int = 200,
-        window_size: int = 60,
-        custom_rules: Optional[Dict[str, Dict[str, int]]] = None,
-        skip_paths: Optional[list] = None
+        limit: int = settings.RATE_LIMIT_PER_MINUTE,
+        window: int = 60,
+        redis_prefix: str = "rate_limit:",
+        exclude_paths: Optional[list] = None
     ):
+        """Initialize rate limiter.
+        
+        Args:
+            app: ASGI application
+            limit: Maximum number of requests per window
+            window: Time window in seconds
+            redis_prefix: Prefix for Redis keys
+            exclude_paths: List of paths to exclude from rate limiting
+        """
         super().__init__(app)
-        self.redis_client = redis_client
-        self.requests_per_minute = requests_per_minute
-        self.burst_size = burst_size
-        self.window_size = window_size  # Default to 1 minute window
-        
-        # Default custom rules for 1,000 user capacity
-        default_rules = {
-            # Auth endpoints - limit login attempts
-            "/api/v1/auth/login": {"requests": 5, "burst": 10, "window": 60},
-            "/api/v1/auth/register": {"requests": 3, "burst": 5, "window": 60},
-            "/api/v1/auth/refresh": {"requests": 10, "burst": 20, "window": 60},
-            
-            # User profile - moderate limits
-            "/api/v1/users/me": {"requests": 60, "burst": 100, "window": 60},
-            "/api/v1/users/profile": {"requests": 40, "burst": 80, "window": 60},
-            
-            # Form check uploads - stricter limits due to resource intensity
-            "/api/v1/form-checks": {"requests": 10, "burst": 20, "window": 60},
-            
-            # Form check analysis - very strict limits due to high resource usage
-            "/api/v1/form-checks/*/analyze": {"requests": 5, "burst": 10, "window": 120},
-            
-            # Feedback endpoints - moderate limits
-            "/api/v1/form-checks/*/feedback": {"requests": 20, "burst": 40, "window": 60},
-            
-            # Exercise and workout endpoints - higher limits
-            "/api/v1/exercises": {"requests": 100, "burst": 200, "window": 60},
-            "/api/v1/workouts": {"requests": 60, "burst": 120, "window": 60},
-        }
-        
-        # Merge provided custom rules with defaults
-        self.custom_rules = {**default_rules, **(custom_rules or {})}
-        
-        self.skip_paths = skip_paths or [
-            "/api/v1/health",
-            "/api/v1/metrics",
-            "/docs",
-            "/redoc",
-            "/openapi.json",
-            "/api/v1/auth/verify"  # Allow email verification without limits
-        ]
-        
-        logger.info(f"Rate limiter initialized with default limit of {requests_per_minute}/minute")
+        self.limit = limit
+        self.window = window
+        self.redis_prefix = redis_prefix
+        self.exclude_paths = exclude_paths or []
+        self.redis = get_redis()
 
-    async def dispatch(self, request: Request, call_next: Any) -> Any:
-        start_time = time.time()
+    async def dispatch(
+        self,
+        request: Request,
+        call_next: Any
+    ) -> Response:
+        """Process request through rate limiter.
         
-        # Skip rate limiting for certain paths
-        if self._should_skip_rate_limit(request):
+        Args:
+            request: FastAPI request
+            call_next: Next middleware in chain
+            
+        Returns:
+            Response
+        """
+        # Skip rate limiting for excluded paths
+        if any(request.url.path.startswith(path) for path in self.exclude_paths):
             return await call_next(request)
 
-        # Get client IP and endpoint
-        client_ip = self._get_client_ip(request)
-        endpoint = request.url.path
-        method = request.method
+        # Get client IP
+        client_ip = request.client.host
         
-        # Find matching rule - allow for wildcard paths
-        rule_key, rule = self._find_matching_rule(endpoint)
+        # Create Redis key
+        key = f"{self.redis_prefix}{request.url.path}:{client_ip}"
         
-        # Get rate limit parameters from matching rule or use defaults
-        requests_limit = rule.get("requests", self.requests_per_minute)
-        burst_limit = rule.get("burst", self.burst_size)
-        window = rule.get("window", self.window_size)
+        # Get current count and window start
+        pipe = self.redis.pipeline()
+        pipe.get(key)
+        pipe.ttl(key)
+        current, ttl = await pipe.execute()
         
-        # Create Redis keys for standard and burst windows
-        # Standard is for normal rate limiting, burst is for surge protection
-        standard_key = f"rate_limit:{client_ip}:{method}:{rule_key}"
-        burst_key = f"rate_limit:burst:{client_ip}:{method}:{rule_key}"
-        
-        try:
-            # Check if client is already blocked (temporary blacklist)
-            blacklist_key = f"rate_limit:blacklist:{client_ip}"
-            is_blacklisted = await self.redis_client.get(blacklist_key)
-            
-            if is_blacklisted:
-                block_time = await self.redis_client.ttl(blacklist_key)
-                logger.warning(f"Blocked request from blacklisted IP: {client_ip}, remaining: {block_time}s")
-                return self._rate_limit_response(block_time)
-            
-            # Use Redis pipeline for atomic operations
-            pipeline = self.redis_client.pipeline()
-            
-            # Increment and get counts for both windows
-            pipeline.incr(standard_key)
-            pipeline.ttl(standard_key)
-            pipeline.incr(burst_key)
-            pipeline.ttl(burst_key)
-            
-            # Execute pipeline
-            results = await pipeline.execute()
-            standard_count, standard_ttl, burst_count, burst_ttl = results
-            
-            # Set expiry if keys are new
-            if standard_ttl < 0:
-                await self.redis_client.expire(standard_key, window)
-            
-            if burst_ttl < 0:
-                # Burst window is typically 5x the standard window
-                await self.redis_client.expire(burst_key, window * 5)
+        # If no current record or TTL expired
+        if current is None or ttl < 0:
+            pipe = self.redis.pipeline()
+            pipe.setex(key, self.window, 1)
+            pipe.execute()
             
             # Update metrics
-            RATE_LIMIT_REQUESTS.labels(
-                client_ip=client_ip,
-                endpoint=rule_key
-            ).set(standard_count)
+            RATE_LIMIT_REMAINING.labels(endpoint=request.url.path).set(self.limit - 1)
             
-            # Check if burst limit exceeded (severe overuse)
-            if burst_count > burst_limit * 2:
-                # Temporarily blacklist client for excessive usage (5 minutes)
-                blacklist_time = 300  # 5 minutes
-                await self.redis_client.set(blacklist_key, 1, expire=blacklist_time)
-                
-                RATE_LIMIT_EXCEEDED.labels(path=rule_key).inc()
-                
-                logger.warning(
-                    f"Client blacklisted for excessive requests: {client_ip} - {endpoint} - {burst_count}/{burst_limit}"
-                )
-                
-                return self._rate_limit_response(blacklist_time)
-            
-            # Check standard rate limit
-            if standard_count > requests_limit:
-                RATE_LIMIT_EXCEEDED.labels(path=rule_key).inc()
-                
-                logger.info(
-                    f"Rate limit exceeded: {client_ip} - {endpoint} - {standard_count}/{requests_limit}"
-                )
-                
-                # Get remaining time in window
-                remaining = standard_ttl if standard_ttl > 0 else window
-                return self._rate_limit_response(remaining)
-            
-            # Process request
-            with RATE_LIMIT_LATENCY.labels(path=rule_key).time():
-                response = await call_next(request)
-                
-                # Add rate limit headers
-                response.headers["X-RateLimit-Limit"] = str(requests_limit)
-                response.headers["X-RateLimit-Remaining"] = str(max(0, requests_limit - standard_count))
-                response.headers["X-RateLimit-Reset"] = str(int(time.time()) + standard_ttl if standard_ttl > 0 else window)
-                
-                # Add performance tracking header in development
-                if request.app.state.settings.ENVIRONMENT in ["development", "staging"]:
-                    processing_time = time.time() - start_time
-                    response.headers["X-Processing-Time"] = f"{processing_time:.4f}"
-                
-                return response
-                
-        except Exception as e:
-            logger.error(f"Rate limiter error: {str(e)}", exc_info=True)
-            # On unexpected errors, allow the request to proceed
             return await call_next(request)
-
-    def _get_client_ip(self, request: Request) -> str:
-        """Extract the client IP with proper proxy handling."""
-        # Try X-Forwarded-For first (for clients behind proxies)
-        forwarded_for = request.headers.get("X-Forwarded-For")
-        if forwarded_for:
-            # Get the first IP in the chain (client's real IP)
-            return forwarded_for.split(",")[0].strip()
-        
-        # Fallback to direct client IP
-        return request.client.host if request.client else "unknown"
-
-    def _find_matching_rule(self, endpoint: str) -> tuple:
-        """Find the most specific rule matching the endpoint."""
-        # First try direct match
-        if endpoint in self.custom_rules:
-            return endpoint, self.custom_rules[endpoint]
-        
-        # Then try wildcard matches
-        for rule_path, rule in self.custom_rules.items():
-            if "*" in rule_path:
-                # Convert rule path to regex pattern
-                pattern = rule_path.replace("*", ".*")
-                if endpoint.startswith(pattern.split("*")[0]):
-                    return rule_path, rule
-        
-        # Default rule
-        return "default", {
-            "requests": self.requests_per_minute, 
-            "burst": self.burst_size,
-            "window": self.window_size
-        }
-
-    def _should_skip_rate_limit(self, request: Request) -> bool:
-        """Check if rate limiting should be skipped for this request."""
-        # Skip based on path
-        if any(request.url.path.startswith(path) for path in self.skip_paths):
-            return True
-        
-        # Skip for internal maintenance calls with secret header
-        secret_header = request.headers.get("X-Internal-Key")
-        if secret_header and secret_header == request.app.state.settings.SECRET_KEY[:32]:
-            return True
             
-        return False
+        # Convert to int
+        current = int(current)
         
-    def _rate_limit_response(self, retry_after: int) -> Response:
-        """Create a standardized rate limit exceeded response."""
-        return JSONResponse(
-            status_code=429,
-            content={
-                "detail": "Rate limit exceeded. Please try again later.",
-                "type": "rate_limit_exceeded"
-            },
-            headers={
-                "Retry-After": str(retry_after),
-                "X-RateLimit-Reset": str(int(time.time()) + retry_after)
-            }
-        ) 
+        # Check if limit exceeded
+        if current >= self.limit:
+            # Update metrics
+            RATE_LIMIT_EXCEEDED.labels(endpoint=request.url.path).inc()
+            RATE_LIMIT_REMAINING.labels(endpoint=request.url.path).set(0)
+            
+            # Log rate limit exceeded
+            logger.warning(
+                f"Rate limit exceeded for {client_ip} on {request.url.path}",
+                extra={
+                    "client_ip": client_ip,
+                    "path": request.url.path,
+                    "limit": self.limit,
+                    "window": self.window
+                }
+            )
+            
+            # Return rate limit exceeded response
+            return Response(
+                content="Rate limit exceeded",
+                status_code=429,
+                headers={
+                    "Retry-After": str(ttl),
+                    "X-RateLimit-Limit": str(self.limit),
+                    "X-RateLimit-Remaining": "0",
+                    "X-RateLimit-Reset": str(int(time.time()) + ttl)
+                }
+            )
+            
+        # Increment counter
+        pipe = self.redis.pipeline()
+        pipe.incr(key)
+        pipe.execute()
+        
+        # Update metrics
+        remaining = self.limit - (current + 1)
+        RATE_LIMIT_REMAINING.labels(endpoint=request.url.path).set(remaining)
+        
+        # Add rate limit headers
+        response = await call_next(request)
+        response.headers["X-RateLimit-Limit"] = str(self.limit)
+        response.headers["X-RateLimit-Remaining"] = str(remaining)
+        response.headers["X-RateLimit-Reset"] = str(int(time.time()) + ttl)
+        
+        return response 

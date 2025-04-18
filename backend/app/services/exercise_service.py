@@ -1,9 +1,10 @@
 """Exercise service module."""
 from typing import List, Optional
 from uuid import UUID
+from fastapi import Depends
 
 from app.models.exercise import ExerciseTemplate
-from app.repositories.exercise_repository import ExerciseRepository
+from app.repositories.exercise_repository import ExerciseRepository, get_exercise_repository
 from app.services.base import BaseService
 
 
@@ -32,4 +33,18 @@ class ExerciseService(BaseService):
 
     async def delete(self, exercise_id: UUID) -> bool:
         """Delete an exercise."""
-        return await self.repository.delete(exercise_id) 
+        return await self.repository.delete(exercise_id)
+
+
+def get_exercise_service(
+    repository: ExerciseRepository = Depends(get_exercise_repository),
+) -> ExerciseService:
+    """Get exercise service instance.
+    
+    Args:
+        repository: Exercise repository instance
+        
+    Returns:
+        Exercise service instance
+    """
+    return ExerciseService(repository=repository) 

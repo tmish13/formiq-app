@@ -1,10 +1,9 @@
 import React from 'react';
 import { screen, render } from '@testing-library/react';
-import { BrowserRouter, useLocation, Navigate } from 'react-router-dom';
 import { ProtectedRoute } from '../ProtectedRoute';
-import { AuthProvider } from '../../contexts/AuthContext';
 import { ThemeProvider } from 'styled-components';
 import { theme } from '../../theme';
+import { MemoryRouter } from 'react-router-dom';
 
 const TestComponent = () => <div>Protected Content</div>;
 
@@ -14,23 +13,31 @@ jest.mock('../../contexts/AuthContext', () => ({
   AuthProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-// Mock react-router-dom hooks
-jest.mock('react-router-dom', () => ({
-  ...jest.requireActual('react-router-dom'),
-  useLocation: jest.fn(),
-  Navigate: jest.fn(({ to }) => <div data-testid="navigate">Redirecting to {to}</div>),
+// Import to enable mocking navigate and location
+import * as router from 'react-router-dom';
+
+// Mock useLocation and Navigate
+jest.spyOn(router, 'useLocation').mockImplementation(() => ({ 
+  pathname: '/current',
+  search: '',
+  hash: '',
+  state: null,
+  key: 'default'
 }));
+
+// Mock Navigate component
+jest.spyOn(router, 'Navigate').mockImplementation(({ to }: { to: string }) => (
+  <div data-testid="navigate">Redirecting to {to}</div>
+));
 
 import { useAuth } from '../../contexts/AuthContext';
 
 const renderWithProviders = (ui: React.ReactElement) => {
   return render(
     <ThemeProvider theme={theme}>
-      <BrowserRouter>
-        <AuthProvider>
-          {ui}
-        </AuthProvider>
-      </BrowserRouter>
+      <MemoryRouter>
+        {ui}
+      </MemoryRouter>
     </ThemeProvider>
   );
 };
@@ -38,7 +45,6 @@ const renderWithProviders = (ui: React.ReactElement) => {
 describe('ProtectedRoute', () => {
   beforeEach(() => {
     (useAuth as jest.Mock).mockClear();
-    (useLocation as jest.Mock).mockReturnValue({ pathname: '/current' });
   });
 
   it('should show loading state when authentication is in progress', () => {

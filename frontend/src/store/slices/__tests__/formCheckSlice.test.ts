@@ -1,12 +1,18 @@
 import formCheckReducer, {
   addFormCheck,
-  setCurrentCheck,
+  setCurrentFormCheck,
   setLoading,
   setError,
   FormCheckState,
-  FormCheck,
-  FormCheckFeedback,
 } from '../formCheckSlice';
+import { FormCheck } from '../../../types/formCheck';
+
+// Define FormCheckFeedback for tests since it's not exported
+interface FormCheckFeedback {
+  type: string;
+  message: string;
+  timestamp: string;
+}
 
 describe('formCheckSlice', () => {
   const mockFeedback: FormCheckFeedback[] = [
@@ -44,11 +50,10 @@ describe('formCheckSlice', () => {
   ];
 
   const initialState: FormCheckState = {
-    checks: [],
+    formChecks: [],
     isLoading: false,
     error: null,
-    currentCheck: null,
-    selectedCheck: null,
+    currentFormCheck: null,
   };
 
   it('should handle initial state', () => {
@@ -57,13 +62,13 @@ describe('formCheckSlice', () => {
 
   it('should handle addFormCheck', () => {
     const actual = formCheckReducer(initialState, addFormCheck(mockFormChecks[0]));
-    expect(actual.checks).toEqual([mockFormChecks[0]]);
+    expect(actual.formChecks).toEqual([mockFormChecks[0]]);
   });
 
-  it('should handle setCurrentCheck', () => {
+  it('should handle setCurrentFormCheck', () => {
     const currentFormCheck = mockFormChecks[0];
-    const actual = formCheckReducer(initialState, setCurrentCheck(currentFormCheck));
-    expect(actual.currentCheck).toEqual(currentFormCheck);
+    const actual = formCheckReducer(initialState, setCurrentFormCheck(currentFormCheck));
+    expect(actual.currentFormCheck).toEqual(currentFormCheck);
   });
 
   it('should handle setLoading', () => {
@@ -91,16 +96,16 @@ describe('formCheckSlice', () => {
       ...initialState,
       error: 'Previous error',
     };
-    const actual = formCheckReducer(stateWithError, setCurrentCheck(mockFormChecks[0]));
+    const actual = formCheckReducer(stateWithError, setCurrentFormCheck(mockFormChecks[0]));
     expect(actual.error).toBeNull();
   });
 
   it('should maintain existing form checks when setting current form check', () => {
     const stateWithFormChecks = {
       ...initialState,
-      checks: mockFormChecks,
+      formChecks: mockFormChecks,
     };
-    const actual = formCheckReducer(stateWithFormChecks, setCurrentCheck(mockFormChecks[0]));
-    expect(actual.checks).toEqual(mockFormChecks);
+    const actual = formCheckReducer(stateWithFormChecks, setCurrentFormCheck(mockFormChecks[0]));
+    expect(actual.formChecks).toEqual(mockFormChecks);
   });
 }); 

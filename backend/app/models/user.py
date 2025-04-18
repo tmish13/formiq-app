@@ -7,7 +7,7 @@ import enum
 import re
 from app.models.base import BaseModel, SQLiteUUID
 from app.models.enums import SubscriptionTier
-from app.core.security import get_password_hash, verify_password
+from app.core.password import get_password_hash, verify_password
 from app.core.exceptions import ValidationError
 from app.core.validators import validate_password as validate_password_strength
 import uuid
@@ -27,6 +27,7 @@ class User(BaseModel):
     - One-to-many with FormCheck
     - One-to-many with Subscription
     - One-to-many with Workout
+    - One-to-many with Video
     
     Attributes:
         email (str): User's email address (unique)
@@ -101,6 +102,7 @@ class User(BaseModel):
     )
     settings = relationship("UserSettings", back_populates="user", uselist=False)
     sessions = relationship("UserSession", back_populates="user", cascade="all, delete-orphan")
+    videos = relationship("Video", back_populates="user", cascade="all, delete-orphan")
 
     @validates('email')
     def validate_email(self, key: str, email: str) -> str:

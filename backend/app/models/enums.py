@@ -150,4 +150,39 @@ class Difficulty(str, Enum):
     BEGINNER = "beginner"
     INTERMEDIATE = "intermediate"
     ADVANCED = "advanced"
-    EXPERT = "expert" 
+    EXPERT = "expert"
+
+class MuscleGroup(str, Enum):
+    """
+    Primary muscle groups targeted by exercises.
+    
+    Attributes:
+        CHEST: Pectoralis major and minor
+        BACK: Latissimus dorsi, rhomboids, trapezius
+        SHOULDERS: Deltoids (anterior, lateral, posterior)
+        LEGS: Quadriceps, hamstrings, calves
+        ARMS: Biceps, triceps, forearms
+        CORE: Abdominals, obliques, lower back
+        FULL_BODY: Multiple major muscle groups
+    """
+    CHEST = "chest"
+    BACK = "back"
+    SHOULDERS = "shoulders"
+    LEGS = "legs"
+    ARMS = "arms"
+    CORE = "core"
+    FULL_BODY = "full_body"
+
+    @classmethod
+    def get_related_exercises(cls, muscle_group: str) -> List[str]:
+        """Get common exercises for a muscle group."""
+        exercise_map = {
+            cls.CHEST: ["bench_press", "push_up", "dips"],
+            cls.BACK: ["pull_up", "row", "deadlift"],
+            cls.SHOULDERS: ["overhead_press", "lateral_raise"],
+            cls.LEGS: ["squat", "lunge", "deadlift"],
+            cls.ARMS: ["curl", "tricep_extension"],
+            cls.CORE: ["plank", "crunch", "russian_twist"],
+            cls.FULL_BODY: ["burpee", "clean_and_jerk", "snatch"]
+        }
+        return exercise_map.get(muscle_group, []) 

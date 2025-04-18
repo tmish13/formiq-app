@@ -7,7 +7,7 @@ from app.models.video import Video
 from app.models.form_check import FormCheck
 from app.core.security import get_password_hash
 import factory
-from app.models.session import Session
+from app.models.session import UserSession as Session
 from app.models.form_analysis import FormAnalysis
 
 class UserFactory(factory.Factory):

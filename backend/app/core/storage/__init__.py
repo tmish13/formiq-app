@@ -8,40 +8,22 @@ import asyncio
 
 from app.core.config import settings
 from app.core.logging import get_logger
+from .video import save_video, upload_video, delete_video, get_video_url
+from .s3 import S3StorageProvider
+from .base import StorageProvider
 
 logger = get_logger(__name__)
 
-# Define a common storage interface
-class StorageProvider:
-    """Base storage provider interface."""
-    
-    async def upload_file(
-        self,
-        file_data: BinaryIO,
-        object_name: str,
-        content_type: Optional[str] = None,
-        metadata: Optional[Dict[str, str]] = None,
-        public: bool = False,
-    ) -> str:
-        """Upload a file to storage."""
-        raise NotImplementedError()
-    
-    async def delete_file(self, object_name: str) -> bool:
-        """Delete a file from storage."""
-        raise NotImplementedError()
-    
-    async def list_files(self, prefix: str = "") -> List[Dict[str, Any]]:
-        """List files in storage."""
-        raise NotImplementedError()
-    
-    async def get_file(self, object_name: str) -> Tuple[bytes, Dict[str, Any]]:
-        """Get a file from storage."""
-        raise NotImplementedError()
-    
-    @staticmethod
-    def get_key_from_url(url: str) -> str:
-        """Extract the key from a URL."""
-        raise NotImplementedError()
+__all__ = [
+    'StorageProvider',
+    'LocalStorageProvider',
+    'S3StorageProvider',
+    'get_storage_provider',
+    'save_video',
+    'upload_video',
+    'delete_video',
+    'get_video_url'
+]
 
 # Local file system storage provider
 class LocalStorageProvider(StorageProvider):

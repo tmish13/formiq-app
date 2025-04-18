@@ -1,22 +1,53 @@
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'jsdom',
-  setupFilesAfterEnv: ['<rootDir>/src/setupTests.ts'],
+  setupFiles: ['<rootDir>/polyfills.js'],
+  setupFilesAfterEnv: ['<rootDir>/tests/setup.tsx'],
   moduleNameMapper: {
     '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
-    '\\.(gif|ttf|eot|svg|png)$': '<rootDir>/src/__tests__/__mocks__/fileMock.js',
-    '^@/(.*)$': '<rootDir>/src/$1'
+    '\\.(gif|ttf|eot|svg|png)$': '<rootDir>/tests/__mocks__/fileMock.js',
+    '^@/(.*)$': '<rootDir>/src/$1',
+    '^@components/(.*)$': '<rootDir>/src/components/$1',
+    '^@services/(.*)$': '<rootDir>/src/services/$1',
+    '^@utils/(.*)$': '<rootDir>/src/utils/$1',
+    '^@hooks/(.*)$': '<rootDir>/src/hooks/$1',
+    '^@contexts/(.*)$': '<rootDir>/src/contexts/$1',
+    '^@store/(.*)$': '<rootDir>/src/store/$1',
+    '^@types/(.*)$': '<rootDir>/src/types/$1',
+    '^styled-components$': '<rootDir>/tests/__mocks__/styled-components.js',
+    '^react-router-dom$': '<rootDir>/tests/__mocks__/react-router-dom.tsx',
+    '^ioredis$': '<rootDir>/tests/__mocks__/ioredis.ts',
+    '^../../mocks/server$': '<rootDir>/tests/__mocks__/server.js',
+    '^../formCheckService$': '<rootDir>/src/services/formAnalysisService.ts',
+    '^../../services/formCheckService$': '<rootDir>/src/services/formAnalysisService.ts',
+    '^@tensorflow-models/pose-detection$': '<rootDir>/tests/__mocks__/@tensorflow-models/pose-detection.ts',
+    '^../Results$': '<rootDir>/src/pages/analysis/Results.tsx',
+    '^../History$': '<rootDir>/src/pages/analysis/History.tsx',
+    '^src/(.*)$': '<rootDir>/src/$1',
+    '^tests/(.*)$': '<rootDir>/tests/$1',
+    '^../index$': '<rootDir>/src/store/index.ts',
+    '^../../../components/common/(.*)$': '<rootDir>/src/components/common/$1',
+    '^../../../services/(.*)$': '<rootDir>/src/services/$1',
+    '^../../services/(.*)$': '<rootDir>/src/services/$1',
+    '^../../../store/(.*)$': '<rootDir>/src/store/$1',
+    '^../../../utils/(.*)$': '<rootDir>/src/utils/$1'
   },
+  moduleDirectories: ['node_modules', '<rootDir>/tests/__mocks__', 'src', '<rootDir>'],
+  moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
   transform: {
     '^.+\\.(ts|tsx)$': ['ts-jest', {
-      tsconfig: 'tsconfig.json'
+      tsconfig: 'tsconfig.json',
+      diagnostics: {
+        ignoreCodes: [151001]
+      }
     }],
     '^.+\\.(js|jsx)$': ['babel-jest', {
-      presets: ['@babel/preset-env', '@babel/preset-react']
+      presets: ['@babel/preset-env', '@babel/preset-react'],
+      plugins: ['@babel/plugin-transform-object-rest-spread', 'babel-plugin-styled-components']
     }]
   },
   transformIgnorePatterns: [
-    '/node_modules/(?!(@formiq|react-native|@react-native|react-navigation|@react-navigation)/)'
+    '/node_modules/(?!(@formiq|react-native|@react-native|react-navigation|@react-navigation|react-router-dom|@tensorflow|@tensorflow-models)/)'
   ],
   collectCoverage: true,
   collectCoverageFrom: [
@@ -36,7 +67,21 @@ module.exports = {
     }
   },
   testMatch: [
+    '<rootDir>/src/**/*.{spec,test}.{ts,tsx}',
     '<rootDir>/src/**/__tests__/**/*.{ts,tsx}',
-    '<rootDir>/src/**/*.{spec,test}.{ts,tsx}'
-  ]
+    '<rootDir>/tests/**/*.{spec,test}.{ts,tsx}',
+    '<rootDir>/tests/unit/**/*.{spec,test}.{ts,tsx}',
+    '<rootDir>/tests/integration/**/*.{spec,test}.{ts,tsx}',
+    '<rootDir>/tests/e2e/**/*.{spec,test}.{ts,tsx}'
+  ],
+  testPathIgnorePatterns: [
+    '/node_modules/',
+    '/dist/',
+    '/coverage/',
+    '/.next/',
+    '/build/'
+  ],
+  verbose: true,
+  testTimeout: 10000,
+  maxWorkers: '50%'
 }; 

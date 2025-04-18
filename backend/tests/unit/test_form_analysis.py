@@ -1,8 +1,9 @@
+"""Form analysis tests."""
 import pytest
 from unittest.mock import Mock, patch
 from app.models.form_analysis import FormAnalysis
 from app.services.form_analysis import FormAnalysisService
-from app.core.exceptions import AnalysisError
+from app.exceptions import AnalysisError
 from tests.factories import FormAnalysisFactory, VideoFactory, UserFactory
 
 def test_form_analysis_creation():

@@ -12,12 +12,17 @@ import httpx
 import asyncio
 from app.core.config import settings
 from app.core.logging import logger
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer
 from uuid import UUID
 from app.core.validators import validate_password as validate_password_strength
 import uuid
 from fastapi import Request
+from app.services.user_service import get_user_service
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.database import get_db
+from app.core.password import verify_password
+from app.core.token import verify_token, decode_token
 
 # Password hashing context with stronger settings
 pwd_context = CryptContext(
@@ -31,7 +36,7 @@ pwd_context = CryptContext(
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
 
 # JWT algorithm
-ALGORITHM = "HS256"
+ALGORITHM = settings.JWT_ALGORITHM
 
 # Login attempt tracking for throttling
 LOGIN_ATTEMPT_CACHE = {}
@@ -126,19 +131,6 @@ def verify_token(token: str) -> Optional[str]:
         return None
 
 # Password related functions
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """
-    Verify that a plain password matches a hashed password.
-    
-    Args:
-        plain_password: Plain text password
-        hashed_password: Hashed password
-    
-    Returns:
-        bool: True if passwords match, False otherwise
-    """
-    return pwd_context.verify(plain_password, hashed_password)
-
 def get_password_hash(password: str) -> str:
     """
     Hash a password using bcrypt.
@@ -284,6 +276,27 @@ def create_password_reset_token(email: str) -> str:
         "jti": secrets.token_hex(16)
     }
     encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
+    return encoded_jwt
+
+def generate_password_reset_token(email: str) -> str:
+    """
+    Generate a password reset token.
+    
+    Args:
+        email: User's email address
+        
+    Returns:
+        str: Password reset token
+    """
+    delta = timedelta(hours=settings.PASSWORD_RESET_TOKEN_EXPIRE_HOURS)
+    now = datetime.utcnow()
+    expires = now + delta
+    exp = expires.timestamp()
+    encoded_jwt = jwt.encode(
+        {"exp": exp, "nbf": now, "sub": email, "type": "password_reset"},
+        settings.JWT_SECRET,
+        algorithm=settings.JWT_ALGORITHM,
+    )
     return encoded_jwt
 
 def track_login_attempt(username: str, success: bool) -> bool:
@@ -652,4 +665,64 @@ def decode_jwt_token(token: str) -> Dict[str, Any]:
         )
         return decoded_token
     except JWTError as e:
-        raise ValueError(f"Invalid token: {str(e)}") 
+        raise ValueError(f"Invalid token: {str(e)}")
+
+async def get_current_user(
+    token: str = Depends(oauth2_scheme),
+    db: AsyncSession = Depends(get_db),
+    user_service = Depends(get_user_service)
+):
+    """
+    Get current user from access token.
+    
+    Args:
+        token: JWT access token
+        db: Database session
+        user_service: User service instance
+        
+    Returns:
+        User: Current user
+        
+    Raises:
+        HTTPException: If token is invalid or user not found
+    """
+    from app.models.user import User  # Import at function level to avoid circular import
+    
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    
+    try:
+        payload = decode_token(token)
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+        
+    user = await user_service.get_by_id(user_id)
+    if user is None:
+        raise credentials_exception
+        
+    return user
+
+async def get_current_active_user(
+    current_user = Depends(get_current_user)
+):
+    """
+    Get current active user.
+    
+    Args:
+        current_user: Current authenticated user
+        
+    Returns:
+        User: Current active user
+        
+    Raises:
+        HTTPException: If user is inactive
+    """
+    if not current_user.is_active:
+        raise HTTPException(status_code=400, detail="Inactive user")
+    return current_user 

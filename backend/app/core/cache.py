@@ -82,11 +82,16 @@ class CacheService:
     
     def __init__(self):
         """Initialize the cache service."""
-        self.redis: Optional[redis.Redis] = None
+        self._redis: Optional[redis.Redis] = None
         self.available: bool = False
         self.connection_attempts: int = 0
         self.MAX_RETRIES = 3
         self.FALLBACK_CACHE: Dict[str, Any] = {}  # In-memory fallback when Redis unavailable
+    
+    @property
+    def redis_client(self) -> Optional[redis.Redis]:
+        """Get the Redis client instance."""
+        return self._redis
     
     async def connect(self) -> bool:
         """Connect to Redis server.
@@ -94,7 +99,7 @@ class CacheService:
         Returns:
             bool: Connection success status
         """
-        if self.redis is not None:
+        if self._redis is not None:
             # Already connected
             return self.available
         
@@ -108,13 +113,13 @@ class CacheService:
             
             # Connect to Redis
             if settings.REDIS_URL:
-                self.redis = redis.from_url(
+                self._redis = redis.from_url(
                     settings.REDIS_URL,
                     encoding="utf-8",
                     decode_responses=True
                 )
             else:
-                self.redis = redis.Redis(
+                self._redis = redis.Redis(
                     host=settings.REDIS_HOST,
                     port=settings.REDIS_PORT,
                     db=settings.REDIS_DB,
@@ -152,11 +157,11 @@ class CacheService:
         Returns:
             bool: Connection status
         """
-        if not self.redis:
+        if not self._redis:
             return False
         
         try:
-            result = await self.redis.ping()
+            result = await self._redis.ping()
             return result
         except (ConnectionError, Exception) as e:
             logger.error(f"Redis ping failed: {str(e)}")
@@ -165,14 +170,14 @@ class CacheService:
     
     async def close(self) -> None:
         """Close Redis connection."""
-        if self.redis:
+        if self._redis:
             try:
-                await self.redis.close()
+                await self._redis.close()
                 logger.info("Redis connection closed")
             except Exception as e:
                 logger.error(f"Error closing Redis connection: {str(e)}")
         
-        self.redis = None
+        self._redis = None
         self.available = False
     
     async def get(self, key: str, default: Any = None) -> Any:
@@ -189,7 +194,7 @@ class CacheService:
             if not self.available:
                 return self.FALLBACK_CACHE.get(key, default)
                 
-            result = await self.redis.get(key)
+            result = await self._redis.get(key)
             if result is None:
                 return default
                 
@@ -201,8 +206,8 @@ class CacheService:
                 return result
                 
         except Exception as e:
-            logger.error(f"Redis get error for key '{key}': {str(e)}")
-            return self.FALLBACK_CACHE.get(key, default)
+            logger.error(f"Error getting value from cache: {str(e)}")
+            return default
     
     async def set(
         self, 
@@ -230,9 +235,9 @@ class CacheService:
                 value = json.dumps(value)
                 
             if expires_in:
-                return await self.redis.setex(key, expires_in, value)
+                return await self._redis.setex(key, expires_in, value)
             else:
-                return await self.redis.set(key, value)
+                return await self._redis.set(key, value)
                 
         except Exception as e:
             logger.error(f"Redis set error for key '{key}': {str(e)}")
@@ -243,4 +248,7 @@ class CacheService:
     # Add other Redis operations as needed...
 
 # Create singleton instance
-cache_service = CacheService() 
+cache_service = CacheService()
+
+# Alias for backward compatibility
+redis_cache = cache_service 

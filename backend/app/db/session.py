@@ -17,6 +17,7 @@ engine = async_engine
 sync_engine = create_engine(
     settings.SQLALCHEMY_DATABASE_URI,
     pool_pre_ping=True,
+    poolclass=NullPool if settings.SQLALCHEMY_DATABASE_URI.startswith("sqlite") else None,
     connect_args={"check_same_thread": False} if settings.SQLALCHEMY_DATABASE_URI.startswith("sqlite") else {}
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=sync_engine)

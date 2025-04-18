@@ -4,7 +4,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 import pytest
 import asyncio
-from typing import AsyncGenerator, Generator, Dict
+from typing import AsyncGenerator, Generator, Dict, List
 from fastapi import FastAPI
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -13,15 +13,20 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import NullPool
 from fastapi.testclient import TestClient
+import pytest_asyncio
+from sqlalchemy.pool import StaticPool
+import shutil
 
 from app.core.config import settings, get_settings
-from app.db.base_class import Base
+from app.core.database import Base, get_db
+from app.core.token import create_access_token
+from app.core.password import get_password_hash
 from app.main import app, create_application
 from app.models.user import User
 from app.models.workout import Workout, Exercise, WorkoutPlan
 from app.core.security import create_access_token, get_password_hash
 from app.core.cache import cache_service
-from app.core.database import get_db, get_async_db
+from app.core.database import get_async_db
 from tests.test_utils import MockRedis
 from datetime import datetime, timedelta
 from app.db.session import async_session
@@ -49,7 +54,7 @@ TEST_DATABASE_URL = "sqlite+aiosqlite:///./test.db"
 test_engine = create_async_engine(
     TEST_DATABASE_URL,
     echo=False,
-    poolclass=None
+    poolclass=NullPool
 )
 
 # Create async session factory for tests
@@ -491,6 +496,103 @@ def superuser_token_headers(test_superuser: User) -> Dict[str, str]:
     """Create authentication headers for the test superuser."""
     token = create_access_token(data={"sub": test_superuser.email})
     return {"Authorization": f"Bearer {token}"}
+
+@pytest.fixture(scope="session")
+def test_files_cleanup() -> Generator[List[Path], None, None]:
+    """Track and clean up test files.
+    
+    This fixture maintains a list of files created during tests
+    and ensures they are cleaned up after the test session.
+    
+    Yields:
+        List[Path]: List to track files that need cleanup
+    """
+    files_to_cleanup: List[Path] = []
+    yield files_to_cleanup
+    
+    # Clean up all tracked files
+    for file_path in files_to_cleanup:
+        if file_path.is_file():
+            file_path.unlink()
+        elif file_path.is_dir():
+            shutil.rmtree(file_path)
+
+@pytest.fixture
+def test_file_tracker(test_files_cleanup: List[Path]) -> Generator[List[Path], None, None]:
+    """Track test files for a single test.
+    
+    Args:
+        test_files_cleanup: Session-wide list of files to clean up
+        
+    Yields:
+        List[Path]: List to track files for this test
+    """
+    test_files: List[Path] = []
+    yield test_files
+    test_files_cleanup.extend(test_files)
+
+@pytest.fixture
+def create_test_file(tmp_path: Path, test_file_tracker: List[Path]) -> callable:
+    """Create a test file and track it for cleanup.
+    
+    Args:
+        tmp_path: Temporary directory for the test
+        test_file_tracker: List to track files for cleanup
+        
+    Returns:
+        callable: Function to create and track test files
+    """
+    def _create_file(
+        filename: str,
+        content: bytes = b"test content",
+        track: bool = True
+    ) -> Path:
+        """Create a test file.
+        
+        Args:
+            filename: Name of the file to create
+            content: Content to write to the file
+            track: Whether to track the file for cleanup
+            
+        Returns:
+            Path: Path to the created file
+        """
+        file_path = tmp_path / filename
+        file_path.write_bytes(content)
+        if track:
+            test_file_tracker.append(file_path)
+        return file_path
+    
+    return _create_file
+
+@pytest.fixture
+def create_test_dir(tmp_path: Path, test_file_tracker: List[Path]) -> callable:
+    """Create a test directory and track it for cleanup.
+    
+    Args:
+        tmp_path: Temporary directory for the test
+        test_file_tracker: List to track directories for cleanup
+        
+    Returns:
+        callable: Function to create and track test directories
+    """
+    def _create_dir(dirname: str, track: bool = True) -> Path:
+        """Create a test directory.
+        
+        Args:
+            dirname: Name of the directory to create
+            track: Whether to track the directory for cleanup
+            
+        Returns:
+            Path: Path to the created directory
+        """
+        dir_path = tmp_path / dirname
+        dir_path.mkdir(parents=True, exist_ok=True)
+        if track:
+            test_file_tracker.append(dir_path)
+        return dir_path
+    
+    return _create_dir
 
 # New directory structure
 # backend/tests/

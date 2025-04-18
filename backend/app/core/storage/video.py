@@ -5,6 +5,7 @@ from uuid import UUID
 from fastapi import UploadFile
 from app.core.config import settings
 from app.core.logging import get_logger
+from app.exceptions import VideoProcessingError
 
 # Initialize logger
 logger = get_logger(__name__)
@@ -21,7 +22,7 @@ async def upload_video(video: UploadFile, user_id: UUID) -> str:
         str: URL of the uploaded video
         
     Raises:
-        ProcessingError: If upload fails
+        VideoProcessingError: If upload fails
     """
     try:
         # Create user directory if it doesn't exist
@@ -41,7 +42,10 @@ async def upload_video(video: UploadFile, user_id: UUID) -> str:
         return f"{settings.MEDIA_URL}/videos/{user_id}/{filename}"
     except Exception as e:
         logger.error(f"Failed to upload video: {str(e)}")
-        raise
+        raise VideoProcessingError(f"Failed to upload video: {str(e)}")
+
+# Alias for upload_video to maintain compatibility
+save_video = upload_video
 
 async def delete_video(video_url: str) -> None:
     """
@@ -51,7 +55,7 @@ async def delete_video(video_url: str) -> None:
         video_url: URL of the video to delete
         
     Raises:
-        ProcessingError: If deletion fails
+        VideoProcessingError: If deletion fails
     """
     try:
         # Extract path from URL
@@ -64,4 +68,17 @@ async def delete_video(video_url: str) -> None:
             logger.info(f"Deleted video: {file_path}")
     except Exception as e:
         logger.error(f"Failed to delete video: {str(e)}")
-        raise 
+        raise VideoProcessingError(f"Failed to delete video: {str(e)}")
+
+def get_video_url(user_id: UUID, filename: str) -> str:
+    """
+    Get the URL for a video file.
+    
+    Args:
+        user_id: User ID for path construction
+        filename: Name of the video file
+        
+    Returns:
+        str: URL of the video
+    """
+    return f"{settings.MEDIA_URL}/videos/{user_id}/{filename}" 

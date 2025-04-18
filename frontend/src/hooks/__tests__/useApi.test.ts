@@ -1,11 +1,23 @@
 import React from 'react';
-import { renderHook, act } from '@testing-library/react-hooks';
-import { MemoryRouter } from 'react-router-dom';
+import { renderHook, act } from '@testing-library/react';
 import { rest } from 'msw';
 import { setupServer } from 'msw/node';
 import { useApi } from '../useApi';
 import { AxiosProgressEvent } from 'axios';
 import api from '../../config/api';
+
+// Mock function to simulate router context
+const mockNavigate = jest.fn();
+
+// Mock router context
+jest.mock('react-router-dom', () => {
+  const original = jest.requireActual('react-router-dom');
+  return {
+    ...original,
+    useNavigate: () => mockNavigate,
+    useLocation: () => ({ pathname: '/test', search: '', hash: '', state: null })
+  };
+});
 
 interface TestResponse {
   message: string;
@@ -49,10 +61,6 @@ afterEach(() => {
   localStorage.clear();
 });
 afterAll(() => server.close());
-
-const TestWrapper = ({ children }: { children: React.ReactNode }) => {
-  return React.createElement(MemoryRouter, null, children);
-};
 
 // Mock the API
 jest.mock('../../config/api', () => ({
