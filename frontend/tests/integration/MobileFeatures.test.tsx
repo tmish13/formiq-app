@@ -43,39 +43,66 @@ jest.mock('../../src/components/Nav', () => ({
   )
 }));
 
-// Mock Capacitor plugins
+// Mock Capacitor Camera plugin
+const mockCameraGetPhoto = jest.fn().mockResolvedValue({
+  path: 'path/to/photo.jpg',
+  webPath: 'blob:photo.jpg',
+  format: 'jpeg'
+});
+
+const mockCameraCheckPermissions = jest.fn().mockResolvedValue({ camera: 'granted' });
+const mockCameraRequestPermissions = jest.fn().mockResolvedValue({ camera: 'granted' });
+
 jest.mock('@capacitor/camera', () => ({
   Camera: {
-    getPhoto: jest.fn().mockResolvedValue({
-      path: 'path/to/photo.jpg',
-      webPath: 'blob:photo.jpg',
-      format: 'jpeg'
-    }),
-    checkPermissions: jest.fn().mockResolvedValue({ camera: 'granted' }),
-    requestPermissions: jest.fn().mockResolvedValue({ camera: 'granted' })
+    getPhoto: (...args: any[]) => mockCameraGetPhoto(...args),
+    checkPermissions: (...args: any[]) => mockCameraCheckPermissions(...args),
+    requestPermissions: (...args: any[]) => mockCameraRequestPermissions(...args)
   }
 }));
+
+// Mock Capacitor Preferences plugin
+const mockPreferencesGet = jest.fn().mockResolvedValue({ value: 'test-token' });
+const mockPreferencesSet = jest.fn().mockResolvedValue(undefined);
+const mockPreferencesRemove = jest.fn().mockResolvedValue(undefined);
+const mockPreferencesClear = jest.fn().mockResolvedValue(undefined);
+const mockPreferencesKeys = jest.fn().mockResolvedValue({ keys: ['auth-token', 'user-settings'] });
 
 jest.mock('@capacitor/preferences', () => ({
   Preferences: {
-    get: jest.fn().mockResolvedValue({ value: 'test-token' }),
-    set: jest.fn().mockResolvedValue(undefined),
-    remove: jest.fn().mockResolvedValue(undefined),
-    clear: jest.fn().mockResolvedValue(undefined),
-    keys: jest.fn().mockResolvedValue({ keys: ['auth-token', 'user-settings'] })
+    get: (...args: any[]) => mockPreferencesGet(...args),
+    set: (...args: any[]) => mockPreferencesSet(...args),
+    remove: (...args: any[]) => mockPreferencesRemove(...args),
+    clear: (...args: any[]) => mockPreferencesClear(...args),
+    keys: (...args: any[]) => mockPreferencesKeys(...args)
   }
 }));
 
-jest.mock('@capacitor/network', () => ({
-  Network: {
-    getStatus: jest.fn().mockResolvedValue({ connected: true, connectionType: 'wifi' }),
-    addListener: jest.fn((event, callback) => {
-      // Store the callback for direct testing access
-      (Network as any).statusChangeCallback = callback;
-      return { remove: jest.fn() };
-    })
-  }
-}));
+// Mock Capacitor Network plugin
+const mockNetworkGetStatus = jest.fn().mockResolvedValue({ connected: true, connectionType: 'wifi' });
+const mockNetworkAddListener = jest.fn();
+const mockNetworkRemoveListener = jest.fn();
+
+jest.mock('@capacitor/network', () => {
+  const listeners = new Set();
+  return {
+    Network: {
+      getStatus: (...args: any[]) => mockNetworkGetStatus(...args),
+      addListener: (event: string, callback: (status: any) => void) => {
+        mockNetworkAddListener(event, callback);
+        listeners.add(callback);
+        return { remove: () => { 
+          mockNetworkRemoveListener(); 
+          listeners.delete(callback);
+        }};
+      },
+      // Method to simulate network status change for tests
+      _simulateStatusChange: (status: any) => {
+        listeners.forEach((callback: any) => callback(status));
+      }
+    }
+  };
+});
 
 // Mock localStorage
 const localStorageMock = (() => {
@@ -95,6 +122,31 @@ const localStorageMock = (() => {
 })();
 
 Object.defineProperty(window, 'localStorage', { value: localStorageMock });
+
+// Create a mock router with navigation utilities
+const mockNavigate = jest.fn();
+jest.mock('react-router-dom', () => {
+  const originalModule = jest.requireActual('react-router-dom');
+  return {
+    ...originalModule,
+    useNavigate: () => mockNavigate,
+    useLocation: jest.fn().mockReturnValue({
+      pathname: '/',
+      search: '',
+      hash: '',
+      state: null,
+      key: 'default',
+    }),
+  };
+});
+
+// Mock camera error component
+jest.mock('../../src/components/CameraError', () => ({
+  __esModule: true,
+  default: () => (
+    <div data-testid="camera-error">Camera Permission Required</div>
+  )
+}));
 
 // Mock network status indicator component
 jest.mock('../../src/components/NetworkStatus', () => ({
@@ -126,7 +178,10 @@ describe('Mobile Features Integration Tests', () => {
     const formCheckLink = screen.getByText('Form Check');
     fireEvent.click(formCheckLink);
 
-    // Verify form check component is shown
+    // Verify navigation was called
+    expect(mockNavigate).toHaveBeenCalledWith('/form-check', expect.anything());
+
+    // Verify form check component is shown (mocked)
     await waitFor(() => {
       expect(screen.getByTestId('form-check-component')).toBeInTheDocument();
     });
@@ -137,7 +192,7 @@ describe('Mobile Features Integration Tests', () => {
 
     // Verify camera was called
     await waitFor(() => {
-      expect(Camera.getPhoto).toHaveBeenCalled();
+      expect(mockCameraGetPhoto).toHaveBeenCalled();
     });
   });
 
@@ -153,6 +208,9 @@ describe('Mobile Features Integration Tests', () => {
     const settingsLink = screen.getByText('Settings');
     fireEvent.click(settingsLink);
 
+    // Verify navigation was called
+    expect(mockNavigate).toHaveBeenCalledWith('/settings', expect.anything());
+
     // Wait for settings component to appear
     await waitFor(() => {
       expect(screen.getByTestId('settings-component')).toBeInTheDocument();
@@ -164,7 +222,7 @@ describe('Mobile Features Integration Tests', () => {
 
     // Verify preferences were set
     await waitFor(() => {
-      expect(Preferences.set).toHaveBeenCalled();
+      expect(mockPreferencesSet).toHaveBeenCalled();
     });
 
     // Test clearing preferences
@@ -173,7 +231,7 @@ describe('Mobile Features Integration Tests', () => {
 
     // Verify preferences were cleared
     await waitFor(() => {
-      expect(Preferences.clear).toHaveBeenCalled();
+      expect(mockPreferencesClear).toHaveBeenCalled();
     });
   });
 
@@ -185,9 +243,9 @@ describe('Mobile Features Integration Tests', () => {
       expect(screen.getByTestId('nav-component')).toBeInTheDocument();
     });
 
-    // Trigger offline state through the stored callback
+    // Trigger offline state through the network plugin
     act(() => {
-      (Network as any).statusChangeCallback({ connected: false, connectionType: 'none' });
+      (Network as any)._simulateStatusChange({ connected: false, connectionType: 'none' });
     });
 
     // Verify offline state is shown
@@ -195,9 +253,9 @@ describe('Mobile Features Integration Tests', () => {
       expect(screen.getByText(/offline mode/i)).toBeInTheDocument();
     });
 
-    // Trigger online state through the stored callback
+    // Trigger online state through the network plugin
     act(() => {
-      (Network as any).statusChangeCallback({ connected: true, connectionType: 'wifi' });
+      (Network as any)._simulateStatusChange({ connected: true, connectionType: 'wifi' });
     });
 
     // Verify online state is shown
@@ -209,16 +267,8 @@ describe('Mobile Features Integration Tests', () => {
 
   test('Camera permissions handling', async () => {
     // Mock denied camera permissions
-    (Camera.checkPermissions as jest.Mock).mockResolvedValueOnce({ camera: 'denied' });
-    (Camera.requestPermissions as jest.Mock).mockResolvedValueOnce({ camera: 'denied' });
-
-    // Mock a permission error component
-    jest.mock('../../src/components/CameraError', () => ({
-      __esModule: true,
-      default: () => (
-        <div data-testid="camera-error">Camera Permission Required</div>
-      )
-    }));
+    mockCameraCheckPermissions.mockResolvedValueOnce({ camera: 'denied' });
+    mockCameraRequestPermissions.mockResolvedValueOnce({ camera: 'denied' });
 
     render(<App />);
 
@@ -231,6 +281,9 @@ describe('Mobile Features Integration Tests', () => {
     const formCheckLink = screen.getByText('Form Check');
     fireEvent.click(formCheckLink);
 
+    // Verify navigation was called
+    expect(mockNavigate).toHaveBeenCalledWith('/form-check', expect.anything());
+
     // Wait for form check component to appear
     await waitFor(() => {
       expect(screen.getByTestId('form-check-component')).toBeInTheDocument();
@@ -242,7 +295,8 @@ describe('Mobile Features Integration Tests', () => {
 
     // Verify permissions request
     await waitFor(() => {
-      expect(Camera.requestPermissions).toHaveBeenCalled();
+      expect(mockCameraCheckPermissions).toHaveBeenCalled();
+      expect(mockCameraRequestPermissions).toHaveBeenCalled();
     });
   });
 }); 

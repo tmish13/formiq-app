@@ -106,7 +106,7 @@ beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
-// Mock localStorage
+// Mock localStorage with proper implementation
 const localStorageMock = (() => {
   let store: Record<string, string> = {};
   return {
@@ -125,15 +125,36 @@ const localStorageMock = (() => {
 
 Object.defineProperty(window, 'localStorage', { value: localStorageMock });
 
-// Mock navigation
+// Mock router navigation
+const mockNavigate = jest.fn();
+const mockLocation = {
+  pathname: '/',
+  search: '',
+  hash: '',
+  state: null,
+};
+
 jest.mock('react-router-dom', () => ({
   ...jest.requireActual('react-router-dom'),
-  useNavigate: () => jest.fn(),
+  useNavigate: () => mockNavigate,
+  useLocation: () => mockLocation,
+  useParams: () => ({}),
+  Link: ({ to, children }: { to: string; children: React.ReactNode }) => (
+    <a href={to} onClick={(e) => {
+      e.preventDefault();
+      mockNavigate(to);
+      mockLocation.pathname = to;
+    }}>
+      {children}
+    </a>
+  ),
 }));
 
 describe('User Flow Integration Tests', () => {
   beforeEach(() => {
     localStorageMock.clear();
+    mockNavigate.mockClear();
+    mockLocation.pathname = '/';
   });
 
   test('Complete flow: Registration to Analysis Result', async () => {
@@ -147,6 +168,9 @@ describe('User Flow Integration Tests', () => {
     // Find the "Register" link in the navigation
     const registerNav = screen.getByText('Register');
     fireEvent.click(registerNav);
+
+    // Verify navigation was attempted
+    expect(mockNavigate).toHaveBeenCalledWith(expect.stringContaining('register'), expect.anything());
 
     // Verify we're on the registration screen
     await waitFor(() => {
@@ -167,6 +191,9 @@ describe('User Flow Integration Tests', () => {
     await waitFor(() => {
       expect(screen.getByTestId('form-check-component')).toBeInTheDocument();
     });
+
+    // Verify token was stored in localStorage
+    expect(localStorageMock.setItem).toHaveBeenCalledWith('token', expect.any(String));
   });
 
   test('Login and access form check', async () => {
@@ -189,6 +216,9 @@ describe('User Flow Integration Tests', () => {
     await waitFor(() => {
       expect(screen.getByTestId('form-check-component')).toBeInTheDocument();
     });
+
+    // Verify token was stored in localStorage
+    expect(localStorageMock.setItem).toHaveBeenCalledWith('token', expect.any(String));
   });
 
   test('Registration validation errors', async () => {
@@ -234,6 +264,12 @@ describe('User Flow Integration Tests', () => {
     await waitFor(() => {
       expect(screen.getByTestId('register-component')).toBeInTheDocument();
     });
+
+    // Verify errors in the UI
+    await waitFor(() => {
+      expect(screen.getByText(/invalid email format/i)).toBeInTheDocument();
+      expect(screen.getByText(/password must be at least 8 characters/i)).toBeInTheDocument();
+    });
   });
 
   test('Error handling with form check analysis', async () => {
@@ -256,6 +292,54 @@ describe('User Flow Integration Tests', () => {
     
     // After login with token, we should see the form check component
     await waitFor(() => {
+      expect(screen.getByTestId('form-check-component')).toBeInTheDocument();
+    });
+
+    // Verify error handling and display
+    await waitFor(() => {
+      expect(screen.getByText(/invalid video format/i)).toBeInTheDocument();
+    });
+  });
+
+  test('Refresh token flow', async () => {
+    // Mock an expired token scenario
+    server.use(
+      rest.get('/api/auth/me', (req, res, ctx) => {
+        // First call returns 401 (expired token)
+        return res(
+          ctx.status(401),
+          ctx.json({
+            error: 'Token expired'
+          })
+        );
+      }),
+      rest.post('/api/auth/refresh', (req, res, ctx) => {
+        // Refresh token request returns new token
+        return res(
+          ctx.status(200),
+          ctx.json({
+            token: 'new-jwt-token',
+            user: {
+              id: '123',
+              email: 'test@example.com',
+              name: 'Test User'
+            }
+          })
+        );
+      })
+    );
+
+    // Set expired token and refresh token
+    localStorageMock.setItem('token', 'expired-jwt-token');
+    localStorageMock.setItem('refreshToken', 'valid-refresh-token');
+
+    render(<App />);
+    
+    // App should try to refresh the token and continue
+    await waitFor(() => {
+      // New token should be stored
+      expect(localStorageMock.setItem).toHaveBeenCalledWith('token', 'new-jwt-token');
+      // Should see the form check component after successful token refresh
       expect(screen.getByTestId('form-check-component')).toBeInTheDocument();
     });
   });
