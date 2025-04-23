@@ -12,4 +12,50 @@ export const server = setupServer(...handlers);
 
 beforeAll(() => server.listen());
 afterEach(() => server.resetHandlers());
-afterAll(() => server.close()); 
+afterAll(() => server.close());
+
+// Mock window.matchMedia
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  value: jest.fn().mockImplementation(query => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: jest.fn(),
+    removeListener: jest.fn(),
+    addEventListener: jest.fn(),
+    removeEventListener: jest.fn(),
+    dispatchEvent: jest.fn(),
+  })),
+});
+
+// Mock IntersectionObserver
+class MockIntersectionObserver {
+  observe = jest.fn();
+  disconnect = jest.fn();
+  unobserve = jest.fn();
+}
+
+Object.defineProperty(window, 'IntersectionObserver', {
+  writable: true,
+  value: MockIntersectionObserver,
+});
+
+// Mock MediaStream
+const mockMediaStream = {
+  active: true,
+  id: 'mock-stream-id',
+  onaddtrack: null,
+  onremovetrack: null,
+  addTrack: jest.fn(),
+  removeTrack: jest.fn(),
+  getTracks: () => [{ stop: jest.fn() }],
+  getVideoTracks: () => [{ stop: jest.fn() }],
+  getAudioTracks: () => [],
+  clone: function() { return { ...this }; },
+  addEventListener: jest.fn(),
+  removeEventListener: jest.fn(),
+};
+
+// @ts-ignore - Mocking MediaStream for tests
+global.MediaStream = jest.fn(() => mockMediaStream); 

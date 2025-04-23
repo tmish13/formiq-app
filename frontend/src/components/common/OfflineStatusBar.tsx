@@ -46,7 +46,7 @@ const Dot = styled.span`
 `;
 
 const QueueInfo = styled.div`
-  font-size: ${({ theme }) => getThemeValue(theme, 'typography.fontSize.small', '0.875rem')};
+  font-size: ${({ theme }) => getThemeValue(theme, 'typography.fontSize.sm', '0.875rem')};
   margin-top: 4px;
 `;
 

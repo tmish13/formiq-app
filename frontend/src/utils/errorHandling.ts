@@ -55,12 +55,16 @@ export class AppError extends Error {
 }
 
 export const handleApiError = (error: unknown): AppError => {
+  // If already an AppError, just return it
   if (error instanceof AppError) {
     return error;
   }
 
-  // Special handling for network errors with pattern match for error message
-  if (error instanceof Error && error.message === 'Network Error') {
+  // Cast to AxiosError to check properties
+  const axiosError = error as AxiosError;
+
+  // Handle network errors (connection issues)
+  if (axiosError && axiosError.message === 'Network Error') {
     return new AppError(
       'Network connection error. Please check your internet connection.',
       ErrorCode.NETWORK_ERROR,
@@ -68,14 +72,12 @@ export const handleApiError = (error: unknown): AppError => {
     );
   }
 
-  // Special handling for timeout errors
-  const axiosError = error as AxiosError;
+  // Handle timeout errors
   if (
     axiosError && 
+    axiosError.code === 'ECONNABORTED' && 
     axiosError.message && 
-    typeof axiosError.message === 'string' && 
-    axiosError.message.includes('timeout') && 
-    axiosError.code === 'ECONNABORTED'
+    axiosError.message.includes('timeout')
   ) {
     return new AppError(
       'Request timed out. Please try again.',
@@ -84,9 +86,10 @@ export const handleApiError = (error: unknown): AppError => {
     );
   }
 
+  // Handle response errors
   if (axiosError && axiosError.response) {
-    const status = axiosError.response?.status || 0;
-    const data = axiosError.response?.data as Record<string, any> || {};
+    const status = axiosError.response.status;
+    const data = axiosError.response.data as Record<string, any> || {};
     
     // Handle based on status code
     switch (status) {
@@ -99,8 +102,7 @@ export const handleApiError = (error: unknown): AppError => {
       
       case 403:
         // Check if this is a CSRF token error
-        const csrfMessage = data.message as string;
-        if (csrfMessage && csrfMessage.includes('CSRF')) {
+        if (data.message && typeof data.message === 'string' && data.message.includes('CSRF')) {
           return new AppError(
             'Security validation failed. Please try again.',
             ErrorCode.CSRF_ERROR,
@@ -122,26 +124,38 @@ export const handleApiError = (error: unknown): AppError => {
       
       case 422:
         // Extract validation errors if available
-        const fieldErrors = data.errors as string[];
+        let errorMessage = 'Validation Error';
+        const fieldErrors = data.errors;
         
-        if (Array.isArray(fieldErrors) && fieldErrors.length > 0) {
+        if (fieldErrors && typeof fieldErrors === 'object') {
+          // Format error message properly for test expectation
+          if (Array.isArray(fieldErrors) && fieldErrors.length > 0) {
+            errorMessage = `Validation Error: ${fieldErrors.join(', ')}`;
+          }
+          
           return new AppError(
-            `Validation Error: ${fieldErrors.join(', ')}`,
+            errorMessage,
             ErrorCode.VALIDATION_ERROR,
-            422
+            422,
+            undefined,
+            fieldErrors as Record<string, string[]>
           );
         }
         
+        if (Array.isArray(fieldErrors) && fieldErrors.length > 0) {
+          errorMessage = `Validation Error: ${fieldErrors.join(', ')}`;
+        }
+        
         return new AppError(
-          'Validation Error',
+          errorMessage,
           ErrorCode.VALIDATION_ERROR,
           422
         );
       
       case 400:
         // Check if there's a custom message
-        const customMessage = data.message as string;
-        if (customMessage) {
+        const customMessage = data.message;
+        if (customMessage && typeof customMessage === 'string') {
           return new AppError(
             customMessage,
             ErrorCode.BAD_REQUEST,
@@ -173,7 +187,7 @@ export const handleApiError = (error: unknown): AppError => {
     }
   }
 
-  // For unknown errors
+  // For other error types
   if (error instanceof Error) {
     return new AppError(
       'An unexpected error occurred. Please try again later.',
@@ -182,6 +196,7 @@ export const handleApiError = (error: unknown): AppError => {
     );
   }
 
+  // Default case for unknown error formats
   return new AppError(
     'An unexpected error occurred. Please try again later.',
     ErrorCode.UNKNOWN_ERROR,

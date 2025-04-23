@@ -1,92 +1,180 @@
 # FormIQ Frontend
 
-The frontend application for FormIQ, an AI-powered exercise form analysis platform.
+A cross-platform fitness application for workout tracking and form analysis.
 
-## Features
+## Directory Structure
 
-- User authentication (login/register)
-- Dashboard with workout overview
-- Real-time form analysis
-- Workout tracking
-- Progress monitoring
-- Profile management
+- `components/` – Reusable UI components
+  - `common/` - Common UI components like buttons, inputs, etc.
+  - `layout/` - Layout components like header, footer, etc.
+  - `auth/` - Authentication-related components
+  - `camera/` - Camera and form capture components
+  - `**/` - Other feature-specific components
 
-## Tech Stack
+- `contexts/` - React contexts for global state management
+  - `ThemeContext.tsx` - Theme context with light/dark mode support
+  - `LoadingContext.tsx` - Loading state context
+  - `*Context.tsx` - Other context providers
 
-- React 18
-- TypeScript
-- Redux Toolkit
-- React Router v6
-- Styled Components
-- Axios
+- `hooks/` – Custom React hooks
+  - `useAuth.ts` - Authentication hook
+  - `useCameraPermissions.ts` - Camera permissions hook
+  - `use*.ts` - Other custom hooks
 
-## Getting Started
+- `services/` – API service calls and data handling
+  - `api/` - API-related services including handlers for mock data
+  - `auth.ts` - Authentication service
+  - `*.ts` - Other feature-specific services
 
-### Prerequisites
+- `routes/` – Routing and navigation config
+  - `index.tsx` - Main routes component
+  - `routes.tsx` - Route definitions
 
-- Node.js (v14 or higher)
-- npm or yarn
+- `theme/` - Centralized theming
+  - `theme.ts` - Theme definitions (light/dark)
 
-### Installation
+- `types/` - TypeScript type definitions
+  - `theme.d.ts` - Theme type definitions
+  - `*.d.ts` - Other type definitions
 
-1. Clone the repository:
+- `utils/` - Helper functions
+  - `themeUtils.ts` - Theme utility functions
+  - `*.ts` - Other utility functions
+
+- `styles/` - Global styles
+  - `GlobalStyle.ts` - Global style definitions
+
+- `pages/` - Page components
+  - `*/` - Feature-specific pages
+
+- `scripts/` - Utility scripts for the project
+  - `theme-audit.js` - Script to audit theme usage and fix common issues
+
+## Installation
+
 ```bash
-git clone https://github.com/yourusername/formiq-app.git
-cd formiq-app/frontend
-```
-
-2. Install dependencies:
-```bash
+# Install dependencies
 npm install
-# or
-yarn install
+
+# Setup environment for web
+cp .env.example .env
 ```
 
-3. Create a `.env` file in the root directory and add the following variables:
-```env
-REACT_APP_API_URL=http://localhost:8000/api/v1
-```
+## Running Locally
 
-4. Start the development server:
 ```bash
-npm start
-# or
-yarn start
+# Start development server
+npm run dev
+
+# Run with specific environment
+npm run dev:staging
 ```
 
-The application will be available at `http://localhost:3000`.
+## Building for Production
 
-## Project Structure
+```bash
+# Build for web
+npm run build
 
-```
-src/
-├── components/         # Reusable UI components
-│   ├── auth/          # Authentication components
-│   ├── common/        # Common UI components
-│   └── layout/        # Layout components
-├── hooks/             # Custom React hooks
-├── pages/             # Page components
-├── services/          # API services
-├── store/             # Redux store configuration
-├── styles/            # Global styles and theme
-└── types/             # TypeScript type definitions
+# Build for native platforms
+npx cap sync
+npx cap open ios     # For iOS
+npx cap open android # For Android
 ```
 
-## Available Scripts
+## Testing
 
-- `npm start` - Runs the app in development mode
-- `npm test` - Launches the test runner
-- `npm run build` - Builds the app for production
-- `npm run eject` - Ejects from Create React App
+```bash
+# Run tests
+npm test
 
-## Contributing
+# Run tests with coverage
+npm run test:coverage
+```
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+## Theme System
 
-## License
+FormIQ uses a comprehensive theming system based on styled-components to maintain consistent styling across the application.
 
-This project is licensed under the MIT License - see the LICENSE file for details. 
+### Theme Structure
+
+The theme is defined in `src/theme/theme.ts` with the following key sections:
+- `colors` - Color palettes for primary, secondary, error, etc.
+- `typography` - Font families, sizes, weights, and line heights
+- `spacing` - Consistent spacing scales
+- `borderRadius` - Border radius values
+- `shadows` - Box shadow definitions
+- `breakpoints` - Responsive breakpoints
+- `transitions` - Animation timings and easings
+- `zIndex` - Z-index hierarchy
+
+### Usage Guidelines
+
+1. Always use theme properties via the `theme` prop in styled-components:
+   ```tsx
+   const StyledComponent = styled.div`
+     color: ${({ theme }) => theme.colors.text.primary};
+     font-size: ${({ theme }) => theme.typography.fontSize.md};
+   `;
+   ```
+
+2. Use the `getThemeValue` utility for fallback support:
+   ```tsx
+   import { getThemeValue, fallbacks } from '../utils/themeUtils';
+   
+   const StyledComponent = styled.div`
+     color: ${({ theme }) => getThemeValue(theme, 'colors.text.primary', fallbacks.color.text)};
+   `;
+   ```
+
+3. Always specify variants for colors (main/light/dark/primary/secondary):
+   ```tsx
+   // Correct
+   colors.primary.main
+   colors.error.light
+   colors.text.secondary
+   
+   // Incorrect
+   colors.primary
+   colors.text
+   ```
+
+### Theme Audit Tool
+
+We've developed a theme audit tool to help maintain consistency in theme usage:
+
+```bash
+# Run theme audit to identify issues
+node scripts/theme-audit.js
+
+# Fix automatically fixable issues
+node scripts/theme-audit.js --fix
+```
+
+The audit tool checks for:
+- Incorrect fallbacks references (`fallbacks.colors` vs `fallbacks.color`)
+- Typography size format inconsistencies
+- Direct color references without variants
+- Other theme-related patterns that should be standardized
+
+## CI/CD Pipeline
+
+The project uses GitHub Actions for continuous integration and deployment:
+
+- Linting and type checking
+- Unit and integration tests
+- Build verification
+- Visual regression testing with BackstopJS
+- Bundle size analysis
+- Automated deployment to staging/production environments
+
+## Best Practices
+
+- Components should be organized by feature or domain
+- Use contexts for global state management
+- Use hooks for shared logic
+- Keep business logic in services
+- Use TypeScript types for better type safety
+- Keep styling consistent using the theme
+
+This layout ensures separation of concerns and scalable modular design for web and mobile platforms. 

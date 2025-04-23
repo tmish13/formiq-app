@@ -1,6 +1,6 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 import { LoadingSpinner } from './LoadingSpinner';
 
 interface ProtectedRouteProps {
@@ -31,7 +31,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   // Handle role-based access
-  if (roles.length > 0 && (!user?.roles || !roles.some(role => user.roles.includes(role)))) {
+  if (roles.length > 0 && (!user?.role || !roles.includes(user.role))) {
     return <Navigate to="/unauthorized" replace />;
   }
 

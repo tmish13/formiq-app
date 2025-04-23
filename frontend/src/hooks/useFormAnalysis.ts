@@ -1,96 +1,80 @@
-import { useState, useEffect, useCallback } from 'react';
-import { poseAnalysis } from '../services/poseAnalysis';
-import { FormAnalysisResult } from '../types/formAnalysis';
-import { Keypoint } from '@tensorflow-models/pose-detection';
+import { useCallback } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { RootState } from '../store';
+import {
+  setIsAnalyzing,
+  setProgress,
+  setError,
+  setVideoFile,
+  setAnalysisResults,
+  resetState,
+} from '../store/slices/formAnalysisSlice';
+import { handleApiError } from '../utils/errorHandling';
 
-interface UseFormAnalysisProps {
-  videoRef: React.RefObject<HTMLVideoElement | null>;
-  isRecording: boolean;
-}
+// TODO: Future enhancements
+// - Add memoized selectors for performance
+// - Add batch update functionality
+// - Add automatic cleanup on unmount
+// - Add analysis history tracking
+// - Add offline support for analysis results
 
-export const useFormAnalysis = ({ videoRef, isRecording }: UseFormAnalysisProps) => {
-  const [isInitialized, setIsInitialized] = useState(false);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [analysisResult, setAnalysisResult] = useState<FormAnalysisResult | null>(null);
+export const useFormAnalysis = () => {
+  const dispatch = useDispatch();
+  const {
+    isAnalyzing,
+    progress,
+    error,
+    videoFile,
+    analysisResults,
+  } = useSelector((state: RootState) => state.formAnalysis);
 
-  useEffect(() => {
-    const initialize = async () => {
-      try {
-        await poseAnalysis.initialize();
-        setIsInitialized(true);
-      } catch (err) {
-        setError('Failed to initialize pose detection');
-        console.error('Initialization error:', err);
-      }
-    };
+  const startAnalysis = useCallback(() => {
+    dispatch(setIsAnalyzing(true));
+  }, [dispatch]);
 
-    initialize();
-  }, []);
+  const stopAnalysis = useCallback(() => {
+    dispatch(setIsAnalyzing(false));
+  }, [dispatch]);
 
-  const analyzeFrame = useCallback(async () => {
-    if (!videoRef.current || !isInitialized || !isRecording) return;
+  const updateProgress = useCallback((value: number) => {
+    dispatch(setProgress(value));
+  }, [dispatch]);
 
-    try {
-      setIsAnalyzing(true);
-      setError(null);
+  const handleError = useCallback((error: unknown) => {
+    const appError = handleApiError(error);
+    dispatch(setError(appError));
+  }, [dispatch]);
 
-      // Detect pose
-      const keypoints = await poseAnalysis.detectPose(videoRef.current);
-      
-      // Calculate joint angles
-      const angles = poseAnalysis.calculateJointAngles(keypoints);
-      
-      // Analyze pose and get feedback
-      const feedback = poseAnalysis.analyzePose(keypoints, angles);
+  const setVideo = useCallback((file: File | null) => {
+    dispatch(setVideoFile(file));
+  }, [dispatch]);
 
-      // Calculate confidence based on keypoint visibility
-      const visibleKeypoints = keypoints.filter(kp => kp.score && kp.score > 0.3).length;
-      const confidence = visibleKeypoints / keypoints.length;
+  const setResults = useCallback((results: {
+    score: number;
+    feedback: string[];
+    videoUrl: string;
+  } | null) => {
+    dispatch(setAnalysisResults(results));
+  }, [dispatch]);
 
-      const result: FormAnalysisResult = {
-        confidence,
-        isReliable: confidence > 0.7,
-        keypoints,
-        angles,
-        feedback,
-        timestamp: Date.now()
-      };
-
-      setAnalysisResult(result);
-    } catch (err) {
-      setError('Failed to analyze pose');
-      console.error('Analysis error:', err);
-    } finally {
-      setIsAnalyzing(false);
-    }
-  }, [videoRef, isInitialized, isRecording]);
-
-  useEffect(() => {
-    let animationFrameId: number;
-
-    const analyze = async () => {
-      if (isRecording) {
-        await analyzeFrame();
-        animationFrameId = requestAnimationFrame(analyze);
-      }
-    };
-
-    if (isRecording) {
-      animationFrameId = requestAnimationFrame(analyze);
-    }
-
-    return () => {
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-      }
-    };
-  }, [isRecording, analyzeFrame]);
+  const reset = useCallback(() => {
+    dispatch(resetState());
+  }, [dispatch]);
 
   return {
-    isInitialized,
+    // State
     isAnalyzing,
+    progress,
     error,
-    analysisResult
+    videoFile,
+    analysisResults,
+    // Actions
+    startAnalysis,
+    stopAnalysis,
+    updateProgress,
+    handleError,
+    setVideo,
+    setResults,
+    reset,
   };
 }; 

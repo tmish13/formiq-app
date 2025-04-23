@@ -25,7 +25,7 @@ const FeedbackContainer = styled.div`
   bottom: 20px;
   left: 50%;
   transform: translateX(-50%);
-  background-color: ${({ theme }) => getThemeValue(theme, 'colors.background', fallbacks.colors.background)};
+  background-color: ${({ theme }) => getThemeValue(theme, 'colors.background', fallbacks.color.background)};
   padding: 12px 24px;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
@@ -37,13 +37,13 @@ const FeedbackText = styled.p<{ type: 'success' | 'warning' | 'error' }>`
   color: ${({ theme, type }) => {
     switch (type) {
       case 'success':
-        return getThemeValue(theme, 'colors.success', fallbacks.colors.success);
+        return getThemeValue(theme, 'colors.success', fallbacks.color.success);
       case 'warning':
-        return getThemeValue(theme, 'colors.warning', fallbacks.colors.warning);
+        return getThemeValue(theme, 'colors.warning', fallbacks.color.warning);
       case 'error':
-        return getThemeValue(theme, 'colors.error', fallbacks.colors.error);
+        return getThemeValue(theme, 'colors.error', fallbacks.color.error);
       default:
-        return getThemeValue(theme, 'colors.text', fallbacks.colors.text);
+        return getThemeValue(theme, 'colors.text', fallbacks.color.text);
     }
   }};
   margin: 0;

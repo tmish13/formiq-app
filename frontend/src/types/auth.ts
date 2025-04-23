@@ -1,9 +1,9 @@
 export interface User {
   id: string;
   email: string;
+  firstName: string;
+  lastName: string;
   username: string;
-  firstName?: string;
-  lastName?: string;
   avatarUrl?: string;
   roles: string[];
   createdAt: string;
@@ -23,8 +23,8 @@ export interface LoginCredentials {
 
 export interface RegisterCredentials extends LoginCredentials {
   username: string;
-  firstName?: string;
-  lastName?: string;
+  firstName: string;
+  lastName: string;
 }
 
 export interface AuthState {
@@ -46,4 +46,9 @@ export interface AuthContextType extends AuthState {
 export interface AuthError {
   message: string;
   code?: string;
+}
+
+export interface AuthResponse {
+  user: User;
+  token: string;
 } 

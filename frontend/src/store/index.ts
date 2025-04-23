@@ -15,6 +15,7 @@ import authReducer from './slices/authSlice';
 import formCheckReducer from './slices/formCheckSlice';
 import subscriptionReducer from './slices/subscriptionSlice';
 import workoutReducer from './slices/workoutSlice';
+import formAnalysisReducer from './slices/formAnalysisSlice';
 import { apiCache } from '../utils/cache';
 
 // Define root state type
@@ -23,6 +24,7 @@ export interface RootState {
   formCheck: ReturnType<typeof formCheckReducer>;
   subscription: ReturnType<typeof subscriptionReducer>;
   workout: ReturnType<typeof workoutReducer>;
+  formAnalysis: ReturnType<typeof formAnalysisReducer>;
 }
 
 // Define AppThunk type
@@ -45,6 +47,7 @@ const rootReducer = combineReducers({
   formCheck: formCheckReducer,
   subscription: subscriptionReducer,
   workout: workoutReducer,
+  formAnalysis: formAnalysisReducer,
 });
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);

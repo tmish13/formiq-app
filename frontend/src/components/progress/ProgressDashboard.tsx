@@ -19,13 +19,13 @@ const Header = styled.div`
 const Title = styled.h1`
   font-size: 28px;
   font-weight: ${({ theme }) => theme?.typography?.fontWeight?.bold || 700};
-  color: ${({ theme }) => getThemeValue(theme, 'colors.text', fallbacks.colors.text)};
+  color: ${({ theme }) => getThemeValue(theme, 'colors.text', fallbacks.color.text)};
   margin-bottom: 8px;
 `;
 
 const Subtitle = styled.p`
   font-size: 16px;
-  color: ${({ theme }) => getThemeValue(theme, 'colors.textSecondary', fallbacks.colors.textSecondary)};
+  color: ${({ theme }) => getThemeValue(theme, 'colors.textSecondary', fallbacks.color.textSecondary)};
 `;
 
 const StatsGrid = styled.div`
@@ -36,7 +36,7 @@ const StatsGrid = styled.div`
 `;
 
 const StatCard = styled(motion.div)`
-  background: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.colors.white)};
+  background: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.color.white)};
   padding: 24px;
   border-radius: 12px;
   box-shadow: ${({ theme }) => getThemeValue(theme, 'shadows.md', fallbacks.shadows.md)};
@@ -44,7 +44,7 @@ const StatCard = styled(motion.div)`
 
 const StatTitle = styled.h3`
   font-size: 14px;
-  color: ${({ theme }) => getThemeValue(theme, 'colors.textSecondary', fallbacks.colors.textSecondary)};
+  color: ${({ theme }) => getThemeValue(theme, 'colors.textSecondary', fallbacks.color.textSecondary)};
   margin-bottom: 8px;
 `;
 
@@ -54,17 +54,17 @@ const StatValue = styled.div<{ trend?: 'up' | 'down' | 'neutral' }>`
   color: ${({ theme, trend }) => {
     switch (trend) {
       case 'up':
-        return getThemeValue(theme, 'colors.success', fallbacks.colors.success);
+        return getThemeValue(theme, 'colors.success', fallbacks.color.success);
       case 'down':
-        return getThemeValue(theme, 'colors.error', fallbacks.colors.error);
+        return getThemeValue(theme, 'colors.error', fallbacks.color.error);
       default:
-        return getThemeValue(theme, 'colors.text', fallbacks.colors.text);
+        return getThemeValue(theme, 'colors.text', fallbacks.color.text);
     }
   }};
 `;
 
 const ChartContainer = styled.div`
-  background: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.colors.white)};
+  background: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.color.white)};
   padding: 24px;
   border-radius: 12px;
   box-shadow: ${({ theme }) => getThemeValue(theme, 'shadows.md', fallbacks.shadows.md)};
@@ -79,7 +79,7 @@ const SessionsGrid = styled.div`
 `;
 
 const SessionCard = styled(motion.div)`
-  background: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.colors.white)};
+  background: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.color.white)};
   border-radius: 12px;
   overflow: hidden;
   box-shadow: ${({ theme }) => getThemeValue(theme, 'shadows.md', fallbacks.shadows.md)};
@@ -107,7 +107,7 @@ const SessionMeta = styled.div`
   justify-content: space-between;
   align-items: center;
   font-size: 14px;
-  color: ${({ theme }) => getThemeValue(theme, 'colors.textSecondary', fallbacks.colors.textSecondary)};
+  color: ${({ theme }) => getThemeValue(theme, 'colors.textSecondary', fallbacks.color.textSecondary)};
 `;
 
 const SessionScore = styled.div<{ score: number }>`
@@ -208,7 +208,7 @@ export const ProgressDashboard: React.FC = () => {
             <Line
               type="monotone"
               dataKey="score"
-              stroke={getThemeValue({ colors: { primary: '#4D7CFE' } }, 'colors.primary', fallbacks.colors.primary)}
+              stroke={getThemeValue({ colors: { primary: '#4D7CFE' } }, 'colors.primary', fallbacks.color.primary)}
               strokeWidth={2}
               dot={{ r: 4 }}
             />

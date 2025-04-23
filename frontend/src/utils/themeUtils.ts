@@ -1,131 +1,110 @@
 import { DefaultTheme } from 'styled-components';
 import { Theme } from '../types/theme';
 
-type ThemePath = {
-  [K in keyof Theme]: Theme[K] extends object
-    ? {
-        [P in keyof Theme[K]]: Theme[K][P] extends object
-          ? {
-              [Q in keyof Theme[K][P]]: `${K & string}.${P & string}.${Q & string}`;
-            }[keyof Theme[K][P]]
-          : `${K & string}.${P & string}`;
-      }[keyof Theme[K]]
-    : K;
-}[keyof Theme];
+export type ThemePath = string;
 
 /**
- * Safely access theme values with fallbacks
- * @param theme The theme object
- * @param path Path to the theme property (e.g., 'colors.primary' or 'typography.fontSize.md')
- * @param fallback Fallback value if the property doesn't exist
+ * Fallback values for theme properties
  */
-export const getThemeValue = <T extends string>(
-  theme: Partial<Theme> | undefined,
-  path: ThemePath,
-  fallback: string
-): string => {
-  if (!theme) return fallback;
-
-  const parts = path.split('.');
-  let current: any = theme;
-
-  for (const part of parts) {
-    if (current === undefined || current === null) return fallback;
-    current = current[part];
-  }
-
-  return current ?? fallback;
+export const fallbacks = {
+  color: {
+    primary: '#3f51b5',
+    secondary: '#f50057',
+    error: '#f44336',
+    warning: '#ff9800',
+    success: '#4caf50',
+    info: '#2196f3',
+    black: '#000000',
+    white: '#ffffff',
+    text: '#333333',
+    background: '#ffffff',
+    disabled: '#e0e0e0',
+  },
+  spacing: {
+    xxs: '0.25rem',
+    xs: '0.5rem',
+    sm: '0.75rem',
+    md: '1rem',
+    lg: '1.5rem',
+    xl: '2rem',
+    xxl: '3rem',
+  },
+  fontSize: {
+    xxs: '0.625rem',
+    xs: '0.75rem',
+    sm: '0.875rem',
+    md: '1rem',
+    lg: '1.125rem',
+    xl: '1.25rem',
+    xxl: '1.5rem',
+    xlarge: '2rem', // Added for backward compatibility
+  },
+  borderRadius: {
+    sm: '0.25rem',
+    md: '0.5rem',
+    lg: '1rem',
+    full: '9999px',
+  },
 };
 
 /**
- * Common fallback values for theme properties
+ * Gets a value from the theme using a path string
+ * Handles nested properties and provides fallbacks if the value doesn't exist
+ * 
+ * @param theme The theme object
+ * @param path The path to the value in dot notation (e.g. 'colors.primary')
+ * @param fallback Optional fallback value
+ * @returns The value from the theme or the fallback
  */
-export const fallbacks: Theme = {
-  colors: {
-    primary: '#6200ee',
-    primaryLight: '#9b4dff',
-    primaryDark: '#0000ba',
-    secondary: '#03dac6',
-    secondaryLight: '#66fff9',
-    secondaryDark: '#00a895',
-    background: '#ffffff',
-    surface: '#ffffff',
-    text: '#000000',
-    textSecondary: '#666666',
-    textLight: '#999999',
-    error: '#b00020',
-    errorLight: '#cf6679',
-    errorDark: '#7f0000',
-    success: '#00c853',
-    successLight: '#5efc82',
-    successDark: '#009624',
-    warning: '#ffd600',
-    warningLight: '#ffff52',
-    warningDark: '#c7a500',
-    info: '#2196f3',
-    infoLight: '#6ec6ff',
-    infoDark: '#0069c0',
-    border: '#e0e0e0',
-    white: '#ffffff',
-    black: '#000000',
-    disabled: '#cccccc'
-  },
-  typography: {
-    fontFamily: 'Roboto, sans-serif',
-    fontSize: {
-      xs: '12px',
-      sm: '14px',
-      md: '16px',
-      lg: '18px',
-      xl: '20px',
-      xxl: '24px',
-      xlarge: '28px',
-      medium: '16px',
-      small: '14px'
-    },
-    fontWeight: {
-      regular: 400,
-      medium: 500,
-      bold: 700
-    },
-    lineHeight: {
-      small: 1.2,
-      medium: 1.5,
-      large: 1.8
+export function getThemeValue(theme: DefaultTheme, path: ThemePath, fallback?: string): string {
+  // Common paths with direct access
+  if (path === 'colors.primary') return theme.colors.primary.main;
+  if (path === 'colors.secondary') return theme.colors.secondary.main;
+  if (path === 'colors.error') return theme.colors.error.main;
+  if (path === 'colors.background') return theme.colors.background.main;
+  if (path === 'colors.text') return theme.colors.text.primary;
+  if (path === 'colors.white') return '#ffffff';
+  if (path === 'colors.secondaryLight') return theme.colors.secondary.light;
+
+  // Handle more complex paths
+  const parts = path.split('.');
+  
+  try {
+    let value: any = theme;
+    for (const part of parts) {
+      value = value[part];
+      if (value === undefined) {
+        throw new Error(`Theme value not found at ${path}`);
+      }
     }
-  },
-  spacing: {
-    xs: '8px',
-    sm: '16px',
-    md: '24px',
-    lg: '32px',
-    xl: '40px'
-  },
-  borderRadius: {
-    sm: '4px',
-    md: '8px',
-    lg: '12px'
-  },
-  shadows: {
-    sm: '0 2px 4px rgba(0, 0, 0, 0.1)',
-    md: '0 4px 8px rgba(0, 0, 0, 0.1)',
-    lg: '0 8px 16px rgba(0, 0, 0, 0.1)'
-  },
-  breakpoints: {
-    mobile: '320px',
-    tablet: '768px',
-    desktop: '1024px',
-    wide: '1440px'
-  },
-  transitions: {
-    fast: '0.2s',
-    medium: '0.3s',
-    slow: '0.5s'
-  },
-  zIndex: {
-    modal: 1000,
-    overlay: 900,
-    dropdown: 800,
-    header: 700
+    return value;
+  } catch (error) {
+    // If we have a fallback, use it
+    if (fallback !== undefined) {
+      return fallback;
+    }
+    
+    // Try to get value from fallbacks
+    try {
+      if (parts[0] === 'colors') {
+        return fallbacks.color[parts[1] as keyof typeof fallbacks.color];
+      }
+      if (parts[0] === 'typography' && parts[1] === 'fontSize') {
+        return fallbacks.fontSize[parts[2] as keyof typeof fallbacks.fontSize];
+      }
+      if (parts[0] === 'spacing') {
+        return fallbacks.spacing[parts[1] as keyof typeof fallbacks.spacing];
+      }
+      if (parts[0] === 'borderRadius') {
+        return fallbacks.borderRadius[parts[1] as keyof typeof fallbacks.borderRadius];
+      }
+    } catch {
+      // Fallback to sensible default if all else fails
+      console.warn(`Theme value not found at ${path} and no fallback available`);
+      return '#000000';
+    }
+    
+    console.warn(`Theme value not found at ${path}`);
+    return '#000000';
   }
-}; 
+} 

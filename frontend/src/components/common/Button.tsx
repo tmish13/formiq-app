@@ -27,12 +27,12 @@ const StyledButton = styled.button<ButtonProps & { theme: DefaultTheme }>`
   
   width: ${({ fullWidth }) => fullWidth ? '100%' : 'auto'};
   border-radius: ${({ theme }) => getThemeValue(theme, 'borderRadius.md', fallbacks.borderRadius.md)};
-  font-weight: ${({ theme }) => getThemeValue(theme, 'typography.fontWeight.medium', String(fallbacks.typography.fontWeight.medium))};
+  font-weight: ${({ theme }) => getThemeValue(theme, 'typography.fontWeight.medium', String(fallbacks.fontSize.md))};
   font-size: ${({ size, theme }) => {
     switch (size) {
-      case 'small': return getThemeValue(theme, 'typography.fontSize.xs', fallbacks.typography.fontSize.xs);
-      case 'large': return getThemeValue(theme, 'typography.fontSize.lg', fallbacks.typography.fontSize.lg);
-      default: return getThemeValue(theme, 'typography.fontSize.md', fallbacks.typography.fontSize.md);
+      case 'small': return getThemeValue(theme, 'typography.fontSize.xs', fallbacks.fontSize.xs);
+      case 'large': return getThemeValue(theme, 'typography.fontSize.lg', fallbacks.fontSize.lg);
+      default: return getThemeValue(theme, 'typography.fontSize.md', fallbacks.fontSize.md);
     }
   }};
   letter-spacing: 0.025em;
@@ -49,17 +49,17 @@ const StyledButton = styled.button<ButtonProps & { theme: DefaultTheme }>`
     switch (variant) {
       case 'secondary':
         return `
-          background-color: ${getThemeValue(theme, 'colors.secondary', fallbacks.colors.secondary)};
-          color: ${getThemeValue(theme, 'colors.white', fallbacks.colors.white)};
+          background-color: ${getThemeValue(theme, 'colors.secondary.main', fallbacks.color.secondary)};
+          color: #ffffff;
           border: none;
           box-shadow: ${getThemeValue(theme, 'shadows.sm', fallbacks.shadows.sm)};
           &:hover:not(:disabled) {
-            background-color: ${getThemeValue(theme, 'colors.secondaryDark', fallbacks.colors.secondaryDark)};
+            background-color: ${getThemeValue(theme, 'colors.secondary.dark', fallbacks.color.secondaryDark)};
             box-shadow: ${getThemeValue(theme, 'shadows.md', fallbacks.shadows.md)};
             transform: translateY(-1px);
           }
           &:active:not(:disabled) {
-            background-color: ${getThemeValue(theme, 'colors.secondaryDark', fallbacks.colors.secondaryDark)};
+            background-color: ${getThemeValue(theme, 'colors.secondary.dark', fallbacks.color.secondaryDark)};
             box-shadow: ${getThemeValue(theme, 'shadows.sm', fallbacks.shadows.sm)};
             transform: translateY(0);
           }
@@ -67,42 +67,42 @@ const StyledButton = styled.button<ButtonProps & { theme: DefaultTheme }>`
       case 'outline':
         return `
           background-color: transparent;
-          color: ${getThemeValue(theme, 'colors.primary', fallbacks.colors.primary)};
-          border: 2px solid ${getThemeValue(theme, 'colors.primary', fallbacks.colors.primary)};
+          color: ${getThemeValue(theme, 'colors.primary.main', fallbacks.color.primary)};
+          border: 2px solid ${getThemeValue(theme, 'colors.primary.main', fallbacks.color.primary)};
           &:hover:not(:disabled) {
-            background-color: ${getThemeValue(theme, 'colors.primaryLight', fallbacks.colors.primaryLight)}20;
+            background-color: ${getThemeValue(theme, 'colors.primary.light', fallbacks.color.primaryLight)}20;
             transform: translateY(-1px);
           }
           &:active:not(:disabled) {
-            background-color: ${getThemeValue(theme, 'colors.primaryLight', fallbacks.colors.primaryLight)}30;
+            background-color: ${getThemeValue(theme, 'colors.primary.light', fallbacks.color.primaryLight)}30;
             transform: translateY(0);
           }
         `;
       case 'ghost':
         return `
           background-color: transparent;
-          color: ${getThemeValue(theme, 'colors.primary', fallbacks.colors.primary)};
+          color: ${getThemeValue(theme, 'colors.primary.main', fallbacks.color.primary)};
           border: none;
           &:hover:not(:disabled) {
-            background-color: ${getThemeValue(theme, 'colors.primaryLight', fallbacks.colors.primaryLight)}20;
+            background-color: ${getThemeValue(theme, 'colors.primary.light', fallbacks.color.primaryLight)}20;
           }
           &:active:not(:disabled) {
-            background-color: ${getThemeValue(theme, 'colors.primaryLight', fallbacks.colors.primaryLight)}30;
+            background-color: ${getThemeValue(theme, 'colors.primary.light', fallbacks.color.primaryLight)}30;
           }
         `;
       default:
         return `
-          background-color: ${getThemeValue(theme, 'colors.primary', fallbacks.colors.primary)};
-          color: ${getThemeValue(theme, 'colors.white', fallbacks.colors.white)};
+          background-color: ${getThemeValue(theme, 'colors.primary.main', fallbacks.color.primary)};
+          color: #ffffff;
           border: none;
           box-shadow: ${getThemeValue(theme, 'shadows.sm', fallbacks.shadows.sm)};
           &:hover:not(:disabled) {
-            background-color: ${getThemeValue(theme, 'colors.primaryDark', fallbacks.colors.primaryDark)};
+            background-color: ${getThemeValue(theme, 'colors.primary.dark', fallbacks.color.primaryDark)};
             box-shadow: ${getThemeValue(theme, 'shadows.md', fallbacks.shadows.md)};
             transform: translateY(-1px);
           }
           &:active:not(:disabled) {
-            background-color: ${getThemeValue(theme, 'colors.primaryDark', fallbacks.colors.primaryDark)};
+            background-color: ${getThemeValue(theme, 'colors.primary.dark', fallbacks.color.primaryDark)};
             box-shadow: ${getThemeValue(theme, 'shadows.sm', fallbacks.shadows.sm)};
             transform: translateY(0);
           }
@@ -120,8 +120,8 @@ const StyledButton = styled.button<ButtonProps & { theme: DefaultTheme }>`
     outline: none;
     box-shadow: 0 0 0 3px ${({ theme, variant }) => 
       variant === 'secondary' 
-        ? `${getThemeValue(theme, 'colors.secondary', fallbacks.colors.secondary)}40` 
-        : `${getThemeValue(theme, 'colors.primary', fallbacks.colors.primary)}40`};
+        ? `${getThemeValue(theme, 'colors.secondary.main', fallbacks.color.secondary)}40` 
+        : `${getThemeValue(theme, 'colors.primary.main', fallbacks.color.primary)}40`};
   }
 `;
 

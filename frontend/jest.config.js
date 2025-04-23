@@ -5,7 +5,7 @@ module.exports = {
   setupFilesAfterEnv: ['<rootDir>/tests/setup.tsx'],
   moduleNameMapper: {
     '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
-    '\\.(gif|ttf|eot|svg|png)$': '<rootDir>/tests/__mocks__/fileMock.js',
+    '\\.(gif|ttf|eot|svg|png|jpg|jpeg|webp)$': '<rootDir>/tests/__mocks__/fileMock.js',
     '^@/(.*)$': '<rootDir>/src/$1',
     '^@components/(.*)$': '<rootDir>/src/components/$1',
     '^@services/(.*)$': '<rootDir>/src/services/$1',
@@ -17,7 +17,9 @@ module.exports = {
     '^styled-components$': '<rootDir>/tests/__mocks__/styled-components.js',
     '^react-router-dom$': '<rootDir>/tests/__mocks__/react-router-dom.tsx',
     '^ioredis$': '<rootDir>/tests/__mocks__/ioredis.ts',
-    '^../../mocks/server$': '<rootDir>/tests/__mocks__/server.js',
+    '^@theme$': '<rootDir>/tests/__mocks__/mockTheme.ts',
+    '^../../mocks/server$': '<rootDir>/tests/utils/testServer.ts',
+    '^../../../mocks/server$': '<rootDir>/tests/utils/testServer.ts',
     '^../formCheckService$': '<rootDir>/src/services/formAnalysisService.ts',
     '^../../services/formCheckService$': '<rootDir>/src/services/formAnalysisService.ts',
     '^@tensorflow-models/pose-detection$': '<rootDir>/tests/__mocks__/@tensorflow-models/pose-detection.ts',
@@ -32,18 +34,23 @@ module.exports = {
     '^../../../store/(.*)$': '<rootDir>/src/store/$1',
     '^../../../utils/(.*)$': '<rootDir>/src/utils/$1'
   },
-  moduleDirectories: ['node_modules', '<rootDir>/tests/__mocks__', 'src', '<rootDir>'],
+  moduleDirectories: ['node_modules', 'src', '<rootDir>'],
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
   transform: {
     '^.+\\.(ts|tsx)$': ['ts-jest', {
-      tsconfig: 'tsconfig.json',
+      tsconfig: '<rootDir>/tsconfig.json',
       diagnostics: {
         ignoreCodes: [151001]
-      }
+      },
+      isolatedModules: true
     }],
     '^.+\\.(js|jsx)$': ['babel-jest', {
       presets: ['@babel/preset-env', '@babel/preset-react'],
-      plugins: ['@babel/plugin-transform-object-rest-spread', 'babel-plugin-styled-components']
+      plugins: [
+        '@babel/plugin-transform-object-rest-spread', 
+        'babel-plugin-styled-components',
+        '@babel/plugin-transform-runtime'
+      ]
     }]
   },
   transformIgnorePatterns: [

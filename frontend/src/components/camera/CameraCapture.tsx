@@ -35,8 +35,8 @@ const ButtonsContainer = styled.div`
 `;
 
 const CaptureButton = styled.button`
-  background-color: ${({ theme }) => getThemeValue(theme, 'colors.primary', fallbacks.colors.primary)};
-  color: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.colors.white)};
+  background-color: ${({ theme }) => getThemeValue(theme, 'colors.primary', fallbacks.color.primary)};
+  color: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.color.white)};
   border: none;
   border-radius: 8px;
   padding: 12px 24px;
@@ -46,19 +46,19 @@ const CaptureButton = styled.button`
   
   &:hover {
     transform: scale(1.05);
-    background-color: ${({ theme }) => getThemeValue(theme, 'colors.primaryDark', fallbacks.colors.primaryDark)};
+    background-color: ${({ theme }) => getThemeValue(theme, 'colors.primaryDark', fallbacks.color.primaryDark)};
   }
   
   &:disabled {
-    background-color: ${({ theme }) => getThemeValue(theme, 'colors.disabled', fallbacks.colors.disabled)};
+    background-color: ${({ theme }) => getThemeValue(theme, 'colors.disabled', fallbacks.color.disabled)};
     cursor: not-allowed;
     transform: none;
   }
 `;
 
 const ActionButton = styled.button`
-  background-color: ${({ theme }) => getThemeValue(theme, 'colors.secondary', fallbacks.colors.secondary)};
-  color: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.colors.white)};
+  background-color: ${({ theme }) => getThemeValue(theme, 'colors.secondary', fallbacks.color.secondary)};
+  color: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.color.white)};
   border: none;
   border-radius: 8px;
   padding: 12px 16px;
@@ -67,21 +67,21 @@ const ActionButton = styled.button`
   transition: all 0.2s ease;
   
   &:hover {
-    background-color: ${({ theme }) => getThemeValue(theme, 'colors.secondaryDark', fallbacks.colors.secondaryDark)};
+    background-color: ${({ theme }) => getThemeValue(theme, 'colors.secondaryDark', fallbacks.color.secondaryDark)};
   }
   
   &:disabled {
-    background-color: ${({ theme }) => getThemeValue(theme, 'colors.disabled', fallbacks.colors.disabled)};
+    background-color: ${({ theme }) => getThemeValue(theme, 'colors.disabled', fallbacks.color.disabled)};
     cursor: not-allowed;
   }
 `;
 
 const ErrorMessage = styled.div`
-  color: ${({ theme }) => getThemeValue(theme, 'colors.error', fallbacks.colors.error)};
+  color: ${({ theme }) => getThemeValue(theme, 'colors.error', fallbacks.color.error)};
   margin: 16px 0;
   padding: 8px 16px;
   border-radius: 4px;
-  background-color: ${({ theme }) => getThemeValue(theme, 'colors.errorLight', fallbacks.colors.errorLight)};
+  background-color: ${({ theme }) => getThemeValue(theme, 'colors.errorLight', fallbacks.color.errorLight)};
   width: 100%;
   text-align: center;
 `;

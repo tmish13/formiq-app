@@ -11,7 +11,7 @@ const ResultsContainer = styled.div<{ theme?: Partial<Theme> }>`
   max-width: 800px;
   margin: 0 auto;
   padding: 24px;
-  background-color: ${({ theme }) => getThemeValue(theme, 'colors.background', fallbacks.colors.background)};
+  background-color: ${({ theme }) => getThemeValue(theme, 'colors.background', fallbacks.color.background)};
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 `;
@@ -30,14 +30,14 @@ const ScoreCircle = styled.div<{ score: number; theme?: Partial<Theme> }>`
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: ${({ theme }) => getThemeValue(theme, 'typography.fontSize.xlarge', fallbacks.typography.fontSize.xlarge)};
+  font-size: ${({ theme }) => getThemeValue(theme, 'typography.fontSize.xl', fallbacks.typography.fontSize.xl)};
   font-weight: ${({ theme }) => getThemeValue(theme, 'typography.fontWeight.bold', fallbacks.typography.fontWeight.bold)};
   background: ${({ score, theme }) => {
-    if (score >= 0.8) return getThemeValue(theme, 'colors.success', fallbacks.colors.success);
-    if (score >= 0.6) return getThemeValue(theme, 'colors.warning', fallbacks.colors.warning);
-    return getThemeValue(theme, 'colors.error', fallbacks.colors.error);
+    if (score >= 0.8) return getThemeValue(theme, 'colors.success', fallbacks.color.success);
+    if (score >= 0.6) return getThemeValue(theme, 'colors.warning', fallbacks.color.warning);
+    return getThemeValue(theme, 'colors.error', fallbacks.color.error);
   }};
-  color: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.colors.white)};
+  color: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.color.white)};
 `;
 
 const FeedbackList = styled.ul<{ theme?: Partial<Theme> }>`
@@ -53,21 +53,21 @@ const FeedbackItem = styled.li<{ severity: 'low' | 'medium' | 'high'; theme?: Pa
   background-color: ${({ severity, theme }) => {
     switch (severity) {
       case 'low':
-        return getThemeValue(theme, 'colors.successLight', fallbacks.colors.successLight);
+        return getThemeValue(theme, 'colors.successLight', fallbacks.color.successLight);
       case 'medium':
-        return getThemeValue(theme, 'colors.warningLight', fallbacks.colors.warningLight);
+        return getThemeValue(theme, 'colors.warningLight', fallbacks.color.warningLight);
       case 'high':
-        return getThemeValue(theme, 'colors.errorLight', fallbacks.colors.errorLight);
+        return getThemeValue(theme, 'colors.errorLight', fallbacks.color.errorLight);
     }
   }};
   color: ${({ severity, theme }) => {
     switch (severity) {
       case 'low':
-        return getThemeValue(theme, 'colors.success', fallbacks.colors.success);
+        return getThemeValue(theme, 'colors.success', fallbacks.color.success);
       case 'medium':
-        return getThemeValue(theme, 'colors.warning', fallbacks.colors.warning);
+        return getThemeValue(theme, 'colors.warning', fallbacks.color.warning);
       case 'high':
-        return getThemeValue(theme, 'colors.error', fallbacks.colors.error);
+        return getThemeValue(theme, 'colors.error', fallbacks.color.error);
     }
   }};
   font-weight: ${({ theme }) => getThemeValue(theme, 'typography.fontWeight.medium', fallbacks.typography.fontWeight.medium)};
@@ -80,21 +80,21 @@ const RiskLevel = styled.div<{ level: 'low' | 'medium' | 'high'; theme?: Partial
   background-color: ${({ level, theme }) => {
     switch (level) {
       case 'low':
-        return getThemeValue(theme, 'colors.successLight', fallbacks.colors.successLight);
+        return getThemeValue(theme, 'colors.successLight', fallbacks.color.successLight);
       case 'medium':
-        return getThemeValue(theme, 'colors.warningLight', fallbacks.colors.warningLight);
+        return getThemeValue(theme, 'colors.warningLight', fallbacks.color.warningLight);
       case 'high':
-        return getThemeValue(theme, 'colors.errorLight', fallbacks.colors.errorLight);
+        return getThemeValue(theme, 'colors.errorLight', fallbacks.color.errorLight);
     }
   }};
   color: ${({ level, theme }) => {
     switch (level) {
       case 'low':
-        return getThemeValue(theme, 'colors.success', fallbacks.colors.success);
+        return getThemeValue(theme, 'colors.success', fallbacks.color.success);
       case 'medium':
-        return getThemeValue(theme, 'colors.warning', fallbacks.colors.warning);
+        return getThemeValue(theme, 'colors.warning', fallbacks.color.warning);
       case 'high':
-        return getThemeValue(theme, 'colors.error', fallbacks.colors.error);
+        return getThemeValue(theme, 'colors.error', fallbacks.color.error);
     }
   }};
   text-align: center;

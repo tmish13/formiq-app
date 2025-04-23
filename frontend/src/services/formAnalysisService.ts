@@ -173,7 +173,7 @@ export class FormAnalysisService extends EventEmitter {
         };
         result = this.analyzePose(pose as poseDetection.Pose);
       } else if (request.video_url) {
-        throw new Error('Video URL analysis not implemented');
+        throw new Error('No keypoints or video URL provided');
       } else {
         throw new Error('No keypoints or video URL provided');
       }

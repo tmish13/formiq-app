@@ -1,5 +1,5 @@
 import { createGlobalStyle } from 'styled-components';
-import { Theme } from '../theme';
+import { Theme } from '../types/theme';
 
 export const GlobalStyle = createGlobalStyle<{ theme?: Theme }>`
   * {
@@ -15,8 +15,8 @@ export const GlobalStyle = createGlobalStyle<{ theme?: Theme }>`
   }
 
   body {
-    background-color: ${({ theme }) => theme?.colors?.background || '#F7FAFC'};
-    color: ${({ theme }) => theme?.colors?.text || '#1F2937'};
+    background-color: ${({ theme }) => theme?.colors?.background?.main || '#F7FAFC'};
+    color: ${({ theme }) => theme?.colors?.text?.primary || '#1F2937'};
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -52,27 +52,27 @@ export const GlobalStyle = createGlobalStyle<{ theme?: Theme }>`
   }
 
   ::-webkit-scrollbar-track {
-    background: ${({ theme }) => theme?.colors?.background || '#F7FAFC'};
+    background: ${({ theme }) => theme?.colors?.background?.main || '#F7FAFC'};
   }
 
   ::-webkit-scrollbar-thumb {
-    background: ${({ theme }) => theme?.colors?.secondary || '#6B7280'};
+    background: ${({ theme }) => theme?.colors?.secondary?.main || '#6B7280'};
     border-radius: 4px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: ${({ theme }) => theme?.colors?.secondaryDark || '#4B5563'};
+    background: ${({ theme }) => theme?.colors?.secondary?.dark || '#4B5563'};
   }
 
   /* Selection styling */
   ::selection {
-    background: ${({ theme }) => theme?.colors?.primaryLight || '#6B93FE'};
-    color: ${({ theme }) => theme?.colors?.white || '#FFFFFF'};
+    background: ${({ theme }) => theme?.colors?.primary?.light || '#6B93FE'};
+    color: ${({ theme }) => theme?.colors?.text?.inverse || '#FFFFFF'};
   }
 
   /* Focus outline */
   :focus {
-    outline: 2px solid ${({ theme }) => theme?.colors?.primary || '#4D7CFE'};
+    outline: 2px solid ${({ theme }) => theme?.colors?.primary?.main || '#4D7CFE'};
     outline-offset: 2px;
   }
 
@@ -83,7 +83,7 @@ export const GlobalStyle = createGlobalStyle<{ theme?: Theme }>`
 
   /* Enable focus outline for keyboard users */
   :focus-visible {
-    outline: 2px solid ${({ theme }) => theme?.colors?.primary || '#4D7CFE'};
+    outline: 2px solid ${({ theme }) => theme?.colors?.primary?.main || '#4D7CFE'};
     outline-offset: 2px;
   }
 `; 

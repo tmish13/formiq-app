@@ -25,8 +25,8 @@ const SwitchTrack = styled(motion.div)<{ checked: boolean }>`
   border-radius: 12px;
   background-color: ${({ theme, checked }) =>
     checked
-      ? getThemeValue(theme, 'colors.primary', fallbacks.colors.primary)
-      : getThemeValue(theme, 'colors.border', fallbacks.colors.border)};
+      ? getThemeValue(theme, 'colors.primary', fallbacks.color.primary)
+      : getThemeValue(theme, 'colors.border', fallbacks.color.border)};
 `;
 
 const SwitchThumb = styled(motion.div)<{ checked: boolean }>`
@@ -37,7 +37,7 @@ const SwitchThumb = styled(motion.div)<{ checked: boolean }>`
   height: 20px;
   border-radius: 50%;
   background-color: ${({ theme }) =>
-    getThemeValue(theme, 'colors.white', fallbacks.colors.white)};
+    getThemeValue(theme, 'colors.white', fallbacks.color.white)};
   box-shadow: ${({ theme }) =>
     getThemeValue(theme, 'shadows.sm', fallbacks.shadows.sm)};
 `;
@@ -67,8 +67,8 @@ export const Switch: React.FC<SwitchProps> = ({
         initial={false}
         animate={{
           backgroundColor: checked
-            ? getThemeValue({}, 'colors.primary', fallbacks.colors.primary)
-            : getThemeValue({}, 'colors.border', fallbacks.colors.border),
+            ? getThemeValue({}, 'colors.primary', fallbacks.color.primary)
+            : getThemeValue({}, 'colors.border', fallbacks.color.border),
         }}
         transition={{ duration: 0.2 }}
       />

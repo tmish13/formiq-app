@@ -33,7 +33,7 @@ const Container = styled.div`
 `;
 
 const Header = styled.h2`
-  font-size: ${({ theme }) => getThemeValue(theme, 'typography.fontSize.large', '20px')};
+  font-size: ${({ theme }) => getThemeValue(theme, 'typography.fontSize.lg', '20px')};
   font-weight: ${({ theme }) => getThemeValue(theme, 'typography.fontWeight.bold', 700)};
   margin-bottom: ${({ theme }) => getThemeValue(theme, 'spacing.medium', '16px')};
   color: ${({ theme }) => getThemeValue(theme, 'colors.text', '#000000')};
@@ -64,19 +64,19 @@ const ExerciseInfo = styled.div`
 `;
 
 const ExerciseName = styled.h3`
-  font-size: ${({ theme }) => getThemeValue(theme, 'typography.fontSize.medium', '16px')};
+  font-size: ${({ theme }) => getThemeValue(theme, 'typography.fontSize.md', '16px')};
   font-weight: ${({ theme }) => getThemeValue(theme, 'typography.fontWeight.medium', 500)};
   color: ${({ theme }) => getThemeValue(theme, 'colors.text', '#000000')};
   margin-bottom: 4px;
 `;
 
 const ExerciseDate = styled.p`
-  font-size: ${({ theme }) => getThemeValue(theme, 'typography.fontSize.small', '14px')};
+  font-size: ${({ theme }) => getThemeValue(theme, 'typography.fontSize.sm', '14px')};
   color: ${({ theme }) => getThemeValue(theme, 'colors.textSecondary', '#666666')};
 `;
 
 const Score = styled.div<{ score: number }>`
-  font-size: ${({ theme }) => getThemeValue(theme, 'typography.fontSize.medium', '16px')};
+  font-size: ${({ theme }) => getThemeValue(theme, 'typography.fontSize.md', '16px')};
   font-weight: ${({ theme }) => getThemeValue(theme, 'typography.fontWeight.bold', 700)};
   color: ${({ theme, score }) =>
     score >= 80

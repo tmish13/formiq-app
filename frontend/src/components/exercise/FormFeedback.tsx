@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import styled from 'styled-components';
 import { FormValidationResult } from '../../services/poseAnalysis/types';
 
@@ -64,36 +64,62 @@ interface FormFeedbackProps {
   phase: 'start' | 'middle' | 'end';
 }
 
-export const FormFeedback: React.FC<FormFeedbackProps> = ({
+// Memoize the stats component to prevent unnecessary re-renders
+const ExerciseStats = React.memo(({ 
+  confidence, 
+  repetitionCount, 
+  phase 
+}: Pick<FormFeedbackProps, 'confidence' | 'repetitionCount' | 'phase'>) => (
+  <Stats>
+    <StatItem>
+      <span>Confidence</span>
+      <strong>{Math.round(confidence * 100)}%</strong>
+    </StatItem>
+    <StatItem>
+      <span>Reps</span>
+      <strong>{repetitionCount}</strong>
+    </StatItem>
+    <StatItem>
+      <span>Phase</span>
+      <strong>{phase.charAt(0).toUpperCase() + phase.slice(1)}</strong>
+    </StatItem>
+  </Stats>
+));
+
+// Memoize individual feedback items
+const FeedbackListItem = React.memo(({ item, index }: { 
+  item: FormValidationResult; 
+  index: number;
+}) => (
+  <FeedbackItem key={index} isValid={item.isValid}>
+    {item.message}
+  </FeedbackItem>
+));
+
+export const FormFeedback = React.memo<FormFeedbackProps>(({
   feedback,
   confidence,
   repetitionCount,
   phase,
 }) => {
+  // Memoize the feedback list to prevent unnecessary re-renders
+  const feedbackItems = useMemo(() => (
+    feedback.map((item, index) => (
+      <FeedbackListItem key={index} item={item} index={index} />
+    ))
+  ), [feedback]);
+
   return (
     <Container>
       <FeedbackList>
-        {feedback.map((item, index) => (
-          <FeedbackItem key={index} isValid={item.isValid}>
-            {item.message}
-          </FeedbackItem>
-        ))}
+        {feedbackItems}
       </FeedbackList>
       
-      <Stats>
-        <StatItem>
-          <span>Confidence</span>
-          <strong>{Math.round(confidence * 100)}%</strong>
-        </StatItem>
-        <StatItem>
-          <span>Reps</span>
-          <strong>{repetitionCount}</strong>
-        </StatItem>
-        <StatItem>
-          <span>Phase</span>
-          <strong>{phase.charAt(0).toUpperCase() + phase.slice(1)}</strong>
-        </StatItem>
-      </Stats>
+      <ExerciseStats
+        confidence={confidence}
+        repetitionCount={repetitionCount}
+        phase={phase}
+      />
     </Container>
   );
-}; 
+}); 

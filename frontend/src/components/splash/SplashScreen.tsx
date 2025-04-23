@@ -15,7 +15,7 @@ const Container = styled(motion.div)`
   align-items: center;
   justify-content: center;
   background: ${({ theme }) => {
-    const isDark = theme.colors.background === getThemeValue({}, 'colors.background', fallbacks.colors.background) && 
+    const isDark = theme.colors.background === getThemeValue({}, 'colors.background', fallbacks.color.background) && 
                   theme.colors.background === '#111827';
     
     return isDark
@@ -46,13 +46,13 @@ const LoadingBar = styled(motion.div)`
 const LoadingProgress = styled(motion.div)`
   width: 100%;
   height: 100%;
-  background: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.colors.white)};
+  background: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.color.white)};
   border-radius: 2px;
 `;
 
 const LoadingText = styled(motion.p)`
   margin-top: 16px;
-  color: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.colors.white)};
+  color: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.color.white)};
   font-size: 14px;
   font-weight: ${({ theme }) => theme?.typography?.fontWeight?.medium || 500};
 `;

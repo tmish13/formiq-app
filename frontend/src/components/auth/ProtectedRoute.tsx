@@ -22,7 +22,7 @@ const LoadingContainer = styled.div`
 
 const LoadingText = styled.p`
   color: ${({ theme }) => theme.colors.textSecondary};
-  font-size: ${({ theme }) => getThemeValue(theme, 'typography.fontSize.large', '1.25rem')};
+  font-size: ${({ theme }) => getThemeValue(theme, 'typography.fontSize.lg', '1.25rem')};
 `;
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({

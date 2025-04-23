@@ -16,8 +16,8 @@ export const GlobalStyles = createGlobalStyle<{ theme?: Partial<Theme> }>`
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     font-size: 16px;
     line-height: 1.5;
-    color: ${({ theme }) => getThemeValue(theme, 'colors.text', fallbacks.colors.text)};
-    background-color: ${({ theme }) => getThemeValue(theme, 'colors.background', fallbacks.colors.background)};
+    color: ${({ theme }) => getThemeValue(theme, 'colors.text', fallbacks.color.text)};
+    background-color: ${({ theme }) => getThemeValue(theme, 'colors.background', fallbacks.color.background)};
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -72,8 +72,8 @@ export const GlobalStyles = createGlobalStyle<{ theme?: Partial<Theme> }>`
 
   /* iOS-like button styles */
   .ios-button {
-    background-color: ${({ theme }) => getThemeValue(theme, 'colors.primary', fallbacks.colors.primary)};
-    color: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.colors.white)};
+    background-color: ${({ theme }) => getThemeValue(theme, 'colors.primary', fallbacks.color.primary)};
+    color: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.color.white)};
     padding: 12px 24px;
     border-radius: ${({ theme }) => getThemeValue(theme, 'borderRadius.medium', fallbacks.borderRadius.medium)};
     font-weight: ${({ theme }) => getThemeValue(theme, 'typography.fontWeight.medium', fallbacks.typography.fontWeight.medium)};
@@ -84,30 +84,30 @@ export const GlobalStyles = createGlobalStyle<{ theme?: Partial<Theme> }>`
     }
 
     &:disabled {
-      background-color: ${({ theme }) => getThemeValue(theme, 'colors.disabled', fallbacks.colors.disabled)};
+      background-color: ${({ theme }) => getThemeValue(theme, 'colors.disabled', fallbacks.color.disabled)};
       cursor: not-allowed;
     }
   }
 
   /* iOS-like input styles */
   .ios-input {
-    background-color: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.colors.white)};
-    border: 1px solid ${({ theme }) => getThemeValue(theme, 'colors.secondaryLight', fallbacks.colors.secondaryLight)};
+    background-color: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.color.white)};
+    border: 1px solid ${({ theme }) => getThemeValue(theme, 'colors.secondaryLight', fallbacks.color.secondaryLight)};
     padding: 12px 16px;
     border-radius: ${({ theme }) => getThemeValue(theme, 'borderRadius.medium', fallbacks.borderRadius.medium)};
     width: 100%;
     transition: border-color ${({ theme }) => getThemeValue(theme, 'transitions.fast', fallbacks.transitions.fast)};
 
     &:focus {
-      border-color: ${({ theme }) => getThemeValue(theme, 'colors.primary', fallbacks.colors.primary)};
+      border-color: ${({ theme }) => getThemeValue(theme, 'colors.primary', fallbacks.color.primary)};
     }
   }
 
   /* iOS-like select styles */
   .ios-select {
     appearance: none;
-    background-color: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.colors.white)};
-    border: 1px solid ${({ theme }) => getThemeValue(theme, 'colors.secondaryLight', fallbacks.colors.secondaryLight)};
+    background-color: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.color.white)};
+    border: 1px solid ${({ theme }) => getThemeValue(theme, 'colors.secondaryLight', fallbacks.color.secondaryLight)};
     padding: 12px 16px;
     padding-right: 40px;
     border-radius: ${({ theme }) => getThemeValue(theme, 'borderRadius.medium', fallbacks.borderRadius.medium)};
@@ -119,13 +119,13 @@ export const GlobalStyles = createGlobalStyle<{ theme?: Partial<Theme> }>`
     transition: border-color ${({ theme }) => getThemeValue(theme, 'transitions.fast', fallbacks.transitions.fast)};
 
     &:focus {
-      border-color: ${({ theme }) => getThemeValue(theme, 'colors.primary', fallbacks.colors.primary)};
+      border-color: ${({ theme }) => getThemeValue(theme, 'colors.primary', fallbacks.color.primary)};
     }
   }
 
   /* iOS-like card styles */
   .ios-card {
-    background-color: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.colors.white)};
+    background-color: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.color.white)};
     border-radius: ${({ theme }) => getThemeValue(theme, 'borderRadius.medium', fallbacks.borderRadius.medium)};
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     padding: ${({ theme }) => getThemeValue(theme, 'spacing.lg', fallbacks.spacing.lg)};
@@ -133,14 +133,14 @@ export const GlobalStyles = createGlobalStyle<{ theme?: Partial<Theme> }>`
 
   /* iOS-like list styles */
   .ios-list {
-    background-color: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.colors.white)};
+    background-color: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.color.white)};
     border-radius: ${({ theme }) => getThemeValue(theme, 'borderRadius.medium', fallbacks.borderRadius.medium)};
     overflow: hidden;
   }
 
   .ios-list-item {
     padding: ${({ theme }) => getThemeValue(theme, 'spacing.md', fallbacks.spacing.md)};
-    border-bottom: 1px solid ${({ theme }) => getThemeValue(theme, 'colors.background', fallbacks.colors.background)};
+    border-bottom: 1px solid ${({ theme }) => getThemeValue(theme, 'colors.background', fallbacks.color.background)};
 
     &:last-child {
       border-bottom: none;
@@ -158,17 +158,17 @@ export const GlobalStyles = createGlobalStyle<{ theme?: Partial<Theme> }>`
   }
 
   ::-webkit-scrollbar-thumb {
-    background: ${({ theme }) => getThemeValue(theme, 'colors.secondaryLight', fallbacks.colors.secondaryLight)};
+    background: ${({ theme }) => getThemeValue(theme, 'colors.secondaryLight', fallbacks.color.secondaryLight)};
     border-radius: 4px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: ${({ theme }) => getThemeValue(theme, 'colors.secondary', fallbacks.colors.secondary)};
+    background: ${({ theme }) => getThemeValue(theme, 'colors.secondary', fallbacks.color.secondary)};
   }
 
   /* iOS-like selection */
   ::selection {
-    background: ${({ theme }) => getThemeValue(theme, 'colors.primaryLight', fallbacks.colors.primaryLight)};
-    color: ${({ theme }) => getThemeValue(theme, 'colors.primary', fallbacks.colors.primary)};
+    background: ${({ theme }) => getThemeValue(theme, 'colors.primaryLight', fallbacks.color.primaryLight)};
+    color: ${({ theme }) => getThemeValue(theme, 'colors.primary', fallbacks.color.primary)};
   }
 `; 

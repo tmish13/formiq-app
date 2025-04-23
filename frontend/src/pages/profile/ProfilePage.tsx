@@ -21,7 +21,7 @@ const Header = styled.header`
 
 const Title = styled.h1`
   color: ${({ theme }) => theme.colors.text};
-  font-size: ${({ theme }) => theme.typography.fontSize.xlarge};
+  font-size: ${({ theme }) => theme.typography.fontSize.xl};
 `;
 
 const ProfileCard = styled.div`
@@ -40,7 +40,7 @@ const Section = styled.section`
 const SectionTitle = styled.h2`
   color: ${({ theme }) => theme.colors.text};
   margin-bottom: ${({ theme }) => theme.spacing.md};
-  font-size: ${({ theme }) => theme.typography.fontSize.xlarge};
+  font-size: ${({ theme }) => theme.typography.fontSize.xl};
 `;
 
 const Form = styled.form`
@@ -78,7 +78,7 @@ const SettingTitle = styled.span`
 `;
 
 const SettingDescription = styled.span`
-  font-size: ${({ theme }) => theme.typography.fontSize.small};
+  font-size: ${({ theme }) => theme.typography.fontSize.sm};
   color: ${({ theme }) => theme.colors.textSecondary};
   margin-top: 4px;
 `;

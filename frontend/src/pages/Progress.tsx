@@ -10,7 +10,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-import { Theme } from '../theme';
+import { Theme } from '../types/theme';
 import { getThemeValue, fallbacks } from '../utils/themeUtils';
 import { ProgressDashboard } from '../components/progress/ProgressDashboard';
 import { progressService, ProgressData } from '../services/progressService';
@@ -21,14 +21,14 @@ const PageContainer = styled.div<{ theme?: Partial<Theme> }>`
   align-items: center;
   padding: 24px;
   min-height: 100vh;
-  background-color: ${({ theme }) => getThemeValue(theme, 'colors.background', fallbacks.colors.background)};
+  background-color: ${({ theme }) => getThemeValue(theme, 'colors.background.main', fallbacks.color.background)};
 `;
 
 const Title = styled.h1<{ theme?: Partial<Theme> }>`
-  color: ${({ theme }) => getThemeValue(theme, 'colors.text', fallbacks.colors.text)};
+  color: ${({ theme }) => getThemeValue(theme, 'colors.text.primary', fallbacks.color.text)};
   margin-bottom: 24px;
-  font-size: ${({ theme }) => getThemeValue(theme, 'typography.fontSize.xlarge', fallbacks.typography.fontSize.xlarge)};
-  font-weight: ${({ theme }) => getThemeValue(theme, 'typography.fontWeight.bold', fallbacks.typography.fontWeight.bold)};
+  font-size: ${({ theme }) => getThemeValue(theme, 'typography.fontSize.xl', fallbacks.fontSize.xl)};
+  font-weight: ${({ theme }) => getThemeValue(theme, 'typography.fontWeight.bold', '700')};
 `;
 
 const FilterContainer = styled.div`
@@ -42,10 +42,10 @@ const FilterContainer = styled.div`
 const Select = styled.select<{ theme?: Partial<Theme> }>`
   padding: 12px 16px;
   border-radius: 8px;
-  border: 1px solid ${({ theme }) => getThemeValue(theme, 'colors.secondaryLight', fallbacks.colors.secondaryLight)};
-  background-color: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.colors.white)};
-  color: ${({ theme }) => getThemeValue(theme, 'colors.text', fallbacks.colors.text)};
-  font-size: ${({ theme }) => getThemeValue(theme, 'typography.fontSize.medium', fallbacks.typography.fontSize.medium)};
+  border: 1px solid ${({ theme }) => getThemeValue(theme, 'colors.secondary.light', fallbacks.color.secondary)};
+  background-color: ${({ theme }) => getThemeValue(theme, 'colors.background.main', fallbacks.color.white)};
+  color: ${({ theme }) => getThemeValue(theme, 'colors.text.primary', fallbacks.color.text)};
+  font-size: ${({ theme }) => getThemeValue(theme, 'typography.fontSize.md', fallbacks.fontSize.md)};
   flex: 1;
 `;
 
@@ -56,10 +56,10 @@ const HistoryContainer = styled.div`
 `;
 
 const HistoryTitle = styled.h2<{ theme?: Partial<Theme> }>`
-  color: ${({ theme }) => getThemeValue(theme, 'colors.text', fallbacks.colors.text)};
+  color: ${({ theme }) => getThemeValue(theme, 'colors.text.primary', fallbacks.color.text)};
   margin-bottom: 16px;
-  font-size: ${({ theme }) => getThemeValue(theme, 'typography.fontSize.large', fallbacks.typography.fontSize.large)};
-  font-weight: ${({ theme }) => getThemeValue(theme, 'typography.fontWeight.bold', fallbacks.typography.fontWeight.bold)};
+  font-size: ${({ theme }) => getThemeValue(theme, 'typography.fontSize.lg', fallbacks.fontSize.lg)};
+  font-weight: ${({ theme }) => getThemeValue(theme, 'typography.fontWeight.bold', '700')};
 `;
 
 const HistoryList = styled.div`
@@ -69,7 +69,7 @@ const HistoryList = styled.div`
 `;
 
 const HistoryItem = styled.div<{ theme?: Partial<Theme> }>`
-  background-color: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.colors.white)};
+  background-color: ${({ theme }) => getThemeValue(theme, 'colors.background.main', fallbacks.color.white)};
   padding: 16px;
   border-radius: 8px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
@@ -83,24 +83,24 @@ const HistoryItemHeader = styled.div`
 `;
 
 const ExerciseType = styled.span<{ theme?: Partial<Theme> }>`
-  color: ${({ theme }) => getThemeValue(theme, 'colors.primary', fallbacks.colors.primary)};
-  font-weight: ${({ theme }) => getThemeValue(theme, 'typography.fontWeight.medium', fallbacks.typography.fontWeight.medium)};
+  color: ${({ theme }) => getThemeValue(theme, 'colors.primary.main', fallbacks.color.primary)};
+  font-weight: ${({ theme }) => getThemeValue(theme, 'typography.fontWeight.medium', '500')};
 `;
 
 const Score = styled.span<{ theme?: Partial<Theme>; riskLevel: string }>`
   color: ${({ theme, riskLevel }) => 
     riskLevel === 'low' 
-      ? getThemeValue(theme, 'colors.success', fallbacks.colors.success)
+      ? getThemeValue(theme, 'colors.success.main', fallbacks.color.success)
       : riskLevel === 'high'
-      ? getThemeValue(theme, 'colors.error', fallbacks.colors.error)
-      : getThemeValue(theme, 'colors.warning', fallbacks.colors.warning)
+      ? getThemeValue(theme, 'colors.error.main', fallbacks.color.error)
+      : getThemeValue(theme, 'colors.warning.main', fallbacks.color.warning)
   };
-  font-weight: ${({ theme }) => getThemeValue(theme, 'typography.fontWeight.bold', fallbacks.typography.fontWeight.bold)};
+  font-weight: ${({ theme }) => getThemeValue(theme, 'typography.fontWeight.bold', '700')};
 `;
 
 const DateText = styled.span<{ theme?: Partial<Theme> }>`
-  color: ${({ theme }) => getThemeValue(theme, 'colors.textLight', fallbacks.colors.textLight)};
-  font-size: ${({ theme }) => getThemeValue(theme, 'typography.fontSize.small', fallbacks.typography.fontSize.small)};
+  color: ${({ theme }) => getThemeValue(theme, 'colors.text.secondary', fallbacks.color.text)};
+  font-size: ${({ theme }) => getThemeValue(theme, 'typography.fontSize.sm', fallbacks.fontSize.sm)};
 `;
 
 const FeedbackList = styled.ul`
@@ -109,8 +109,8 @@ const FeedbackList = styled.ul`
 `;
 
 const FeedbackItem = styled.li<{ theme?: Partial<Theme> }>`
-  color: ${({ theme }) => getThemeValue(theme, 'colors.text', fallbacks.colors.text)};
-  font-size: ${({ theme }) => getThemeValue(theme, 'typography.fontSize.medium', fallbacks.typography.fontSize.medium)};
+  color: ${({ theme }) => getThemeValue(theme, 'colors.text.primary', fallbacks.color.text)};
+  font-size: ${({ theme }) => getThemeValue(theme, 'typography.fontSize.md', fallbacks.fontSize.md)};
   margin-bottom: 4px;
 `;
 
@@ -118,13 +118,13 @@ const LoadingSpinner = styled.div<{ theme?: Partial<Theme> }>`
   display: flex;
   align-items: center;
   justify-content: center;
-  color: ${({ theme }) => getThemeValue(theme, 'colors.primary', fallbacks.colors.primary)};
+  color: ${({ theme }) => getThemeValue(theme, 'colors.primary.main', fallbacks.color.primary)};
   padding: 24px;
 `;
 
 const ErrorMessage = styled.div<{ theme?: Partial<Theme> }>`
-  color: ${({ theme }) => getThemeValue(theme, 'colors.error', fallbacks.colors.error)};
-  background-color: ${({ theme }) => getThemeValue(theme, 'colors.errorLight', fallbacks.colors.errorLight)};
+  color: ${({ theme }) => getThemeValue(theme, 'colors.error.main', fallbacks.color.error)};
+  background-color: ${({ theme }) => `${getThemeValue(theme, 'colors.error.light', fallbacks.color.error)}20`};
   padding: 16px;
   border-radius: 8px;
   margin: 16px 0;
@@ -145,7 +145,7 @@ const Header = styled.div`
 
 const Description = styled.p`
   font-size: ${({ theme }) => theme.typography.fontSize.md};
-  color: ${({ theme }) => getThemeValue(theme, 'colors.textSecondary', fallbacks.colors.textSecondary)};
+  color: ${({ theme }) => getThemeValue(theme, 'colors.text.secondary', fallbacks.color.text)};
 `;
 
 const Grid = styled.div`
@@ -156,10 +156,10 @@ const Grid = styled.div`
 `;
 
 const SessionCard = styled(motion.div)`
-  background: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.colors.white)};
+  background: ${({ theme }) => getThemeValue(theme, 'colors.background.main', fallbacks.color.white)};
   border-radius: ${({ theme }) => theme.borderRadius.lg};
   padding: ${({ theme }) => theme.spacing.lg};
-  box-shadow: ${({ theme }) => getThemeValue(theme, 'shadows.md', fallbacks.shadows.md)};
+  box-shadow: ${({ theme }) => theme.shadows.medium};
 `;
 
 const SessionImage = styled.img`
@@ -172,13 +172,13 @@ const SessionImage = styled.img`
 
 const SessionTitle = styled.h3`
   font-size: ${({ theme }) => theme.typography.fontSize.lg};
-  color: ${({ theme }) => getThemeValue(theme, 'colors.text', fallbacks.colors.text)};
+  color: ${({ theme }) => getThemeValue(theme, 'colors.text.primary', fallbacks.color.text)};
   margin-bottom: ${({ theme }) => theme.spacing.sm};
 `;
 
 const SessionDate = styled.p`
   font-size: ${({ theme }) => theme.typography.fontSize.sm};
-  color: ${({ theme }) => getThemeValue(theme, 'colors.textSecondary', fallbacks.colors.textSecondary)};
+  color: ${({ theme }) => getThemeValue(theme, 'colors.text.secondary', fallbacks.color.text)};
   margin-bottom: ${({ theme }) => theme.spacing.md};
 `;
 
@@ -201,10 +201,10 @@ const ScoreBadge = styled.div<{ score: number }>`
 `;
 
 const ChartContainer = styled.div`
-  background: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.colors.white)};
+  background: ${({ theme }) => getThemeValue(theme, 'colors.background.main', fallbacks.color.white)};
   border-radius: ${({ theme }) => theme.borderRadius.lg};
   padding: ${({ theme }) => theme.spacing.lg};
-  box-shadow: ${({ theme }) => getThemeValue(theme, 'shadows.md', fallbacks.shadows.md)};
+  box-shadow: ${({ theme }) => theme.shadows.medium};
   height: 400px;
   margin-top: ${({ theme }) => theme.spacing.xl};
 `;

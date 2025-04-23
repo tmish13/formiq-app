@@ -7,102 +7,146 @@ import {
   setError,
   setFormChecks,
   setCurrentFormCheck,
-  deleteFormCheck,
+  deleteFormCheck as deleteFormCheckAction,
+  updateFormCheck
 } from '../store/slices/formCheckSlice';
 import { RootState } from '../store';
 
 export const useFormCheck = () => {
   const dispatch = useDispatch();
-  const { isLoading, error, formChecks, currentFormCheck } = useSelector((state: RootState) => state.formCheck);
+  const { formChecks, currentFormCheck, isLoading, error } = useSelector((state: RootState) => state.formCheck);
 
   const fetchFormChecks = useCallback(async () => {
+    dispatch(setLoading(true));
     try {
-      dispatch(setLoading(true));
-      const data = await formCheckService.getFormChecks();
-      dispatch(setFormChecks(data));
-    } catch (err) {
-      dispatch(setError(err instanceof Error ? err.message : 'Failed to fetch form checks'));
+      const response = await formCheckService.getFormChecks();
+      if (response) {
+        dispatch(setFormChecks(response));
+      } else {
+        dispatch(setFormChecks([]));
+      }
+      dispatch(setError(null));
+    } catch (error) {
+      console.error('Error fetching form checks:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch form checks';
+      dispatch(setError(errorMessage));
     } finally {
       dispatch(setLoading(false));
     }
   }, [dispatch]);
 
-  const fetchFormCheck = async (id: string) => {
+  const fetchFormCheck = useCallback(async (id: string) => {
+    dispatch(setLoading(true));
     try {
-      dispatch(setLoading(true));
-      const data = await formCheckService.getFormCheck(id);
-      dispatch(setCurrentFormCheck(data));
-    } catch (err) {
-      dispatch(setError(err instanceof Error ? err.message : 'Failed to fetch form check'));
+      const response = await formCheckService.getFormCheck(id);
+      dispatch(setCurrentFormCheck(response || null));
+      dispatch(setError(null));
+      return response;
+    } catch (error) {
+      console.error('Error fetching form check:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch form check';
+      dispatch(setError(errorMessage));
+      dispatch(setCurrentFormCheck(null));
+      return null;
     } finally {
       dispatch(setLoading(false));
     }
-  };
+  }, [dispatch]);
 
-  const submitFormCheck = async (
+  const submitFormCheck = useCallback(async (
     video: File,
     exerciseType: ExerciseType,
     onProgress?: (progress: number) => void
   ) => {
+    dispatch(setLoading(true));
     try {
-      dispatch(setLoading(true));
-      const data = await formCheckService.uploadVideo(video, exerciseType, onProgress);
-      dispatch(setCurrentFormCheck(data));
-      return data;
-    } catch (err) {
-      dispatch(setError(err instanceof Error ? err.message : 'Failed to submit form check'));
-      throw err;
+      const response = await formCheckService.uploadVideo(video, exerciseType, onProgress);
+      if (response) {
+        dispatch(setCurrentFormCheck(response));
+      }
+      dispatch(setError(null));
+      return response;
+    } catch (error) {
+      console.error('Error submitting form check:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to submit form check';
+      dispatch(setError(errorMessage));
+      return null;
     } finally {
       dispatch(setLoading(false));
     }
-  };
+  }, [dispatch]);
 
-  const deleteFormCheckById = async (id: number) => {
+  const deleteFormCheckById = useCallback(async (id: number) => {
+    dispatch(setLoading(true));
     try {
       await formCheckService.deleteFormCheck(id);
-      dispatch(deleteFormCheck(id));
+      dispatch(deleteFormCheckAction(id));
+      if (currentFormCheck && currentFormCheck.id === id) {
+        dispatch(setCurrentFormCheck(null));
+      }
+      dispatch(setError(null));
+      return true;
     } catch (error) {
       console.error('Error deleting form check:', error);
-      throw error;
-    }
-  };
-
-  const analyzeFormCheck = async (id: string) => {
-    try {
-      dispatch(setLoading(true));
-      const data = await formCheckService.analyze(id);
-      dispatch(setCurrentFormCheck(data));
-      return data;
-    } catch (err) {
-      dispatch(setError(err instanceof Error ? err.message : 'Failed to analyze form check'));
-      throw err;
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete form check';
+      dispatch(setError(errorMessage));
+      return false;
     } finally {
       dispatch(setLoading(false));
     }
-  };
+  }, [dispatch, currentFormCheck]);
 
-  const fetchHistory = async () => {
+  const analyzeFormCheck = useCallback(async (id: string) => {
+    dispatch(setLoading(true));
     try {
-      dispatch(setLoading(true));
-      const data = await formCheckService.getHistory();
-      dispatch(setFormChecks(data));
-    } catch (err) {
-      dispatch(setError(err instanceof Error ? err.message : 'Failed to fetch history'));
+      const response = await formCheckService.analyze(id);
+      if (response) {
+        dispatch(updateFormCheck(response));
+        dispatch(setCurrentFormCheck(response));
+      }
+      dispatch(setError(null));
+      return response;
+    } catch (error) {
+      console.error('Error analyzing form check:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to analyze form check';
+      dispatch(setError(errorMessage));
+      return null;
     } finally {
       dispatch(setLoading(false));
     }
-  };
+  }, [dispatch]);
+
+  const fetchHistory = useCallback(async () => {
+    dispatch(setLoading(true));
+    try {
+      const response = await formCheckService.getHistory();
+      if (response) {
+        dispatch(setFormChecks(response));
+      } else {
+        dispatch(setFormChecks([]));
+      }
+      dispatch(setError(null));
+      return response;
+    } catch (error) {
+      console.error('Error fetching form check history:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch form check history';
+      dispatch(setError(errorMessage));
+      return null;
+    } finally {
+      dispatch(setLoading(false));
+    }
+  }, [dispatch]);
 
   return {
+    formChecks,
+    currentFormCheck,
+    isLoading,
+    error,
     fetchFormChecks,
     fetchFormCheck,
     submitFormCheck,
     deleteFormCheckById,
     analyzeFormCheck,
     fetchHistory,
-    formChecks,
-    currentFormCheck,
-    isLoading,
-    error,
   };
 }; 

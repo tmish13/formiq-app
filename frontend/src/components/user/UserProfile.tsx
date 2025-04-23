@@ -1,9 +1,11 @@
 import React, { useState, useRef } from 'react';
 import styled from 'styled-components';
-import { useAuth } from '../../contexts/AuthContext';
-import { User } from '../../types/auth';
+import { useAuth } from '../../hooks/useAuth';
+import { User } from '../../types';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { ErrorMessage } from '../common/ErrorMessage';
+import { apiService } from '../../services/apiService';
+import { ApiError, ErrorCode } from '../../utils/errorHandling';
 
 const ProfileContainer = styled.div`
   max-width: 600px;
@@ -95,14 +97,12 @@ const Button = styled.button`
 `;
 
 export const UserProfile: React.FC = () => {
-  const { user, updateUser } = useAuth();
+  const { user, updateProfile } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ApiError | null>(null);
   const [formData, setFormData] = useState<Partial<User>>({
-    firstName: user?.firstName || '',
-    lastName: user?.lastName || '',
-    username: user?.username || '',
+    name: user?.name || '',
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -126,10 +126,14 @@ export const UserProfile: React.FC = () => {
       const formData = new FormData();
       formData.append('avatar', file);
       
-      const response = await apiService.profile.updateAvatar(formData);
-      await updateUser({ avatarUrl: response.data.avatarUrl });
+      await apiService.profile.updateAvatar(formData);
+      // Note: Avatar URL will be updated through the user profile update
     } catch (err: any) {
-      setError(err.message || 'Failed to update avatar');
+      setError({
+        message: err.message || 'Failed to update avatar',
+        status: err.status || 500,
+        code: ErrorCode.API_ERROR
+      });
     } finally {
       setIsLoading(false);
     }
@@ -142,10 +146,14 @@ export const UserProfile: React.FC = () => {
       setIsLoading(true);
       setError(null);
       
-      await updateUser(formData);
+      await updateProfile(formData);
       setIsEditing(false);
     } catch (err: any) {
-      setError(err.message || 'Failed to update profile');
+      setError({
+        message: err.message || 'Failed to update profile',
+        status: err.status || 500,
+        code: ErrorCode.API_ERROR
+      });
     } finally {
       setIsLoading(false);
     }
@@ -155,12 +163,12 @@ export const UserProfile: React.FC = () => {
 
   return (
     <ProfileContainer>
-      {error && <ErrorMessage message={error} />}
+      {error && <ErrorMessage error={error} />}
       
       <AvatarContainer>
         <Avatar 
-          src={user.avatarUrl || '/default-avatar.png'} 
-          alt={`${user.username}'s avatar`}
+          src="/default-avatar.png"
+          alt={`${user.name}'s avatar`}
         />
         {isEditing && (
           <>
@@ -182,33 +190,11 @@ export const UserProfile: React.FC = () => {
 
       <Form onSubmit={handleSubmit}>
         <InputGroup>
-          <Label htmlFor="username">Username</Label>
+          <Label htmlFor="name">Name</Label>
           <Input
-            id="username"
-            name="username"
-            value={formData.username}
-            onChange={handleInputChange}
-            disabled={!isEditing}
-          />
-        </InputGroup>
-
-        <InputGroup>
-          <Label htmlFor="firstName">First Name</Label>
-          <Input
-            id="firstName"
-            name="firstName"
-            value={formData.firstName}
-            onChange={handleInputChange}
-            disabled={!isEditing}
-          />
-        </InputGroup>
-
-        <InputGroup>
-          <Label htmlFor="lastName">Last Name</Label>
-          <Input
-            id="lastName"
-            name="lastName"
-            value={formData.lastName}
+            id="name"
+            name="name"
+            value={formData.name}
             onChange={handleInputChange}
             disabled={!isEditing}
           />

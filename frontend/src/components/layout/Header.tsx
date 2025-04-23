@@ -28,7 +28,7 @@ export const HeaderContent = styled.div`
 `;
 
 const Title = styled.h1`
-  font-size: ${({ theme }) => getThemeValue(theme, 'typography.fontSize.large', '20px')};
+  font-size: ${({ theme }) => getThemeValue(theme, 'typography.fontSize.lg', '20px')};
   font-weight: ${({ theme }) => getThemeValue(theme, 'typography.fontWeight.bold', 700)};
   color: ${({ theme }) => getThemeValue(theme, 'colors.text', '#000000')};
   margin: 0;

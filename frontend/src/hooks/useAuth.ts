@@ -5,6 +5,8 @@ import { authService } from '../services/auth';
 import { storageService } from '../services/storageService';
 import { setUser, setToken, setRefreshToken, setError, setLoading, logout as logoutAction, setTokens } from '../store/slices/authSlice';
 import type { User } from '../types';
+import { apiService } from '../services/apiService';
+import { logError } from '../utils/logger';
 
 export const useAuth = () => {
   const navigate = useNavigate();
@@ -146,6 +148,16 @@ export const useAuth = () => {
     }
   };
 
+  const verifyEmail = async (token: string): Promise<boolean> => {
+    try {
+      await apiService.post('/auth/verify-email', { token });
+      return true;
+    } catch (error) {
+      logError('Email verification error', error);
+      return false;
+    }
+  };
+
   return {
     user,
     isAuthenticated,
@@ -155,5 +167,6 @@ export const useAuth = () => {
     logout,
     register,
     updateProfile,
+    verifyEmail,
   };
 }; 

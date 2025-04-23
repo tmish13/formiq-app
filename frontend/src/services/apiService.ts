@@ -8,27 +8,7 @@ import type {
 import { ApiResponse, ApiError, QueryParams } from '../types/api';
 import { Exercise } from './exerciseLibraryService';
 import { redisService } from './redisService';
-
-// Enhanced error types
-export interface ApiError {
-  name: string;
-  status: number;
-  message: string;
-  data?: unknown;
-  code?: string;
-  timestamp?: string;
-}
-
-export interface ApiResponse<T> {
-  data: T;
-  status: number;
-  metadata?: {
-    timestamp: string;
-    requestId: string;
-    [key: string]: unknown;
-  };
-  message?: string;
-}
+import { handleApiError } from '../utils/errorHandling';
 
 export interface ErrorResponse {
   message: string;
@@ -42,21 +22,18 @@ interface RetryConfig {
   maxRetries: number;
   retryDelay: number;
   retryableStatuses: number[];
-  shouldRetry?: (error: AxiosError) => boolean;
 }
+
+const defaultRetryConfig: RetryConfig = {
+  maxRetries: 3,
+  retryDelay: 1000, // 1 second
+  retryableStatuses: [408, 429, 500, 502, 503, 504],
+};
 
 export class ApiService {
   private client: AxiosInstance;
   private csrfToken: string | null = null;
-  private retryConfig: RetryConfig = {
-    maxRetries: 3,
-    retryDelay: 1000,
-    retryableStatuses: [408, 429, 500, 502, 503, 504],
-    shouldRetry: (error: AxiosError): boolean => {
-      if (!error.response) return false;
-      return this.retryConfig.retryableStatuses.includes(error.response.status);
-    }
-  };
+  private retryConfig: RetryConfig;
   private baseUrl: string;
 
   // Cache configuration
@@ -67,8 +44,9 @@ export class ApiService {
     '/profile'
   ];
 
-  constructor(baseUrl: string = process.env.REACT_APP_API_URL || '/api/v1') {
+  constructor(baseUrl: string = process.env.REACT_APP_API_URL || '/api/v1', retryConfig: Partial<RetryConfig> = {}) {
     this.baseUrl = baseUrl;
+    this.retryConfig = { ...defaultRetryConfig, ...retryConfig };
     this.client = axios.create({
       baseURL: this.baseUrl,
       headers: {
@@ -183,7 +161,7 @@ export class ApiService {
 
   private shouldRetryRequest(error: AxiosError, config: AxiosRequestConfig & { _retry?: number }): boolean {
     return !!(
-      this.retryConfig.shouldRetry?.(error) &&
+      this.retryConfig.retryableStatuses.includes(error.response?.status || 0) &&
       (!config._retry || config._retry < this.retryConfig.maxRetries)
     );
   }
@@ -273,12 +251,12 @@ export class ApiService {
     return response.data;
   }
 
-  protected async post<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<ApiResponse<T>> {
-    const response = await this.client.post<ApiResponse<T>>(url, data, config);
+  public async post<T>(endpoint: string, data?: unknown, config?: AxiosRequestConfig): Promise<ApiResponse<T>> {
+    const response = await this.client.post<ApiResponse<T>>(endpoint, data, config);
     return response.data;
   }
 
-  protected async put<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<ApiResponse<T>> {
+  protected async put<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<ApiResponse<T>> {
     const response = await this.client.put<ApiResponse<T>>(url, data, config);
     return response.data;
   }

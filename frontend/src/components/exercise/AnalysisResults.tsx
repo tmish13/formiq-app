@@ -20,7 +20,7 @@ const Container = styled.div`
   max-width: 800px;
   margin: 20px auto;
   padding: 20px;
-  background-color: ${({ theme }) => getThemeValue(theme, 'colors.background', fallbacks.colors.background)};
+  background-color: ${({ theme }) => getThemeValue(theme, 'colors.background', fallbacks.color.background)};
   border-radius: 12px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 `;
@@ -43,7 +43,7 @@ const Score = styled.div<{ score: number }>`
 
 const ScoreLabel = styled.div`
   font-size: 16px;
-  color: ${({ theme }) => getThemeValue(theme, 'colors.text', fallbacks.colors.text)};
+  color: ${({ theme }) => getThemeValue(theme, 'colors.text', fallbacks.color.text)};
   opacity: 0.8;
 `;
 
@@ -53,7 +53,7 @@ const FeedbackSection = styled.div`
 
 const FeedbackTitle = styled.h3`
   font-size: 20px;
-  color: ${({ theme }) => getThemeValue(theme, 'colors.text', fallbacks.colors.text)};
+  color: ${({ theme }) => getThemeValue(theme, 'colors.text', fallbacks.color.text)};
   margin-bottom: 16px;
 `;
 
@@ -82,13 +82,13 @@ const FeedbackCard = styled.div<{ severity: 'low' | 'medium' | 'high' }>`
 const FeedbackMessage = styled.div`
   font-size: 16px;
   font-weight: 500;
-  color: ${({ theme }) => getThemeValue(theme, 'colors.text', fallbacks.colors.text)};
+  color: ${({ theme }) => getThemeValue(theme, 'colors.text', fallbacks.color.text)};
   margin-bottom: 8px;
 `;
 
 const FeedbackSuggestion = styled.div`
   font-size: 14px;
-  color: ${({ theme }) => getThemeValue(theme, 'colors.text', fallbacks.colors.text)};
+  color: ${({ theme }) => getThemeValue(theme, 'colors.text', fallbacks.color.text)};
   opacity: 0.8;
 `;
 

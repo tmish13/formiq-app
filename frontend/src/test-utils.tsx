@@ -1,30 +1,7 @@
-import React from 'react';
-import { render, RenderOptions } from '@testing-library/react';
-import { ThemeProvider } from 'styled-components';
-import { Provider } from 'react-redux';
-import { BrowserRouter } from 'react-router-dom';
-import { store } from './store';
-import { theme } from './theme';
+// This file is kept for backward compatibility with existing tests
+// It now re-exports the centralized testing utilities
+import { render, testRender } from '../tests/utils/testRender';
 
-const AllTheProviders = ({ children }: { children: React.ReactNode }) => {
-  return (
-    <Provider store={store}>
-      <ThemeProvider theme={theme}>
-        <BrowserRouter>
-          {children}
-        </BrowserRouter>
-      </ThemeProvider>
-    </Provider>
-  );
-};
-
-const customRender = (
-  ui: React.ReactElement,
-  options?: Omit<RenderOptions, 'wrapper'>
-) => render(ui, { wrapper: AllTheProviders, ...options });
-
-// re-export everything
+// Re-export everything
 export * from '@testing-library/react';
-
-// override render method
-export { customRender as render }; 
+export { render, testRender }; 

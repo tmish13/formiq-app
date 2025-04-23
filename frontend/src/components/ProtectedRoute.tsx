@@ -1,79 +1,64 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { authService } from '../services/auth';
+import { useAuth } from '../hooks/useAuth';
 import LoadingSpinner from './atoms/LoadingSpinner';
-import type { User } from '../types/auth';
+import styled from 'styled-components';
 
-interface ProtectedRouteProps {
+const LoadingContainer = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+`;
+
+type ProtectedRouteProps = {
   children: React.ReactNode;
-  requireAuth?: boolean;
-  roles?: string[];
-}
+  requiredRoles?: string[];
+};
 
-export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
-  children,
-  requireAuth = true,
-  roles = []
+export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ 
+  children, 
+  requiredRoles = [] 
 }) => {
-  const [isValidating, setIsValidating] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [hasRequiredRole, setHasRequiredRole] = useState(false);
+  const { user, isLoading, isAuthenticated } = useAuth();
   const location = useLocation();
+  const [isValid, setIsValid] = useState<boolean | null>(null);
+  const [hasRequiredRole, setHasRequiredRole] = useState<boolean | null>(null);
 
   useEffect(() => {
     const validateSession = async () => {
-      try {
-        if (!authService.isAuthenticated()) {
-          setIsAuthenticated(false);
-          setIsValidating(false);
-          return;
-        }
-
-        await authService.validateToken();
-        const user = authService.getCurrentUser();
-        
-        setIsAuthenticated(true);
-        setHasRequiredRole(
-          roles.length === 0 || (user?.roles || []).some((role: string) => roles.includes(role))
+      setIsValid(isAuthenticated);
+      
+      if (isAuthenticated && requiredRoles.length > 0) {
+        const userHasRequiredRole = user && requiredRoles.some(role => 
+          user.role === role
         );
-      } catch (error) {
-        setIsAuthenticated(false);
-        setHasRequiredRole(false);
-      } finally {
-        setIsValidating(false);
+        setHasRequiredRole(userHasRequiredRole || false);
+      } else {
+        setHasRequiredRole(true);
       }
     };
-
+    
     validateSession();
-  }, [roles]);
+  }, [isAuthenticated, requiredRoles, user]);
 
-  if (isValidating) {
+  if (isLoading || isValid === null) {
     return (
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        height: '100vh' 
-      }}>
+      <LoadingContainer>
         <LoadingSpinner />
-      </div>
+      </LoadingContainer>
     );
   }
 
-  if (!requireAuth && isAuthenticated) {
-    // Redirect already authenticated users away from auth pages
-    return <Navigate to="/dashboard" replace />;
-  }
-
-  if (requireAuth && !isAuthenticated) {
-    // Redirect unauthenticated users to login
+  if (!isValid) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (requireAuth && isAuthenticated && !hasRequiredRole) {
-    // Redirect authenticated users without required role
+  if (hasRequiredRole === false) {
     return <Navigate to="/unauthorized" replace />;
   }
 
   return <>{children}</>;
-}; 
+};
+
+export default ProtectedRoute; 

@@ -21,7 +21,7 @@ const SlideContainer = styled(motion.div)`
   position: relative;
   width: 90%;
   max-width: 400px;
-  background: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.colors.white)};
+  background: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.color.white)};
   border-radius: 16px;
   padding: 32px;
   box-shadow: ${({ theme }) => getThemeValue(theme, 'shadows.lg', fallbacks.shadows.lg)};
@@ -35,13 +35,13 @@ const Title = styled(motion.h2)`
   font-size: 24px;
   font-weight: ${({ theme }) => theme?.typography?.fontWeight?.bold || 700};
   margin-bottom: 16px;
-  color: ${({ theme }) => getThemeValue(theme, 'colors.text', fallbacks.colors.text)};
+  color: ${({ theme }) => getThemeValue(theme, 'colors.text', fallbacks.color.text)};
 `;
 
 const Description = styled(motion.p)`
   font-size: 16px;
   line-height: 1.5;
-  color: ${({ theme }) => getThemeValue(theme, 'colors.textSecondary', fallbacks.colors.textSecondary)};
+  color: ${({ theme }) => getThemeValue(theme, 'colors.textSecondary', fallbacks.color.textSecondary)};
   margin-bottom: 24px;
 `;
 
@@ -60,12 +60,12 @@ const Button = styled(motion.button)<{ variant?: 'primary' | 'secondary' }>`
   border: none;
   background: ${({ theme, variant }) => 
     variant === 'primary' 
-      ? getThemeValue(theme, 'colors.primary', fallbacks.colors.primary)
+      ? getThemeValue(theme, 'colors.primary', fallbacks.color.primary)
       : 'transparent'};
   color: ${({ theme, variant }) => 
     variant === 'primary'
-      ? getThemeValue(theme, 'colors.white', fallbacks.colors.white)
-      : getThemeValue(theme, 'colors.textSecondary', fallbacks.colors.textSecondary)};
+      ? getThemeValue(theme, 'colors.white', fallbacks.color.white)
+      : getThemeValue(theme, 'colors.textSecondary', fallbacks.color.textSecondary)};
   
   &:hover {
     opacity: 0.9;
@@ -85,8 +85,8 @@ const Dot = styled(motion.div)<{ active: boolean }>`
   border-radius: 50%;
   background: ${({ theme, active }) => 
     active 
-      ? getThemeValue(theme, 'colors.primary', fallbacks.colors.primary)
-      : getThemeValue(theme, 'colors.border', fallbacks.colors.border)};
+      ? getThemeValue(theme, 'colors.primary', fallbacks.color.primary)
+      : getThemeValue(theme, 'colors.border', fallbacks.color.border)};
 `;
 
 const slides = [

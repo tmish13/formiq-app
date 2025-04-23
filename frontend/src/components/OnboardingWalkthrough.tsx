@@ -21,7 +21,7 @@ const Overlay = styled(motion.div)`
 `;
 
 const Modal = styled(motion.div)`
-  background: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.colors.white)};
+  background: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.color.white)};
   border-radius: ${({ theme }) => theme.borderRadius.large};
   padding: ${({ theme }) => theme.spacing.large};
   max-width: 500px;
@@ -34,14 +34,14 @@ const SlideContainer = styled(motion.div)`
 `;
 
 const Title = styled.h2`
-  font-size: ${({ theme }) => theme.typography.fontSize.xlarge};
-  color: ${({ theme }) => getThemeValue(theme, 'colors.text', fallbacks.colors.text)};
+  font-size: ${({ theme }) => theme.typography.fontSize.xl};
+  color: ${({ theme }) => getThemeValue(theme, 'colors.text', fallbacks.color.text)};
   margin-bottom: ${({ theme }) => theme.spacing.large};
 `;
 
 const Description = styled.p`
-  font-size: ${({ theme }) => theme.typography.fontSize.medium};
-  color: ${({ theme }) => getThemeValue(theme, 'colors.textSecondary', fallbacks.colors.textSecondary)};
+  font-size: ${({ theme }) => theme.typography.fontSize.md};
+  color: ${({ theme }) => getThemeValue(theme, 'colors.textSecondary', fallbacks.color.textSecondary)};
   margin-bottom: ${({ theme }) => theme.spacing.large};
   line-height: 1.6;
 `;
@@ -56,23 +56,23 @@ const ButtonContainer = styled.div`
 const Button = styled(motion.button)<{ variant?: 'primary' | 'secondary' }>`
   padding: ${({ theme }) => `${theme.spacing.small} ${theme.spacing.medium}`};
   border-radius: ${({ theme }) => theme.borderRadius.medium};
-  font-size: ${({ theme }) => theme.typography.fontSize.medium};
+  font-size: ${({ theme }) => theme.typography.fontSize.md};
   font-weight: ${({ theme }) => theme.typography.fontWeight.medium};
   border: none;
   cursor: pointer;
   background: ${({ theme, variant }) =>
     variant === 'primary'
-      ? getThemeValue(theme, 'colors.primary', fallbacks.colors.primary)
+      ? getThemeValue(theme, 'colors.primary', fallbacks.color.primary)
       : 'transparent'};
   color: ${({ theme, variant }) =>
     variant === 'primary'
-      ? getThemeValue(theme, 'colors.white', fallbacks.colors.white)
-      : getThemeValue(theme, 'colors.textSecondary', fallbacks.colors.textSecondary)};
+      ? getThemeValue(theme, 'colors.white', fallbacks.color.white)
+      : getThemeValue(theme, 'colors.textSecondary', fallbacks.color.textSecondary)};
 
   &:hover {
     background: ${({ theme, variant }) =>
       variant === 'primary'
-        ? getThemeValue(theme, 'colors.primaryDark', fallbacks.colors.primaryDark)
+        ? getThemeValue(theme, 'colors.primaryDark', fallbacks.color.primaryDark)
         : 'rgba(0, 0, 0, 0.05)'};
   }
 `;
@@ -90,8 +90,8 @@ const Dot = styled.div<{ active: boolean }>`
   border-radius: 50%;
   background: ${({ theme, active }) =>
     active
-      ? getThemeValue(theme, 'colors.primary', fallbacks.colors.primary)
-      : getThemeValue(theme, 'colors.border', fallbacks.colors.border)};
+      ? getThemeValue(theme, 'colors.primary', fallbacks.color.primary)
+      : getThemeValue(theme, 'colors.border', fallbacks.color.border)};
   transition: background 0.3s ease;
 `;
 

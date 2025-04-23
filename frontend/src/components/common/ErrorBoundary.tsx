@@ -1,67 +1,143 @@
-import React, { Component, ErrorInfo, ReactNode } from 'react';
-import ServerErrorPage from './ServerErrorPage';
+import React, { Component, ErrorInfo } from 'react';
+import styled from 'styled-components';
+import { Box, Typography, Button, Stack } from '@mui/material';
+import { store } from '../../store';
+import { setError } from '../../store/slices/authSlice';
+import { errorHandlingService } from '../../services/errorHandlingService';
+import { getThemeValue } from '../../utils/themeUtils';
 
-interface Props {
-  children: ReactNode;
-  fallback?: ReactNode;
+const ErrorContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  padding: 2rem;
+  text-align: center;
+`;
+
+const ErrorTitle = styled.h2`
+  color: ${({ theme }) => getThemeValue(theme, 'colors.error.main', '#dc3545')};
+  margin-bottom: 1rem;
+`;
+
+const ErrorMessage = styled.p`
+  color: ${({ theme }) => getThemeValue(theme, 'colors.text.secondary', '#666')};
+  margin-bottom: 2rem;
+  max-width: 600px;
+`;
+
+interface ErrorBoundaryProps {
+  children: React.ReactNode;
+  fallback?: React.ReactNode;
 }
 
-interface State {
+interface ErrorBoundaryState {
   hasError: boolean;
   error: Error | null;
+  errorInfo: ErrorInfo | null;
 }
 
-class ErrorBoundary extends Component<Props, State> {
-  public state: State = {
-    hasError: false,
-    error: null
-  };
-
-  public static getDerivedStateFromError(error: Error): State {
-    // Update state so the next render will show the fallback UI
-    return { hasError: true, error };
+export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = {
+      hasError: false,
+      error: null,
+      errorInfo: null
+    };
   }
 
-  public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    // Log error to error reporting service
-    console.error('Uncaught error:', error, errorInfo);
-    
-    // If we have Sentry configured, log the error
-    if (window.Sentry) {
-      window.Sentry.captureException(error);
-    }
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return {
+      hasError: true,
+      error,
+      errorInfo: null
+    };
   }
 
-  public resetError = () => {
-    this.setState({ hasError: false, error: null });
+  componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
+    // Log error to error handling service
+    errorHandlingService.handleError(error, {
+      severity: 'error',
+      source: 'client',
+      context: {
+        component: 'ErrorBoundary',
+        componentStack: errorInfo.componentStack
+      }
+    });
+
+    // Update global error state
+    store.dispatch(setError(error.message));
+  }
+
+  handleRetry = (): void => {
+    this.setState({
+      hasError: false,
+      error: null,
+      errorInfo: null
+    });
   };
 
-  public render() {
+  handleReload = (): void => {
+    window.location.reload();
+  };
+
+  getUserFriendlyMessage(error: Error | null): string {
+    if (!error) return 'An unexpected error occurred.';
+
+    // Map technical errors to user-friendly messages
+    const errorMessages: Record<string, string> = {
+      NetworkError: 'Unable to connect to the server. Please check your internet connection.',
+      TypeError: 'Something went wrong while processing your request.',
+      AuthenticationError: 'Your session has expired. Please log in again.',
+      ValidationError: 'Please check your input and try again.',
+      NotFoundError: 'The requested resource could not be found.',
+      default: 'An unexpected error occurred. Please try again.'
+    };
+
+    // Check for specific error types
+    const errorType = error.name || error.constructor.name;
+    return errorMessages[errorType] || errorMessages.default;
+  }
+
+  render(): React.ReactNode {
     if (this.state.hasError) {
-      // You can render any custom fallback UI
       if (this.props.fallback) {
         return this.props.fallback;
       }
-      
+
       return (
-        <ServerErrorPage
-          error={this.state.error || undefined}
-          resetError={this.resetError}
-        />
+        <ErrorContainer>
+          <ErrorTitle>Oops! Something went wrong</ErrorTitle>
+          <ErrorMessage>
+            {this.getUserFriendlyMessage(this.state.error)}
+          </ErrorMessage>
+          <Stack direction="row" spacing={2}>
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={this.handleRetry}
+            >
+              Try Again
+            </Button>
+            <Button
+              variant="outlined"
+              color="primary"
+              onClick={this.handleReload}
+            >
+              Reload Page
+            </Button>
+          </Stack>
+          {process.env.NODE_ENV === 'development' && this.state.error && (
+            <Box component="pre" sx={{ mt: 2, p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
+              {this.state.error.message}
+            </Box>
+          )}
+        </ErrorContainer>
       );
     }
 
     return this.props.children;
   }
-}
-
-// Add window.Sentry type definition
-declare global {
-  interface Window {
-    Sentry?: {
-      captureException: (error: Error) => void;
-    };
-  }
-}
-
-export default ErrorBoundary; 
+} 

@@ -55,12 +55,15 @@ export interface Point {
 
 export interface FormValidationResult {
   isValid: boolean;
-  score: number;
-  issues: {
-    message: string;
-    severity: 'error' | 'warning';
-  }[];
-  feedback: string[];
+  message: string;
+  confidence?: number;
+  timestamp?: number;
+  jointData?: {
+    joint: string;
+    angle: number;
+    expectedAngle: number;
+    tolerance: number;
+  };
 }
 
 export interface MovementMetrics {

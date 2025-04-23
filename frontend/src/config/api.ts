@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { ApiError } from '../types';
 import { Capacitor } from '@capacitor/core';
+import { logError, logNetworkError } from '../utils/errorLogging';
 
 // Get the base URL for the API depending on environment
 const getBaseUrl = () => {
@@ -35,25 +36,24 @@ api.interceptors.request.use((config) => {
     config.headers.Authorization = `Bearer ${token}`;
   }
   
-  console.log(`API Request: ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
+  // Removed console.log for production security
   return config;
 });
 
 // Add response interceptor to handle errors
 api.interceptors.response.use(
   (response) => {
-    console.log(`API Response (${response.status}):`, response.data);
+    // Removed console.log for production security
     return response;
   },
   (error: ApiError) => {
-    console.error('API Error:', error);
-    
     // Network error handling
     if (!error.response) {
-      console.log('Network error detected');
-      // You could dispatch to a global error state here
+      // Removed console.log for production security
+      logNetworkError('network-connectivity', error);
     } else {
-      console.log(`API Error (${error.response.status}):`, error.response.data);
+      // Removed console.log for production security
+      logNetworkError('api-request-failed', error);
     }
     
     if (error.response?.status === 401) {

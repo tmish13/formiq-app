@@ -1,0 +1,102 @@
+name: Theme Audit
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/src/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'frontend/src/**'
+
+jobs:
+  theme-audit:
+    name: Theme System Audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: 'frontend/package-lock.json'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run theme audit
+        id: audit
+        run: |
+          echo "::group::Theme Audit Results"
+          OUTPUT=$(node scripts/theme-audit.js)
+          echo "$OUTPUT"
+          echo "::endgroup::"
+          
+          # Extract issue counts for PR comment
+          ISSUE_COUNT=$(echo "$OUTPUT" | grep -o 'Found [0-9]* issues' | grep -o '[0-9]*')
+          FIXABLE_COUNT=$(echo "$OUTPUT" | grep -o '[0-9]* issues are automatically fixable' | grep -o '[0-9]*')
+          
+          echo "issue_count=$ISSUE_COUNT" >> $GITHUB_OUTPUT
+          echo "fixable_count=$FIXABLE_COUNT" >> $GITHUB_OUTPUT
+          
+          # Set status based on fixable issues
+          if [ "$FIXABLE_COUNT" -gt 0 ]; then
+            echo "has_fixable_issues=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_fixable_issues=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create PR comment with results
+        if: github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: theme-audit
+          message: |
+            ## 🎨 Theme Audit Results
+            
+            Found **${{ steps.audit.outputs.issue_count }}** theme-related issues
+            **${{ steps.audit.outputs.fixable_count }}** issues can be fixed automatically
+            
+            ${{'<!-- FIXABLE_ISSUES -->' }}
+            ${{'```' }}
+            ${{'This PR contains ' }}${{ steps.audit.outputs.fixable_count }}${{'  automatically fixable theme issues.' }}
+            ${{'Consider running: `npm run theme:fix` before merging.' }}
+            ${{'```' }}
+            ${{'<!-- END_FIXABLE_ISSUES -->' }}
+            
+            <details>
+            <summary>How to fix theme issues</summary>
+            
+            ### To fix issues locally:
+            
+            ```bash
+            # Automatically fix common issues:
+            cd frontend && node scripts/theme-audit.js --fix
+            
+            # See remaining issues:
+            cd frontend && node scripts/theme-audit.js
+            ```
+            
+            ### Manual fixes needed:
+            - Direct color references (use specific variants like `.main`, `.light`, etc.)
+            - Typography fallbacks (use direct fallbacks instead of `fallbacks.typography`)
+            </details>
+            
+      - name: Fail if fixable issues found
+        if: steps.audit.outputs.has_fixable_issues == 'true' && github.event_name == 'pull_request'
+        run: |
+          echo "::warning::Found ${{ steps.audit.outputs.fixable_count }} automatically fixable theme issues. Consider running 'npm run theme:fix'."
+          if [ "$GITHUB_REF" == "refs/heads/main" ]; then
+            # Only show warning on main branch
+            exit 0
+          else
+            # Fail the check on PRs if there are fixable issues
+            exit 1 

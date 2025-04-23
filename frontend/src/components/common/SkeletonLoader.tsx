@@ -35,7 +35,7 @@ const SkeletonBase = styled.div<{
   width: ${({ width }) => width || '100%'};
   height: ${({ height }) => height || '16px'};
   border-radius: ${({ borderRadius }) => borderRadius || '4px'};
-  background-color: ${({ theme }) => getThemeValue(theme, 'colors.disabled', fallbacks.colors.disabled)};
+  background-color: ${({ theme }) => getThemeValue(theme, 'colors.disabled', fallbacks.color.disabled)};
   position: relative;
   overflow: hidden;
   
@@ -74,9 +74,9 @@ const CircularSkeleton = styled(SkeletonBase)`
 const CardSkeleton = styled.div`
   border-radius: ${({ theme }) => getThemeValue(theme, 'borderRadius.md', '0.5rem')};
   padding: ${({ theme }) => getThemeValue(theme, 'spacing.md', '1rem')};
-  background-color: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.colors.white)};
+  background-color: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.color.white)};
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  border: 1px solid ${({ theme }) => getThemeValue(theme, 'colors.border', fallbacks.colors.border)};
+  border: 1px solid ${({ theme }) => getThemeValue(theme, 'colors.border', fallbacks.color.border)};
   margin-bottom: ${({ theme }) => getThemeValue(theme, 'spacing.md', '1rem')};
 `;
 
@@ -86,7 +86,7 @@ const ListSkeleton = styled.div`
 
 const ListItem = styled.div`
   padding: ${({ theme }) => getThemeValue(theme, 'spacing.sm', '0.75rem')};
-  border-bottom: 1px solid ${({ theme }) => getThemeValue(theme, 'colors.border', fallbacks.colors.border)};
+  border-bottom: 1px solid ${({ theme }) => getThemeValue(theme, 'colors.border', fallbacks.color.border)};
   display: flex;
   align-items: center;
   
@@ -97,7 +97,7 @@ const ListItem = styled.div`
 
 const TableSkeleton = styled.div`
   width: 100%;
-  border: 1px solid ${({ theme }) => getThemeValue(theme, 'colors.border', fallbacks.colors.border)};
+  border: 1px solid ${({ theme }) => getThemeValue(theme, 'colors.border', fallbacks.color.border)};
   border-radius: ${({ theme }) => getThemeValue(theme, 'borderRadius.md', '0.5rem')};
   overflow: hidden;
 `;
@@ -105,7 +105,7 @@ const TableSkeleton = styled.div`
 const TableRow = styled.div`
   display: flex;
   padding: ${({ theme }) => getThemeValue(theme, 'spacing.sm', '0.75rem')};
-  border-bottom: 1px solid ${({ theme }) => getThemeValue(theme, 'colors.border', fallbacks.colors.border)};
+  border-bottom: 1px solid ${({ theme }) => getThemeValue(theme, 'colors.border', fallbacks.color.border)};
   
   &:last-child {
     border-bottom: none;
@@ -113,7 +113,7 @@ const TableRow = styled.div`
 `;
 
 const TableHeader = styled(TableRow)`
-  background-color: ${({ theme }) => getThemeValue(theme, 'colors.background', fallbacks.colors.background)};
+  background-color: ${({ theme }) => getThemeValue(theme, 'colors.background', fallbacks.color.background)};
   font-weight: ${({ theme }) => getThemeValue(theme, 'typography.fontWeight.medium', '500')};
 `;
 

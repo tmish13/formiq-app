@@ -1,119 +1,61 @@
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link as RouterLink, useLocation } from 'react-router-dom';
 import styled from 'styled-components';
-import { Theme } from '../../theme';
-import { getThemeValue, fallbacks } from '../../utils/themeUtils';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
+import { ROUTES } from '../../routes/constants';
+import { UserButton } from './UserButton';
 
-const NavContainer = styled.nav<{ theme?: Partial<Theme> }>`
+const Nav = styled.nav`
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 16px 24px;
-  background-color: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.colors.white)};
+  justify-content: space-between;
+  padding: 1rem 2rem;
+  background-color: ${({ theme }) => theme.colors.background.main};
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  position: sticky;
-  top: 0;
-  z-index: 100;
-`;
-
-const Logo = styled(Link)<{ theme?: Partial<Theme> }>`
-  color: ${({ theme }) => getThemeValue(theme, 'colors.primary', fallbacks.colors.primary)};
-  font-size: ${({ theme }) => getThemeValue(theme, 'typography.fontSize.large', fallbacks.typography.fontSize.large)};
-  font-weight: ${({ theme }) => getThemeValue(theme, 'typography.fontWeight.bold', fallbacks.typography.fontWeight.bold)};
-  text-decoration: none;
 `;
 
 const NavLinks = styled.div`
   display: flex;
-  gap: 24px;
+  gap: 2rem;
   align-items: center;
 `;
 
-const NavLink = styled(Link)<{ theme?: Partial<Theme>; active: boolean }>`
-  color: ${({ theme, active }) => 
-    active 
-      ? getThemeValue(theme, 'colors.primary', fallbacks.colors.primary)
-      : getThemeValue(theme, 'colors.text', fallbacks.colors.text)
-  };
+const NavLink = styled(RouterLink)<{ $isActive: boolean }>`
   text-decoration: none;
-  font-size: ${({ theme }) => getThemeValue(theme, 'typography.fontSize.medium', fallbacks.typography.fontSize.medium)};
-  font-weight: ${({ theme, active }) => 
-    active 
-      ? getThemeValue(theme, 'typography.fontWeight.bold', fallbacks.typography.fontWeight.bold)
-      : getThemeValue(theme, 'typography.fontWeight.normal', fallbacks.typography.fontWeight.normal)
-  };
-  padding: 8px 12px;
-  border-radius: 6px;
-  transition: background-color 0.2s;
-
+  color: ${({ theme, $isActive }) => 
+    $isActive ? theme.colors.primary.main : theme.colors.text.primary};
+  font-weight: ${({ $isActive }) => $isActive ? '600' : '400'};
+  
   &:hover {
-    background-color: ${({ theme }) => getThemeValue(theme, 'colors.background', fallbacks.colors.background)};
-  }
-`;
-
-const LogoutButton = styled.button<{ theme?: Partial<Theme> }>`
-  background-color: ${({ theme }) => getThemeValue(theme, 'colors.errorLight', fallbacks.colors.errorLight)};
-  color: ${({ theme }) => getThemeValue(theme, 'colors.error', fallbacks.colors.error)};
-  border: none;
-  padding: 8px 16px;
-  border-radius: 6px;
-  font-size: ${({ theme }) => getThemeValue(theme, 'typography.fontSize.medium', fallbacks.typography.fontSize.medium)};
-  font-weight: ${({ theme }) => getThemeValue(theme, 'typography.fontWeight.medium', fallbacks.typography.fontWeight.medium)};
-  cursor: pointer;
-  transition: background-color 0.2s;
-
-  &:hover {
-    background-color: ${({ theme }) => getThemeValue(theme, 'colors.error', fallbacks.colors.error)};
-    color: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.colors.white)};
+    color: ${({ theme }) => theme.colors.primary.main};
   }
 `;
 
 export const Navigation: React.FC = () => {
+  const { isAuthenticated } = useAuth();
   const location = useLocation();
-  const { logout } = useAuth();
 
-  const handleLogout = () => {
-    logout();
-  };
+  if (!isAuthenticated) {
+    return null;
+  }
 
   return (
-    <NavContainer>
-      <Logo to="/">FormIQ</Logo>
-      
+    <Nav>
       <NavLinks>
-        <NavLink 
-          to="/dashboard" 
-          active={location.pathname === '/dashboard' || location.pathname === '/'}
-        >
+        <NavLink to={ROUTES.DASHBOARD} $isActive={location.pathname === ROUTES.DASHBOARD}>
           Dashboard
         </NavLink>
-        
-        <NavLink 
-          to="/form-analysis" 
-          active={location.pathname === '/form-analysis'}
-        >
+        <NavLink to={ROUTES.WORKOUT} $isActive={location.pathname.startsWith(ROUTES.WORKOUT)}>
+          Workout
+        </NavLink>
+        <NavLink to={ROUTES.FORM_ANALYSIS} $isActive={location.pathname.startsWith(ROUTES.FORM_ANALYSIS)}>
           Form Analysis
         </NavLink>
-        
-        <NavLink 
-          to="/progress" 
-          active={location.pathname === '/progress'}
-        >
+        <NavLink to={ROUTES.PROGRESS} $isActive={location.pathname.startsWith(ROUTES.PROGRESS)}>
           Progress
         </NavLink>
-        
-        <NavLink 
-          to="/profile" 
-          active={location.pathname === '/profile'}
-        >
-          Profile
-        </NavLink>
-        
-        <LogoutButton onClick={handleLogout}>
-          Logout
-        </LogoutButton>
       </NavLinks>
-    </NavContainer>
+      <UserButton />
+    </Nav>
   );
 }; 

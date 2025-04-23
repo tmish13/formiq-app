@@ -1,19 +1,32 @@
 import React from 'react';
 import { Box, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper } from '@mui/material';
 import { useFormCheck } from '../../hooks/useFormCheck';
-import LoadingSpinner from '../../components/atoms/LoadingSpinner';
+import { LoadingSpinner } from '../../components/common/LoadingSpinner';
 
 const History: React.FC = () => {
   const { formChecks, isLoading, error } = useFormCheck();
 
   if (isLoading) {
-    return <LoadingSpinner />;
+    return (
+      <Box sx={{ p: 3, display: 'flex', justifyContent: 'center' }}>
+        <LoadingSpinner ariaLabel="Loading form checks" />
+      </Box>
+    );
   }
 
   if (error) {
     return (
       <Box sx={{ p: 3 }}>
-        <Typography color="error">{error}</Typography>
+        <Typography color="error" role="alert">{error}</Typography>
+      </Box>
+    );
+  }
+
+  if (!formChecks || formChecks.length === 0) {
+    return (
+      <Box sx={{ p: 3 }}>
+        <Typography variant="h6" gutterBottom>No form checks found</Typography>
+        <Typography>Start by recording your first form check</Typography>
       </Box>
     );
   }
@@ -36,10 +49,10 @@ const History: React.FC = () => {
           <TableBody>
             {formChecks.map((check) => (
               <TableRow key={check.id}>
-                <TableCell>{new Date(check.created_at).toLocaleDateString()}</TableCell>
-                <TableCell>{check.exercise_type}</TableCell>
-                <TableCell>{check.status}</TableCell>
-                <TableCell>{check.overall_feedback || '-'}</TableCell>
+                <TableCell role="cell">{new Date(check.created_at).toLocaleDateString()}</TableCell>
+                <TableCell role="cell">{check.exercise_type}</TableCell>
+                <TableCell role="cell">{check.status}</TableCell>
+                <TableCell role="cell">{check.overall_feedback || '-'}</TableCell>
               </TableRow>
             ))}
           </TableBody>

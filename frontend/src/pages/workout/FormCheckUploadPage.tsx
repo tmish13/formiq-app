@@ -39,7 +39,7 @@ const Select = styled.select`
   width: 100%;
   padding: 12px;
   border-radius: 8px;
-  border: 1px solid ${({ theme }) => getThemeValue(theme, 'colors.border', fallbacks.colors.border)};
+  border: 1px solid ${({ theme }) => getThemeValue(theme, 'colors.border', fallbacks.color.border)};
   background-color: ${({ theme }) => theme.colors.white};
   font-size: 16px;
   font-family: inherit;
@@ -49,7 +49,7 @@ const TextArea = styled.textarea`
   width: 100%;
   padding: 12px;
   border-radius: 8px;
-  border: 1px solid ${({ theme }) => getThemeValue(theme, 'colors.border', fallbacks.colors.border)};
+  border: 1px solid ${({ theme }) => getThemeValue(theme, 'colors.border', fallbacks.color.border)};
   background-color: ${({ theme }) => theme.colors.white};
   font-size: 16px;
   font-family: inherit;
@@ -75,7 +75,7 @@ const Button = styled.button`
   }
   
   &:disabled {
-    background-color: ${({ theme }) => getThemeValue(theme, 'colors.disabled', fallbacks.colors.disabled)};
+    background-color: ${({ theme }) => getThemeValue(theme, 'colors.disabled', fallbacks.color.disabled)};
     cursor: not-allowed;
   }
 `;
@@ -105,7 +105,7 @@ const ErrorMessage = styled.div`
   border-radius: 8px;
   margin-bottom: 16px;
   font-weight: ${({ theme }) => theme.typography.fontWeight.medium};
-  font-size: ${({ theme }) => theme.typography.fontSize.small};
+  font-size: ${({ theme }) => theme.typography.fontSize.sm};
 `;
 
 const LoadingOverlay = styled.div`

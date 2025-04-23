@@ -8,6 +8,7 @@ import authReducer, {
   AuthState,
   User,
 } from '../authSlice';
+import { clearMockStorage } from '../../../tests/mocks/storage';
 
 describe('authSlice', () => {
   const mockUser: User = {
@@ -29,6 +30,10 @@ describe('authSlice', () => {
     isLoading: false,
     error: null,
   };
+
+  afterEach(() => {
+    clearMockStorage();
+  });
 
   it('should handle initial state', () => {
     expect(authReducer(undefined, { type: 'unknown' })).toEqual(initialState);

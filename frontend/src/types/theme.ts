@@ -4,15 +4,17 @@ interface ColorPalette {
   light: string;
   main: string;
   dark: string;
+  contrastText?: string;
 }
 
-interface ColorShade {
+interface Colors {
   primary: ColorPalette;
   secondary: ColorPalette;
   error: ColorPalette;
   warning: ColorPalette;
   success: ColorPalette;
   info: ColorPalette;
+  gray: ColorPalette;
   background: {
     main: string;
     secondary: string;
@@ -85,7 +87,7 @@ interface Shadows {
 }
 
 export interface Theme {
-  colors: ColorShade;
+  colors: Colors;
   typography: Typography;
   spacing: Spacing;
   borderRadius: BorderRadius;

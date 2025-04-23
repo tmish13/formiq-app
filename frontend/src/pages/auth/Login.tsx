@@ -10,7 +10,7 @@ import {
   Box,
   Alert,
 } from '@mui/material';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 
 const Login = () => {
   const { login, error } = useAuth();

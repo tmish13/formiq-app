@@ -20,7 +20,7 @@ const ProgressRing = styled(motion.div)`
   width: 60px;
   height: 60px;
   border-radius: 50%;
-  background: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.colors.white)};
+  background: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.color.white)};
   display: flex;
   align-items: center;
   justify-content: center;
@@ -42,25 +42,25 @@ const TipCard = styled(motion.div)<{ type: 'warning' | 'error' | 'success' }>`
   background: ${({ theme, type }) => {
     switch (type) {
       case 'warning':
-        return getThemeValue(theme, 'colors.warningLight', fallbacks.colors.warningLight);
+        return getThemeValue(theme, 'colors.warningLight', fallbacks.color.warningLight);
       case 'error':
-        return getThemeValue(theme, 'colors.errorLight', fallbacks.colors.errorLight);
+        return getThemeValue(theme, 'colors.errorLight', fallbacks.color.errorLight);
       case 'success':
-        return getThemeValue(theme, 'colors.successLight', fallbacks.colors.successLight);
+        return getThemeValue(theme, 'colors.successLight', fallbacks.color.successLight);
       default:
-        return getThemeValue(theme, 'colors.background', fallbacks.colors.background);
+        return getThemeValue(theme, 'colors.background', fallbacks.color.background);
     }
   }};
   color: ${({ theme, type }) => {
     switch (type) {
       case 'warning':
-        return getThemeValue(theme, 'colors.warning', fallbacks.colors.warning);
+        return getThemeValue(theme, 'colors.warning', fallbacks.color.warning);
       case 'error':
-        return getThemeValue(theme, 'colors.error', fallbacks.colors.error);
+        return getThemeValue(theme, 'colors.error', fallbacks.color.error);
       case 'success':
-        return getThemeValue(theme, 'colors.success', fallbacks.colors.success);
+        return getThemeValue(theme, 'colors.success', fallbacks.color.success);
       default:
-        return getThemeValue(theme, 'colors.text', fallbacks.colors.text);
+        return getThemeValue(theme, 'colors.text', fallbacks.color.text);
     }
   }};
   padding: 12px 16px;
@@ -74,11 +74,11 @@ const TipCard = styled(motion.div)<{ type: 'warning' | 'error' | 'success' }>`
   border: 1px solid ${({ theme, type }) => {
     switch (type) {
       case 'warning':
-        return getThemeValue(theme, 'colors.warning', fallbacks.colors.warning);
+        return getThemeValue(theme, 'colors.warning', fallbacks.color.warning);
       case 'error':
-        return getThemeValue(theme, 'colors.error', fallbacks.colors.error);
+        return getThemeValue(theme, 'colors.error', fallbacks.color.error);
       case 'success':
-        return getThemeValue(theme, 'colors.success', fallbacks.colors.success);
+        return getThemeValue(theme, 'colors.success', fallbacks.color.success);
       default:
         return 'transparent';
     }
@@ -89,12 +89,12 @@ const ScoreMeter = styled(motion.div)`
   position: absolute;
   top: 20px;
   right: 20px;
-  background: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.colors.white)};
+  background: ${({ theme }) => getThemeValue(theme, 'colors.white', fallbacks.color.white)};
   padding: 8px 16px;
   border-radius: 20px;
   font-size: 16px;
   font-weight: ${({ theme }) => theme?.typography?.fontWeight?.bold || 700};
-  color: ${({ theme }) => getThemeValue(theme, 'colors.text', fallbacks.colors.text)};
+  color: ${({ theme }) => getThemeValue(theme, 'colors.text', fallbacks.color.text)};
   box-shadow: ${({ theme }) => getThemeValue(theme, 'shadows.md', fallbacks.shadows.md)};
   display: flex;
   align-items: center;

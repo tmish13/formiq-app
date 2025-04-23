@@ -1,11 +1,15 @@
-import '@testing-library/jest-dom';
-import { TextEncoder, TextDecoder } from 'util';
-import { setupServer } from 'msw/node';
-import { handlers } from './handlers';
-
-// Polyfill for TextEncoder and TextDecoder
+// Import and set up TextEncoder and TextDecoder before anything else
+const { TextEncoder, TextDecoder } = require('util');
 global.TextEncoder = TextEncoder;
 global.TextDecoder = TextDecoder;
+
+// Add TransformStream polyfill
+const { TransformStream } = require('stream/web');
+global.TransformStream = TransformStream;
+
+// Now it's safe to import other modules
+require('@testing-library/jest-dom');
+const { setupServer } = require('msw/node');
 
 // Mock for window.matchMedia
 Object.defineProperty(window, 'matchMedia', {
@@ -27,16 +31,26 @@ class MockIntersectionObserver {
   constructor(callback) {
     this.callback = callback;
   }
-  observe = jest.fn();
-  unobserve = jest.fn();
-  disconnect = jest.fn();
+  observe() {
+    return null;
+  }
+  unobserve() {
+    return null;
+  }
+  disconnect() {
+    return null;
+  }
 }
 
 window.IntersectionObserver = MockIntersectionObserver;
 
-// This configures a request mocking server with the given request handlers.
-export const server = setupServer(...handlers);
+// Create a blank server - handlers should be defined in individual test files
+const server = setupServer();
 
+// Enable API mocking before tests
 beforeAll(() => server.listen());
 afterEach(() => server.resetHandlers());
-afterAll(() => server.close()); 
+afterAll(() => server.close());
+
+// Export server for test files to use
+module.exports = { server }; 

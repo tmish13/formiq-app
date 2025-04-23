@@ -1,5 +1,5 @@
 import React, { Suspense, lazy } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useRoutes } from 'react-router-dom';
 import { ProtectedRoute } from '../components/auth/ProtectedRoute';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { Skeleton } from '../components/common/SkeletonLoader';
@@ -14,6 +14,8 @@ import { FormCheckUploadPage } from '../pages/workout/FormCheckUploadPage';
 import { AnalysisPage } from '../pages/analysis/AnalysisPage';
 import { ProfilePage } from '../pages/profile/ProfilePage';
 import { NotFoundPage } from '../pages/NotFoundPage';
+import { appRoutes } from './routes';
+import { PageLoader } from '../components/common/PageLoader';
 
 // Lazy load components to improve performance
 const WorkoutPage = lazy(() => import('../pages/workout/WorkoutPage').then(module => ({ default: module.WorkoutPage })));
@@ -81,40 +83,40 @@ const PageLoader = () => (
   </LoaderContainer>
 );
 
+/**
+ * App Routes component that renders all application routes
+ * Uses React Router's useRoutes hook with our centralized route configuration
+ */
 export const AppRoutes: React.FC = () => {
+  const routeElements = useRoutes(appRoutes);
+  
+  return (
+    <>
+      <Navigation />
+      <Suspense fallback={<PageLoader />}>
+        {routeElements}
+      </Suspense>
+    </>
+  );
+};
+
+/**
+ * Fallback implementation using traditional Routes/Route pattern
+ * Only used if the useRoutes approach fails
+ */
+export const AppRoutesFallback: React.FC = () => {
   return (
     <>
       <Navigation />
       <Suspense fallback={<PageLoader />}>
         <Routes>
-          {/* Public routes */}
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<RegisterPage />} />
-          
-          {/* Protected routes */}
-          <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-          <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-          <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
-          <Route path="/form-analysis" element={<ProtectedRoute><FormAnalysis /></ProtectedRoute>} />
-          <Route path="/progress" element={<ProtectedRoute><Progress /></ProtectedRoute>} />
-          <Route path="/workout/form-check/upload" element={<ProtectedRoute><FormCheckUploadPage /></ProtectedRoute>} />
-          <Route path="/analysis" element={<ProtectedRoute><AnalysisPage /></ProtectedRoute>} />
-          
-          {/* Admin routes */}
-          <Route
-            path="/admin/*"
-            element={
-              <ProtectedRoute roles={['admin']}>
-                <AdminRoutes />
-              </ProtectedRoute>
-            }
-          />
-          
-          {/* 404 page */}
-          <Route path="/404" element={<NotFoundPage />} />
-          
-          {/* Catch all route */}
-          <Route path="*" element={<Navigate to="/404" replace />} />
+          {appRoutes.map((route) => (
+            <Route
+              key={route.path}
+              path={route.path}
+              element={route.element}
+            />
+          ))}
         </Routes>
       </Suspense>
     </>

@@ -1,48 +1,30 @@
 import React from 'react';
-import { renderHook } from '@testing-library/react';
+import { renderHook, act } from '@testing-library/react-hooks';
 import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
 import { useFormCheck } from '../useFormCheck';
-import formCheckReducer from '../../store/slices/formCheckSlice';
+import formCheckReducer, { setFormChecks } from '../../store/slices/formCheckSlice';
 import { FormCheck, ExerciseType } from '../../types';
 
-// Mock formCheckService with implementations
-const mockFormCheckService = {
-  getFormChecks: jest.fn(),
-  getFormCheck: jest.fn(),
-  uploadVideo: jest.fn(),
-  deleteFormCheck: jest.fn(),
-  analyze: jest.fn(),
-  getHistory: jest.fn(),
-};
-
-jest.mock('../../services/formCheckService', () => ({
-  formCheckService: mockFormCheckService
+// Mock the api service to prevent any real network requests
+jest.mock('../../services/api', () => ({
+  apiService: {
+    get: jest.fn(),
+    post: jest.fn(),
+    put: jest.fn(),
+    delete: jest.fn(),
+    patch: jest.fn(),
+  }
 }));
 
-// Mock getRequestOptionsByUrl to fix "includes is not a function" error
-jest.mock('../../utils/getRequestOptionsByUrl', () => ({
-  __esModule: true,
-  default: jest.fn().mockImplementation(() => ({
-    headers: { 'Content-Type': 'application/json' },
-  })),
-}));
+// Import the mocked module
+import { apiService } from '../../services/api';
 
-// Mock cloneObject to fix "Unable to clone object" error
-jest.mock('../../utils/cloneObject', () => ({
-  __esModule: true,
-  default: jest.fn().mockImplementation((obj) => {
-    if (typeof obj === 'object' && obj !== null) {
-      return JSON.parse(JSON.stringify(obj));
-    }
-    return obj;
-  }),
-}));
-
+// Create mock form check data
 const mockFormCheck: FormCheck = {
   id: 1,
   user_id: 1,
-  exercise_type: 'squat' as ExerciseType,
+  exercise_type: 'squat',
   video_url: 'https://example.com/video.mp4',
   status: 'pending',
   created_at: '2025-04-15T19:10:15.715Z',
@@ -51,7 +33,6 @@ const mockFormCheck: FormCheck = {
 
 const mockFormChecks = [mockFormCheck];
 
-// Define FormCheckState type
 interface FormCheckState {
   formChecks: FormCheck[];
   currentFormCheck: FormCheck | null;
@@ -59,21 +40,22 @@ interface FormCheckState {
   error: string | null;
 }
 
-const initialState: FormCheckState = {
-  formChecks: [],
-  currentFormCheck: null,
-  isLoading: false,
-  error: null,
+const initialState = {
+  formCheck: {
+    formChecks: [],
+    currentFormCheck: null,
+    isLoading: false,
+    error: null,
+  } as FormCheckState,
 };
 
-const createTestStore = (preloadedState: FormCheckState = initialState) => {
+// Helper to create store with optional preloaded state
+const createTestStore = (preloadedState = initialState) => {
   return configureStore({
     reducer: {
       formCheck: formCheckReducer,
     },
-    preloadedState: {
-      formCheck: preloadedState,
-    },
+    preloadedState: preloadedState,
   });
 };
 
@@ -81,24 +63,37 @@ describe('useFormCheck', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     
-    // Set up default mock implementations
-    mockFormCheckService.getFormChecks.mockResolvedValue(mockFormChecks);
-    mockFormCheckService.getFormCheck.mockResolvedValue(mockFormCheck);
-    mockFormCheckService.uploadVideo.mockResolvedValue(mockFormCheck);
-    mockFormCheckService.deleteFormCheck.mockResolvedValue(undefined);
-    mockFormCheckService.analyze.mockResolvedValue({...mockFormCheck, status: 'completed', score: 85});
-    mockFormCheckService.getHistory.mockResolvedValue(mockFormChecks);
+    // Set up default mock implementations for apiService
+    (apiService.get as jest.Mock).mockImplementation((url) => {
+      if (url === '/api/form-checks') {
+        return Promise.resolve({ data: mockFormChecks });
+      } else if (url.includes('/api/form-checks/history')) {
+        return Promise.resolve({ data: [mockFormCheck, { ...mockFormCheck, id: 2 }] });
+      } else if (url.includes('/api/form-checks/')) {
+        return Promise.resolve({ data: mockFormCheck });
+      }
+      return Promise.resolve({ data: {} });
+    });
+    
+    (apiService.post as jest.Mock).mockImplementation((url) => {
+      if (url.includes('/api/form-checks/upload')) {
+        return Promise.resolve({ data: mockFormCheck });
+      } else if (url.includes('/api/form-checks') && url.includes('/analyze')) {
+        return Promise.resolve({ 
+          data: { ...mockFormCheck, status: 'completed' } 
+        });
+      }
+      return Promise.resolve({ data: mockFormCheck });
+    });
+    
+    (apiService.delete as jest.Mock).mockResolvedValue({ data: {} });
   });
 
   it('should initialize with empty formChecks array', () => {
     const store = createTestStore();
-    const wrapper = ({ children }: { children: React.ReactNode }) => (
-      <Provider store={store}>{children}</Provider>
-    );
-
+    const wrapper = ({ children }: { children: React.ReactNode }) => <Provider store={store}>{children}</Provider>;
     const { result } = renderHook(() => useFormCheck(), { wrapper });
-    
-    expect(result.current).not.toBeNull();
+
     expect(result.current.formChecks).toEqual([]);
     expect(result.current.isLoading).toBe(false);
     expect(result.current.error).toBe(null);
@@ -107,21 +102,142 @@ describe('useFormCheck', () => {
   it('should initialize with preloaded formChecks', () => {
     const preloadedState = {
       ...initialState,
-      formChecks: mockFormChecks,
+      formCheck: {
+        ...initialState.formCheck,
+        formChecks: mockFormChecks,
+      } as FormCheckState,
     };
-    
     const store = createTestStore(preloadedState);
-    const wrapper = ({ children }: { children: React.ReactNode }) => (
-      <Provider store={store}>{children}</Provider>
-    );
-
+    const wrapper = ({ children }: { children: React.ReactNode }) => <Provider store={store}>{children}</Provider>;
     const { result } = renderHook(() => useFormCheck(), { wrapper });
-    
-    expect(result.current).not.toBeNull();
+
     expect(result.current.formChecks).toEqual(mockFormChecks);
   });
 
-  // Note: Further tests for async functionality are pending due to issues with the test environment.
-  // The hook itself provides fetchFormChecks, submitFormCheck, deleteFormCheckById, analyzeFormCheck, 
-  // and fetchHistory methods which should be tested separately after resolving the testing issues.
+  it('should fetch form checks successfully', async () => {
+    const store = createTestStore();
+    const wrapper = ({ children }: { children: React.ReactNode }) => <Provider store={store}>{children}</Provider>;
+    const { result, waitForNextUpdate } = renderHook(() => useFormCheck(), { wrapper });
+    
+    await act(async () => {
+      result.current.fetchFormChecks();
+      await waitForNextUpdate();
+    });
+    
+    expect(apiService.get).toHaveBeenCalledWith('/api/form-checks');
+    expect(result.current.formChecks).toEqual(mockFormChecks);
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.error).toBe(null);
+  });
+  
+  it('should handle error when fetching form checks', async () => {
+    const errorMessage = 'Failed to fetch form checks';
+    (apiService.get as jest.Mock).mockRejectedValueOnce(new Error(errorMessage));
+    
+    const store = createTestStore();
+    const wrapper = ({ children }: { children: React.ReactNode }) => <Provider store={store}>{children}</Provider>;
+    const { result, waitForNextUpdate } = renderHook(() => useFormCheck(), { wrapper });
+    
+    await act(async () => {
+      result.current.fetchFormChecks();
+      await waitForNextUpdate();
+    });
+    
+    expect(apiService.get).toHaveBeenCalledWith('/api/form-checks');
+    expect(result.current.error).toBe(errorMessage);
+    expect(result.current.isLoading).toBe(false);
+  });
+  
+  it('should fetch a single form check successfully', async () => {
+    const store = createTestStore();
+    const wrapper = ({ children }: { children: React.ReactNode }) => <Provider store={store}>{children}</Provider>;
+    const { result, waitForNextUpdate } = renderHook(() => useFormCheck(), { wrapper });
+    
+    await act(async () => {
+      result.current.fetchFormCheck('1');
+      await waitForNextUpdate();
+    });
+    
+    expect(apiService.get).toHaveBeenCalledWith('/api/form-checks/1');
+    expect(result.current.currentFormCheck).toEqual(mockFormCheck);
+  });
+  
+  it('should submit form check successfully', async () => {
+    // Instead of waiting for next update, we'll use a resolved promise
+    (apiService.post as jest.Mock).mockResolvedValue({ data: mockFormCheck });
+    
+    const store = createTestStore();
+    const wrapper = ({ children }: { children: React.ReactNode }) => <Provider store={store}>{children}</Provider>;
+    const { result } = renderHook(() => useFormCheck(), { wrapper });
+    
+    const mockFile = new File([''], 'test-video.mp4', { type: 'video/mp4' });
+    const mockExerciseType: ExerciseType = 'squat';
+    const mockOnProgress = jest.fn();
+    
+    let returnedData: any;
+    
+    await act(async () => {
+      returnedData = await result.current.submitFormCheck(mockFile, mockExerciseType, mockOnProgress);
+    });
+    
+    expect(apiService.post).toHaveBeenCalled();
+    expect(returnedData).toEqual(mockFormCheck);
+    expect(result.current.currentFormCheck).toEqual(mockFormCheck);
+  });
+  
+  it('should delete form check successfully', async () => {
+    const preloadedState = {
+      ...initialState,
+      formCheck: {
+        ...initialState.formCheck,
+        formChecks: mockFormChecks,
+      } as FormCheckState,
+    };
+    
+    const store = createTestStore(preloadedState);
+    const wrapper = ({ children }: { children: React.ReactNode }) => <Provider store={store}>{children}</Provider>;
+    const { result } = renderHook(() => useFormCheck(), { wrapper });
+    
+    await act(async () => {
+      await result.current.deleteFormCheckById(1);
+    });
+    
+    expect(apiService.delete).toHaveBeenCalledWith('/api/form-checks/1');
+  });
+  
+  it('should analyze form check successfully', async () => {
+    const analyzedFormCheck = { ...mockFormCheck, status: 'completed' };
+    // Promise will resolve immediately
+    (apiService.post as jest.Mock).mockResolvedValue({ data: analyzedFormCheck });
+    
+    const store = createTestStore();
+    const wrapper = ({ children }: { children: React.ReactNode }) => <Provider store={store}>{children}</Provider>;
+    const { result } = renderHook(() => useFormCheck(), { wrapper });
+    
+    let returnedData: any;
+    
+    await act(async () => {
+      returnedData = await result.current.analyzeFormCheck('1');
+    });
+    
+    expect(apiService.post).toHaveBeenCalledWith('/api/form-checks/1/analyze');
+    expect(returnedData).toEqual(analyzedFormCheck);
+    expect(result.current.currentFormCheck).toEqual(analyzedFormCheck);
+  });
+  
+  it('should fetch form history successfully', async () => {
+    const historyFormChecks = [mockFormCheck, { ...mockFormCheck, id: 2 }];
+    
+    const store = createTestStore();
+    const wrapper = ({ children }: { children: React.ReactNode }) => <Provider store={store}>{children}</Provider>;
+    const { result, waitForNextUpdate } = renderHook(() => useFormCheck(), { wrapper });
+    
+    await act(async () => {
+      result.current.fetchHistory();
+      await waitForNextUpdate();
+    });
+    
+    expect(apiService.get).toHaveBeenCalledWith('/api/form-checks/history');
+    expect(result.current.formChecks).toEqual(historyFormChecks);
+  });
 }); 

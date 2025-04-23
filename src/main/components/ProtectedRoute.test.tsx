@@ -1,32 +1,67 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
-import { BrowserRouter } from 'react-router-dom';
-import { AuthProvider } from '../../context/AuthContext';
+import { Provider } from 'react-redux';
+import { configureStore } from '@reduxjs/toolkit';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { authReducer } from '../../store/slices/authSlice';
 import ProtectedRoute from './ProtectedRoute';
 
-// Mock the child component
-const MockChildComponent = () => <div>Protected Content</div>;
+const createMockStore = (isAuthenticated = false) => {
+  return configureStore({
+    reducer: {
+      auth: authReducer
+    },
+    preloadedState: {
+      auth: {
+        isAuthenticated,
+        user: isAuthenticated ? { id: 1 } : null
+      }
+    }
+  });
+};
 
 describe('ProtectedRoute', () => {
-  const renderProtectedRoute = (isAuthenticated = false) => {
-    return render(
-      <BrowserRouter>
-        <AuthProvider>
-          <ProtectedRoute isAuthenticated={isAuthenticated}>
-            <MockChildComponent />
-          </ProtectedRoute>
-        </AuthProvider>
-      </BrowserRouter>
+  it('redirects to login when user is not authenticated', () => {
+    const mockStore = createMockStore(false);
+    render(
+      <Provider store={mockStore}>
+        <MemoryRouter initialEntries={['/protected']}>
+          <Routes>
+            <Route path="/protected" element={
+              <ProtectedRoute>
+                <div>Protected Content</div>
+              </ProtectedRoute>
+            } />
+            <Route path="/login" element={<div>Login Page</div>} />
+          </Routes>
+        </MemoryRouter>
+      </Provider>
     );
-  };
-
-  it('renders child component when authenticated', () => {
-    renderProtectedRoute(true);
-    expect(screen.getByText('Protected Content')).toBeInTheDocument();
+    
+    // Should show login page
+    expect(screen.getByText('Login Page')).toBeInTheDocument();
+    expect(screen.queryByText('Protected Content')).not.toBeInTheDocument();
   });
 
-  it('redirects to login when not authenticated', () => {
-    renderProtectedRoute(false);
-    expect(screen.queryByText('Protected Content')).not.toBeInTheDocument();
+  it('renders children when user is authenticated', () => {
+    const mockStore = createMockStore(true);
+    render(
+      <Provider store={mockStore}>
+        <MemoryRouter initialEntries={['/protected']}>
+          <Routes>
+            <Route path="/protected" element={
+              <ProtectedRoute>
+                <div>Protected Content</div>
+              </ProtectedRoute>
+            } />
+            <Route path="/login" element={<div>Login Page</div>} />
+          </Routes>
+        </MemoryRouter>
+      </Provider>
+    );
+    
+    // Should show protected content
+    expect(screen.getByText('Protected Content')).toBeInTheDocument();
+    expect(screen.queryByText('Login Page')).not.toBeInTheDocument();
   });
 }); 

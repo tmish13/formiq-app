@@ -41,7 +41,7 @@ const Button = styled.button`
   }
 
   &:disabled {
-    background-color: ${({ theme }) => getThemeValue(theme, 'colors.disabled', fallbacks.colors.disabled)};
+    background-color: ${({ theme }) => getThemeValue(theme, 'colors.disabled', fallbacks.color.disabled)};
     cursor: not-allowed;
   }
 `;
