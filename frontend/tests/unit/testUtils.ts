@@ -1,6 +1,7 @@
 import React from 'react';
 import { render, RenderOptions, RenderResult } from '@testing-library/react';
-import { ThemeProvider } from 'styled-components';
+import { ThemeProvider as StyledThemeProvider } from 'styled-components';
+import { ThemeProvider as MuiThemeProvider } from '@mui/material/styles';
 import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -97,19 +98,23 @@ export const TestWrapper = ({
   const queryClient = createTestQueryClient();
 
   return React.createElement(
-    ThemeProvider, 
+    MuiThemeProvider,
     { theme: mockTheme },
     React.createElement(
-      Provider,
-      { store: store, children: React.createElement(
-        QueryClientProvider,
-        { client: queryClient },
-        React.createElement(
-          MemoryRouter,
-          { initialEntries: [route] },
-          children
-        )
-      ) }
+      StyledThemeProvider,
+      { theme: mockTheme },
+      React.createElement(
+        Provider,
+        { store: store, children: React.createElement(
+          QueryClientProvider,
+          { client: queryClient },
+          React.createElement(
+            MemoryRouter,
+            { initialEntries: [route] },
+            children
+          )
+        ) }
+      )
     )
   );
 };

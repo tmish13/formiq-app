@@ -25,87 +25,128 @@ export class StorageService {
     return StorageService.instance;
   }
 
-  public async get(key: string): Promise<string | null> {
+  private async tryLocalStorage<T>(
+    operation: () => T | null,
+    fallback: () => Promise<T | null>,
+    preferenceKey?: string
+  ): Promise<T | null> {
     try {
-      return localStorage.getItem(key);
+      const result = operation();
+      if (result !== null) {
+        // If localStorage succeeds and we have a preference key, sync with Preferences
+        if (preferenceKey) {
+          await Preferences.set({ 
+            key: preferenceKey, 
+            value: typeof result === 'string' ? result : JSON.stringify(result)
+          });
+        }
+        return result;
+      }
+      // If localStorage returns null, try Preferences
+      return await fallback();
     } catch (error) {
-      console.error('Error reading from storage:', error);
-      return null;
+      console.warn('localStorage operation failed, falling back to Preferences:', error);
+      return await fallback();
     }
+  }
+
+  public async get(key: string): Promise<string | null> {
+    return this.tryLocalStorage(
+      () => localStorage.getItem(key),
+      async () => {
+        const { value } = await Preferences.get({ key });
+        return value;
+      },
+      key
+    );
   }
 
   public async set(key: string, value: string): Promise<void> {
-    try {
-      localStorage.setItem(key, value);
-    } catch (error) {
-      console.error('Error writing to storage:', error);
-    }
+    await this.tryLocalStorage(
+      () => {
+        localStorage.setItem(key, value);
+        return undefined;
+      },
+      async () => {
+        await Preferences.set({ key, value });
+        return undefined;
+      },
+      key
+    );
   }
 
   public async remove(key: string): Promise<void> {
-    try {
-      localStorage.removeItem(key);
-    } catch (error) {
-      console.error('Error removing from storage:', error);
-    }
+    await this.tryLocalStorage(
+      () => {
+        localStorage.removeItem(key);
+        return undefined;
+      },
+      async () => {
+        await Preferences.remove({ key });
+        return undefined;
+      }
+    );
   }
 
   public async clear(): Promise<void> {
-    try {
-      localStorage.clear();
-    } catch (error) {
-      console.error('Error clearing storage:', error);
-    }
+    await this.tryLocalStorage(
+      () => {
+        localStorage.clear();
+        return undefined;
+      },
+      async () => {
+        await Preferences.clear();
+        return undefined;
+      }
+    );
   }
 
   // Authentication data
   async setAuthToken(token: string): Promise<void> {
-    await Preferences.set({
-      key: KEYS.AUTH_TOKEN,
-      value: token,
-    });
+    await this.set(KEYS.AUTH_TOKEN, token);
   }
 
   async getAuthToken(): Promise<string | null> {
-    const { value } = await Preferences.get({ key: KEYS.AUTH_TOKEN });
-    return value;
+    return this.get(KEYS.AUTH_TOKEN);
   }
 
   async removeAuthToken(): Promise<void> {
-    await Preferences.remove({ key: KEYS.AUTH_TOKEN });
+    await this.remove(KEYS.AUTH_TOKEN);
   }
 
   // Refresh token management
   async setRefreshToken(token: string): Promise<void> {
-    await Preferences.set({
-      key: KEYS.REFRESH_TOKEN,
-      value: token,
-    });
+    await this.set(KEYS.REFRESH_TOKEN, token);
   }
 
   async getRefreshToken(): Promise<string | null> {
-    const { value } = await Preferences.get({ key: KEYS.REFRESH_TOKEN });
-    return value;
+    return this.get(KEYS.REFRESH_TOKEN);
   }
 
   async removeRefreshToken(): Promise<void> {
-    await Preferences.remove({ key: KEYS.REFRESH_TOKEN });
+    await this.remove(KEYS.REFRESH_TOKEN);
   }
 
   // User profile
-  async setUserProfile(profile: any): Promise<void> {
-    await Preferences.set({
-      key: KEYS.USER_PROFILE,
-      value: JSON.stringify(profile),
-    });
+  async setUserProfile(profile: UserProfile): Promise<void> {
+    await this.set(KEYS.USER_PROFILE, JSON.stringify(profile));
   }
 
-  async getUserProfile(): Promise<any | null> {
-    const { value } = await Preferences.get({ key: KEYS.USER_PROFILE });
+  async getUserProfile(): Promise<UserProfile | null> {
+    const value = await this.get(KEYS.USER_PROFILE);
     if (value) {
-      return JSON.parse(value);
+      try {
+        return JSON.parse(value) as UserProfile;
+      } catch (error) {
+        console.error('Error parsing user profile:', error);
+        return null;
+      }
     }
     return null;
+  }
+
+  async removeUserProfile(): Promise<void> {
+    await this.remove(KEYS.USER_PROFILE);
   }
 
   // Workout queue for offline operations
@@ -117,16 +158,18 @@ export class StorageService {
       queuedAt: new Date().toISOString() 
     });
     
-    await Preferences.set({
-      key: KEYS.WORKOUT_QUEUE,
-      value: JSON.stringify(queue),
-    });
+    await this.set(KEYS.WORKOUT_QUEUE, JSON.stringify(queue));
   }
 
   async getWorkoutQueue(): Promise<any[]> {
-    const { value } = await Preferences.get({ key: KEYS.WORKOUT_QUEUE });
+    const value = await this.get(KEYS.WORKOUT_QUEUE);
     if (value) {
-      return JSON.parse(value);
+      try {
+        return JSON.parse(value);
+      } catch (error) {
+        console.error('Error parsing workout queue:', error);
+        return [];
+      }
     }
     return [];
   }
@@ -134,15 +177,11 @@ export class StorageService {
   async removeFromWorkoutQueue(queueId: string): Promise<void> {
     const queue = await this.getWorkoutQueue();
     const updatedQueue = queue.filter(item => item.queueId !== queueId);
-    
-    await Preferences.set({
-      key: KEYS.WORKOUT_QUEUE,
-      value: JSON.stringify(updatedQueue),
-    });
+    await this.set(KEYS.WORKOUT_QUEUE, JSON.stringify(updatedQueue));
   }
 
   async clearWorkoutQueue(): Promise<void> {
-    await Preferences.remove({ key: KEYS.WORKOUT_QUEUE });
+    await this.remove(KEYS.WORKOUT_QUEUE);
   }
 
   // Form analysis cache
@@ -153,16 +192,18 @@ export class StorageService {
       cachedAt: new Date().toISOString(),
     };
     
-    await Preferences.set({
-      key: KEYS.FORM_ANALYSIS_CACHE,
-      value: JSON.stringify(cache),
-    });
+    await this.set(KEYS.FORM_ANALYSIS_CACHE, JSON.stringify(cache));
   }
 
   async getFormAnalysisCache(): Promise<Record<string, any>> {
-    const { value } = await Preferences.get({ key: KEYS.FORM_ANALYSIS_CACHE });
+    const value = await this.get(KEYS.FORM_ANALYSIS_CACHE);
     if (value) {
-      return JSON.parse(value);
+      try {
+        return JSON.parse(value);
+      } catch (error) {
+        console.error('Error parsing form analysis cache:', error);
+        return {};
+      }
     }
     return {};
   }
@@ -173,77 +214,83 @@ export class StorageService {
   }
 
   async clearFormAnalysisCache(): Promise<void> {
-    await Preferences.remove({ key: KEYS.FORM_ANALYSIS_CACHE });
+    await this.remove(KEYS.FORM_ANALYSIS_CACHE);
   }
 
   // Sync status
   async setSyncStatus(status: { lastSync: string; pending: number }): Promise<void> {
-    await Preferences.set({
-      key: KEYS.SYNC_STATUS,
-      value: JSON.stringify(status),
-    });
+    await this.set(KEYS.SYNC_STATUS, JSON.stringify(status));
   }
 
   async getSyncStatus(): Promise<{ lastSync: string; pending: number } | null> {
-    const { value } = await Preferences.get({ key: KEYS.SYNC_STATUS });
+    const value = await this.get(KEYS.SYNC_STATUS);
     if (value) {
-      return JSON.parse(value);
+      try {
+        return JSON.parse(value);
+      } catch (error) {
+        console.error('Error parsing sync status:', error);
+        return null;
+      }
     }
     return null;
   }
 
   // App settings
-  async setAppSettings(settings: any): Promise<void> {
-    await Preferences.set({
-      key: KEYS.APP_SETTINGS,
-      value: JSON.stringify(settings),
-    });
+  async setAppSettings(settings: AppSettings): Promise<void> {
+    await this.set(KEYS.APP_SETTINGS, JSON.stringify(settings));
   }
 
-  async getAppSettings(): Promise<any | null> {
-    const { value } = await Preferences.get({ key: KEYS.APP_SETTINGS });
+  async getAppSettings(): Promise<AppSettings | null> {
+    const value = await this.get(KEYS.APP_SETTINGS);
     if (value) {
-      return JSON.parse(value);
+      try {
+        return JSON.parse(value) as AppSettings;
+      } catch (error) {
+        console.error('Error parsing app settings:', error);
+        return null;
+      }
     }
     return null;
   }
 
-  // Tutorial status
+  async removeAppSettings(): Promise<void> {
+    await this.remove(KEYS.APP_SETTINGS);
+  }
+
+  // Tutorial completion status
   async setTutorialCompleted(completed: boolean): Promise<void> {
-    await Preferences.set({
-      key: KEYS.TUTORIAL_COMPLETED,
-      value: JSON.stringify(completed),
-    });
+    await this.set(KEYS.TUTORIAL_COMPLETED, JSON.stringify(completed));
   }
 
   async getTutorialCompleted(): Promise<boolean> {
-    const { value } = await Preferences.get({ key: KEYS.TUTORIAL_COMPLETED });
+    const value = await this.get(KEYS.TUTORIAL_COMPLETED);
     if (value) {
-      return JSON.parse(value);
+      try {
+        return JSON.parse(value);
+      } catch (error) {
+        console.error('Error parsing tutorial completion status:', error);
+        return false;
+      }
     }
     return false;
   }
 
-  // CSRF token handling
+  // CSRF token management
   async setCSRFToken(token: string): Promise<void> {
-    await Preferences.set({
-      key: KEYS.CSRF_TOKEN,
-      value: token,
-    });
+    await this.set(KEYS.CSRF_TOKEN, token);
   }
 
   async getCSRFToken(): Promise<string | null> {
-    const { value } = await Preferences.get({ key: KEYS.CSRF_TOKEN });
-    return value;
+    return this.get(KEYS.CSRF_TOKEN);
   }
 
   async removeCSRFToken(): Promise<void> {
-    await Preferences.remove({ key: KEYS.CSRF_TOKEN });
+    await this.remove(KEYS.CSRF_TOKEN);
   }
 
   // Clear all data
   async clearAll(): Promise<void> {
-    await Preferences.clear();
+    await this.clear();
   }
 }
 

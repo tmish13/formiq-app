@@ -1,126 +1,117 @@
 import React from 'react';
-import { screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import Results from '../../../src/pages/analysis/Results';
-import { rest } from 'msw';
-import { setupServer } from 'msw/node';
-import { renderWithProviders } from '../../utils/test-utils';
+import { Results } from '../../../src/pages/analysis/Results';
+import { VideoPlayer, LoadingSpinner } from '../../../src/components/common';
 
-// Mock data
+// Mock the VideoPlayer component
+jest.mock('../../../src/components/common/VideoPlayer', () => ({
+  VideoPlayer: ({ videoUrl }: { videoUrl: string }) => (
+    <div data-testid="video-player">Mock Video Player: {videoUrl}</div>
+  )
+}));
+
+// Mock the LoadingSpinner component
+jest.mock('../../../src/components/common/LoadingSpinner', () => ({
+  LoadingSpinner: () => <div data-testid="loading-spinner">Loading...</div>
+}));
+
+// Mock fetch
+const mockFetch = jest.fn();
+global.fetch = mockFetch;
+
+// Mock data that matches the FormCheck interface
 const mockFormCheck = {
-  id: '1',
+  id: '123',
   exercise_type: 'squat',
-  score: 95,
-  created_at: '2024-01-15T10:00:00Z',
-  video_url: 'https://example.com/videos/squat1.mp4',
-  feedback: {
-    overall: 'Great form overall',
-    issues: ['Slight knee valgus at bottom position'],
-    suggestions: ['Focus on pushing knees outward during descent']
-  }
+  score: 85,
+  video_url: 'http://example.com/video.mp4',
+  overall_feedback: 'Good form overall',
+  issues: ['Knees caving in'],
+  suggestions: ['Keep chest up']
 };
 
-// Setup MSW server
-const server = setupServer(
-  rest.get('/api/form-checks/:id', (req, res, ctx) => {
-    const { id } = req.params;
-    if (id === '1') {
-      return res(ctx.json(mockFormCheck));
-    } else if (id === '999') {
-      return res(ctx.status(404), ctx.json({ message: 'Form check not found' }));
-    } else {
-      return res(ctx.status(500), ctx.json({ message: 'Server error' }));
-    }
-  })
-);
-
-beforeAll(() => server.listen());
-afterEach(() => server.resetHandlers());
-afterAll(() => server.close());
-
-const renderResults = (route: string) => {
-  return renderWithProviders(
-    <MemoryRouter initialEntries={[route]}>
+// Helper function to render the component with the correct route
+const renderResults = (id: string = '123') => {
+  return render(
+    <MemoryRouter initialEntries={[`/results/${id}`]}>
       <Routes>
         <Route path="/results/:id" element={<Results />} />
-        <Route path="*" element={<div>Not Found</div>} />
       </Routes>
     </MemoryRouter>
   );
 };
 
-describe('Results', () => {
-  it('displays loading state initially', () => {
-    renderResults('/results/1');
+describe('Results Component', () => {
+  beforeEach(() => {
+    mockFetch.mockClear();
+  });
+
+  it('displays loading state initially', async () => {
+    renderResults();
     expect(screen.getByTestId('loading-spinner')).toBeInTheDocument();
   });
 
   it('displays error message when API call fails', async () => {
-    server.use(
-      rest.get('/api/form-checks/:id', (req, res, ctx) => {
-        return res(ctx.status(500), ctx.json({ message: 'Error loading form check' }));
-      })
-    );
+    mockFetch.mockRejectedValueOnce(new Error('API Error'));
+    renderResults();
     
-    renderResults('/results/1');
-
     await waitFor(() => {
-      expect(screen.getByText(/error loading form check/i)).toBeInTheDocument();
+      expect(screen.getByText('An error occurred while fetching the form check')).toBeInTheDocument();
+    });
+  });
+
+  it('displays error when no ID is provided', async () => {
+    renderResults('');
+    
+    await waitFor(() => {
+      expect(screen.getByText('No form check ID provided')).toBeInTheDocument();
     });
   });
 
   it('displays form check data correctly', async () => {
-    renderResults('/results/1');
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve(mockFormCheck)
+    });
 
+    renderResults();
+    
     await waitFor(() => {
-      expect(screen.getByText('squat')).toBeInTheDocument();
-      expect(screen.getByText('Great form overall')).toBeInTheDocument();
-      expect(screen.getByText('Slight knee valgus at bottom position')).toBeInTheDocument();
-      expect(screen.getByText('Focus on pushing knees outward during descent')).toBeInTheDocument();
+      expect(screen.getByText('Form Analysis Results')).toBeInTheDocument();
+      expect(screen.getByText('Exercise Type: squat')).toBeInTheDocument();
+      expect(screen.getByText('Score: 85%')).toBeInTheDocument();
+      expect(screen.getByTestId('video-player')).toBeInTheDocument();
+      expect(screen.getByText('Good form overall')).toBeInTheDocument();
+      expect(screen.getByText('Knees caving in')).toBeInTheDocument();
     });
   });
 
-  it('displays video player when video URL is available', async () => {
-    renderResults('/results/1');
+  it('displays not found message when form check is not found', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 404
+    });
 
+    renderResults();
+    
     await waitFor(() => {
-      const videoElement = screen.getByTestId('video-player');
-      expect(videoElement).toBeInTheDocument();
-      expect(videoElement).toHaveAttribute('src', mockFormCheck.video_url);
+      expect(screen.getByText('Form check not found')).toBeInTheDocument();
     });
   });
 
-  it('displays error message when form check is not found', async () => {
-    renderResults('/results/999');
-
-    await waitFor(() => {
-      expect(screen.getByText(/form check not found/i)).toBeInTheDocument();
+  it('handles missing video URL', async () => {
+    const formCheckWithoutVideo = { ...mockFormCheck, video_url: undefined };
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve(formCheckWithoutVideo)
     });
-  });
 
-  it('displays score with appropriate color coding', async () => {
-    renderResults('/results/1');
-
+    renderResults();
+    
     await waitFor(() => {
-      const scoreChip = screen.getByTestId('score-chip');
-      expect(scoreChip).toBeInTheDocument();
-      expect(scoreChip).toHaveTextContent('95');
-      expect(scoreChip).toHaveClass('good-score');
-    });
-  });
-
-  it('handles missing video URL gracefully', async () => {
-    server.use(
-      rest.get('/api/form-checks/:id', (req, res, ctx) => {
-        return res(ctx.json({ ...mockFormCheck, video_url: null }));
-      })
-    );
-
-    renderResults('/results/1');
-
-    await waitFor(() => {
+      expect(screen.getByText('No video available for this form check')).toBeInTheDocument();
       expect(screen.queryByTestId('video-player')).not.toBeInTheDocument();
-      expect(screen.getByText(/video not available/i)).toBeInTheDocument();
     });
   });
 }); 

@@ -2,7 +2,7 @@
  * Comprehensive theme mock for testing
  */
 export const mockTheme = {
-  colors: {
+  palette: {
     primary: {
       main: '#4A90E2',
       light: '#75A8E7',
