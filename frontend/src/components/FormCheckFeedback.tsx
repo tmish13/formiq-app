@@ -1,41 +1,36 @@
 import React from 'react';
+import styled from 'styled-components';
 
 interface FormCheckFeedbackProps {
-  overallFeedback: string;
-  issues: string[];
-  suggestions: string[];
+  feedback: string;
+  score: number;
 }
 
-const FormCheckFeedback: React.FC<FormCheckFeedbackProps> = ({
-  overallFeedback,
-  issues,
-  suggestions,
-}) => {
+const Container = styled.div`
+  padding: ${props => props.theme.spacing.md};
+  background: ${props => props.theme.colors.background.paper};
+  border-radius: ${props => props.theme.borderRadius.md};
+  box-shadow: ${props => props.theme.shadows.small};
+`;
+
+const Score = styled.div`
+  font-size: ${props => props.theme.typography.fontSize.lg};
+  font-weight: ${props => props.theme.typography.fontWeight.semibold};
+  margin-bottom: ${props => props.theme.spacing.sm};
+  color: ${props => props.theme.colors.text.primary};
+`;
+
+const FeedbackText = styled.div`
+  color: ${props => props.theme.colors.text.secondary};
+  line-height: ${props => props.theme.typography.lineHeight.normal};
+`;
+
+const FormCheckFeedback: React.FC<FormCheckFeedbackProps> = ({ feedback, score }) => {
   return (
-    <div className="space-y-6">
-      <div>
-        <h3 className="text-lg font-semibold mb-2">Overall Feedback</h3>
-        <p className="text-gray-700">{overallFeedback}</p>
-      </div>
-
-      <div>
-        <h3 className="text-lg font-semibold mb-2">Issues Identified</h3>
-        <ul className="list-disc list-inside space-y-1">
-          {issues.map((issue, index) => (
-            <li key={index} className="text-red-600">{issue}</li>
-          ))}
-        </ul>
-      </div>
-
-      <div>
-        <h3 className="text-lg font-semibold mb-2">Suggestions for Improvement</h3>
-        <ul className="list-disc list-inside space-y-1">
-          {suggestions.map((suggestion, index) => (
-            <li key={index} className="text-blue-600">{suggestion}</li>
-          ))}
-        </ul>
-      </div>
-    </div>
+    <Container data-testid="form-check-feedback">
+      <Score>Form Check Score: {score}%</Score>
+      <FeedbackText>{feedback}</FeedbackText>
+    </Container>
   );
 };
 

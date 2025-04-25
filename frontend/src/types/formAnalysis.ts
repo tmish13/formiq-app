@@ -98,6 +98,7 @@ export interface FormAnalysisResult {
   angles: JointAngles;
   feedback: FormFeedback[];
   timestamp: number;
+  videoUrl: string;
 }
 
 export interface FormAnalysisProgress {

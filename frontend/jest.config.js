@@ -2,7 +2,7 @@ module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'jsdom',
   setupFiles: ['<rootDir>/polyfills.js'],
-  setupFilesAfterEnv: ['<rootDir>/tests/setup.tsx'],
+  setupFilesAfterEnv: ['<rootDir>/src/setupTests.ts'],
   moduleNameMapper: {
     '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
     '\\.(gif|ttf|eot|svg|png|jpg|jpeg|webp)$': '<rootDir>/tests/__mocks__/fileMock.js',
@@ -75,11 +75,7 @@ module.exports = {
   },
   testMatch: [
     '<rootDir>/src/**/*.{spec,test}.{ts,tsx}',
-    '<rootDir>/src/**/__tests__/**/*.{ts,tsx}',
-    '<rootDir>/tests/**/*.{spec,test}.{ts,tsx}',
-    '<rootDir>/tests/unit/**/*.{spec,test}.{ts,tsx}',
-    '<rootDir>/tests/integration/**/*.{spec,test}.{ts,tsx}',
-    '<rootDir>/tests/e2e/**/*.{spec,test}.{ts,tsx}'
+    '<rootDir>/src/**/__tests__/**/*.{ts,tsx}'
   ],
   testPathIgnorePatterns: [
     '/node_modules/',

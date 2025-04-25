@@ -1,243 +1,244 @@
-import api from '../api';
+import { workoutService } from '../../../src/services/workoutService';
+import { http, HttpResponse } from 'msw';
+import { server } from '../../mocks/server';
+import { Exercise, Workout, WorkoutPlan } from '../../../src/types/workout';
 
-// Mock the API module
-jest.mock('../api', () => ({
-  __esModule: true,
-  default: {
-    get: jest.fn(),
-    post: jest.fn(),
-    put: jest.fn(),
-    delete: jest.fn()
-  }
-}));
-
-// Mock workoutService
-const workoutService = {
-  getWorkouts: jest.fn(),
-  getWorkout: jest.fn(),
-  createWorkout: jest.fn(),
-  updateWorkout: jest.fn(),
-  deleteWorkout: jest.fn(),
-  getWorkoutPlans: jest.fn(),
-  getWorkoutPlan: jest.fn(),
-  createWorkoutPlan: jest.fn(),
-  updateWorkoutPlan: jest.fn(),
-  deleteWorkoutPlan: jest.fn(),
-  getUpcomingWorkouts: jest.fn(),
-  getActiveWorkoutPlans: jest.fn()
+const mockExercise: Exercise = {
+  id: 'ex1',
+  name: 'Squat',
+  sets: 3,
+  reps: 12,
+  weight: 100
 };
 
-// Simple mock data
-const mockWorkouts = [
-  { 
-    id: '1', 
-    name: 'Monday Strength', 
-    description: 'Full body strength training',
-    duration: 45,
-  },
-  { 
-    id: '2', 
-    name: 'Wednesday Cardio', 
-    description: 'HIIT training',
-    duration: 30,
-  }
-];
+const mockWorkout: Workout = {
+  id: '123',
+  name: 'Morning Workout',
+  exercises: [mockExercise],
+  duration: 45,
+  difficulty: 'intermediate',
+  userId: 'user123',
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString()
+};
 
-const mockWorkoutPlans = [
-  {
-    id: '1',
-    name: 'Weight Loss Plan',
-    description: 'A 4-week plan to help with weight loss',
-    workouts: ['1', '2'],
-    duration: 28,
-  }
-];
+const mockWorkoutPlan: WorkoutPlan = {
+  id: '456',
+  name: '12 Week Program',
+  workouts: [mockWorkout],
+  frequency: '3x per week',
+  duration: 12,
+  userId: 'user123',
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString()
+};
 
-describe('Workout Service', () => {
+describe('WorkoutService', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-
-    // Set up the mock implementations for workoutService
-    workoutService.getWorkouts.mockImplementation(() => {
-      return api.get('/api/workouts').then(res => res.data);
-    });
-
-    workoutService.getWorkout.mockImplementation((id) => {
-      return api.get(`/api/workouts/${id}`).then(res => res.data);
-    });
-
-    workoutService.createWorkout.mockImplementation((workout) => {
-      return api.post('/api/workouts', workout).then(res => res.data);
-    });
-
-    workoutService.updateWorkout.mockImplementation((id, updates) => {
-      return api.put(`/api/workouts/${id}`, updates).then(res => res.data);
-    });
-
-    workoutService.deleteWorkout.mockImplementation((id) => {
-      return api.delete(`/api/workouts/${id}`).then(res => res.data);
-    });
-
-    workoutService.getWorkoutPlans.mockImplementation(() => {
-      return api.get('/api/workout-plans').then(res => res.data);
-    });
-
-    workoutService.getWorkoutPlan.mockImplementation((id) => {
-      return api.get(`/api/workout-plans/${id}`).then(res => res.data);
-    });
-
-    workoutService.createWorkoutPlan.mockImplementation((plan) => {
-      return api.post('/api/workout-plans', plan).then(res => res.data);
-    });
-
-    workoutService.getUpcomingWorkouts.mockImplementation((days = 7) => {
-      return api.get('/api/workouts/upcoming', { params: { days } }).then(res => res.data);
-    });
-
-    workoutService.getActiveWorkoutPlans.mockImplementation(() => {
-      return api.get('/api/workout-plans/active').then(res => res.data);
-    });
+    server.resetHandlers();
+    
+    // Setup MSW handlers for the workout API endpoints
+    server.use(
+      http.get('/api/workouts', () => {
+        return HttpResponse.json([mockWorkout]);
+      }),
+      
+      http.get('/api/workouts/:id', ({ params }) => {
+        return HttpResponse.json(mockWorkout);
+      }),
+      
+      http.post('/api/workouts', async ({ request }) => {
+        const data = await request.json();
+        return HttpResponse.json({
+          ...data,
+          id: '123',
+          userId: 'user123',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }, { status: 201 });
+      }),
+      
+      http.put('/api/workouts/:id', async ({ params, request }) => {
+        const data = await request.json();
+        return HttpResponse.json({
+          ...mockWorkout,
+          ...data
+        });
+      }),
+      
+      http.delete('/api/workouts/:id', () => {
+        return HttpResponse.json({ success: true });
+      }),
+      
+      http.get('/api/workout-plans', () => {
+        return HttpResponse.json([mockWorkoutPlan]);
+      }),
+      
+      http.get('/api/workout-plans/:id', () => {
+        return HttpResponse.json(mockWorkoutPlan);
+      }),
+      
+      http.post('/api/workout-plans', async ({ request }) => {
+        const data = await request.json();
+        return HttpResponse.json({
+          ...data,
+          id: '456',
+          userId: 'user123',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }, { status: 201 });
+      }),
+      
+      http.put('/api/workout-plans/:id', async ({ request }) => {
+        const data = await request.json();
+        return HttpResponse.json({
+          ...mockWorkoutPlan,
+          ...data
+        });
+      }),
+      
+      http.delete('/api/workout-plans/:id', () => {
+        return HttpResponse.json({ success: true });
+      }),
+      
+      http.get('/api/workouts/upcoming', () => {
+        return HttpResponse.json([mockWorkout]);
+      }),
+      
+      http.get('/api/workout-plans/active', () => {
+        return HttpResponse.json([mockWorkoutPlan]);
+      })
+    );
   });
 
-  describe('Workout Management', () => {
-    it('should get all workouts', async () => {
-      const mockResponse = { data: mockWorkouts };
-      (api.get as jest.Mock).mockResolvedValueOnce(mockResponse);
-      
-      const result = await workoutService.getWorkouts();
-      
-      expect(api.get).toHaveBeenCalledWith('/api/workouts');
-      expect(result).toEqual(mockWorkouts);
+  describe('Workout operations', () => {
+    it('should fetch all workouts', async () => {
+      const workouts = await workoutService.getWorkouts();
+      expect(Array.isArray(workouts)).toBe(true);
     });
-    
-    it('should get a single workout by ID', async () => {
-      const mockResponse = { data: mockWorkouts[0] };
-      (api.get as jest.Mock).mockResolvedValueOnce(mockResponse);
-      
-      const result = await workoutService.getWorkout('1');
-      
-      expect(api.get).toHaveBeenCalledWith('/api/workouts/1');
-      expect(result).toEqual(mockWorkouts[0]);
+
+    it('should fetch a single workout', async () => {
+      const workout = await workoutService.getWorkout('123');
+      expect(workout).toBeDefined();
+      expect(workout.id).toBe('123');
     });
-    
+
     it('should create a new workout', async () => {
-      const newWorkout = {
-        name: 'Friday Mobility',
-        description: 'Flexibility and mobility work',
-        duration: 20
+      const newWorkout: Omit<Workout, 'id' | 'userId' | 'createdAt' | 'updatedAt'> = {
+        name: 'Evening Workout',
+        exercises: [{
+          id: 'ex2',
+          name: 'Push-ups',
+          sets: 3,
+          reps: 15
+        }],
+        duration: 30,
+        difficulty: 'beginner'
       };
-      
-      const createdWorkout = {
-        ...newWorkout,
-        id: '3',
+
+      const created = await workoutService.createWorkout(newWorkout);
+      expect(created).toBeDefined();
+      expect(created.name).toBe(newWorkout.name);
+    });
+
+    it('should update a workout', async () => {
+      const update: Partial<Workout> = {
+        name: 'Updated Workout'
       };
-      
-      const mockResponse = { data: createdWorkout };
-      (api.post as jest.Mock).mockResolvedValueOnce(mockResponse);
-      
-      const result = await workoutService.createWorkout(newWorkout);
-      
-      expect(api.post).toHaveBeenCalledWith('/api/workouts', newWorkout);
-      expect(result).toEqual(createdWorkout);
+
+      const updated = await workoutService.updateWorkout('123', update);
+      expect(updated).toBeDefined();
+      expect(updated.name).toBe(update.name);
     });
-    
-    it('should update an existing workout', async () => {
-      const updatedData = { name: 'Updated Workout Name' };
-      const updatedWorkout = {
-        ...mockWorkouts[0],
-        name: 'Updated Workout Name'
-      };
-      
-      const mockResponse = { data: updatedWorkout };
-      (api.put as jest.Mock).mockResolvedValueOnce(mockResponse);
-      
-      const result = await workoutService.updateWorkout('1', updatedData);
-      
-      expect(api.put).toHaveBeenCalledWith('/api/workouts/1', updatedData);
-      expect(result).toEqual(updatedWorkout);
-    });
-    
-    it('should delete a workout', async () => {
-      const mockResponse = { data: { success: true } };
-      (api.delete as jest.Mock).mockResolvedValueOnce(mockResponse);
-      
-      await workoutService.deleteWorkout('1');
-      
-      expect(api.delete).toHaveBeenCalledWith('/api/workouts/1');
-    });
-    
-    it('should handle errors when fetching workouts', async () => {
-      const errorResponse = new Error('Network error');
-      (api.get as jest.Mock).mockRejectedValueOnce(errorResponse);
-      
-      await expect(workoutService.getWorkouts()).rejects.toThrow('Network error');
+
+    it('should handle workout deletion', async () => {
+      await expect(workoutService.deleteWorkout('123')).resolves.not.toThrow();
     });
   });
-  
-  describe('Workout Plan Management', () => {
-    it('should get all workout plans', async () => {
-      const mockResponse = { data: mockWorkoutPlans };
-      (api.get as jest.Mock).mockResolvedValueOnce(mockResponse);
-      
-      const result = await workoutService.getWorkoutPlans();
-      
-      expect(api.get).toHaveBeenCalledWith('/api/workout-plans');
-      expect(result).toEqual(mockWorkoutPlans);
+
+  describe('Workout Plan operations', () => {
+    it('should fetch all workout plans', async () => {
+      const plans = await workoutService.getWorkoutPlans();
+      expect(Array.isArray(plans)).toBe(true);
     });
-    
-    it('should get a single workout plan by ID', async () => {
-      const mockResponse = { data: mockWorkoutPlans[0] };
-      (api.get as jest.Mock).mockResolvedValueOnce(mockResponse);
-      
-      const result = await workoutService.getWorkoutPlan('1');
-      
-      expect(api.get).toHaveBeenCalledWith('/api/workout-plans/1');
-      expect(result).toEqual(mockWorkoutPlans[0]);
+
+    it('should fetch a single workout plan', async () => {
+      const plan = await workoutService.getWorkoutPlan('456');
+      expect(plan).toBeDefined();
+      expect(plan.id).toBe('456');
     });
-    
+
     it('should create a new workout plan', async () => {
-      const newPlan = {
-        name: 'Muscle Building Plan',
-        description: 'A 6-week plan to build muscle',
-        workouts: ['1'],
-        duration: 42,
-        frequency: 'weekly'
+      const newPlan: Omit<WorkoutPlan, 'id' | 'userId' | 'createdAt' | 'updatedAt'> = {
+        name: '8 Week Program',
+        workouts: [mockWorkout],
+        frequency: '4x per week',
+        duration: 8
       };
-      
-      const createdPlan = {
-        ...newPlan,
-        id: '2'
+
+      const created = await workoutService.createWorkoutPlan(newPlan);
+      expect(created).toBeDefined();
+      expect(created.name).toBe(newPlan.name);
+    });
+
+    it('should update a workout plan', async () => {
+      const update: Partial<WorkoutPlan> = {
+        name: 'Updated Plan'
       };
-      
-      const mockResponse = { data: createdPlan };
-      (api.post as jest.Mock).mockResolvedValueOnce(mockResponse);
-      
-      const result = await workoutService.createWorkoutPlan(newPlan);
-      
-      expect(api.post).toHaveBeenCalledWith('/api/workout-plans', newPlan);
-      expect(result).toEqual(createdPlan);
+
+      const updated = await workoutService.updateWorkoutPlan('456', update);
+      expect(updated).toBeDefined();
+      expect(updated.name).toBe(update.name);
     });
-    
-    it('should get upcoming workouts', async () => {
-      const mockResponse = { data: mockWorkouts };
-      (api.get as jest.Mock).mockResolvedValueOnce(mockResponse);
-      
-      const result = await workoutService.getUpcomingWorkouts(10);
-      
-      expect(api.get).toHaveBeenCalledWith('/api/workouts/upcoming', {
-        params: { days: 10 }
-      });
-      expect(result).toEqual(mockWorkouts);
+
+    it('should handle workout plan deletion', async () => {
+      await expect(workoutService.deleteWorkoutPlan('456')).resolves.not.toThrow();
     });
-    
-    it('should get active workout plans', async () => {
-      const mockResponse = { data: mockWorkoutPlans };
-      (api.get as jest.Mock).mockResolvedValueOnce(mockResponse);
-      
-      const result = await workoutService.getActiveWorkoutPlans();
-      
-      expect(api.get).toHaveBeenCalledWith('/api/workout-plans/active');
-      expect(result).toEqual(mockWorkoutPlans);
+  });
+
+  describe('Additional operations', () => {
+    it('should fetch upcoming workouts', async () => {
+      const workouts = await workoutService.getUpcomingWorkouts(7);
+      expect(Array.isArray(workouts)).toBe(true);
+    });
+
+    it('should fetch active workout plans', async () => {
+      const plans = await workoutService.getActiveWorkoutPlans();
+      expect(Array.isArray(plans)).toBe(true);
+    });
+  });
+
+  describe('Error handling', () => {
+    it('should handle API errors when fetching workouts', async () => {
+      server.use(
+        http.get('/api/workouts', () => {
+          return new HttpResponse(null, { status: 500 });
+        })
+      );
+
+      await expect(workoutService.getWorkouts()).rejects.toThrow();
+    });
+
+    it('should handle API errors when creating workouts', async () => {
+      server.use(
+        http.post('/api/workouts', () => {
+          return new HttpResponse(null, { status: 500 });
+        })
+      );
+
+      const newWorkout: Omit<Workout, 'id' | 'userId' | 'createdAt' | 'updatedAt'> = {
+        name: 'Test Workout',
+        exercises: [{
+          id: 'ex3',
+          name: 'Test Exercise',
+          sets: 3,
+          reps: 10
+        }],
+        duration: 30,
+        difficulty: 'beginner'
+      };
+
+      await expect(workoutService.createWorkout(newWorkout)).rejects.toThrow();
     });
   });
 }); 

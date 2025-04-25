@@ -65,6 +65,7 @@ export const ExerciseSelector: React.FC<ExerciseSelectorProps> = ({
         <Select
           value={selectedExercise}
           onChange={(e) => onExerciseChange(e.target.value as ExerciseType)}
+          data-testid="exercise-select"
         >
           {Object.values(ExerciseType).map((type) => (
             <option key={type} value={type}>
@@ -74,7 +75,7 @@ export const ExerciseSelector: React.FC<ExerciseSelectorProps> = ({
         </Select>
       </SelectWrapper>
 
-      <ExerciseInfo>
+      <ExerciseInfo data-testid="exercise-guidelines">
         <Title>Exercise Form Guidelines</Title>
         <List>
           {exerciseConfig.formChecks.map((check, index) => (

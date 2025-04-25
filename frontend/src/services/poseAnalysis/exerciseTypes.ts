@@ -11,6 +11,11 @@ export enum ExerciseType {
   BICEP_CURL = 'bicepCurl'
 }
 
+export interface FormCheckRule {
+  name: string;
+  description: string;
+}
+
 export interface ExerciseConfig {
   requiredKeypoints: string[];
   minConfidence: number;
@@ -27,6 +32,7 @@ export interface ExerciseConfig {
       duration: number;
     };
   };
+  formChecks: FormCheckRule[];
 }
 
 export const exerciseConfigs: Record<ExerciseType, ExerciseConfig> = {
@@ -67,7 +73,17 @@ export const exerciseConfigs: Record<ExerciseType, ExerciseConfig> = {
         endAngle: 180,
         duration: 2
       }
-    }
+    },
+    formChecks: [
+      {
+        name: 'Knee Position',
+        description: 'Keep knees over toes'
+      },
+      {
+        name: 'Back Position',
+        description: 'Keep back straight'
+      }
+    ]
   },
   [ExerciseType.PUSHUP]: {
     requiredKeypoints: [
@@ -100,7 +116,17 @@ export const exerciseConfigs: Record<ExerciseType, ExerciseConfig> = {
         endAngle: 180,
         duration: 1
       }
-    }
+    },
+    formChecks: [
+      {
+        name: 'Elbow Position',
+        description: 'Keep elbows at 45-degree angle'
+      },
+      {
+        name: 'Core Engagement',
+        description: 'Keep core tight'
+      }
+    ]
   },
   [ExerciseType.PLANK]: {
     requiredKeypoints: [
@@ -128,7 +154,17 @@ export const exerciseConfigs: Record<ExerciseType, ExerciseConfig> = {
         endAngle: 180,
         duration: 60
       }
-    }
+    },
+    formChecks: [
+      {
+        name: 'Back Position',
+        description: 'Keep back straight and aligned'
+      },
+      {
+        name: 'Hip Position',
+        description: 'Keep hips level with shoulders'
+      }
+    ]
   },
   [ExerciseType.BENCH_PRESS]: {
     requiredKeypoints: [
@@ -161,7 +197,8 @@ export const exerciseConfigs: Record<ExerciseType, ExerciseConfig> = {
         endAngle: 180,
         duration: 1
       }
-    }
+    },
+    formChecks: []
   },
   [ExerciseType.DEADLIFT]: {
     requiredKeypoints: [
@@ -200,7 +237,8 @@ export const exerciseConfigs: Record<ExerciseType, ExerciseConfig> = {
         endAngle: 180,
         duration: 2
       }
-    }
+    },
+    formChecks: []
   },
   [ExerciseType.LAT_PULLDOWN]: {
     requiredKeypoints: [
@@ -233,7 +271,8 @@ export const exerciseConfigs: Record<ExerciseType, ExerciseConfig> = {
         endAngle: 180,
         duration: 1
       }
-    }
+    },
+    formChecks: []
   },
   [ExerciseType.BICEP_CURL]: {
     requiredKeypoints: [
@@ -266,6 +305,7 @@ export const exerciseConfigs: Record<ExerciseType, ExerciseConfig> = {
         endAngle: 30,
         duration: 1
       }
-    }
+    },
+    formChecks: []
   }
-}; 
+} as const; 

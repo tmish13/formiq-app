@@ -2,88 +2,87 @@ import React from 'react';
 import styled from 'styled-components';
 import { ExerciseType, exerciseConfigs } from '../../services/poseAnalysis/exerciseTypes';
 
-const Container = styled.div`
-  padding: 20px;
-  background: #f5f5f5;
-  border-radius: 8px;
-  margin-bottom: 20px;
-`;
-
-const SelectWrapper = styled.div`
-  margin-bottom: 20px;
-`;
-
-const Select = styled.select`
-  width: 100%;
-  padding: 10px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 16px;
-  background: white;
-`;
-
-const ExerciseInfo = styled.div`
-  background: white;
-  padding: 15px;
-  border-radius: 4px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-`;
-
-const Title = styled.h3`
-  margin: 0 0 15px 0;
-  color: #333;
-`;
-
-const List = styled.ul`
-  list-style: none;
-  padding: 0;
-  margin: 0;
-`;
-
-const ListItem = styled.li`
-  padding: 8px 0;
-  border-bottom: 1px solid #eee;
-  &:last-child {
-    border-bottom: none;
-  }
-`;
-
 interface ExerciseSelectorProps {
   selectedExercise: ExerciseType;
   onExerciseChange: (exercise: ExerciseType) => void;
 }
 
+const Container = styled.div`
+  padding: ${props => props.theme.spacing.md};
+`;
+
+const Select = styled.select`
+  width: 100%;
+  padding: ${props => props.theme.spacing.sm};
+  margin-bottom: ${props => props.theme.spacing.md};
+  border: 1px solid ${props => props.theme.colors.border.main};
+  border-radius: ${props => props.theme.borderRadius.md};
+  font-family: ${props => props.theme.typography.fontFamily.primary};
+  font-size: ${props => props.theme.typography.fontSize.md};
+`;
+
+const GuidelinesContainer = styled.div`
+  margin-top: ${props => props.theme.spacing.lg};
+`;
+
+const Title = styled.h3`
+  font-family: ${props => props.theme.typography.fontFamily.primary};
+  font-size: ${props => props.theme.typography.fontSize.lg};
+  margin-bottom: ${props => props.theme.spacing.md};
+`;
+
+const GuidelinesList = styled.ul`
+  list-style-type: none;
+  padding: 0;
+`;
+
+const GuidelineItem = styled.li`
+  margin-bottom: ${props => props.theme.spacing.sm};
+  font-family: ${props => props.theme.typography.fontFamily.primary};
+  font-size: ${props => props.theme.typography.fontSize.md};
+`;
+
 export const ExerciseSelector: React.FC<ExerciseSelectorProps> = ({
   selectedExercise,
   onExerciseChange,
 }) => {
-  const exerciseConfig = exerciseConfigs[selectedExercise];
+  const formatExerciseName = (name: string) => {
+    // First, split by capital letters and join with spaces
+    const withSpaces = name.replace(/([A-Z])/g, ' $1').trim();
+    // Then capitalize the first letter and any letter after a space
+    return withSpaces.replace(/(^|\s)\w/g, letter => letter.toUpperCase());
+  };
+
+  const handleChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    onExerciseChange(event.target.value as ExerciseType);
+  };
+
+  const selectedConfig = exerciseConfigs[selectedExercise];
 
   return (
     <Container>
-      <SelectWrapper>
-        <Select
-          value={selectedExercise}
-          onChange={(e) => onExerciseChange(e.target.value as ExerciseType)}
-        >
-          {Object.values(ExerciseType).map((type) => (
-            <option key={type} value={type}>
-              {type.replace(/([A-Z])/g, ' $1').trim()} {/* Add spaces before capital letters */}
-            </option>
-          ))}
-        </Select>
-      </SelectWrapper>
+      <Select
+        value={selectedExercise}
+        onChange={handleChange}
+        role="combobox"
+      >
+        {Object.values(ExerciseType).map(exercise => (
+          <option key={exercise} value={exercise}>
+            {formatExerciseName(exercise)}
+          </option>
+        ))}
+      </Select>
 
-      <ExerciseInfo>
+      <GuidelinesContainer>
         <Title>Exercise Form Guidelines</Title>
-        <List>
-          {exerciseConfig.formChecks.map((check, index) => (
-            <ListItem key={index}>
+        <GuidelinesList>
+          {selectedConfig.formChecks.map((check, index) => (
+            <GuidelineItem key={index}>
               <strong>{check.name}:</strong> {check.description}
-            </ListItem>
+            </GuidelineItem>
           ))}
-        </List>
-      </ExerciseInfo>
+        </GuidelinesList>
+      </GuidelinesContainer>
     </Container>
   );
 }; 

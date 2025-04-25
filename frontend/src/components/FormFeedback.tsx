@@ -2,6 +2,13 @@ import React from 'react';
 import styled from 'styled-components';
 import { FormValidationResult } from '../services/poseAnalysis/types';
 
+interface FormFeedbackProps {
+  feedback: FormValidationResult[];
+  confidence: number;
+  repetitionCount: number;
+  phase: 'start' | 'middle' | 'end';
+}
+
 const Container = styled.div`
   position: absolute;
   bottom: 20px;
@@ -20,17 +27,31 @@ const FeedbackList = styled.ul`
   margin: 0;
 `;
 
-const FeedbackItem = styled.li<{ isValid: boolean }>`
-  color: ${({ isValid }) => (isValid ? '#4caf50' : '#ff5252')};
+const BaseFeedbackItem = styled.li`
   font-size: 16px;
   margin: 5px 0;
   display: flex;
   align-items: center;
   
   &:before {
-    content: ${({ isValid }) => (isValid ? '"✓"' : '"×"')};
     margin-right: 8px;
     font-weight: bold;
+  }
+`;
+
+const ValidFeedbackItem = styled(BaseFeedbackItem)`
+  color: ${({ theme }) => theme.colors.success};
+  
+  &:before {
+    content: "✓";
+  }
+`;
+
+const InvalidFeedbackItem = styled(BaseFeedbackItem)`
+  color: ${({ theme }) => theme.colors.error};
+  
+  &:before {
+    content: "×";
   }
 `;
 
@@ -57,13 +78,6 @@ const StatItem = styled.div`
   }
 `;
 
-interface FormFeedbackProps {
-  feedback: FormValidationResult[];
-  confidence: number;
-  repetitionCount: number;
-  phase: 'start' | 'middle' | 'end';
-}
-
 export const FormFeedback: React.FC<FormFeedbackProps> = ({
   feedback,
   confidence,
@@ -71,12 +85,18 @@ export const FormFeedback: React.FC<FormFeedbackProps> = ({
   phase,
 }) => {
   return (
-    <Container>
+    <Container data-testid="form-feedback">
       <FeedbackList>
         {feedback.map((item, index) => (
-          <FeedbackItem key={index} isValid={item.isValid}>
-            {item.message}
-          </FeedbackItem>
+          item.isValid ? (
+            <ValidFeedbackItem key={index}>
+              {item.message}
+            </ValidFeedbackItem>
+          ) : (
+            <InvalidFeedbackItem key={index}>
+              {item.message}
+            </InvalidFeedbackItem>
+          )
         ))}
       </FeedbackList>
       

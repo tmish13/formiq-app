@@ -1,0 +1,75 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`UploadGuidance matches snapshot 1`] = `
+<DocumentFragment>
+  <div
+    data-testid="styled-components-theme-provider"
+  >
+    <div>
+      <div>
+        <div>
+          <div>
+            <div>
+              📤
+            </div>
+            <p>
+              Drag & drop your video here or click to browse
+            </p>
+            <p
+              style="font-size: 14px; opacity: 0.7;"
+            >
+              Supported formats: MP4, WebM, MOV
+            </p>
+            <input
+              accept="video/mp4,video/webm,video/quicktime"
+              type="file"
+            />
+          </div>
+          <div
+            position="top"
+          >
+            <div>
+              <p>
+                Upload a video of your exercise to get form feedback.
+              </p>
+              <p>
+                We support MP4, WebM, and MOV files up to 100MB.
+              </p>
+            </div>
+            <button>
+              ✕
+            </button>
+          </div>
+        </div>
+        <div>
+          <ul>
+            <li>
+              Position your camera to capture your full body during the exercise
+            </li>
+            <li>
+              Ensure good lighting conditions
+            </li>
+            <li>
+              Record from the side angle for best form analysis
+            </li>
+            <li>
+              Keep the camera stable during recording
+            </li>
+            <li>
+              Wear clothing that allows form visibility
+            </li>
+          </ul>
+          <div
+            position="bottom"
+          >
+            Following these guidelines will help our AI provide the most accurate form feedback.
+            <button>
+              ✕
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</DocumentFragment>
+`;

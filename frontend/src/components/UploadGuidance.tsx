@@ -3,7 +3,7 @@ import styled from 'styled-components';
 import OnboardingTooltip from './onboarding/OnboardingTooltip';
 
 interface UploadGuidanceProps {
-  onChange: (files: FileList | null) => void;
+  exerciseType: string;
 }
 
 const Container = styled.div`
@@ -70,7 +70,7 @@ const GuidanceItem = styled.li`
   }
 `;
 
-export const UploadGuidance: React.FC<UploadGuidanceProps> = ({ onChange }) => {
+export const UploadGuidance: React.FC<UploadGuidanceProps> = ({ exerciseType }) => {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   
   const handleClick = () => {
@@ -80,7 +80,7 @@ export const UploadGuidance: React.FC<UploadGuidanceProps> = ({ onChange }) => {
   };
   
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    onChange(event.target.files);
+    // Handle file change
   };
   
   const uploadGuidanceItems = [
@@ -92,7 +92,38 @@ export const UploadGuidance: React.FC<UploadGuidanceProps> = ({ onChange }) => {
   ];
   
   return (
-    <Container>
+    <div data-testid="upload-guidance" className="bg-white p-6 rounded-lg shadow-md">
+      <h2 className="text-xl font-semibold mb-4">Upload Guidelines for {exerciseType}</h2>
+      
+      <div className="space-y-4">
+        <div>
+          <h3 className="font-medium mb-2">Camera Setup</h3>
+          <ul className="list-disc list-inside space-y-1 text-gray-700">
+            <li>Position the camera at a 90-degree angle to your body</li>
+            <li>Ensure your full body is visible in the frame</li>
+            <li>Use good lighting for better visibility</li>
+          </ul>
+        </div>
+
+        <div>
+          <h3 className="font-medium mb-2">Recording Tips</h3>
+          <ul className="list-disc list-inside space-y-1 text-gray-700">
+            <li>Perform the exercise at a moderate pace</li>
+            <li>Complete 3-5 repetitions</li>
+            <li>Maintain proper form throughout the movement</li>
+          </ul>
+        </div>
+
+        <div>
+          <h3 className="font-medium mb-2">What to Avoid</h3>
+          <ul className="list-disc list-inside space-y-1 text-gray-700">
+            <li>Don't wear loose clothing that obscures your form</li>
+            <li>Avoid recording in low light conditions</li>
+            <li>Don't perform the exercise too quickly</li>
+          </ul>
+        </div>
+      </div>
+      
       <OnboardingTooltip
         id="form-upload"
         content={
@@ -130,7 +161,7 @@ export const UploadGuidance: React.FC<UploadGuidanceProps> = ({ onChange }) => {
           ))}
         </GuidanceList>
       </OnboardingTooltip>
-    </Container>
+    </div>
   );
 };
 

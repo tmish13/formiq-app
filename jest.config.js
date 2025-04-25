@@ -2,7 +2,7 @@ module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'jsdom',
   setupFiles: ['<rootDir>/polyfills.js'],
-  setupFilesAfterEnv: ['<rootDir>/frontend/tests/setup.tsx'],
+  setupFilesAfterEnv: ['<rootDir>/frontend/src/setupTests.ts'],
   globalSetup: '<rootDir>/jest.globalSetup.js',
   transform: {
     '^.+\\.(ts|tsx)$': 'ts-jest',
@@ -24,5 +24,11 @@ module.exports = {
   moduleDirectories: ['node_modules', 'src'],
   transformIgnorePatterns: [
     'node_modules/(?!(react-router-dom)/)'
+  ],
+  testMatch: [
+    '<rootDir>/frontend/src/**/*.{spec,test}.{ts,tsx}',
+    '<rootDir>/frontend/src/**/__tests__/**/*.{ts,tsx}',
+    '<rootDir>/mobile/src/**/*.{spec,test}.{ts,tsx}',
+    '<rootDir>/mobile/src/**/__tests__/**/*.{ts,tsx}'
   ]
 } 

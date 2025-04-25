@@ -29,72 +29,23 @@ export class LocalStorageMock {
   }
 }
 
-/**
- * Mock storage service for tests
- */
+const mockStorage = new Map<string, string>();
+
 export const mockStorageService = {
-  get: jest.fn().mockImplementation((key: string) => {
-    return JSON.parse(localStorage.getItem(key) || 'null');
-  }),
-  
-  set: jest.fn().mockImplementation((key: string, value: any) => {
-    localStorage.setItem(key, JSON.stringify(value));
-  }),
-  
-  remove: jest.fn().mockImplementation((key: string) => {
-    localStorage.removeItem(key);
-  }),
-  
-  clear: jest.fn().mockImplementation(() => {
-    localStorage.clear();
-  }),
-  
-  getItem: jest.fn().mockImplementation((key: string) => {
-    return localStorage.getItem(key);
-  }),
-  
-  setItem: jest.fn().mockImplementation((key: string, value: string) => {
-    localStorage.setItem(key, value);
-  }),
-  
-  removeItem: jest.fn().mockImplementation((key: string) => {
-    localStorage.removeItem(key);
-  }),
-  
-  /**
-   * Mock a JWT token in localStorage for auth tests
-   */
-  mockAuthToken: (token = 'mock-jwt-token', refreshToken = 'mock-refresh-token') => {
-    const mockTokens = {
-      accessToken: token,
-      refreshToken: refreshToken,
-      expiresIn: 3600
-    };
-    localStorage.setItem('auth_tokens', JSON.stringify(mockTokens));
-    return mockTokens;
-  },
-  
-  /**
-   * Mock user session data in localStorage
-   */
-  mockUserSession: (userData = {
-    id: 'user-123',
-    email: 'test@example.com',
-    username: 'testuser',
-    preferences: { theme: 'light' }
-  }) => {
-    localStorage.setItem('user_data', JSON.stringify(userData));
-    return userData;
-  },
-  
-  /**
-   * Clear auth data from localStorage
-   */
-  clearAuth: () => {
-    localStorage.removeItem('auth_tokens');
-    localStorage.removeItem('user_data');
-  }
+  get: jest.fn((key: string) => mockStorage.get(key)),
+  set: jest.fn((key: string, value: string) => mockStorage.set(key, value)),
+  remove: jest.fn((key: string) => mockStorage.delete(key)),
+  clear: jest.fn(() => mockStorage.clear()),
+  getItem: jest.fn((key: string) => mockStorage.get(key)),
+  setItem: jest.fn((key: string, value: string) => mockStorage.set(key, value)),
+  removeItem: jest.fn((key: string) => mockStorage.delete(key)),
 };
+
+export const clearMockStorage = () => mockStorage.clear();
+
+jest.mock('../../src/services/storage', () => ({
+  storageService: mockStorageService,
+}));
 
 export const localStorageMock = {
   getItem: jest.fn(),

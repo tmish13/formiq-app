@@ -1,0 +1,22 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`FormCheckFeedback matches snapshot 1`] = `
+<DocumentFragment>
+  <div
+    data-testid="styled-components-theme-provider"
+  >
+    <div>
+      <div
+        data-testid="form-check-feedback"
+      >
+        <div>
+          Form Check Score: 85%
+        </div>
+        <div>
+          Good form with minor adjustments needed
+        </div>
+      </div>
+    </div>
+  </div>
+</DocumentFragment>
+`;
