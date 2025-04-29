@@ -12,7 +12,7 @@ const slideDown = keyframes`
   }
 `;
 
-const StatusBarContainer = styled.div<{ isVisible: boolean }>`
+const StatusBarContainer = styled.div`
   position: fixed;
   top: 0;
   left: 0;
@@ -23,7 +23,6 @@ const StatusBarContainer = styled.div<{ isVisible: boolean }>`
   text-align: center;
   font-weight: ${({ theme }) => theme.typography.fontWeight.medium};
   z-index: 1100;
-  display: ${({ isVisible }) => (isVisible ? 'block' : 'none')};
   animation: ${slideDown} 0.3s ease-in-out;
   
   /* Handle iOS safe area */
@@ -56,9 +55,14 @@ interface OfflineStatusBarProps {
 
 export const OfflineStatusBar: React.FC<OfflineStatusBarProps> = ({ queueCount = 0 }) => {
   const { status } = useNetworkStatus();
+  
+  // If connected, don't render anything
+  if (status.connected) {
+    return null;
+  }
 
   return (
-    <StatusBarContainer isVisible={!status.connected}>
+    <StatusBarContainer>
       <StatusText>
         <Dot /> You are offline
       </StatusText>

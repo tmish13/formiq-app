@@ -5,12 +5,6 @@ import { OfflineStatusBar } from '../OfflineStatusBar';
 import { theme } from '../../../theme';
 import { useNetworkStatus } from '../../../services/networkService';
 
-// Mock navigator.onLine
-Object.defineProperty(window.navigator, 'onLine', {
-  configurable: true,
-  value: false
-});
-
 // Mock the network service
 jest.mock('../../../services/networkService');
 const mockUseNetworkStatus = useNetworkStatus as jest.MockedFunction<typeof useNetworkStatus>;
@@ -29,6 +23,13 @@ describe('OfflineStatusBar', () => {
   });
 
   it('renders when offline', () => {
+    // Mock navigator.onLine to false for this test
+    Object.defineProperty(navigator, 'onLine', { 
+      configurable: true,
+      value: false,
+      writable: true
+    });
+    
     mockUseNetworkStatus.mockReturnValue({ 
       status: { connected: false, connectionType: 'none' },
       isOnline: false
@@ -38,15 +39,33 @@ describe('OfflineStatusBar', () => {
   });
 
   it('does not render when online', () => {
+    // Mock navigator.onLine to true for this test
+    Object.defineProperty(navigator, 'onLine', { 
+      configurable: true,
+      value: true,
+      writable: true
+    });
+    
+    // Ensure mock returns connected: true to make the component hide
     mockUseNetworkStatus.mockReturnValue({ 
       status: { connected: true, connectionType: 'wifi' },
       isOnline: true
     });
+    
     renderWithTheme(<OfflineStatusBar />);
+    
+    // Just check that the text is not visible
     expect(screen.queryByText('You are offline')).not.toBeInTheDocument();
   });
 
   it('renders queue count when provided', () => {
+    // Mock navigator.onLine to false for this test
+    Object.defineProperty(navigator, 'onLine', { 
+      configurable: true,
+      value: false,
+      writable: true
+    });
+    
     mockUseNetworkStatus.mockReturnValue({ 
       status: { connected: false, connectionType: 'none' },
       isOnline: false
@@ -56,6 +75,13 @@ describe('OfflineStatusBar', () => {
   });
 
   it('renders singular queue count when count is 1', () => {
+    // Mock navigator.onLine to false for this test
+    Object.defineProperty(navigator, 'onLine', { 
+      configurable: true,
+      value: false,
+      writable: true
+    });
+    
     mockUseNetworkStatus.mockReturnValue({ 
       status: { connected: false, connectionType: 'none' },
       isOnline: false
@@ -65,6 +91,13 @@ describe('OfflineStatusBar', () => {
   });
 
   it('does not render queue info when count is 0', () => {
+    // Mock navigator.onLine to false for this test
+    Object.defineProperty(navigator, 'onLine', { 
+      configurable: true,
+      value: false,
+      writable: true
+    });
+    
     mockUseNetworkStatus.mockReturnValue({ 
       status: { connected: false, connectionType: 'none' },
       isOnline: false
