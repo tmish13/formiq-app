@@ -1,5 +1,6 @@
 import React from 'react';
-import { render, fireEvent } from '@testing-library/react';
+import { fireEvent } from '@testing-library/react';
+import { testRender } from '../../test-utils';
 import { ExerciseSelector } from '../ExerciseSelector';
 import { ExerciseType } from '../../services/poseAnalysis/exerciseTypes';
 
@@ -10,12 +11,13 @@ describe('ExerciseSelector', () => {
   };
 
   it('renders correctly with default props', () => {
-    const { getByTestId } = render(<ExerciseSelector {...mockProps} />);
-    expect(getByTestId('exercise-selector')).toBeInTheDocument();
+    const { getByTestId } = testRender(<ExerciseSelector {...mockProps} />);
+    const selector = getByTestId('exercise-selector');
+    expect(selector).toBeInTheDocument();
   });
 
   it('displays all exercise options', () => {
-    const { getByTestId } = render(<ExerciseSelector {...mockProps} />);
+    const { getByTestId } = testRender(<ExerciseSelector {...mockProps} />);
     const select = getByTestId('exercise-select') as HTMLSelectElement;
     
     expect(select.value).toBe(ExerciseType.SQUAT);
@@ -27,12 +29,13 @@ describe('ExerciseSelector', () => {
     Object.values(ExerciseType).forEach(type => {
       const option = options.find(opt => opt.value === type);
       expect(option).toBeTruthy();
-      expect(option?.textContent).toBe(type.replace(/([A-Z])/g, ' $1').trim());
+      const formattedText = type.replace(/([A-Z])/g, ' $1').trim();
+      expect(option?.textContent?.trim()).toBe(formattedText);
     });
   });
 
   it('calls onExerciseChange when a different exercise is selected', () => {
-    const { getByTestId } = render(<ExerciseSelector {...mockProps} />);
+    const { getByTestId } = testRender(<ExerciseSelector {...mockProps} />);
     const select = getByTestId('exercise-select') as HTMLSelectElement;
     
     fireEvent.change(select, { target: { value: ExerciseType.PUSHUP } });
@@ -40,7 +43,7 @@ describe('ExerciseSelector', () => {
   });
 
   it('displays exercise guidelines', () => {
-    const { getByTestId } = render(<ExerciseSelector {...mockProps} />);
+    const { getByTestId } = testRender(<ExerciseSelector {...mockProps} />);
     const guidelines = getByTestId('exercise-guidelines');
     expect(guidelines).toBeInTheDocument();
   });

@@ -6,7 +6,79 @@ exports[`UploadGuidance matches snapshot 1`] = `
     data-testid="styled-components-theme-provider"
   >
     <div>
-      <div>
+      <div
+        class="bg-white p-6 rounded-lg shadow-md"
+        data-testid="upload-guidance"
+      >
+        <h2
+          class="text-xl font-semibold mb-4"
+        >
+          Upload Guidelines for 
+        </h2>
+        <div
+          class="space-y-4"
+        >
+          <div>
+            <h3
+              class="font-medium mb-2"
+            >
+              Camera Setup
+            </h3>
+            <ul
+              class="list-disc list-inside space-y-1 text-gray-700"
+            >
+              <li>
+                Position the camera at a 90-degree angle to your body
+              </li>
+              <li>
+                Ensure your full body is visible in the frame
+              </li>
+              <li>
+                Use good lighting for better visibility
+              </li>
+            </ul>
+          </div>
+          <div>
+            <h3
+              class="font-medium mb-2"
+            >
+              Recording Tips
+            </h3>
+            <ul
+              class="list-disc list-inside space-y-1 text-gray-700"
+            >
+              <li>
+                Perform the exercise at a moderate pace
+              </li>
+              <li>
+                Complete 3-5 repetitions
+              </li>
+              <li>
+                Maintain proper form throughout the movement
+              </li>
+            </ul>
+          </div>
+          <div>
+            <h3
+              class="font-medium mb-2"
+            >
+              What to Avoid
+            </h3>
+            <ul
+              class="list-disc list-inside space-y-1 text-gray-700"
+            >
+              <li>
+                Don't wear loose clothing that obscures your form
+              </li>
+              <li>
+                Avoid recording in low light conditions
+              </li>
+              <li>
+                Don't perform the exercise too quickly
+              </li>
+            </ul>
+          </div>
+        </div>
         <div>
           <div>
             <div>

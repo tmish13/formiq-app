@@ -7,10 +7,20 @@ import { server } from './mocks/server';
 import React from 'react';
 import 'whatwg-fetch';
 import { LocalStorageMock, clearMockStorage } from './mocks/storage';
+import { MockMediaRecorder } from './__mocks__/browser/mediaRecorder';
+import { jest } from '@jest/globals';
 
 // Import mocks
 import './mocks/cameraMock';
 import './mocks/storage';
+
+// Ensure Jest is available globally
+if (typeof global.jest === 'undefined') {
+  global.jest = require('jest-mock');
+}
+
+// Now that jest is available, we can use it for mocks
+const mockJest = global.jest;
 
 // Mock URL
 class MockURL {
@@ -59,35 +69,39 @@ Object.defineProperty(window, 'matchMedia', {
 });
 
 // Mock IntersectionObserver
-global.IntersectionObserver = class MockIntersectionObserver implements IntersectionObserver {
-  readonly root: Element | null = null;
-  readonly rootMargin: string = '0px';
-  readonly thresholds: ReadonlyArray<number> = [0];
-  
-  constructor(private callback: IntersectionObserverCallback) {}
-  
-  observe = jest.fn();
-  unobserve = jest.fn();
-  disconnect = jest.fn();
-  takeRecords = () => [];
-} as any;
+class IntersectionObserver {
+  observe = mockJest.fn();
+  disconnect = mockJest.fn();
+  unobserve = mockJest.fn();
+}
+
+Object.defineProperty(window, 'IntersectionObserver', {
+  writable: true,
+  configurable: true,
+  value: IntersectionObserver,
+});
+
+// Mock ResizeObserver
+class ResizeObserver {
+  observe = mockJest.fn();
+  disconnect = mockJest.fn();
+  unobserve = mockJest.fn();
+}
+
+Object.defineProperty(window, 'ResizeObserver', {
+  writable: true,
+  configurable: true,
+  value: ResizeObserver,
+});
 
 // Mock navigator.mediaDevices
 Object.defineProperty(navigator, 'mediaDevices', {
   writable: true,
   value: {
-    getUserMedia: jest.fn().mockResolvedValue({}),
-    enumerateDevices: jest.fn().mockResolvedValue([]),
+    getUserMedia: mockJest.fn().mockResolvedValue({}),
+    enumerateDevices: mockJest.fn().mockResolvedValue([]),
   },
 });
-
-// Mock ResizeObserver
-global.ResizeObserver = class MockResizeObserver implements ResizeObserver {
-  constructor(private callback: ResizeObserverCallback) {}
-  observe = jest.fn();
-  unobserve = jest.fn();
-  disconnect = jest.fn();
-} as any;
 
 // Configure testing library
 configure({
@@ -108,8 +122,8 @@ Object.defineProperty(window, 'sessionStorage', {
 
 // Browser API Mocks
 const mockURL = {
-  createObjectURL: jest.fn(() => 'mock-url'),
-  revokeObjectURL: jest.fn()
+  createObjectURL: mockJest.fn(() => 'mock-url'),
+  revokeObjectURL: mockJest.fn()
 };
 
 Object.defineProperty(window, 'URL', {
@@ -121,7 +135,7 @@ Object.defineProperty(window, 'URL', {
 const originalConsoleError = console.error;
 const originalConsoleWarn = console.warn;
 
-jest.spyOn(console, 'error').mockImplementation((...args) => {
+mockJest.spyOn(console, 'error').mockImplementation((...args) => {
   // Ignore error messages from React DOM/Testing Library
   if (
     args[0]?.includes?.('Warning: An update to') ||
@@ -137,15 +151,15 @@ jest.spyOn(console, 'error').mockImplementation((...args) => {
   originalConsoleError(...args);
 });
 
-// Start mock server before tests
-beforeAll(() => server.listen({ onUnhandledRequest: 'warn' }));
+// Establish API mocking before all tests
+beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
 
 // Reset any request handlers that we may add during the tests,
 // so they don't affect other tests
 afterEach(() => {
   server.resetHandlers();
   cleanup(); // Added explicit cleanup
-  jest.clearAllMocks();
+  mockJest.clearAllMocks();
   clearMockStorage(); // Clear mock storage after each test
 });
 
@@ -153,4 +167,157 @@ afterEach(() => {
 afterAll(() => server.close());
 
 // Increase Jest timeout
-jest.setTimeout(10000); 
+mockJest.setTimeout(10000);
+global.URL = require('url').URL;
+
+// Mock Capacitor
+mockJest.mock('@capacitor/core', () => ({
+  Capacitor: {
+    isNativePlatform: () => false,
+    getPlatform: () => 'web',
+  },
+}));
+
+mockJest.mock('@capacitor/camera', () => ({
+  Camera: {
+    checkPermissions: mockJest.fn().mockResolvedValue({ camera: 'granted' }),
+    requestPermissions: mockJest.fn().mockResolvedValue({ camera: 'granted' }),
+    getPhoto: mockJest.fn().mockResolvedValue({ webPath: 'mock-photo-path' }),
+  },
+}));
+
+// Mock services
+mockJest.mock('./services/poseAnalysisService', () => ({
+  __esModule: true,
+  default: {
+    initialize: mockJest.fn().mockResolvedValue(undefined),
+    startAnalysis: mockJest.fn().mockResolvedValue(undefined),
+    stopAnalysis: mockJest.fn().mockResolvedValue(undefined),
+    analyzeForm: mockJest.fn().mockResolvedValue({
+      confidence: 0.95,
+      isReliable: true,
+      keypoints: [],
+      score: 0.95,
+      angles: {},
+      feedback: {
+        posture: 'Good posture',
+        alignment: 'Proper alignment',
+        suggestions: ['Keep up the good form!']
+      },
+      timestamp: Date.now(),
+      videoUrl: 'test-video-url'
+    }),
+    getAnalysisHistory: mockJest.fn().mockResolvedValue([]),
+    saveAnalysis: mockJest.fn().mockResolvedValue(undefined),
+    dispose: mockJest.fn(),
+    on: mockJest.fn(),
+    emit: mockJest.fn()
+  },
+  poseAnalysisService: {
+    initialize: mockJest.fn().mockResolvedValue(undefined),
+    startAnalysis: mockJest.fn().mockResolvedValue(undefined),
+    stopAnalysis: mockJest.fn().mockResolvedValue(undefined),
+    analyzeForm: mockJest.fn().mockResolvedValue({
+      confidence: 0.95,
+      isReliable: true,
+      keypoints: [],
+      score: 0.95,
+      angles: {},
+      feedback: {
+        posture: 'Good posture',
+        alignment: 'Proper alignment',
+        suggestions: ['Keep up the good form!']
+      },
+      timestamp: Date.now(),
+      videoUrl: 'test-video-url'
+    }),
+    getAnalysisHistory: mockJest.fn().mockResolvedValue([]),
+    saveAnalysis: mockJest.fn().mockResolvedValue(undefined),
+    dispose: mockJest.fn(),
+    on: mockJest.fn(),
+    emit: mockJest.fn()
+  }
+}));
+
+mockJest.mock('./services/formAnalysisService', () => ({
+  __esModule: true,
+  default: {
+    initialize: mockJest.fn().mockResolvedValue(undefined),
+    startAnalysis: mockJest.fn().mockResolvedValue(undefined),
+    stopAnalysis: mockJest.fn().mockResolvedValue(undefined),
+    analyzeForm: mockJest.fn().mockResolvedValue({
+      confidence: 0.95,
+      isReliable: true,
+      keypoints: [],
+      score: 0.95,
+      angles: {},
+      feedback: {
+        posture: 'Good posture',
+        alignment: 'Proper alignment',
+        suggestions: ['Keep up the good form!']
+      },
+      timestamp: Date.now(),
+      videoUrl: 'test-video-url'
+    }),
+    getAnalysisHistory: mockJest.fn().mockResolvedValue([]),
+    saveAnalysis: mockJest.fn().mockResolvedValue(undefined),
+    dispose: mockJest.fn(),
+    on: mockJest.fn(),
+    emit: mockJest.fn()
+  },
+  formAnalysisService: {
+    initialize: mockJest.fn().mockResolvedValue(undefined),
+    startAnalysis: mockJest.fn().mockResolvedValue(undefined),
+    stopAnalysis: mockJest.fn().mockResolvedValue(undefined),
+    analyzeForm: mockJest.fn().mockResolvedValue({
+      confidence: 0.95,
+      isReliable: true,
+      keypoints: [],
+      score: 0.95,
+      angles: {},
+      feedback: {
+        posture: 'Good posture',
+        alignment: 'Proper alignment',
+        suggestions: ['Keep up the good form!']
+      },
+      timestamp: Date.now(),
+      videoUrl: 'test-video-url'
+    }),
+    getAnalysisHistory: mockJest.fn().mockResolvedValue([]),
+    saveAnalysis: mockJest.fn().mockResolvedValue(undefined),
+    dispose: mockJest.fn(),
+    on: mockJest.fn(),
+    emit: mockJest.fn()
+  }
+}));
+
+// Mock localStorage
+const localStorageMock = {
+  getItem: mockJest.fn(),
+  setItem: mockJest.fn(),
+  removeItem: mockJest.fn(),
+  clear: mockJest.fn(),
+};
+Object.defineProperty(window, 'localStorage', { value: localStorageMock });
+
+// Mock MediaDevices
+Object.defineProperty(window.navigator, 'mediaDevices', {
+  value: {
+    getUserMedia: mockJest.fn().mockResolvedValue({
+      getTracks: () => [{
+        stop: mockJest.fn()
+      }]
+    }),
+    enumerateDevices: mockJest.fn().mockResolvedValue([]),
+  },
+});
+
+// Mock MediaRecorder
+Object.defineProperty(window, 'MediaRecorder', { value: MockMediaRecorder });
+
+// Mock ResizeObserver
+window.ResizeObserver = mockJest.fn().mockImplementation(() => ({
+  observe: mockJest.fn(),
+  unobserve: mockJest.fn(),
+  disconnect: mockJest.fn(),
+}));

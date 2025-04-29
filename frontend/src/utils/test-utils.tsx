@@ -1,20 +1,72 @@
 import React from 'react';
 import { render, RenderOptions } from '@testing-library/react';
+import { Provider } from 'react-redux';
 import { ThemeProvider } from 'styled-components';
-import { theme } from '../theme';
+import { BrowserRouter } from 'react-router-dom';
+import { configureStore } from '@reduxjs/toolkit';
+import { RootState } from '../store';
+import { mockTheme } from './test-mocks';
 
-const AllTheProviders = ({ children }: { children: React.ReactNode }) => {
+// Create a mock store for testing
+export const createMockStore = (preloadedState: Partial<RootState> = {}) => {
+  return configureStore({
+    reducer: {
+      auth: (state = {}) => state,
+      formCheck: (state = {}) => state,
+      subscription: (state = {}) => state,
+      workout: (state = {}) => state,
+      formAnalysis: (state = {}) => state,
+    },
+    preloadedState: preloadedState as RootState,
+  });
+};
+
+// Wrapper component that includes all providers
+const AllTheProviders: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const store = createMockStore();
+  
   return (
-    <ThemeProvider theme={theme}>
-      {children}
-    </ThemeProvider>
+    <Provider store={store}>
+      <ThemeProvider theme={mockTheme as any}>
+        <BrowserRouter>
+          {children}
+        </BrowserRouter>
+      </ThemeProvider>
+    </Provider>
   );
 };
 
+// Custom render function with all providers
 const customRender = (
   ui: React.ReactElement,
-  options?: Omit<RenderOptions, 'wrapper'>
+  options?: Omit<RenderOptions, 'wrapper'>,
 ) => render(ui, { wrapper: AllTheProviders, ...options });
 
+// Re-export everything
 export * from '@testing-library/react';
-export { customRender as render, customRender as testRender }; 
+
+// Override render method
+export { customRender as render };
+
+// Export a function to render with a specific store state
+export const renderWithProviders = (
+  ui: React.ReactElement,
+  { preloadedState = {}, ...renderOptions } = {}
+) => {
+  const store = createMockStore(preloadedState);
+  
+  const Wrapper = ({ children }: { children: React.ReactNode }) => (
+    <Provider store={store}>
+      <ThemeProvider theme={mockTheme as any}>
+        <BrowserRouter>
+          {children}
+        </BrowserRouter>
+      </ThemeProvider>
+    </Provider>
+  );
+  
+  return {
+    store,
+    ...render(ui, { wrapper: Wrapper, ...renderOptions }),
+  };
+};

@@ -1,9 +1,9 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ThemeProvider } from 'styled-components';
-import { Switch } from '../../../../src/components/common/Switch';
-import { theme } from '../../../../src/theme';
-import { testRender } from '../../../utils/testRender';
+import { Switch } from '../Switch';
+import { theme } from '../../../theme';
+import { testRender } from '../../../test-utils';
 
 describe('Switch', () => {
   it('renders properly', () => {

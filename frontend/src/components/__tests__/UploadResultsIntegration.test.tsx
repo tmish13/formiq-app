@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { Upload } from '../camera/Upload';
 import { Results } from '../form/Results';
 import { setupServer } from 'msw/node';
-import { http, HttpResponse } from 'msw';
+import { rest } from 'msw';
 import { generateTestFormAnalysis } from '../../utils/test-data';
 
 // Mock the CameraService
@@ -16,16 +16,18 @@ jest.mock('../../services/CameraService', () => ({
 // Create test server
 const server = setupServer(
   // Mock upload endpoint
-  http.post('/api/form-analysis/upload', () => {
-    return HttpResponse.json({
-      id: 'test-analysis-id',
-      status: 'processing'
-    });
+  rest.post('/api/form-analysis/upload', (req, res, ctx) => {
+    return res(
+      ctx.json({
+        id: 'test-analysis-id',
+        status: 'processing'
+      })
+    );
   }),
   
   // Mock analysis results endpoint
-  http.get('/api/form-analysis/:id', () => {
-    return HttpResponse.json(generateTestFormAnalysis());
+  rest.get('/api/form-analysis/:id', (req, res, ctx) => {
+    return res(ctx.json(generateTestFormAnalysis()));
   })
 );
 
@@ -70,8 +72,8 @@ describe('Upload and Results Integration', () => {
   it('should handle upload errors gracefully', async () => {
     // Override the upload endpoint to simulate an error
     server.use(
-      http.post('/api/form-analysis/upload', () => {
-        return new HttpResponse(null, { status: 500 });
+      rest.post('/api/form-analysis/upload', (req, res, ctx) => {
+        return res(ctx.status(500));
       })
     );
 
@@ -105,8 +107,8 @@ describe('Upload and Results Integration', () => {
   it('should handle analysis errors gracefully', async () => {
     // Override the analysis endpoint to simulate an error
     server.use(
-      http.get('/api/form-analysis/:id', () => {
-        return new HttpResponse(null, { status: 500 });
+      rest.get('/api/form-analysis/:id', (req, res, ctx) => {
+        return res(ctx.status(500));
       })
     );
 

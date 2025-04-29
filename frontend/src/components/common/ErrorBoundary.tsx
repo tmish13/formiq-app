@@ -30,6 +30,8 @@ const ErrorMessage = styled.p`
 interface ErrorBoundaryProps {
   children: React.ReactNode;
   fallback?: React.ReactNode;
+  onError?: (error: Error, errorInfo: React.ErrorInfo) => void;
+  resetOnChange?: number;
 }
 
 interface ErrorBoundaryState {
@@ -57,6 +59,11 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
+    // Call onError prop if provided
+    if (this.props.onError) {
+      this.props.onError(error, errorInfo);
+    }
+
     // Log error to error handling service
     errorHandlingService.handleError(error, {
       severity: 'error',
@@ -69,6 +76,22 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
     // Update global error state
     store.dispatch(setError(error.message));
+
+    // Update state with error info
+    this.setState({
+      errorInfo
+    });
+  }
+
+  componentDidUpdate(prevProps: ErrorBoundaryProps) {
+    // Reset error state when resetOnChange prop changes
+    if (this.props.resetOnChange !== prevProps.resetOnChange) {
+      this.setState({
+        hasError: false,
+        error: null,
+        errorInfo: null
+      });
+    }
   }
 
   handleRetry = (): void => {

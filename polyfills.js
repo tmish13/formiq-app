@@ -1,6 +1,7 @@
-const { TextEncoder, TextDecoder } = require('util');
-const { Readable } = require('stream');
-const { ReadableStream, WritableStream, TransformStream } = require('web-streams-polyfill');
+import { TextEncoder, TextDecoder } from 'util';
+import { Readable } from 'stream';
+import { ReadableStream, WritableStream, TransformStream } from 'web-streams-polyfill';
+import fetch from 'node-fetch';
 
 // Polyfill TextEncoder and TextDecoder globally
 Object.assign(global, {
@@ -12,7 +13,7 @@ Object.assign(global, {
 });
 
 // Mock streaming APIs
-global.fetch = global.fetch || require('node-fetch');
+global.fetch = global.fetch || fetch;
 
 // Add response.json polyfill if not available
 if (typeof Response !== 'undefined' && !Response.prototype.json) {

@@ -15,12 +15,20 @@ interface FormAnalysisState {
 }
 
 export class FormAnalysisService extends EventEmitter {
+  private static instance: FormAnalysisService | null = null;
   private detector: poseDetection.PoseDetector | null = null;
   private isAnalyzing: boolean = false;
   private minConfidence: number = 0.5;
 
-  constructor() {
+  private constructor() {
     super();
+  }
+
+  public static getInstance(): FormAnalysisService {
+    if (!FormAnalysisService.instance) {
+      FormAnalysisService.instance = new FormAnalysisService();
+    }
+    return FormAnalysisService.instance;
   }
 
   async initialize(): Promise<void> {
@@ -50,7 +58,14 @@ export class FormAnalysisService extends EventEmitter {
     }
 
     this.isAnalyzing = true;
-    await this.processVideo(videoElement);
+    try {
+      await this.processVideo(videoElement);
+    } catch (error) {
+      this.emit('error', error);
+      throw error;
+    } finally {
+      this.isAnalyzing = false;
+    }
   }
 
   stopAnalysis(): void {
@@ -84,7 +99,8 @@ export class FormAnalysisService extends EventEmitter {
       keypoints,
       angles,
       feedback,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      videoUrl: ''
     };
   }
 
@@ -172,6 +188,9 @@ export class FormAnalysisService extends EventEmitter {
           score: 1.0
         };
         result = this.analyzePose(pose as poseDetection.Pose);
+        if (request.video_url) {
+          result.videoUrl = request.video_url;
+        }
       } else if (request.video_url) {
         throw new Error('No keypoints or video URL provided');
       } else {
@@ -197,7 +216,8 @@ export class FormAnalysisService extends EventEmitter {
           keypoints: [],
           angles: {},
           feedback: [],
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          videoUrl: ''
         },
         stats: {
           averageConfidence: 0,
@@ -232,4 +252,4 @@ export class FormAnalysisService extends EventEmitter {
   }
 }
 
-export const formAnalysisService = new FormAnalysisService(); 
+export const formAnalysisService = FormAnalysisService.getInstance(); 

@@ -1,0 +1,1 @@
+import { Results } from '../../pages/analysis/Results'; 

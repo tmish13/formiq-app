@@ -1,9 +1,9 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { ThemeProvider } from 'styled-components';
-import { OfflineStatusBar } from '../../../../src/components/common/OfflineStatusBar';
-import { theme } from '../../../../src/theme';
-import { useNetworkStatus } from '../../../../src/services/networkService';
+import { OfflineStatusBar } from '../OfflineStatusBar';
+import { theme } from '../../../theme';
+import { useNetworkStatus } from '../../../services/networkService';
 
 // Mock navigator.onLine
 Object.defineProperty(window.navigator, 'onLine', {
@@ -12,7 +12,7 @@ Object.defineProperty(window.navigator, 'onLine', {
 });
 
 // Mock the network service
-jest.mock('../../../../src/services/networkService');
+jest.mock('../../../services/networkService');
 const mockUseNetworkStatus = useNetworkStatus as jest.MockedFunction<typeof useNetworkStatus>;
 
 describe('OfflineStatusBar', () => {

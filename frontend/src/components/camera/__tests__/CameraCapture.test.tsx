@@ -3,7 +3,7 @@ import { render, screen, fireEvent, act, waitFor } from '@testing-library/react'
 import '@testing-library/jest-dom';
 import { ThemeProvider } from 'styled-components';
 import { CameraCapture } from '../CameraCapture';
-import { mockThemeWithFallbacks as mockTheme } from '../../../../tests/__mocks__/mockTheme';
+import { mockTheme as mockThemeWithFallbacks } from '../../../theme/mockTheme';
 
 // Create mock for Capacitor
 jest.mock('@capacitor/core', () => ({
@@ -70,34 +70,32 @@ jest.mock('../FormTipsOverlay', () => ({
 }));
 
 // Mock MediaRecorder
-class MockMediaRecorder {
-  stream: MediaStream;
-  state: string;
-  ondataavailable: ((e: any) => void) | null;
-  onstop: (() => void) | null;
+const mockMediaRecorder = {
+  start: jest.fn(),
+  stop: jest.fn(),
+  state: 'inactive',
+  ondataavailable: null,
+  onstop: null,
+  onerror: null,
+  onstart: null,
+  onpause: null,
+  onresume: null,
+  videoBitsPerSecond: 2500000,
+  audioBitsPerSecond: 128000,
+  requestData: jest.fn(),
+  pause: jest.fn(),
+  resume: jest.fn(),
+};
 
-  constructor(stream: MediaStream) {
-    this.stream = stream;
-    this.state = 'inactive';
-    this.ondataavailable = null;
-    this.onstop = null;
-  }
+// Delete existing MediaRecorder before redefining
+delete (window as any).MediaRecorder;
 
-  start() {
-    this.state = 'recording';
-    if (this.ondataavailable) {
-      this.ondataavailable({ data: new Blob(['test'], { type: 'video/mp4' }) });
-    }
-  }
-
-  stop() {
-    this.state = 'inactive';
-    if (this.onstop) this.onstop();
-  }
-}
-
-// @ts-ignore - mock MediaRecorder globally
-global.MediaRecorder = MockMediaRecorder;
+// Setup MediaRecorder mock
+Object.defineProperty(window, 'MediaRecorder', {
+  writable: true,
+  configurable: true,
+  value: jest.fn().mockImplementation(() => mockMediaRecorder),
+});
 
 describe('CameraCapture Component', () => {
   const mockOnVideoCapture = jest.fn();
@@ -125,7 +123,7 @@ describe('CameraCapture Component', () => {
 
   it('renders the camera capture component correctly', () => {
     render(
-      <ThemeProvider theme={mockTheme}>
+      <ThemeProvider theme={mockThemeWithFallbacks}>
         <CameraCapture {...defaultProps} />
       </ThemeProvider>
     );
@@ -136,7 +134,7 @@ describe('CameraCapture Component', () => {
 
   it('starts recording when clicking the capture button on web platform', async () => {
     render(
-      <ThemeProvider theme={mockTheme}>
+      <ThemeProvider theme={mockThemeWithFallbacks}>
         <CameraCapture {...defaultProps} />
       </ThemeProvider>
     );
@@ -162,7 +160,7 @@ describe('CameraCapture Component', () => {
     );
 
     render(
-      <ThemeProvider theme={mockTheme}>
+      <ThemeProvider theme={mockThemeWithFallbacks}>
         <CameraCapture {...defaultProps} />
       </ThemeProvider>
     );
@@ -178,7 +176,7 @@ describe('CameraCapture Component', () => {
 
   it('handles file upload when selecting a video file', async () => {
     render(
-      <ThemeProvider theme={mockTheme}>
+      <ThemeProvider theme={mockThemeWithFallbacks}>
         <CameraCapture {...defaultProps} />
       </ThemeProvider>
     );
@@ -210,7 +208,7 @@ describe('CameraCapture Component', () => {
 
   it('allows canceling the recording', async () => {
     render(
-      <ThemeProvider theme={mockTheme}>
+      <ThemeProvider theme={mockThemeWithFallbacks}>
         <CameraCapture {...defaultProps} />
       </ThemeProvider>
     );
@@ -239,7 +237,7 @@ describe('CameraCapture Component', () => {
     CapacitorModule.Capacitor.isNativePlatform.mockReturnValueOnce(true);
 
     render(
-      <ThemeProvider theme={mockTheme}>
+      <ThemeProvider theme={mockThemeWithFallbacks}>
         <CameraCapture {...defaultProps} isRecording={true} />
       </ThemeProvider>
     );
@@ -263,7 +261,7 @@ describe('CameraCapture Component', () => {
       });
 
     render(
-      <ThemeProvider theme={mockTheme}>
+      <ThemeProvider theme={mockThemeWithFallbacks}>
         <CameraCapture {...defaultProps} />
       </ThemeProvider>
     );

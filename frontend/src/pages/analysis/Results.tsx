@@ -33,7 +33,7 @@ export const Results: React.FC = () => {
           if (response.status === 404) {
             setError('Form check not found');
           } else {
-            setError('Failed to fetch form check');
+            setError('An error occurred while fetching the form check');
           }
           setLoading(false);
           return;
@@ -54,23 +54,23 @@ export const Results: React.FC = () => {
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
-        <LoadingSpinner />
+        <LoadingSpinner data-testid="loading-spinner" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="text-red-500">{error}</div>
+      <div className="flex justify-center items-center min-h-screen" data-testid="error-container">
+        <div className="text-red-500" data-testid="error-message">{error}</div>
       </div>
     );
   }
 
   if (!formCheck) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="text-gray-500">No form check data available</div>
+      <div className="flex justify-center items-center min-h-screen" data-testid="error-container">
+        <div className="text-gray-500" data-testid="error-message">No form check data available</div>
       </div>
     );
   }
@@ -82,34 +82,34 @@ export const Results: React.FC = () => {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-4 py-8" data-testid="results-container">
       <div className="max-w-4xl mx-auto">
-        <h1 className="text-3xl font-bold mb-6">Form Analysis Results</h1>
+        <h1 className="text-3xl font-bold mb-6" data-testid="results-title">Form Analysis Results</h1>
         
-        <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+        <div className="bg-white rounded-lg shadow-lg p-6 mb-6" data-testid="results-content">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold">
+            <h2 className="text-xl font-semibold" data-testid="exercise-type">
               Exercise Type: {formCheck.exercise_type}
             </h2>
-            <div className={`text-2xl font-bold ${getScoreColor(formCheck.score)}`}>
+            <div className={`text-2xl font-bold ${getScoreColor(formCheck.score)}`} data-testid="score">
               Score: {formCheck.score}%
             </div>
           </div>
 
           {formCheck.video_url ? (
-            <div className="mb-6">
+            <div className="mb-6" data-testid="video-container">
               <VideoPlayer videoUrl={formCheck.video_url} />
             </div>
           ) : (
-            <div className="text-gray-500 text-center py-8">
+            <div className="text-gray-500 text-center py-8" data-testid="no-video-message">
               No video available for this form check
             </div>
           )}
 
           <FormCheckFeedback
-            overallFeedback={formCheck.overall_feedback ?? ''}
-            issues={formCheck.issues ?? []}
-            suggestions={formCheck.suggestions ?? []}
+            feedback={formCheck.overall_feedback ?? ''}
+            score={formCheck.score}
+            data-testid="form-feedback"
           />
         </div>
       </div>

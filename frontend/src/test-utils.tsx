@@ -2,14 +2,16 @@
 // It now re-exports the centralized testing utilities
 import React from 'react';
 import { render, RenderOptions, RenderResult } from '@testing-library/react';
-import { ThemeProvider as StyledThemeProvider } from 'styled-components';
-import { ThemeProvider as MuiThemeProvider } from '@mui/material/styles';
+import { ThemeProvider } from 'styled-components';
 import { Provider } from 'react-redux';
+import { BrowserRouter, MemoryRouter, Routes, Route } from 'react-router-dom';
 import { configureStore } from '@reduxjs/toolkit';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter } from 'react-router-dom';
+import { theme } from './theme';
 import rootReducer from './store/rootReducer';
-import { mockTheme } from '../tests/__mocks__/theme/themeMock';
+import userEvent from '@testing-library/user-event';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { mockTheme } from './theme/mockTheme';
+import { Theme } from './theme';
 
 // Re-export everything
 export * from '@testing-library/react';
@@ -19,10 +21,6 @@ export const createTestStore = (preloadedState = {}) => {
   return configureStore({
     reducer: rootReducer,
     preloadedState,
-    middleware: (getDefaultMiddleware) => 
-      getDefaultMiddleware({
-        serializableCheck: false,
-      }),
   });
 };
 
@@ -35,56 +33,89 @@ export const createTestQueryClient = () => new QueryClient({
   },
 });
 
-// TestWrapper component
-interface TestWrapperProps {
-  children: React.ReactNode;
-  route?: string;
+// Options for the test render function
+interface TestRenderOptions extends Omit<RenderOptions, 'wrapper'> {
+  initialRoute?: string;
+  useMemoryRouter?: boolean;
+  routePath?: string;
+  initialState?: any;
+  withoutTheme?: boolean;
+  withoutRouter?: boolean;
+  withoutRedux?: boolean;
   preloadedState?: any;
+  store?: any;
 }
 
-export const TestWrapper = ({ 
-  children, 
-  route = '/', 
-  preloadedState = {} 
-}: TestWrapperProps) => {
-  const store = createTestStore(preloadedState);
-  const queryClient = createTestQueryClient();
-
-  return (
-    <Provider store={store}>
-      <QueryClientProvider client={queryClient}>
-        <StyledThemeProvider theme={mockTheme}>
-          <MuiThemeProvider theme={mockTheme}>
-            <MemoryRouter initialEntries={[route]}>
-              {children}
-            </MemoryRouter>
-          </MuiThemeProvider>
-        </StyledThemeProvider>
-      </QueryClientProvider>
-    </Provider>
-  );
-};
-
-// Custom render function that includes providers
-export const renderWithProviders = (
+// Custom render function that wraps components with all necessary providers
+export function testRender(
   ui: React.ReactElement,
   {
-    route = '/',
+    initialRoute = '/',
+    useMemoryRouter = false,
+    routePath,
+    initialState = {},
     preloadedState = {},
+    store = createTestStore(initialState || preloadedState),
+    withoutTheme = false,
+    withoutRouter = false,
+    withoutRedux = false,
     ...renderOptions
-  } = {}
-): RenderResult => {
-  const Wrapper = ({ children }: { children: React.ReactNode }) => (
-    <TestWrapper route={route} preloadedState={preloadedState}>
-      {children}
-    </TestWrapper>
-  );
+  }: TestRenderOptions = {}
+): RenderResult & { user: ReturnType<typeof userEvent.setup>; store: ReturnType<typeof createTestStore> } {
+  const Wrapper = ({ children }: { children: React.ReactNode }) => {
+    let wrappedChildren = children;
 
-  return render(ui, { wrapper: Wrapper, ...renderOptions });
-};
+    // Wrap with route if path is provided
+    if (routePath && useMemoryRouter) {
+      wrappedChildren = (
+        <Routes>
+          <Route path={routePath} element={<>{wrappedChildren}</>} />
+        </Routes>
+      );
+    }
+
+    // Wrap with router if needed
+    if (!withoutRouter) {
+      const Router = useMemoryRouter ? MemoryRouter : BrowserRouter;
+      wrappedChildren = (
+        <Router initialEntries={useMemoryRouter ? [initialRoute] : undefined}>
+          {wrappedChildren}
+        </Router>
+      );
+    }
+
+    // Wrap with Redux if needed
+    if (!withoutRedux) {
+      wrappedChildren = (
+        <Provider store={store}>
+          {wrappedChildren}
+        </Provider>
+      );
+    }
+
+    // Wrap with theme if needed
+    if (!withoutTheme) {
+      wrappedChildren = (
+        <ThemeProvider theme={theme}>
+          {wrappedChildren}
+        </ThemeProvider>
+      );
+    }
+
+    return <>{wrappedChildren}</>;
+  };
+
+  const result = render(ui, { wrapper: Wrapper, ...renderOptions });
+  
+  return {
+    ...result,
+    user: userEvent.setup(),
+    store,
+  };
+}
 
 // For backward compatibility
-export const testRender = renderWithProviders;
+export const renderWithProviders = testRender;
 
 // Helper function to create API errors for testing
 export const createApiError = (

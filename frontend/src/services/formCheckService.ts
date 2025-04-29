@@ -1,8 +1,18 @@
 import { apiService } from './api';
 import { FormCheck, ExerciseType, FormCheckStatus } from '../types';
 
-class FormCheckService {
+export class FormCheckService {
+  private static instance: FormCheckService | null = null;
   private baseUrl = '/api/form-checks';
+
+  private constructor() {}
+
+  public static getInstance(): FormCheckService {
+    if (!FormCheckService.instance) {
+      FormCheckService.instance = new FormCheckService();
+    }
+    return FormCheckService.instance;
+  }
 
   async getFormChecks(): Promise<FormCheck[]> {
     const response = await apiService.get<FormCheck[]>(this.baseUrl);
@@ -81,4 +91,4 @@ class FormCheckService {
   }
 }
 
-export const formCheckService = new FormCheckService(); 
+export const formCheckService = FormCheckService.getInstance(); 

@@ -1,8 +1,8 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { ThemeProvider } from 'styled-components';
-import LoadingScreen from '../../../../src/components/common/LoadingScreen';
-import { theme } from '../../../../src/theme';
+import LoadingScreen from '../LoadingScreen';
+import { theme } from '../../../theme';
 
 jest.mock('../../../../src/hooks/useTheme', () => ({
   useTheme: () => ({ theme })

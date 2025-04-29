@@ -60,7 +60,7 @@ export const ExerciseSelector: React.FC<ExerciseSelectorProps> = ({
   const exerciseConfig = exerciseConfigs[selectedExercise];
 
   return (
-    <Container>
+    <Container data-testid="exercise-selector">
       <SelectWrapper>
         <Select
           value={selectedExercise}

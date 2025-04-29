@@ -1,3 +1,5 @@
+import { jest } from '@jest/globals';
+
 // Mock camera API
 export const mockCamera = {
   getPhoto: jest.fn().mockResolvedValue({

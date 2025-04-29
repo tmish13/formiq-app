@@ -1,8 +1,8 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { ThemeProvider } from 'styled-components';
-import { LoadingSpinner } from '../../../../src/components/common/LoadingSpinner';
-import { theme } from '../../../../src/theme';
+import { LoadingSpinner } from '../LoadingSpinner';
+import { theme } from '../../../theme';
 
 describe('LoadingSpinner', () => {
   const renderWithTheme = (component: React.ReactNode) => {

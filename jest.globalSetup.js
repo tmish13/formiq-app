@@ -1,7 +1,7 @@
 // This file runs once before all tests
-const { TextEncoder, TextDecoder } = require('util');
+import { TextEncoder, TextDecoder } from 'util';
 
-module.exports = async () => {
+export default async () => {
   // Set up globals for all tests
   global.TextEncoder = TextEncoder;
   global.TextDecoder = TextDecoder;

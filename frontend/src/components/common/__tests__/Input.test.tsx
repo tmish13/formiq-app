@@ -1,8 +1,8 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ThemeProvider } from 'styled-components';
-import { Input } from '../../../../src/components/common/Input';
-import { theme } from '../../../../src/theme';
+import { Input } from '../Input';
+import { theme } from '../../../theme';
 
 describe('Input', () => {
   const renderWithTheme = (component: React.ReactNode) => {

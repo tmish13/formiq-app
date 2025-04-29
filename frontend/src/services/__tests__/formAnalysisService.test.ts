@@ -50,11 +50,23 @@ jest.mock('../apiService', () => ({
 // Mock formAnalysisService
 jest.mock('../formAnalysisService', () => {
   class MockFormAnalysisService extends EventEmitter {
+    private static instance: MockFormAnalysisService | null = null;
     private _detector: poseDetection.PoseDetector | null = null;
     private _isAnalyzing: boolean = false;
     private _minConfidence: number = 0.5;
     private _isInitialized: boolean = false;
     private _error: string | null = null;
+
+    private constructor() {
+      super();
+    }
+
+    public static getInstance(): MockFormAnalysisService {
+      if (!MockFormAnalysisService.instance) {
+        MockFormAnalysisService.instance = new MockFormAnalysisService();
+      }
+      return MockFormAnalysisService.instance;
+    }
 
     get detector() { return this._detector; }
     set detector(value) { this._detector = value; }
@@ -163,8 +175,13 @@ jest.mock('../formAnalysisService', () => {
     }
   }
 
-  const mockService = new MockFormAnalysisService() as unknown as FormAnalysisService;
-  return { formAnalysisService: mockService };
+  const mockService = MockFormAnalysisService.getInstance() as unknown as FormAnalysisService;
+  return { 
+    formAnalysisService: mockService,
+    FormAnalysisService: {
+      getInstance: jest.fn().mockReturnValue(mockService)
+    }
+  };
 });
 
 // Mock EventEmitter

@@ -145,7 +145,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({ userId, currentUserId 
               </Box>
             </Box>
             {userId === currentUserId ? (
-              <IconButton onClick={() => setIsEditing(true)}>
+              <IconButton onClick={() => setIsEditing(true)} data-testid="edit-profile-button">
                 <Edit />
               </IconButton>
             ) : (
@@ -195,7 +195,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({ userId, currentUserId 
                   alignItems="flex-start"
                   secondaryAction={
                     <Box>
-                      <IconButton onClick={() => handleLike(workout.id)}>
+                      <IconButton onClick={() => handleLike(workout.id)} data-testid={`like-button-${workout.id}`}>
                         {workout.likes > 0 ? <Favorite color="error" /> : <FavoriteBorder />}
                       </IconButton>
                       <IconButton onClick={() => {
@@ -232,7 +232,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({ userId, currentUserId 
         </CardContent>
       </Card>
 
-      <Dialog open={isEditing} onClose={() => setIsEditing(false)}>
+      <Dialog open={isEditing} onClose={() => setIsEditing(false)} data-testid="edit-profile-form">
         <DialogTitle>Edit Profile</DialogTitle>
         <DialogContent>
           <TextField

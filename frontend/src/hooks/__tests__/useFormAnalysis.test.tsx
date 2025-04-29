@@ -4,7 +4,7 @@ import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
 import { useFormAnalysis } from '../useFormAnalysis';
 import formAnalysisReducer, { FormAnalysisState } from '../../store/slices/formAnalysisSlice';
-import { handleApiError, AppError, ErrorCode } from '../../utils/errorHandling';
+import { AppError, ErrorCode, ApiError, handleApiError } from '../../utils/errorHandling';
 
 // Mock the error handling utility
 jest.mock('../../utils/errorHandling', () => ({

@@ -1,8 +1,9 @@
-import { store } from '../index';
-import { setUser, setToken, logout, User } from '../slices/authSlice';
-import { setPlans, SubscriptionPlan } from '../slices/subscriptionSlice';
-import { addFormCheck, FormCheck, FormCheckFeedback } from '../slices/formCheckSlice';
-import { SubscriptionTier } from '../../types';
+import { store } from '../../store';
+import { setUser, setToken, logout } from '../../store/slices/authSlice';
+import { setPlans, SubscriptionPlan } from '../../store/slices/subscriptionSlice';
+import { addFormCheck } from '../../store/slices/formCheckSlice';
+import { FormCheck, FeedbackItem } from '../../types/formCheck';
+import { SubscriptionTier, User } from '../../types';
 
 describe('Store Configuration', () => {
   const mockUser: User = {
@@ -29,21 +30,24 @@ describe('Store Configuration', () => {
     },
   ];
 
-  const mockFeedback: FormCheckFeedback[] = [
+  const mockFeedback: FeedbackItem[] = [
     {
-      type: 'success' as const,
-      message: 'Good form overall',
-      timestamp: '2024-03-20T10:00:00Z',
+      type: 'form',
+      severity: 'low',
+      timestamp: Date.now(),
+      description: 'Good form overall',
+      suggestions: '',
     },
   ];
 
   const mockFormCheck: FormCheck = {
-    id: '1',
-    userId: 'user_1',
-    exerciseName: 'SQUAT',
-    videoUrl: 'https://example.com/video1.mp4',
-    timestamp: '2024-03-20T10:00:00Z',
-    feedback: mockFeedback,
+    id: 1,
+    user_id: 1,
+    exercise_type: 'squat',
+    video_url: 'https://example.com/video1.mp4',
+    created_at: '2024-03-20T10:00:00Z',
+    updated_at: '2024-03-20T10:00:00Z',
+    feedback_items: mockFeedback,
     status: 'completed' as const,
   };
 
@@ -65,7 +69,7 @@ describe('Store Configuration', () => {
       selectedPlan: null,
     });
     expect(state.formCheck).toEqual({
-      checks: [],
+      formChecks: [],
       isLoading: false,
       error: null,
       currentCheck: null,
@@ -100,7 +104,7 @@ describe('Store Configuration', () => {
     store.dispatch(addFormCheck(mockFormCheck));
 
     const state = store.getState();
-    expect(state.formCheck.checks).toEqual([mockFormCheck]);
+    expect(state.formCheck.formChecks).toEqual([mockFormCheck]);
   });
 
   it('should maintain state independence between slices', () => {
@@ -111,12 +115,12 @@ describe('Store Configuration', () => {
     const state = store.getState();
     expect(state.auth.user).toEqual(mockUser);
     expect(state.subscription.plans).toEqual(mockSubscriptionPlans);
-    expect(state.formCheck.checks).toEqual([mockFormCheck]);
+    expect(state.formCheck.formChecks).toEqual([mockFormCheck]);
 
     store.dispatch(logout());
     const newState = store.getState();
     expect(newState.auth.user).toBeNull();
     expect(newState.subscription.plans).toEqual(mockSubscriptionPlans);
-    expect(newState.formCheck.checks).toEqual([mockFormCheck]);
+    expect(newState.formCheck.formChecks).toEqual([mockFormCheck]);
   });
 }); 

@@ -1,9 +1,9 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ThemeProvider } from 'styled-components';
-import { ErrorMessage } from '../../../../src/components/common/ErrorMessage';
-import { theme } from '../../../../src/theme';
-import { AppError, ErrorCode } from '../../../../src/utils/errorHandling';
+import { ErrorMessage } from '../ErrorMessage';
+import { theme } from '../../../theme';
+import { AppError, ErrorCode } from '../../../utils/errorHandling';
 
 describe('ErrorMessage', () => {
   const renderWithTheme = (component: React.ReactNode) => {

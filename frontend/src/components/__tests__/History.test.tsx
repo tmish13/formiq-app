@@ -2,13 +2,13 @@ import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
-import History from '../../../src/pages/analysis/History';
+import History from '../../pages/analysis/History';
 import { ThemeProvider } from 'styled-components';
-import { theme } from '../../../src/theme';
+import { theme } from '../../theme';
 import { BrowserRouter } from 'react-router-dom';
-import formCheckReducer from '../../../src/store/slices/formCheckSlice';
-import { formCheckService } from '../../../src/services/formCheckService';
-import { renderWithProviders } from '../../utils/test-utils';
+import formCheckReducer from '../../store/slices/formCheckSlice';
+import { formCheckService } from '../../services/formCheckService';
+import { testRender } from '../../test-utils';
 
 // Mock formCheckService
 jest.mock('../../../src/services/formCheckService', () => ({
@@ -53,7 +53,7 @@ describe('History Component', () => {
   });
 
   it('displays loading state initially', () => {
-    renderWithProviders(<History />, {
+    testRender(<History />, {
       initialState: {
         formCheck: {
           formChecks: [],
@@ -68,7 +68,7 @@ describe('History Component', () => {
   });
   
   it('displays form checks when data is loaded', async () => {
-    renderWithProviders(<History />, {
+    testRender(<History />, {
       initialState: {
         formCheck: {
           formChecks: mockFormChecks,
@@ -97,7 +97,7 @@ describe('History Component', () => {
   });
   
   it('displays formatted dates', async () => {
-    renderWithProviders(<History />, {
+    testRender(<History />, {
       initialState: {
         formCheck: {
           formChecks: mockFormChecks,
@@ -118,7 +118,7 @@ describe('History Component', () => {
   
   it('displays error message when API call fails', async () => {
     const errorMessage = 'Failed to load form checks';
-    renderWithProviders(<History />, {
+    testRender(<History />, {
       initialState: {
         formCheck: {
           formChecks: [],
@@ -133,7 +133,7 @@ describe('History Component', () => {
   });
   
   it('handles empty state when no form checks exist', async () => {
-    renderWithProviders(<History />, {
+    testRender(<History />, {
       initialState: {
         formCheck: {
           formChecks: [],
@@ -155,7 +155,7 @@ describe('History Component', () => {
         overall_feedback: null
       }
     ];
-    renderWithProviders(<History />, {
+    testRender(<History />, {
       initialState: {
         formCheck: {
           formChecks: formChecksWithMissingFeedback,

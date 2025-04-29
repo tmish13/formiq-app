@@ -67,6 +67,7 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
     <div className="form-builder">
       <div className="form-header">
         <Input
+          data-testid="form-title"
           label="Form Title"
           value={form.title}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
@@ -74,6 +75,7 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
           error={errors.title}
         />
         <Input
+          data-testid="form-description"
           label="Description"
           value={form.description}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
@@ -84,7 +86,7 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
 
       <div className="form-fields">
         {form.fields.map(field => (
-          <div key={field.id} className="field-item">
+          <div key={field.id} data-testid={`field-${field.id}`} className="field-item">
             <Input
               label="Field Label"
               value={field.label}
@@ -108,6 +110,18 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
                 Add Option
               </Button>
             )}
+            <Button 
+              data-testid={`delete-field-${field.id}`}
+              variant="secondary" 
+              onClick={() => {
+                setForm({
+                  ...form,
+                  fields: form.fields.filter(f => f.id !== field.id)
+                });
+              }}
+            >
+              Delete Field
+            </Button>
           </div>
         ))}
       </div>

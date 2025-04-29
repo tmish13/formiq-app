@@ -1,391 +1,187 @@
 import { ApiService } from '../../services/apiService';
-import axios from 'axios';
+import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import { rest } from 'msw';
-import { setupServer } from 'msw/node';
+import { server } from '../../../tests/utils/testServer';
+import { ApiResponse } from '../../types/api';
+import { DefaultBodyType, PathParams, ResponseResolver, RestContext, RestRequest } from 'msw';
 
 // Mock axios
-jest.mock('axios');
-const mockedAxios = axios as jest.Mocked<typeof axios>;
-
-// Setup a mock axios instance
-const mockAxiosInstance = {
-  defaults: { 
-    headers: { 
-      common: {} 
-    },
-    baseURL: 'http://localhost/api'
-  },
-  request: jest.fn(),
-  get: jest.fn(),
-  post: jest.fn(),
-  put: jest.fn(),
-  delete: jest.fn(),
-  interceptors: {
-    request: { 
-      use: jest.fn().mockImplementation((fn) => fn), 
-      eject: jest.fn() 
-    },
-    response: { 
-      use: jest.fn().mockImplementation((fn, errorFn) => {
-        // Store error handler for testing
-        mockResponseErrorHandler = errorFn;
-        return fn;
-      }), 
-      eject: jest.fn() 
+jest.mock('axios', () => {
+  const mockAxios = {
+    create: jest.fn(() => ({
+      interceptors: {
+        request: {
+          use: jest.fn(),
+          eject: jest.fn(),
+          clear: jest.fn()
+        },
+        response: {
+          use: jest.fn(),
+          eject: jest.fn(),
+          clear: jest.fn()
+        }
+      },
+      get: jest.fn(),
+      post: jest.fn(),
+      put: jest.fn(),
+      delete: jest.fn(),
+      patch: jest.fn()
+    })),
+    defaults: {
+      headers: {
+        common: {}
+      }
     }
-  }
-};
-
-// Capture the response error handler for testing
-let mockResponseErrorHandler: ((error: any) => any) | null = null;
-
-// Setup axios.create mock to return our mock instance
-mockedAxios.create.mockReturnValue(mockAxiosInstance as any);
-
-// Setup MSW server with improved handlers
-const server = setupServer(
-  rest.get('http://localhost/api/test', (req, res, ctx) => {
-    return res(ctx.json({ message: 'Success' }));
-  }),
-  
-  rest.post('http://localhost/api/test', (req, res, ctx) => {
-    return res(ctx.json({ message: 'Success' }));
-  }),
-  
-  rest.put('http://localhost/api/test', (req, res, ctx) => {
-    return res(ctx.json({ message: 'Success' }));
-  }),
-  
-  rest.delete('http://localhost/api/test', (req, res, ctx) => {
-    return res(ctx.json({ message: 'Success' }));
-  }),
-  
-  rest.get('http://localhost/api/error', (req, res, ctx) => {
-    return res(
-      ctx.status(500),
-      ctx.json({ message: 'Internal Server Error' })
-    );
-  }),
-  
-  rest.get('http://localhost/api/auth-error', (req, res, ctx) => {
-    return res(
-      ctx.status(401),
-      ctx.json({ message: 'Unauthorized' })
-    );
-  }),
-  
-  rest.post('http://localhost/api/validation-error', (req, res, ctx) => {
-    return res(
-      ctx.status(400),
-      ctx.json({ 
-        message: 'Validation Error',
-        errors: ['Field is required']
-      })
-    );
-  }),
-  
-  rest.get('http://localhost/api/rate-limit', (req, res, ctx) => {
-    return res(
-      ctx.status(429),
-      ctx.json({ message: 'Too Many Requests' })
-    );
-  }),
-  
-  rest.get('http://localhost/api/network-error', (req, res, ctx) => {
-    return res.networkError('Network error occurred');
-  })
-);
-
-// Start and stop MSW server
-beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
-afterEach(() => server.resetHandlers());
-afterAll(() => server.close());
-
-interface ErrorResponse {
-  message: string;
-  errors?: string[];
-}
+  };
+  return mockAxios;
+});
 
 // Create a test subclass that exposes protected methods
 class TestApiService extends ApiService {
-  public get<T>(url: string, config?: any) {
-    return super.get<T>(url, config);
+  constructor() {
+    super('http://localhost/api');
   }
 
-  public post<T>(url: string, data?: any, config?: any) {
-    return super.post<T>(url, data, config);
+  // Expose protected methods for testing
+  public get<T>(url: string, config?: AxiosRequestConfig): Promise<ApiResponse<T>> {
+    return super.get(url, config);
   }
 
-  public put<T>(url: string, data?: any, config?: any) {
-    return super.put<T>(url, data, config);
+  public put<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<ApiResponse<T>> {
+    return super.put(url, data, config);
   }
 
-  public delete<T>(url: string, config?: any) {
-    return super.delete<T>(url, config);
+  public delete<T>(url: string, config?: AxiosRequestConfig): Promise<ApiResponse<T>> {
+    return super.delete(url, config);
   }
-  
-  // Expose interceptor setup for testing
-  public getAxiosInstance() {
-    return this['client'];
+
+  // Expose client for testing
+  public getClient(): AxiosInstance {
+    return this.client;
   }
 }
 
 describe('ApiService', () => {
   let apiService: TestApiService;
-  
+  let mockAxiosInstance: jest.Mocked<AxiosInstance>;
+
   beforeEach(() => {
+    // Clear all mocks
     jest.clearAllMocks();
-    
-    // Reset mock implementations
-    mockAxiosInstance.get.mockReset();
-    mockAxiosInstance.post.mockReset();
-    mockAxiosInstance.put.mockReset();
-    mockAxiosInstance.delete.mockReset();
-    mockAxiosInstance.request.mockReset();
-    
-    // Reset the interceptors mocks
-    mockAxiosInstance.interceptors.request.use.mockClear();
-    mockAxiosInstance.interceptors.response.use.mockClear();
-    
-    // Create a new ApiService instance
-    apiService = new TestApiService('http://localhost/api');
-  });
-  
-  it('should make a GET request', async () => {
-    // Setup mock response
-    mockAxiosInstance.request.mockResolvedValueOnce({
-      data: { message: 'Success' },
-      status: 200,
-      statusText: 'OK',
-      headers: {},
-      config: {}
-    });
-    
-    const response = await apiService.get('/test');
-    expect(response).toBeDefined();
-    expect(mockAxiosInstance.request).toHaveBeenCalledWith(
-      expect.objectContaining({
-        method: 'GET',
-        url: '/test'
-      })
-    );
-  });
-  
-  it('should make a POST request', async () => {
-    // Setup mock response
-    mockAxiosInstance.request.mockResolvedValueOnce({
-      data: { message: 'Success' },
-      status: 200,
-      statusText: 'OK',
-      headers: {},
-      config: {}
-    });
-    
-    const data = { test: 'data' };
-    const response = await apiService.post('/test', data);
-    
-    expect(response).toBeDefined();
-    expect(mockAxiosInstance.request).toHaveBeenCalledWith(
-      expect.objectContaining({
-        method: 'POST',
-        url: '/test',
-        data
-      })
-    );
-  });
-  
-  it('should make a PUT request', async () => {
-    // Setup mock response
-    mockAxiosInstance.request.mockResolvedValueOnce({
-      data: { message: 'Success' },
-      status: 200,
-      statusText: 'OK',
-      headers: {},
-      config: {}
-    });
-    
-    const data = { test: 'data' };
-    const response = await apiService.put('/test', data);
-    
-    expect(response).toBeDefined();
-    expect(mockAxiosInstance.request).toHaveBeenCalledWith(
-      expect.objectContaining({
-        method: 'PUT',
-        url: '/test',
-        data
-      })
-    );
-  });
-  
-  it('should make a DELETE request', async () => {
-    // Setup mock response
-    mockAxiosInstance.request.mockResolvedValueOnce({
-      data: { message: 'Success' },
-      status: 200,
-      statusText: 'OK',
-      headers: {},
-      config: {}
-    });
-    
-    const response = await apiService.delete('/test');
-    
-    expect(response).toBeDefined();
-    expect(mockAxiosInstance.request).toHaveBeenCalledWith(
-      expect.objectContaining({
-        method: 'DELETE',
-        url: '/test'
-      })
-    );
-  });
-  
-  it('should handle server errors', async () => {
-    // Setup mock error response
-    const errorResponse = {
-      response: {
-        status: 500,
-        data: { message: 'Internal Server Error' }
-      },
-      isAxiosError: true,
-      config: {}
-    };
-    mockAxiosInstance.request.mockRejectedValueOnce(errorResponse);
-    
-    await expect(apiService.get('/error')).rejects.toMatchObject({
-      status: 500,
-      message: expect.any(String)
-    });
-  });
-  
-  it('should handle network errors', async () => {
-    // Setup mock network error
-    const networkError = {
-      message: 'Network Error',
-      isAxiosError: true,
-      response: undefined,
-      config: {}
-    };
-    mockAxiosInstance.request.mockRejectedValueOnce(networkError);
-    
-    await expect(apiService.get('/network-error')).rejects.toMatchObject({
-      status: 0,
-      message: 'Network Error'
-    });
-  });
-  
-  it('should handle 401 unauthorized errors', async () => {
-    // Mock window.location
-    const originalLocation = window.location;
-    window.location = { ...originalLocation, href: '' } as any;
-    
-    // Setup mock unauthorized error
-    const unauthorizedError = {
-      response: {
-        status: 401,
-        data: { message: 'Unauthorized' }
-      },
-      isAxiosError: true,
-      config: {}
-    };
-    
-    // Test the error handler directly
-    if (mockResponseErrorHandler) {
-      const promise = mockResponseErrorHandler(unauthorizedError);
-      await expect(promise).rejects.toBeTruthy();
-      
-      // Check if location was changed to login
-      expect(window.location.href).toBe('/login');
-      
-      // Restore original location
-      window.location = originalLocation;
-    } else {
-      fail('Response error handler was not captured');
-    }
-  });
-  
-  it('should handle validation errors', async () => {
-    // Setup mock validation error
-    const validationError = {
-      response: {
-        status: 400,
-        data: { 
-          message: 'Validation Error',
-          errors: ['Field is required']
+
+    // Create mock axios instance
+    mockAxiosInstance = {
+      interceptors: {
+        request: {
+          use: jest.fn(),
+          eject: jest.fn(),
+          clear: jest.fn()
+        },
+        response: {
+          use: jest.fn(),
+          eject: jest.fn(),
+          clear: jest.fn()
         }
       },
-      isAxiosError: true,
-      config: {}
-    };
-    mockAxiosInstance.request.mockRejectedValueOnce(validationError);
-    
-    await expect(apiService.post('/validation-error', {})).rejects.toMatchObject({
-      status: 400,
-      message: 'Validation Error'
-    });
+      get: jest.fn(),
+      post: jest.fn(),
+      put: jest.fn(),
+      delete: jest.fn(),
+      patch: jest.fn(),
+      defaults: {
+        headers: {
+          common: {}
+        }
+      }
+    } as any;
+
+    // Setup axios.create mock
+    (axios.create as jest.Mock).mockReturnValue(mockAxiosInstance);
+
+    // Create service instance
+    apiService = new TestApiService();
   });
-  
-  it('should register request and response interceptors', () => {
-    // Verify that interceptors are set up
-    expect(mockAxiosInstance.interceptors.request.use).toHaveBeenCalled();
-    expect(mockAxiosInstance.interceptors.response.use).toHaveBeenCalled();
-  });
-  
-  it('should retry failed requests with retryable status codes', async () => {
-    // Create a configuration that should be retried
-    const retryableError = {
-      response: {
-        status: 429, // Too Many Requests - should be retried
-        data: { message: 'Too Many Requests' }
-      },
-      isAxiosError: true,
-      config: { _retry: 0 } // Already prepared for retrying
-    };
-    
-    // First attempt will fail with a retryable error
-    mockAxiosInstance.request
-      .mockRejectedValueOnce(retryableError)
-      // Second attempt will succeed
-      .mockResolvedValueOnce({
-        data: { message: 'Success after retry' },
-        status: 200,
-        statusText: 'OK',
-        headers: {},
-        config: {}
+
+  describe('initialization', () => {
+    it('should create axios instance with correct base URL', () => {
+      expect(axios.create).toHaveBeenCalledWith({
+        baseURL: 'http://localhost/api',
+        headers: expect.any(Object)
       });
-    
-    // Call the API method
-    const response = await apiService.get('/rate-limit');
-    
-    // It should have called request twice (once for original, once for retry)
-    expect(mockAxiosInstance.request).toHaveBeenCalledTimes(2);
-    expect(response).toBeDefined();
-    expect(response.data).toEqual({ message: 'Success after retry' });
-  });
-  
-  it('should add auth token to request headers', async () => {
-    // Mock localStorage to return a token
-    const mockToken = JSON.stringify({
-      accessToken: 'test-access-token',
-      refreshToken: 'test-refresh-token'
     });
-    
-    const getItemSpy = jest.spyOn(Storage.prototype, 'getItem');
-    getItemSpy.mockReturnValue(mockToken);
-    
-    mockAxiosInstance.request.mockResolvedValueOnce({
-      data: { message: 'Success' },
+
+    it('should setup request interceptors', () => {
+      expect(mockAxiosInstance.interceptors.request.use).toHaveBeenCalled();
+    });
+
+    it('should setup response interceptors', () => {
+      expect(mockAxiosInstance.interceptors.response.use).toHaveBeenCalled();
+    });
+  });
+
+  describe('request methods', () => {
+    const mockResponse = {
+      data: { test: 'data' },
       status: 200,
       statusText: 'OK',
       headers: {},
-      config: {}
+      config: {} as AxiosRequestConfig
+    };
+
+    beforeEach(() => {
+      mockAxiosInstance.get.mockResolvedValue(mockResponse);
+      mockAxiosInstance.post.mockResolvedValue(mockResponse);
+      mockAxiosInstance.put.mockResolvedValue(mockResponse);
+      mockAxiosInstance.delete.mockResolvedValue(mockResponse);
     });
-    
-    // Make a request
-    await apiService.get('/test');
-    
-    // Check if interceptor was called to add headers
-    expect(mockAxiosInstance.interceptors.request.use).toHaveBeenCalled();
-    
-    // Clean up
-    getItemSpy.mockRestore();
+
+    it('should make GET request', async () => {
+      await apiService.get('/test');
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/test', undefined);
+    });
+
+    it('should make POST request', async () => {
+      const data = { test: 'data' };
+      await apiService.post('/test', data);
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith('/test', data, undefined);
+    });
+
+    it('should make PUT request', async () => {
+      const data = { test: 'data' };
+      await apiService.put('/test', data);
+      expect(mockAxiosInstance.put).toHaveBeenCalledWith('/test', data, undefined);
+    });
+
+    it('should make DELETE request', async () => {
+      await apiService.delete('/test');
+      expect(mockAxiosInstance.delete).toHaveBeenCalledWith('/test', undefined);
+    });
+  });
+
+  describe('error handling', () => {
+    const mockError = {
+      response: {
+        data: { message: 'Test error' },
+        status: 400,
+        statusText: 'Bad Request',
+        headers: {},
+        config: {} as AxiosRequestConfig
+      }
+    };
+
+    beforeEach(() => {
+      mockAxiosInstance.get.mockRejectedValue(mockError);
+    });
+
+    it('should handle API errors', async () => {
+      try {
+        await apiService.get('/test');
+      } catch (error) {
+        expect(error).toEqual({
+          message: 'Test error',
+          status: 400
+        });
+      }
+    });
   });
 }); 

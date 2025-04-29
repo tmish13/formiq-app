@@ -2,8 +2,8 @@ import React from 'react';
 import { screen, waitFor, fireEvent } from '@testing-library/react';
 import { rest } from 'msw';
 import { server } from '../../mocks/server';
-import { renderWithProviders } from '../testUtils';
-import Upload from '../../../src/pages/analysis/Upload';
+import { renderWithProviders } from '../../test-utils';
+import Upload from '../../pages/analysis/Upload';
 
 // Mock styled function from @mui/system before importing Upload
 jest.mock('@mui/system', () => {

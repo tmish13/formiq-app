@@ -2,7 +2,7 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { ThemeProvider } from 'styled-components';
-import { mockThemeWithFallbacks as mockTheme } from '../__mocks__/mockTheme';
+import { mockTheme } from '../mockTheme';
 import styled from 'styled-components';
 
 // Create styled component that uses theme

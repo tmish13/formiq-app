@@ -5,8 +5,8 @@
 import '@testing-library/jest-dom';
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import ErrorBoundary from '../../../../src/components/ErrorBoundary';
-import { AppError, ErrorCode } from '../../../../src/utils/errorHandling';
+import { ErrorBoundary } from '../ErrorBoundary';
+import { AppError, ErrorCode } from '../../../utils/errorHandling';
 
 // Mock console.error to avoid test noise
 const originalError = console.error;

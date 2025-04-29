@@ -1,9 +1,26 @@
-export const mockStorage = {
-  get: jest.fn(),
-  set: jest.fn(),
-  remove: jest.fn(),
-  clear: jest.fn()
+const createStorageMock = () => {
+  let store: { [key: string]: string } = {};
+  return {
+    getItem: jest.fn((key: string) => {
+      return store[key] || null;
+    }),
+    setItem: jest.fn((key: string, value: string) => {
+      store[key] = value;
+    }),
+    removeItem: jest.fn((key: string) => {
+      delete store[key];
+    }),
+    clear: jest.fn(() => {
+      store = {};
+    }),
+    key: jest.fn((index: number) => Object.keys(store)[index] || null),
+    get length() {
+      return Object.keys(store).length;
+    }
+  };
 };
+
+export const mockStorage = createStorageMock();
 
 export const mockPreferences = {
   get: jest.fn(),
@@ -12,11 +29,9 @@ export const mockPreferences = {
   clear: jest.fn()
 };
 
+// Clear storage between tests
 export const clearMockStorage = () => {
-  mockStorage.get.mockClear();
-  mockStorage.set.mockClear();
-  mockStorage.remove.mockClear();
-  mockStorage.clear.mockClear();
+  mockStorage.clear();
   mockPreferences.get.mockClear();
   mockPreferences.set.mockClear();
   mockPreferences.remove.mockClear();

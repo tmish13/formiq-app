@@ -123,12 +123,12 @@ export class PoseAnalysisService extends EventEmitter {
 
     this.frameInterval = 1000 / (this.config.deviceOptimization?.targetFPS || 30);
     this.downsampleFactor = this.config.deviceOptimization?.downsampleFactor || 1;
-    this.initializeDetector();
   }
 
-  public static getInstance(config: PoseAnalysisConfig): PoseAnalysisService {
+  public static async getInstance(config: PoseAnalysisConfig): Promise<PoseAnalysisService> {
     if (!PoseAnalysisService.instance) {
       PoseAnalysisService.instance = new PoseAnalysisService(config);
+      await PoseAnalysisService.instance.initialize();
     }
     return PoseAnalysisService.instance;
   }

@@ -99,4 +99,167 @@ export const generateTestFormAnalysis = (overrides = {}) => ({
   ],
   timestamp: Date.now(),
   ...overrides
-}); 
+});
+
+export const mockTheme = {
+  colors: {
+    primary: {
+      light: '#4dabf5',
+      main: '#228be6',
+      dark: '#1c7ed6',
+      contrastText: '#ffffff'
+    },
+    secondary: {
+      light: '#868e96',
+      main: '#495057',
+      dark: '#343a40',
+      contrastText: '#ffffff'
+    },
+    error: {
+      light: '#ff6b6b',
+      main: '#fa5252',
+      dark: '#e03131',
+      contrastText: '#ffffff'
+    },
+    warning: {
+      light: '#ffd43b',
+      main: '#fcc419',
+      dark: '#fab005',
+      contrastText: '#000000'
+    },
+    success: {
+      light: '#69db7c',
+      main: '#40c057',
+      dark: '#2f9e44',
+      contrastText: '#ffffff'
+    },
+    info: {
+      light: '#4dabf7',
+      main: '#339af0',
+      dark: '#228be6',
+      contrastText: '#ffffff'
+    },
+    gray: {
+      light: '#f8f9fa',
+      main: '#e9ecef',
+      dark: '#dee2e6',
+      contrastText: '#000000'
+    },
+    background: {
+      main: '#ffffff',
+      secondary: '#f8f9fa',
+      paper: '#ffffff'
+    },
+    text: {
+      primary: '#212529',
+      secondary: '#495057',
+      disabled: '#adb5bd',
+      inverse: '#ffffff'
+    },
+    border: {
+      main: '#dee2e6',
+      light: '#e9ecef'
+    },
+    disabled: '#adb5bd'
+  },
+  typography: {
+    fontFamily: {
+      primary: "'Inter', sans-serif",
+      secondary: "'Poppins', sans-serif",
+      mono: "'SF Mono', monospace"
+    },
+    fontSize: {
+      xxs: '0.625rem',
+      xs: '0.75rem',
+      sm: '0.875rem',
+      md: '1rem',
+      lg: '1.125rem',
+      xl: '1.25rem',
+      xxl: '1.5rem'
+    },
+    fontWeight: {
+      light: 300,
+      regular: 400,
+      medium: 500,
+      semibold: 600,
+      bold: 700
+    },
+    lineHeight: {
+      tight: '1.25',
+      normal: '1.5',
+      relaxed: '1.75'
+    }
+  },
+  spacing: {
+    xxs: '0.25rem',
+    xs: '0.5rem',
+    sm: '0.75rem',
+    md: '1rem',
+    lg: '1.5rem',
+    xl: '2rem',
+    xxl: '3rem'
+  },
+  borderRadius: {
+    sm: '0.25rem',
+    md: '0.5rem',
+    lg: '1rem',
+    full: '9999px'
+  },
+  shadows: {
+    none: 'none',
+    small: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
+    medium: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+    large: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)'
+  },
+  transitions: {
+    duration: {
+      shortest: 150,
+      shorter: 200,
+      short: 250,
+      standard: 300,
+      complex: 375,
+      enteringScreen: 225,
+      leavingScreen: 195
+    },
+    easing: {
+      easeInOut: 'cubic-bezier(0.4, 0, 0.2, 1)',
+      easeOut: 'cubic-bezier(0.0, 0, 0.2, 1)',
+      easeIn: 'cubic-bezier(0.4, 0, 1, 1)',
+      sharp: 'cubic-bezier(0.4, 0, 0.6, 1)'
+    }
+  }
+};
+
+/**
+ * Creates a mock StorageService instance for testing
+ */
+export function createMockStorageService() {
+  const mockStorage = {
+    getItem: jest.fn(),
+    setItem: jest.fn(),
+    removeItem: jest.fn(),
+    clear: jest.fn(),
+    get: jest.fn(),
+    set: jest.fn(),
+    remove: jest.fn(),
+    getAllKeys: jest.fn().mockResolvedValue([]),
+    multiGet: jest.fn().mockResolvedValue([]),
+    multiSet: jest.fn().mockResolvedValue(undefined),
+    multiRemove: jest.fn().mockResolvedValue(undefined),
+    mergeItem: jest.fn().mockResolvedValue(undefined),
+    // Form analysis cache methods
+    cacheFormAnalysis: jest.fn().mockResolvedValue(undefined),
+    getFormAnalysisCache: jest.fn().mockResolvedValue({}),
+    // User preferences methods
+    getUserPreferences: jest.fn().mockResolvedValue({}),
+    setUserPreferences: jest.fn().mockResolvedValue(undefined),
+    // Workout data methods
+    getWorkoutData: jest.fn().mockResolvedValue({}),
+    setWorkoutData: jest.fn().mockResolvedValue(undefined),
+    // Social data methods
+    getSocialData: jest.fn().mockResolvedValue({}),
+    setSocialData: jest.fn().mockResolvedValue(undefined),
+  };
+
+  return mockStorage;
+} 

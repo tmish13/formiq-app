@@ -91,14 +91,20 @@ export interface Theme extends DefaultTheme {
   };
   transitions: {
     duration: {
+      shortest: string;
+      shorter: string;
       short: string;
+      standard: string;
+      complex: string;
+      enteringScreen: string;
+      leavingScreen: string;
       medium: string;
-      long: string;
     };
     easing: {
       easeIn: string;
       easeOut: string;
       easeInOut: string;
+      sharp: string;
     };
   };
   zIndex: {
@@ -229,14 +235,20 @@ export const theme: Theme = {
   },
   transitions: {
     duration: {
-      short: '150ms',
+      shortest: '150ms',
+      shorter: '300ms',
+      short: '500ms',
+      standard: '300ms',
+      complex: '500ms',
+      enteringScreen: '250ms',
+      leavingScreen: '200ms',
       medium: '300ms',
-      long: '500ms',
     },
     easing: {
       easeIn: 'cubic-bezier(0.4, 0, 1, 1)',
       easeOut: 'cubic-bezier(0, 0, 0.2, 1)',
       easeInOut: 'cubic-bezier(0.4, 0, 0.2, 1)',
+      sharp: 'cubic-bezier(0.4, 0, 0.6, 1)',
     },
   },
   zIndex: {

@@ -1,18 +1,29 @@
 import { setupServer } from 'msw/node';
 import { rest } from 'msw';
+import { handlers } from '../../src/services/api/handlers';
+
+// This configures a request mocking server with the given request handlers.
+export const server = setupServer(...handlers);
+
+// Export individual handlers for test-specific overrides
+export { handlers };
 
 // Define common request handlers
 export const commonHandlers = [
-  rest.get('/api/user', (req, res, ctx) => {
-    return res(ctx.json({ 
-      id: '1', 
-      name: 'Test User', 
-      email: 'test@example.com' 
-    }));
+  rest.get('/api/user', (_, res, ctx) => {
+    return res(
+      ctx.status(200),
+      ctx.json({ 
+        id: '1', 
+        name: 'Test User', 
+        email: 'test@example.com' 
+      })
+    );
   }),
   
-  rest.post('/api/auth/login', (req, res, ctx) => {
+  rest.post('/api/auth/login', (_, res, ctx) => {
     return res(
+      ctx.status(200),
       ctx.json({
         token: 'mock_token',
         user: {
@@ -25,12 +36,16 @@ export const commonHandlers = [
     );
   }),
   
-  rest.post('/api/auth/logout', (req, res, ctx) => {
-    return res(ctx.json({ success: true }));
+  rest.post('/api/auth/logout', (_, res, ctx) => {
+    return res(
+      ctx.status(200),
+      ctx.json({ success: true })
+    );
   }),
   
-  rest.get('/api/form-checks', (req, res, ctx) => {
+  rest.get('/api/form-checks', (_, res, ctx) => {
     return res(
+      ctx.status(200),
       ctx.json([
         {
           id: 1,
@@ -51,6 +66,7 @@ export const commonHandlers = [
   rest.get('/api/form-checks/:id', (req, res, ctx) => {
     const id = req.params.id as string;
     return res(
+      ctx.status(200),
       ctx.json({
         id: parseInt(id),
         user_id: 1,
@@ -67,8 +83,15 @@ export const commonHandlers = [
   }),
 ];
 
-// Create the server with default handlers
-export const server = setupServer(...commonHandlers);
+// Establish API mocking before all tests.
+beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
+
+// Reset any request handlers that we may add during the tests,
+// so they don't affect other tests.
+afterEach(() => server.resetHandlers());
+
+// Clean up after the tests are finished.
+afterAll(() => server.close());
 
 // Test server usage:
 // 1. Import server & handlers in tests

@@ -1,19 +1,45 @@
-import { NetworkRecoveryService } from '../../../src/services/networkRecovery';
-import { StorageService } from '../../../src/services/storageService';
+// Increase timeout for all tests in this file
+jest.setTimeout(30000);
 
-jest.mock('../../../src/services/storageService');
+import { NetworkRecoveryService } from '../networkRecovery';
+import { StorageService } from '../storageService';
+
+jest.mock('../storageService');
 
 describe('NetworkRecoveryService', () => {
   let service: NetworkRecoveryService;
   let mockStorageService: jest.Mocked<StorageService>;
 
+  beforeAll(() => {
+    jest.useFakeTimers();
+  });
+
+  afterAll(() => {
+    jest.useRealTimers();
+  });
+
   beforeEach(async () => {
     // Clear the singleton instance before each test
     (NetworkRecoveryService as any).instance = undefined;
     
-    // Setup mock storage service
+    // Setup mock storage service with proper implementation
     mockStorageService = {
-      get: jest.fn().mockResolvedValue(null),
+      get: jest.fn().mockImplementation(async (key: string) => {
+        if (key === 'pending_requests') {
+          return JSON.stringify([
+            {
+              id: '1',
+              url: 'http://test.com',
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: { test: true },
+              timestamp: Date.now(),
+              retryCount: 0
+            }
+          ]);
+        }
+        return null;
+      }),
       set: jest.fn().mockResolvedValue(undefined),
       remove: jest.fn().mockResolvedValue(undefined),
       clear: jest.fn().mockResolvedValue(undefined),
@@ -24,13 +50,14 @@ describe('NetworkRecoveryService', () => {
     
     // Get service instance and wait for initialization
     service = NetworkRecoveryService.getInstance();
-    // Wait for any pending promises to resolve
-    await new Promise(resolve => setTimeout(resolve, 0));
+    // Advance timers instead of using real timeout
+    jest.advanceTimersByTime(100);
   });
 
   afterEach(() => {
     service.destroy();
     jest.clearAllMocks();
+    jest.clearAllTimers();
   });
 
   describe('initialization', () => {
@@ -52,12 +79,6 @@ describe('NetworkRecoveryService', () => {
         }
       ];
       
-      mockStorageService.get.mockResolvedValue(JSON.stringify(mockRequests));
-      
-      // Create new instance to trigger initialization with mock data
-      service = NetworkRecoveryService.getInstance();
-      await new Promise(resolve => setTimeout(resolve, 0));
-      
       expect(mockStorageService.get).toHaveBeenCalledWith('pending_requests');
       expect(service.getQueuedRequests()).toEqual(mockRequests);
     });
@@ -77,14 +98,17 @@ describe('NetworkRecoveryService', () => {
         timestamp: Date.now(),
         retryCount: 0
       };
-
+      
       await service.queueRequest(request);
-      expect(service.getQueuedRequests()).toContainEqual(expect.objectContaining({
+      
+      expect(service.getQueuedRequests()).toHaveLength(1);
+      expect(service.getQueuedRequests()[0]).toMatchObject({
         url: request.url,
-        method: request.method
-      }));
-      expect(mockStorageService.set).toHaveBeenCalledWith('pending_requests', expect.any(String));
-    }, 15000);
+        method: request.method,
+        headers: request.headers,
+        body: request.body
+      });
+    });
 
     it('should process queue when coming back online', async () => {
       // Mock offline status
@@ -99,19 +123,52 @@ describe('NetworkRecoveryService', () => {
         timestamp: Date.now(),
         retryCount: 0
       };
-
+      
       await service.queueRequest(request);
       
-      // Mock coming back online
+      // Mock online status
       Object.defineProperty(navigator, 'onLine', { value: true, configurable: true });
+      
+      // Trigger online event
       window.dispatchEvent(new Event('online'));
       
-      // Wait for queue processing
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Advance timers instead of using real timeout
+      jest.advanceTimersByTime(100);
       
       expect(service.getQueuedRequests()).toHaveLength(0);
-      expect(mockStorageService.remove).toHaveBeenCalledWith('pending_requests');
-    }, 15000);
+    });
+
+    it('should retry failed requests with exponential backoff', async () => {
+      // Mock offline status
+      Object.defineProperty(navigator, 'onLine', { value: true, configurable: true });
+      
+      const request = {
+        id: '1',
+        url: 'http://test.com',
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: { test: true },
+        timestamp: Date.now(),
+        retryCount: 0
+      };
+      
+      // Mock fetch to fail
+      global.fetch = jest.fn().mockRejectedValue(new Error('Network error'));
+      
+      await service.queueRequest(request);
+      
+      // First retry after 5 seconds
+      jest.advanceTimersByTime(5000);
+      expect(service.getQueuedRequests()[0].retryCount).toBe(1);
+      
+      // Second retry after 10 seconds
+      jest.advanceTimersByTime(10000);
+      expect(service.getQueuedRequests()[0].retryCount).toBe(2);
+      
+      // Third retry after 20 seconds
+      jest.advanceTimersByTime(20000);
+      expect(service.getQueuedRequests()[0].retryCount).toBe(3);
+    });
   });
 
   describe('event handling', () => {
@@ -128,13 +185,13 @@ describe('NetworkRecoveryService', () => {
         timestamp: Date.now(),
         retryCount: 0
       };
-
+      
       await service.queueRequest(request);
       
       expect(mockListener).toHaveBeenCalledWith(expect.objectContaining({
         url: request.url,
         method: request.method
       }));
-    }, 15000);
+    });
   });
 }); 

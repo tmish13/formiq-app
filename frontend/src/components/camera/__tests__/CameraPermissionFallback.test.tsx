@@ -4,19 +4,11 @@ import { ThemeProvider } from 'styled-components';
 import { CameraPermissionFallback } from '../CameraPermissionFallback';
 import { useCameraPermissions } from '../../../hooks/useCameraPermissions';
 import { theme } from '../../../theme';
+import { Camera } from '@capacitor/camera';
+import { Capacitor } from '@capacitor/core';
 
 // Mock the camera hooks
 jest.mock('../../../hooks/useCameraPermissions');
-jest.mock('@capacitor/core', () => ({
-  Capacitor: {
-    isNativePlatform: jest.fn().mockReturnValue(false),
-  },
-}));
-jest.mock('@capacitor/app', () => ({
-  App: {
-    openUrl: jest.fn(),
-  },
-}));
 
 describe('CameraPermissionFallback', () => {
   beforeEach(() => {

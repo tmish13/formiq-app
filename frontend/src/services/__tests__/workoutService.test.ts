@@ -1,6 +1,6 @@
 import { workoutService } from '../../../src/services/workoutService';
-import { http, HttpResponse } from 'msw';
-import { server } from '../../mocks/server';
+import { setupServer } from 'msw/node';
+import { rest } from 'msw';
 import { Exercise, Workout, WorkoutPlan } from '../../../src/types/workout';
 
 const mockExercise: Exercise = {
@@ -33,80 +33,109 @@ const mockWorkoutPlan: WorkoutPlan = {
   updatedAt: new Date().toISOString()
 };
 
+// Create test server
+const server = setupServer(
+  // Mock successful response
+  rest.get('/api/workouts', (req, res, ctx) => {
+    return res(
+      ctx.json({
+        workouts: [
+          {
+            id: '1',
+            name: 'Test Workout',
+            exercises: []
+          }
+        ]
+      })
+    );
+  }),
+
+  // Mock error response
+  rest.post('/api/workouts', (req, res, ctx) => {
+    return res(ctx.status(500));
+  })
+);
+
 describe('WorkoutService', () => {
   beforeEach(() => {
     server.resetHandlers();
     
     // Setup MSW handlers for the workout API endpoints
     server.use(
-      http.get('/api/workouts', () => {
-        return HttpResponse.json([mockWorkout]);
+      rest.get('/api/workouts', (req, res, ctx) => {
+        return res(ctx.json([mockWorkout]));
       }),
       
-      http.get('/api/workouts/:id', ({ params }) => {
-        return HttpResponse.json(mockWorkout);
+      rest.get('/api/workouts/:id', (req, res, ctx) => {
+        return res(ctx.json(mockWorkout));
       }),
       
-      http.post('/api/workouts', async ({ request }) => {
-        const data = await request.json();
-        return HttpResponse.json({
-          ...data,
-          id: '123',
-          userId: 'user123',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        }, { status: 201 });
+      rest.post('/api/workouts', async (req, res, ctx) => {
+        const data = await req.json();
+        return res(
+          ctx.status(201),
+          ctx.json({
+            ...data,
+            id: '123',
+            userId: 'user123',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          })
+        );
       }),
       
-      http.put('/api/workouts/:id', async ({ params, request }) => {
-        const data = await request.json();
-        return HttpResponse.json({
+      rest.put('/api/workouts/:id', async (req, res, ctx) => {
+        const data = await req.json();
+        return res(ctx.json({
           ...mockWorkout,
           ...data
-        });
+        }));
       }),
       
-      http.delete('/api/workouts/:id', () => {
-        return HttpResponse.json({ success: true });
+      rest.delete('/api/workouts/:id', (req, res, ctx) => {
+        return res(ctx.json({ success: true }));
       }),
       
-      http.get('/api/workout-plans', () => {
-        return HttpResponse.json([mockWorkoutPlan]);
+      rest.get('/api/workout-plans', (req, res, ctx) => {
+        return res(ctx.json([mockWorkoutPlan]));
       }),
       
-      http.get('/api/workout-plans/:id', () => {
-        return HttpResponse.json(mockWorkoutPlan);
+      rest.get('/api/workout-plans/:id', (req, res, ctx) => {
+        return res(ctx.json(mockWorkoutPlan));
       }),
       
-      http.post('/api/workout-plans', async ({ request }) => {
-        const data = await request.json();
-        return HttpResponse.json({
-          ...data,
-          id: '456',
-          userId: 'user123',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        }, { status: 201 });
+      rest.post('/api/workout-plans', async (req, res, ctx) => {
+        const data = await req.json();
+        return res(
+          ctx.status(201),
+          ctx.json({
+            ...data,
+            id: '456',
+            userId: 'user123',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          })
+        );
       }),
       
-      http.put('/api/workout-plans/:id', async ({ request }) => {
-        const data = await request.json();
-        return HttpResponse.json({
+      rest.put('/api/workout-plans/:id', async (req, res, ctx) => {
+        const data = await req.json();
+        return res(ctx.json({
           ...mockWorkoutPlan,
           ...data
-        });
+        }));
       }),
       
-      http.delete('/api/workout-plans/:id', () => {
-        return HttpResponse.json({ success: true });
+      rest.delete('/api/workout-plans/:id', (req, res, ctx) => {
+        return res(ctx.json({ success: true }));
       }),
       
-      http.get('/api/workouts/upcoming', () => {
-        return HttpResponse.json([mockWorkout]);
+      rest.get('/api/workouts/upcoming', (req, res, ctx) => {
+        return res(ctx.json([mockWorkout]));
       }),
       
-      http.get('/api/workout-plans/active', () => {
-        return HttpResponse.json([mockWorkoutPlan]);
+      rest.get('/api/workout-plans/active', (req, res, ctx) => {
+        return res(ctx.json([mockWorkoutPlan]));
       })
     );
   });
@@ -211,33 +240,33 @@ describe('WorkoutService', () => {
   describe('Error handling', () => {
     it('should handle API errors when fetching workouts', async () => {
       server.use(
-        http.get('/api/workouts', () => {
-          return new HttpResponse(null, { status: 500 });
+        rest.get('/api/workouts', (req, res, ctx) => {
+          return res(ctx.status(500));
         })
       );
-
+      
       await expect(workoutService.getWorkouts()).rejects.toThrow();
     });
 
     it('should handle API errors when creating workouts', async () => {
       server.use(
-        http.post('/api/workouts', () => {
-          return new HttpResponse(null, { status: 500 });
+        rest.post('/api/workouts', (req, res, ctx) => {
+          return res(ctx.status(500));
         })
       );
-
+      
       const newWorkout: Omit<Workout, 'id' | 'userId' | 'createdAt' | 'updatedAt'> = {
-        name: 'Test Workout',
+        name: 'Evening Workout',
         exercises: [{
-          id: 'ex3',
-          name: 'Test Exercise',
+          id: 'ex2',
+          name: 'Push-ups',
           sets: 3,
-          reps: 10
+          reps: 15
         }],
         duration: 30,
         difficulty: 'beginner'
       };
-
+      
       await expect(workoutService.createWorkout(newWorkout)).rejects.toThrow();
     });
   });

@@ -1,6 +1,8 @@
 import { Network } from '@capacitor/network';
 import { Capacitor } from '@capacitor/core';
 import { networkService, NetworkStatus, defaultNetworkStatus } from '../../../src/services/networkService';
+import { setupServer } from 'msw/node';
+import { rest } from 'msw';
 
 // Mock Capacitor
 jest.mock('@capacitor/core', () => ({
@@ -16,6 +18,24 @@ jest.mock('@capacitor/network', () => ({
     addListener: jest.fn()
   }
 }));
+
+// Create test server
+const server = setupServer(
+  // Mock successful response
+  rest.get('/api/health', (req, res, ctx) => {
+    return res(ctx.json({ status: 'ok' }));
+  }),
+
+  // Mock error response
+  rest.get('/api/error', (req, res, ctx) => {
+    return res(ctx.status(500));
+  }),
+
+  // Mock timeout
+  rest.get('/api/timeout', (req, res, ctx) => {
+    return res(ctx.delay(5000));
+  })
+);
 
 describe('NetworkService', () => {
   let mockListener: jest.Mock;

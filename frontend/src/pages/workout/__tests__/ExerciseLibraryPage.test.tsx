@@ -2,17 +2,16 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import ExerciseLibraryPage from '../../../pages/workout/ExerciseLibraryPage';
-import { exerciseLibraryService, ExerciseType, ExerciseDifficulty } from '../../../services/exerciseLibraryService';
+import { exerciseLibraryService, ExerciseType } from '../../../services/exerciseLibraryService';
 
 // Mock the exerciseLibraryService
 jest.mock('../../../services/exerciseLibraryService', () => ({
   exerciseLibraryService: {
     getExercises: jest.fn(),
-    getMuscleGroups: jest.fn(),
-    getEquipment: jest.fn(),
+    filterExercises: jest.fn(),
+    getExerciseTypes: jest.fn().mockReturnValue(Object.values(ExerciseType)),
   },
   ExerciseType,
-  ExerciseDifficulty,
 }));
 
 // Mock the theme
@@ -29,20 +28,16 @@ const mockExercise = {
   name: 'Test Exercise',
   description: 'Test Description',
   type: ExerciseType.STRENGTH,
-  difficulty: ExerciseDifficulty.BEGINNER,
-  muscleGroups: ['Quadriceps', 'Hamstrings'],
+  difficulty: 'beginner',
+  targetMuscles: ['Quadriceps', 'Hamstrings'],
   equipment: ['Dumbbell'],
-  instructions: ['Step 1', 'Step 2'],
+  formRules: [],
   videoUrl: 'https://example.com/video',
   thumbnailUrl: 'https://example.com/thumbnail',
-  duration: 300,
-  caloriesBurned: 100,
-  tags: ['test', 'exercise'],
-  metrics: {
-    recommendedSets: 3,
-    recommendedReps: 12,
-    restTime: 60,
-  },
+  tips: ['Step 1', 'Step 2'],
+  variations: [],
+  created_at: '2024-01-01T00:00:00Z',
+  updated_at: '2024-01-01T00:00:00Z',
 };
 
 const renderWithRouter = (component: React.ReactElement) => {
@@ -57,8 +52,6 @@ describe('ExerciseLibraryPage', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (exerciseLibraryService.getExercises as jest.Mock).mockResolvedValue([mockExercise]);
-    (exerciseLibraryService.getMuscleGroups as jest.Mock).mockResolvedValue(['Quadriceps', 'Hamstrings']);
-    (exerciseLibraryService.getEquipment as jest.Mock).mockResolvedValue(['Dumbbell']);
   });
 
   it('renders the exercise library page', async () => {
@@ -113,7 +106,7 @@ describe('ExerciseLibraryPage', () => {
     // Select difficulty
     const difficultySelect = screen.getByLabelText('Difficulty');
     fireEvent.mouseDown(difficultySelect);
-    fireEvent.click(screen.getByText(ExerciseDifficulty.BEGINNER));
+    fireEvent.click(screen.getByText('beginner'));
 
     // Apply filters
     fireEvent.click(screen.getByText('Apply'));
@@ -122,7 +115,7 @@ describe('ExerciseLibraryPage', () => {
       expect(exerciseLibraryService.getExercises).toHaveBeenCalledWith(
         expect.objectContaining({
           type: ExerciseType.STRENGTH,
-          difficulty: ExerciseDifficulty.BEGINNER,
+          difficulty: 'beginner',
         })
       );
     });

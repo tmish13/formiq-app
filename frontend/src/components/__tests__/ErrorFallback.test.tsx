@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { ErrorFallback } from '../ErrorFallback';
+import { ErrorFallback } from '../common/ErrorFallback';
 
 // Mock Material UI components
 jest.mock('@mui/material', () => ({

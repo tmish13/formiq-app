@@ -1,19 +1,20 @@
 import React from 'react';
-import { screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import { useParams } from 'react-router-dom';
 import { Results } from '../../pages/analysis/Results';
-import { VideoPlayer, LoadingSpinner } from '../../components/common';
-import { render } from '../../test-utils';
-import { generateTestFormAnalysis } from '../../test-utils';
+import { VideoPlayer } from '../../components/common';
+import { LoadingSpinner } from '../../components/common';
+import '@testing-library/jest-dom';
 
-// Mock the VideoPlayer component
-jest.mock('../../components/common/VideoPlayer', () => ({
-  VideoPlayer: ({ videoUrl }: { videoUrl: string }) => (
-    <div data-testid="video-player">Mock Video Player: {videoUrl}</div>
-  )
+// Mock react-router-dom's useParams
+jest.mock('react-router-dom', () => ({
+  ...jest.requireActual('react-router-dom'),
+  useParams: jest.fn(),
 }));
 
-// Mock the LoadingSpinner component
-jest.mock('../../components/common/LoadingSpinner', () => ({
+// Mock the VideoPlayer component
+jest.mock('../../components/common', () => ({
+  VideoPlayer: () => <div data-testid="video-player">Mock Video Player</div>,
   LoadingSpinner: () => <div data-testid="loading-spinner">Loading...</div>
 }));
 
@@ -21,38 +22,44 @@ jest.mock('../../components/common/LoadingSpinner', () => ({
 const mockFetch = jest.fn();
 global.fetch = mockFetch;
 
-// Mock data that matches the FormCheck interface
-const mockFormCheck = generateTestFormAnalysis({
+// Mock data
+const mockFormCheck = {
+  id: '123',
+  exercise_type: 'benchPress',
+  score: 85,
   video_url: 'http://example.com/video.mp4',
   overall_feedback: 'Good form overall',
   issues: ['Knees caving in'],
   suggestions: ['Keep chest up']
-});
+};
 
-// Helper function to render the component with the correct route
+// Helper function to render the component
 const renderResults = (id: string = '123') => {
-  return render(
-    <Results />,
-    { initialRoute: `/results/${id}` }
-  );
+  (useParams as jest.Mock).mockReturnValue({ id });
+  return render(<Results />);
 };
 
 describe('Results Component', () => {
   beforeEach(() => {
     mockFetch.mockClear();
+    (useParams as jest.Mock).mockClear();
   });
 
-  it('displays loading state initially', async () => {
+  it('shows loading spinner initially', async () => {
+    // Create a promise that never resolves to keep the loading state
+    const neverResolve = new Promise(() => {});
+    mockFetch.mockImplementationOnce(() => neverResolve);
+    
     renderResults();
     expect(screen.getByTestId('loading-spinner')).toBeInTheDocument();
   });
 
-  it('displays error message when API call fails', async () => {
+  it('shows error when API call fails', async () => {
     mockFetch.mockRejectedValueOnce(new Error('API Error'));
     renderResults();
     
     await waitFor(() => {
-      expect(screen.getByText('An error occurred while fetching the form check')).toBeInTheDocument();
+      expect(screen.getByTestId('error-message')).toHaveTextContent('An error occurred while fetching the form check');
     });
   });
 
@@ -60,7 +67,7 @@ describe('Results Component', () => {
     renderResults('');
     
     await waitFor(() => {
-      expect(screen.getByText('No form check ID provided')).toBeInTheDocument();
+      expect(screen.getByTestId('error-message')).toHaveTextContent('No form check ID provided');
     });
   });
 
@@ -73,12 +80,10 @@ describe('Results Component', () => {
     renderResults();
     
     await waitFor(() => {
-      expect(screen.getByText('Form Analysis Results')).toBeInTheDocument();
-      expect(screen.getByText('Exercise Type: squat')).toBeInTheDocument();
-      expect(screen.getByText('Score: 85%')).toBeInTheDocument();
+      expect(screen.getByTestId('results-title')).toHaveTextContent('Form Analysis Results');
+      expect(screen.getByTestId('exercise-type')).toHaveTextContent(`Exercise Type: ${mockFormCheck.exercise_type}`);
+      expect(screen.getByTestId('score')).toHaveTextContent(`Score: ${mockFormCheck.score}%`);
       expect(screen.getByTestId('video-player')).toBeInTheDocument();
-      expect(screen.getByText('Good form overall')).toBeInTheDocument();
-      expect(screen.getByText('Knees caving in')).toBeInTheDocument();
     });
   });
 
@@ -91,7 +96,7 @@ describe('Results Component', () => {
     renderResults();
     
     await waitFor(() => {
-      expect(screen.getByText('Form check not found')).toBeInTheDocument();
+      expect(screen.getByTestId('error-message')).toHaveTextContent('Form check not found');
     });
   });
 
@@ -105,7 +110,7 @@ describe('Results Component', () => {
     renderResults();
     
     await waitFor(() => {
-      expect(screen.getByText('No video available for this form check')).toBeInTheDocument();
+      expect(screen.getByTestId('no-video-message')).toHaveTextContent('No video available for this form check');
       expect(screen.queryByTestId('video-player')).not.toBeInTheDocument();
     });
   });

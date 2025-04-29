@@ -1,11 +1,11 @@
 import React from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { testRender } from '../../test-utils';
-import { Upload } from '../Upload';
+import Upload from '../../pages/analysis/Upload';
 import { FormFeedback } from '../FormFeedback';
-import { Results } from '../Results';
+import { Results } from '../../pages/analysis/Results';
 import { setupServer } from 'msw/node';
-import { http, HttpResponse } from 'msw';
+import { rest } from 'msw';
 import { generateTestFormAnalysis } from '../../utils/test-data';
 
 // Mock the video recording API
@@ -16,22 +16,26 @@ jest.mock('../../services/CameraService', () => ({
 
 // Create test server
 const server = setupServer(
-  http.post('/api/form-analysis/upload', () => {
-    return HttpResponse.json({
-      id: 'analysis-123',
-      status: 'processing',
-      message: 'Your video is being processed'
-    });
+  rest.post('/api/form-analysis/upload', (req, res, ctx) => {
+    return res(
+      ctx.json({
+        id: 'analysis-123',
+        status: 'processing',
+        message: 'Your video is being processed'
+      })
+    );
   }),
-  http.get('/api/form-analysis/status/:id', () => {
-    return HttpResponse.json({
-      id: 'analysis-123',
-      status: 'completed',
-      progress: 100
-    });
+  rest.get('/api/form-analysis/status/:id', (req, res, ctx) => {
+    return res(
+      ctx.json({
+        id: 'analysis-123',
+        status: 'completed',
+        progress: 100
+      })
+    );
   }),
-  http.get('/api/form-analysis/:id', () => {
-    return HttpResponse.json(generateTestFormAnalysis());
+  rest.get('/api/form-analysis/:id', (req, res, ctx) => {
+    return res(ctx.json(generateTestFormAnalysis()));
   })
 );
 
@@ -78,8 +82,8 @@ describe('Upload Flow Integration', () => {
   it('handles upload errors gracefully', async () => {
     // Override the upload endpoint to simulate an error
     server.use(
-      http.post('/api/form-analysis/upload', () => {
-        return new HttpResponse(null, { status: 500 });
+      rest.post('/api/form-analysis/upload', (req, res, ctx) => {
+        return res(ctx.status(500));
       })
     );
 
@@ -104,21 +108,30 @@ describe('Upload Flow Integration', () => {
   it('handles analysis errors gracefully', async () => {
     // Override the analysis endpoint to simulate an error
     server.use(
-      http.get('/api/form-analysis/:id', () => {
-        return new HttpResponse(null, { status: 500 });
+      rest.get('/api/form-analysis/:id', (req, res, ctx) => {
+        return res(ctx.status(500));
       })
     );
 
     const { getByTestId, findByText } = testRender(
-      <MemoryRouter initialEntries={['/results/analysis-123']}>
+      <MemoryRouter initialEntries={['/upload']}>
         <Routes>
+          <Route path="/upload" element={<Upload />} />
           <Route path="/results/:id" element={<Results />} />
         </Routes>
       </MemoryRouter>
     );
 
+    // Start and stop recording
+    getByTestId('start-recording').click();
+    await findByText(/Recording started/i);
+    getByTestId('stop-recording').click();
+
+    // Wait for upload to complete
+    await findByText(/Processing your video/i);
+
     // Verify error message is displayed
-    const errorMessage = await findByText(/Failed to load analysis results/i);
+    const errorMessage = await findByText(/Failed to analyze video/i);
     expect(errorMessage).toBeInTheDocument();
   });
 }); 
