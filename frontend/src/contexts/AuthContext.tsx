@@ -3,6 +3,7 @@ import { apiService } from '../services/apiService';
 import { sessionService } from '../services/sessionService';
 import { ApiResponse } from '../types/api';
 import { User } from '../types/user';
+import { AuthTokens } from '../types/auth';
 
 interface AuthContextType {
   user: User | null;
@@ -12,6 +13,8 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, username: string) => Promise<void>;
   logout: () => void;
+  refreshToken: () => Promise<void>;
+  updateProfile: (profileData: Partial<User>) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -32,11 +35,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const initAuth = async () => {
       try {
-        const sessionData = sessionService.getSessionData<{ user: User }>();
-        if (sessionData?.user) {
-          setUser(sessionData.user);
+        setIsLoading(true);
+        // Check if we have a valid session
+        if (sessionService.validateSession()) {
+          const sessionData = sessionService.getSessionData<{ user: User }>();
+          if (sessionData?.user) {
+            // If we have a user in the session, validate with the API
+            try {
+              const response = await apiService.auth.validate();
+              if (response.data) {
+                setUser(response.data);
+              }
+            } catch (error) {
+              console.error('Error validating session:', error);
+              sessionService.clearSession();
+            }
+          }
+        } else {
+          // No valid session, ensure user is logged out
+          setUser(null);
         }
+        
+        // Initialize activity tracking
+        sessionService.initActivityTracking();
       } catch (err) {
+        console.error('Failed to initialize auth state:', err);
         setError('Failed to initialize auth state');
       } finally {
         setIsLoading(false);
@@ -79,8 +102,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = () => {
-    sessionService.clearSession();
-    setUser(null);
+    try {
+      apiService.auth.logout();
+    } catch (error) {
+      console.error('Error during logout:', error);
+    } finally {
+      sessionService.clearSession();
+      setUser(null);
+    }
+  };
+
+  const refreshToken = async () => {
+    try {
+      setError(null);
+      const tokens = sessionService.getTokens();
+      if (!tokens) {
+        throw new Error('No tokens found');
+      }
+      
+      const response = await apiService.auth.refreshToken(tokens.refreshToken);
+      if (response.data) {
+        sessionService.setTokens(response.data.tokens);
+      }
+    } catch (err) {
+      setError('Token refresh failed');
+      throw err;
+    }
+  };
+
+  const updateProfile = async (profileData: Partial<User>) => {
+    try {
+      setError(null);
+      const response = await apiService.profile.update(profileData);
+      if (response.data) {
+        // Update the user in state and session
+        setUser(response.data);
+        sessionService.updateSessionData({ user: response.data });
+      }
+    } catch (err) {
+      setError('Profile update failed');
+      throw err;
+    }
   };
 
   const value = {
@@ -91,6 +153,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     login,
     register,
     logout,
+    refreshToken,
+    updateProfile
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

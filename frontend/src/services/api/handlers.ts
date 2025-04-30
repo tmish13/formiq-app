@@ -219,6 +219,42 @@ export const handlers: RequestHandler[] = [
     );
   }),
 
+  // NetworkRecoveryService test handlers
+  rest.post('http://test.com', (req, res, ctx) => {
+    return res(
+      ctx.status(200),
+      ctx.json({ success: true })
+    );
+  }),
+
+  rest.post('http://test.com/store', (req, res, ctx) => {
+    return res(
+      ctx.status(200),
+      ctx.json({ success: true })
+    );
+  }),
+
+  rest.post('http://test.com/event', (req, res, ctx) => {
+    return res(
+      ctx.status(200),
+      ctx.json({ success: true })
+    );
+  }),
+
+  rest.post('http://test.com/process', (req, res, ctx) => {
+    return res(
+      ctx.status(200),
+      ctx.json({ success: true })
+    );
+  }),
+
+  rest.post('http://test.com/clear', (req, res, ctx) => {
+    return res(
+      ctx.status(200),
+      ctx.json({ success: true })
+    );
+  }),
+
   // Fallback handler for unmocked requests
   rest.all('*', (req, res, ctx) => {
     console.warn(`Unhandled ${req.method} request to ${req.url}`);
