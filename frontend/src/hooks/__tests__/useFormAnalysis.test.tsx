@@ -8,7 +8,13 @@ import { AppError, ErrorCode, ApiError, handleApiError } from '../../utils/error
 
 // Mock the error handling utility
 jest.mock('../../utils/errorHandling', () => ({
-  handleApiError: jest.fn((error) => error instanceof Error ? error.message : 'Unknown error'),
+  handleApiError: jest.fn((error) => {
+    // Return the exact message for AppError instances
+    if (error && error.name === 'AppError') {
+      return error.message;
+    }
+    return 'Unknown error';
+  }),
   AppError: jest.fn().mockImplementation((message, code, status) => ({
     message,
     code,
@@ -97,6 +103,9 @@ describe('useFormAnalysis', () => {
   });
 
   it('should handle errors', () => {
+    // Reset mock to clear any previous calls
+    (handleApiError as jest.Mock).mockClear();
+    
     const store = createTestStore();
     const wrapper = ({ children }: { children: React.ReactNode }) => (
       <Provider store={store}>{children}</Provider>
@@ -104,6 +113,10 @@ describe('useFormAnalysis', () => {
     const { result } = renderHook(() => useFormAnalysis(), { wrapper });
 
     const testError = new AppError('Test error', ErrorCode.UNKNOWN_ERROR, 500);
+    
+    // Make the mock specifically return 'Test error' for this instance
+    (handleApiError as jest.Mock).mockReturnValueOnce('Test error');
+    
     act(() => {
       result.current.handleError(testError);
     });

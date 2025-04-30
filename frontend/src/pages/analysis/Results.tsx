@@ -61,7 +61,7 @@ export const Results: React.FC = () => {
 
   if (error) {
     return (
-      <div className="flex justify-center items-center min-h-screen" data-testid="error-container">
+      <div className="flex justify-center items-center min-h-screen">
         <div className="text-red-500" data-testid="error-message">{error}</div>
       </div>
     );
@@ -69,8 +69,8 @@ export const Results: React.FC = () => {
 
   if (!formCheck) {
     return (
-      <div className="flex justify-center items-center min-h-screen" data-testid="error-container">
-        <div className="text-gray-500" data-testid="error-message">No form check data available</div>
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="text-gray-500" data-testid="error-message">Form check not found</div>
       </div>
     );
   }
@@ -98,7 +98,7 @@ export const Results: React.FC = () => {
 
           {formCheck.video_url ? (
             <div className="mb-6" data-testid="video-container">
-              <VideoPlayer videoUrl={formCheck.video_url} />
+              <VideoPlayer videoUrl={formCheck.video_url} data-testid="video-player" />
             </div>
           ) : (
             <div className="text-gray-500 text-center py-8" data-testid="no-video-message">
@@ -109,7 +109,7 @@ export const Results: React.FC = () => {
           <FormCheckFeedback
             feedback={formCheck.overall_feedback ?? ''}
             score={formCheck.score}
-            data-testid="form-feedback"
+            data-testid="form-check-feedback"
           />
         </div>
       </div>

@@ -4,6 +4,7 @@ import OnboardingTooltip from './onboarding/OnboardingTooltip';
 
 interface UploadGuidanceProps {
   exerciseType: string;
+  onChange?: (files: FileList) => void;
 }
 
 const Container = styled.div`
@@ -70,7 +71,7 @@ const GuidanceItem = styled.li`
   }
 `;
 
-export const UploadGuidance: React.FC<UploadGuidanceProps> = ({ exerciseType }) => {
+export const UploadGuidance: React.FC<UploadGuidanceProps> = ({ exerciseType, onChange }) => {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   
   const handleClick = () => {
@@ -81,6 +82,9 @@ export const UploadGuidance: React.FC<UploadGuidanceProps> = ({ exerciseType }) 
   
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     // Handle file change
+    if (onChange && event.target.files) {
+      onChange(event.target.files);
+    }
   };
   
   const uploadGuidanceItems = [
@@ -145,6 +149,7 @@ export const UploadGuidance: React.FC<UploadGuidanceProps> = ({ exerciseType }) 
             ref={fileInputRef}
             onChange={handleChange}
             accept="video/mp4,video/webm,video/quicktime"
+            data-testid="file-input"
           />
         </UploadBox>
       </OnboardingTooltip>

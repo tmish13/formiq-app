@@ -2,64 +2,72 @@ import { useState, useCallback } from 'react';
 import { FormField, FormValidationRule } from '../types/formBuilder';
 
 interface UseFormBuilderReturn {
-  fields: FormField[];
-  addField: (field: FormField) => void;
-  removeField: (fieldId: string) => void;
-  updateField: (fieldId: string, updates: Partial<FormField>) => void;
-  validateField: (fieldId: string, value: any) => string[];
-  validateForm: () => Record<string, string[]>;
+  values: Record<string, any>;
+  errors: Record<string, string>;
+  touched: Record<string, boolean>;
+  handleChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  handleBlur: (e: React.FocusEvent<HTMLInputElement>) => void;
+  handleSubmit: (onSubmit: (values: Record<string, any>) => void | Promise<void>) => () => void;
+  setFieldValue: (field: string, value: any) => void;
+  resetForm: () => void;
+  isSubmitting: boolean;
 }
 
-export const useFormBuilder = (initialFields: FormField[] = []): UseFormBuilderReturn => {
-  const [fields, setFields] = useState<FormField[]>(initialFields);
+export const useFormBuilder = (initialValues: Record<string, any> = {}): UseFormBuilderReturn => {
+  const [values, setValues] = useState<Record<string, any>>(initialValues);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const addField = useCallback((field: FormField) => {
-    setFields(prev => [...prev, field]);
+  const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value, type } = e.target;
+    // Convert to number for number inputs
+    const processedValue = type === 'number' && value ? Number(value) : value;
+    setValues(prev => ({ ...prev, [name]: processedValue }));
   }, []);
 
-  const removeField = useCallback((fieldId: string) => {
-    setFields(prev => prev.filter(field => field.id !== fieldId));
+  const handleBlur = useCallback((e: React.FocusEvent<HTMLInputElement>) => {
+    const { name } = e.target;
+    setTouched(prev => ({ ...prev, [name]: true }));
   }, []);
 
-  const updateField = useCallback((fieldId: string, updates: Partial<FormField>) => {
-    setFields(prev => prev.map(field => 
-      field.id === fieldId ? { ...field, ...updates } : field
-    ));
+  const handleSubmit = useCallback((onSubmit: (values: Record<string, any>) => void | Promise<void>) => () => {
+    // Mark all fields as touched
+    Object.keys(values).forEach(key => {
+      setTouched(prev => ({ ...prev, [key]: true }));
+    });
+    
+    setIsSubmitting(true);
+    
+    try {
+      // Make sure to actually pass the values to onSubmit
+      onSubmit({ ...values });
+    } finally {
+      // Set isSubmitting to false immediately after onSubmit completes
+      setIsSubmitting(false);
+    }
+  }, [values]);
+
+  const setFieldValue = useCallback((field: string, value: any) => {
+    setValues(prev => ({ ...prev, [field]: value }));
   }, []);
 
-  const validateField = useCallback((fieldId: string, value: any): string[] => {
-    const field = fields.find(f => f.id === fieldId);
-    if (!field || !field.validation) return [];
-
-    return field.validation.reduce<string[]>((errors: string[], rule: FormValidationRule) => {
-      if (rule.type === 'required' && !value) {
-        errors.push(rule.message);
-      }
-      if (rule.type === 'minLength' && value.length < rule.value) {
-        errors.push(rule.message);
-      }
-      if (rule.type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-        errors.push(rule.message);
-      }
-      return errors;
-    }, []);
-  }, [fields]);
-
-  const validateForm = useCallback((): Record<string, string[]> => {
-    return fields.reduce<Record<string, string[]>>((errors, field) => {
-      if (field.required) {
-        errors[field.id] = validateField(field.id, field.value);
-      }
-      return errors;
-    }, {});
-  }, [fields, validateField]);
+  const resetForm = useCallback(() => {
+    setValues(initialValues);
+    setErrors({});
+    setTouched({});
+    setIsSubmitting(false);
+  }, [initialValues]);
 
   return {
-    fields,
-    addField,
-    removeField,
-    updateField,
-    validateField,
-    validateForm,
+    values,
+    errors,
+    touched,
+    handleChange,
+    handleBlur,
+    handleSubmit,
+    setFieldValue,
+    resetForm,
+    isSubmitting
   };
 }; 

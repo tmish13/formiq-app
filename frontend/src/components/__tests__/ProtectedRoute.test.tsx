@@ -1,138 +1,117 @@
 import React from 'react';
-import { screen, render, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { ProtectedRoute } from '../ProtectedRoute';
-import { ThemeProvider } from 'styled-components';
-import { theme } from '../../theme';
 import { MemoryRouter } from 'react-router-dom';
-import { Provider } from 'react-redux';
-import { configureStore } from '@reduxjs/toolkit';
 
-const TestComponent = () => <div>Protected Content</div>;
-
-// Mock the authService
-jest.mock('../../services/auth', () => ({
-  authService: {
-    isAuthenticated: jest.fn(),
-    validateToken: jest.fn(),
-    getCurrentUser: jest.fn()
-  }
+// Mock the Navigate component from react-router-dom
+jest.mock('react-router-dom', () => ({
+  ...jest.requireActual('react-router-dom'),
+  Navigate: () => <div data-testid="navigate">Redirected to login</div>,
+  useLocation: () => ({ pathname: '/test', search: '', hash: '', state: null, key: 'test' }),
 }));
 
-// Import to enable mocking navigate and location
-import * as router from 'react-router-dom';
-import { authService } from '../../services/auth';
-
-// Mock useLocation and Navigate
-jest.spyOn(router, 'useLocation').mockImplementation(() => ({ 
-  pathname: '/current',
-  search: '',
-  hash: '',
-  state: null,
-  key: 'default'
+// Mock the LoadingSpinner component
+jest.mock('../atoms/LoadingSpinner', () => ({
+  __esModule: true,
+  default: () => <div role="status" data-testid="loading-spinner">Loading...</div>,
 }));
 
-// Mock Navigate component
-jest.spyOn(router, 'Navigate').mockImplementation(({ to }: { to: string }) => (
-  <div data-testid="navigate">Redirecting to {to}</div>
-));
+// Mock the useAuth hook
+jest.mock('../../hooks/useAuth', () => ({
+  useAuth: jest.fn(),
+}));
 
-// Create a mock redux store
-const createMockStore = (initialState = {}) => {
-  return configureStore({
-    reducer: {
-      auth: (state = { user: null, isLoading: false, isAuthenticated: false }, action) => state,
-    },
-    preloadedState: {
-      auth: {
-        user: null,
-        isLoading: false,
-        isAuthenticated: false,
-        ...initialState,
-      }
-    }
-  });
-};
-
-const renderWithProviders = (ui: React.ReactElement, initialState = {}) => {
-  const store = createMockStore(initialState);
-  return render(
-    <Provider store={store}>
-      <ThemeProvider theme={theme}>
-        <MemoryRouter>
-          {ui}
-        </MemoryRouter>
-      </ThemeProvider>
-    </Provider>
-  );
-};
-
-describe('ProtectedRoute', () => {
+describe('ProtectedRoute Component', () => {
+  const TestComponent = () => <div data-testid="protected-content">Protected Content</div>;
+  
+  // Import the mocked hook inside describe to avoid hoisting issues
+  const { useAuth } = require('../../hooks/useAuth');
+  
   beforeEach(() => {
     jest.clearAllMocks();
   });
-
-  it('should show loading state when authentication is in progress', () => {
-    // Mock that we're validating the session
-    (authService.isAuthenticated as jest.Mock).mockReturnValue(true);
-    (authService.validateToken as jest.Mock).mockImplementation(() => {
-      return new Promise(() => {
-        // Never resolve to keep isValidating true
-      });
+  
+  test('shows loading state when authentication is in progress', () => {
+    // Set up the mock implementation for loading state
+    useAuth.mockReturnValue({
+      isLoading: true,
+      isAuthenticated: false,
+      user: null
     });
-
-    renderWithProviders(
-      <ProtectedRoute>
-        <TestComponent />
-      </ProtectedRoute>,
-      { isLoading: true }
+    
+    render(
+      <MemoryRouter>
+        <ProtectedRoute>
+          <TestComponent />
+        </ProtectedRoute>
+      </MemoryRouter>
     );
-
-    expect(screen.getByRole('status')).toBeInTheDocument();
+    
+    expect(screen.getByTestId('loading-spinner')).toBeInTheDocument();
+    expect(screen.queryByTestId('protected-content')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('navigate')).not.toBeInTheDocument();
   });
-
-  it('should redirect to login page when user is not authenticated', () => {
-    // Mock that we're not authenticated
-    (authService.isAuthenticated as jest.Mock).mockReturnValue(false);
-
-    renderWithProviders(
-      <ProtectedRoute>
-        <TestComponent />
-      </ProtectedRoute>,
-      { isAuthenticated: false }
-    );
-
-    expect(screen.getByTestId('navigate')).toHaveTextContent('Redirecting to /login');
-  });
-
-  it('should render protected content when user is authenticated', async () => {
-    // Mock authenticated user with immediate resolution
-    (authService.isAuthenticated as jest.Mock).mockReturnValue(true);
-    (authService.validateToken as jest.Mock).mockResolvedValue(true);
-    (authService.getCurrentUser as jest.Mock).mockReturnValue({
-      id: '1',
-      email: 'test@example.com',
-      name: 'Test User',
-      role: 'user'
+  
+  test('redirects to login when user is not authenticated', () => {
+    // Set up the mock implementation for unauthenticated state
+    useAuth.mockReturnValue({
+      isLoading: false,
+      isAuthenticated: false,
+      user: null
     });
-
-    renderWithProviders(
-      <ProtectedRoute>
-        <TestComponent />
-      </ProtectedRoute>,
-      { 
-        isAuthenticated: true,
-        user: {
-          id: '1',
-          email: 'test@example.com',
-          name: 'Test User',
-          role: 'user'
-        } 
-      }
+    
+    render(
+      <MemoryRouter>
+        <ProtectedRoute>
+          <TestComponent />
+        </ProtectedRoute>
+      </MemoryRouter>
     );
-
-    // Wait for validation to complete properly with waitFor
-    await waitFor(() => {
-      expect(screen.getByText('Protected Content')).toBeInTheDocument();
-    }, { timeout: 1000 });
+    
+    expect(screen.getByTestId('navigate')).toBeInTheDocument();
+    expect(screen.queryByTestId('protected-content')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('loading-spinner')).not.toBeInTheDocument();
+  });
+  
+  test('renders protected content when user is authenticated', () => {
+    // Set up the mock implementation for authenticated state
+    useAuth.mockReturnValue({
+      isLoading: false,
+      isAuthenticated: true,
+      user: { id: '1', name: 'Test User', email: 'test@example.com', role: 'user' }
+    });
+    
+    render(
+      <MemoryRouter>
+        <ProtectedRoute>
+          <TestComponent />
+        </ProtectedRoute>
+      </MemoryRouter>
+    );
+    
+    expect(screen.getByTestId('protected-content')).toBeInTheDocument();
+    expect(screen.queryByTestId('navigate')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('loading-spinner')).not.toBeInTheDocument();
+  });
+  
+  test('redirects when user does not have required role', () => {
+    // Set up the mock implementation for authenticated state with incorrect role
+    useAuth.mockReturnValue({
+      isLoading: false,
+      isAuthenticated: true,
+      user: { id: '1', name: 'Test User', email: 'test@example.com', role: 'user' }
+    });
+    
+    render(
+      <MemoryRouter>
+        <ProtectedRoute requiredRoles={['admin']}>
+          <TestComponent />
+        </ProtectedRoute>
+      </MemoryRouter>
+    );
+    
+    expect(screen.getByTestId('navigate')).toBeInTheDocument();
+    expect(screen.queryByTestId('protected-content')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('loading-spinner')).not.toBeInTheDocument();
   });
 }); 

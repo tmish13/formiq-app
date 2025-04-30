@@ -388,7 +388,68 @@ export const handlers: RequestHandler[] = [
     );
   }),
 
-  // Add any additional handlers here...
+  // Error handling handlers
+  rest.get(`${baseUrl}/exercises/error`, (req, res, ctx) => {
+    return res(
+      ctx.status(500),
+      ctx.json({
+        error: 'Server error',
+        message: 'Internal server error occurred'
+      })
+    );
+  }),
+
+  rest.get(`${baseUrl}/exercises/not-found`, (req, res, ctx) => {
+    return res(
+      ctx.status(404),
+      ctx.json({
+        error: 'Resource not found',
+        message: 'The requested resource does not exist'
+      })
+    );
+  }),
+
+  rest.get(`${baseUrl}/exercises/timeout`, (req, res, ctx) => {
+    return res(
+      ctx.delay(2000), // Simulate timeout
+      ctx.status(408),
+      ctx.json({
+        error: 'Request timeout',
+        message: 'Request timed out'
+      })
+    );
+  }),
+
+  // Add specific handler for tests
+  rest.get('/api/nonexistent', (req, res, ctx) => {
+    return res(
+      ctx.status(404),
+      ctx.json({
+        error: 'Resource not found',
+        message: 'The requested resource does not exist'
+      })
+    );
+  }),
+
+  rest.get('/api/error', (req, res, ctx) => {
+    return res(
+      ctx.status(500),
+      ctx.json({
+        error: 'Server error',
+        message: 'Internal server error occurred'
+      })
+    );
+  }),
+
+  rest.get('/api/timeout', (req, res, ctx) => {
+    return res(
+      ctx.status(408),
+      ctx.json({
+        error: 'Request timeout',
+        message: 'Request timed out'
+      })
+    );
+  })
 ]
 
 // Comment out or remove the fallback handler to prevent console warnings

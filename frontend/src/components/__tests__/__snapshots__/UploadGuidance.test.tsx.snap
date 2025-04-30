@@ -13,7 +13,7 @@ exports[`UploadGuidance matches snapshot 1`] = `
         <h2
           class="text-xl font-semibold mb-4"
         >
-          Upload Guidelines for 
+          Upload Guidelines for squat
         </h2>
         <div
           class="space-y-4"
@@ -94,6 +94,7 @@ exports[`UploadGuidance matches snapshot 1`] = `
             </p>
             <input
               accept="video/mp4,video/webm,video/quicktime"
+              data-testid="file-input"
               type="file"
             />
           </div>

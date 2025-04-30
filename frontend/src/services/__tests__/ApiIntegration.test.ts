@@ -47,18 +47,35 @@ const server = setupServer(
 
   // Mock 404 response
   rest.get('/api/nonexistent', (req, res, ctx) => {
-    return res(ctx.status(404));
+    return res(
+      ctx.status(404),
+      ctx.json({
+        error: 'Resource not found',
+        message: 'The requested resource does not exist'
+      })
+    );
   }),
 
   // Mock 500 response
   rest.get('/api/error', (req, res, ctx) => {
-    return res(ctx.status(500));
+    return res(
+      ctx.status(500),
+      ctx.json({
+        error: 'Server error',
+        message: 'Internal server error occurred'
+      })
+    );
   }),
 
   // Mock timeout response
-  rest.get('/api/timeout', async (req, res, ctx) => {
-    await new Promise(resolve => setTimeout(resolve, 100));
-    return res(ctx.status(408));
+  rest.get('/api/timeout', (req, res, ctx) => {
+    return res(
+      ctx.status(408),
+      ctx.json({
+        error: 'Request timeout',
+        message: 'Request timed out'
+      })
+    );
   })
 );
 
@@ -77,6 +94,7 @@ describe('API Integration Tests', () => {
     } catch (error) {
       const axiosError = error as AxiosError;
       expect(axiosError.response?.status).toBe(404);
+      expect(axiosError.message).toContain('Request failed with status code 404');
     }
   });
 
@@ -87,6 +105,7 @@ describe('API Integration Tests', () => {
     } catch (error) {
       const axiosError = error as AxiosError;
       expect(axiosError.response?.status).toBe(500);
+      expect(axiosError.message).toContain('Request failed with status code 500');
     }
   });
 
@@ -97,6 +116,7 @@ describe('API Integration Tests', () => {
     } catch (error) {
       const axiosError = error as AxiosError;
       expect(axiosError.response?.status).toBe(408);
+      expect(axiosError.message).toContain('Request failed with status code 408');
     }
   });
 }); 

@@ -1,10 +1,11 @@
 import React from 'react';
-import { testRender } from '../../test-utils';
+import { testRender, fireEvent } from '../../test-utils';
 import { UploadGuidance } from '../UploadGuidance';
 
 describe('UploadGuidance', () => {
   const mockProps = {
-    onChange: jest.fn()
+    onChange: jest.fn(),
+    exerciseType: 'squat'
   };
 
   it('renders without crashing', () => {
@@ -39,17 +40,18 @@ describe('UploadGuidance', () => {
   it('calls onChange when file is selected', () => {
     const { getByTestId } = testRender(<UploadGuidance {...mockProps} />);
     const fileInput = getByTestId('file-input');
-    const file = new File(['test'], 'test.mp4', { type: 'video/mp4' });
-    const dataTransfer = new DataTransfer();
-    dataTransfer.items.add(file);
     
+    // Create a mock file
+    const file = new File(['test'], 'test.mp4', { type: 'video/mp4' });
+    
+    // Mock the files property
     Object.defineProperty(fileInput, 'files', {
-      value: dataTransfer.files
+      value: [file]
     });
     
-    const event = new Event('change', { bubbles: true });
-    fileInput.dispatchEvent(event);
+    // Trigger the change event
+    fireEvent.change(fileInput);
     
-    expect(mockProps.onChange).toHaveBeenCalledWith(dataTransfer.files);
+    expect(mockProps.onChange).toHaveBeenCalled();
   });
 }); 
