@@ -133,6 +133,17 @@ export class PoseAnalysisService extends EventEmitter {
     return PoseAnalysisService.instance;
   }
 
+  /**
+   * Reset the singleton instance for testing purposes.
+   * This should only be used in test environments.
+   */
+  public static resetInstance(): void {
+    if (PoseAnalysisService.instance) {
+      // @ts-ignore - we're explicitly resetting for tests
+      PoseAnalysisService.instance = null;
+    }
+  }
+
   private isMobileDevice(): boolean {
     return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
   }

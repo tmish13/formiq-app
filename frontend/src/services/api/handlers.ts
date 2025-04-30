@@ -63,6 +63,37 @@ export const mockFormCheck = {
   updated_at: '2024-01-01T12:30:00Z'
 };
 
+// Mock Workout Data
+export const mockExercise = {
+  id: 'ex1',
+  name: 'Squat',
+  sets: 3,
+  reps: 12,
+  weight: 100
+};
+
+export const mockWorkout = {
+  id: '123',
+  name: 'Morning Workout',
+  exercises: [mockExercise],
+  duration: 45,
+  difficulty: 'intermediate',
+  userId: 'user123',
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString()
+};
+
+export const mockWorkoutPlan = {
+  id: '456',
+  name: '12 Week Program',
+  workouts: [mockWorkout],
+  frequency: '3x per week',
+  duration: 12,
+  userId: 'user123',
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString()
+};
+
 /**
  * Mock MSW handlers for common API endpoints
  */
@@ -114,6 +145,115 @@ export const handlers: RequestHandler[] = [
     return res(
       ctx.status(200),
       ctx.json(mockUser)
+    );
+  }),
+
+  // Workout Endpoints
+  rest.get(`${baseUrl}/workouts`, (req, res, ctx) => {
+    return res(
+      ctx.status(200),
+      ctx.json([mockWorkout])
+    );
+  }),
+  
+  rest.get(`${baseUrl}/workouts/:id`, (req, res, ctx) => {
+    return res(
+      ctx.status(200),
+      ctx.json(mockWorkout)
+    );
+  }),
+  
+  rest.post(`${baseUrl}/workouts`, async (req, res, ctx) => {
+    const data = await req.json();
+    return res(
+      ctx.status(201),
+      ctx.json({
+        ...data,
+        id: '123',
+        userId: 'user123',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      })
+    );
+  }),
+  
+  rest.put(`${baseUrl}/workouts/:id`, async (req, res, ctx) => {
+    const data = await req.json();
+    return res(
+      ctx.status(200),
+      ctx.json({
+        ...mockWorkout,
+        ...data
+      })
+    );
+  }),
+  
+  rest.delete(`${baseUrl}/workouts/:id`, (req, res, ctx) => {
+    return res(
+      ctx.status(200),
+      ctx.json({ success: true })
+    );
+  }),
+
+  // Workout Plans Endpoints
+  rest.get(`${baseUrl}/workout-plans`, (req, res, ctx) => {
+    return res(
+      ctx.status(200),
+      ctx.json([mockWorkoutPlan])
+    );
+  }),
+  
+  rest.get(`${baseUrl}/workout-plans/:id`, (req, res, ctx) => {
+    return res(
+      ctx.status(200),
+      ctx.json(mockWorkoutPlan)
+    );
+  }),
+  
+  rest.post(`${baseUrl}/workout-plans`, async (req, res, ctx) => {
+    const data = await req.json();
+    return res(
+      ctx.status(201),
+      ctx.json({
+        ...data,
+        id: '456',
+        userId: 'user123',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      })
+    );
+  }),
+  
+  rest.put(`${baseUrl}/workout-plans/:id`, async (req, res, ctx) => {
+    const data = await req.json();
+    return res(
+      ctx.status(200),
+      ctx.json({
+        ...mockWorkoutPlan,
+        ...data
+      })
+    );
+  }),
+  
+  rest.delete(`${baseUrl}/workout-plans/:id`, (req, res, ctx) => {
+    return res(
+      ctx.status(200),
+      ctx.json({ success: true })
+    );
+  }),
+
+  // Additional Workout Endpoints
+  rest.get(`${baseUrl}/workouts/upcoming`, (req, res, ctx) => {
+    return res(
+      ctx.status(200),
+      ctx.json([mockWorkout])
+    );
+  }),
+  
+  rest.get(`${baseUrl}/workout-plans/active`, (req, res, ctx) => {
+    return res(
+      ctx.status(200),
+      ctx.json([mockWorkoutPlan])
     );
   }),
   
@@ -248,19 +388,18 @@ export const handlers: RequestHandler[] = [
     );
   }),
 
-  rest.post('http://test.com/clear', (req, res, ctx) => {
-    return res(
-      ctx.status(200),
-      ctx.json({ success: true })
-    );
-  }),
+  // Add any additional handlers here...
+]
 
-  // Fallback handler for unmocked requests
-  rest.all('*', (req, res, ctx) => {
-    console.warn(`Unhandled ${req.method} request to ${req.url}`);
-    return res(
-      ctx.status(404),
-      ctx.json({ error: 'Not Found' })
-    );
-  })
-] 
+// Comment out or remove the fallback handler to prevent console warnings
+// Uncomment for debugging purposes only
+/* 
+// Fallback handler for unmocked requests
+rest.all('*', (req, res, ctx) => {
+  console.warn(`Unhandled ${req.method} request to ${req.url}`);
+  return res(
+    ctx.status(404),
+    ctx.json({ error: 'Not Found' })
+  );
+})
+*/ 
