@@ -96,9 +96,17 @@ describe('ErrorFallback Component', () => {
     const container = screen.getByTestId('mui-container');
     expect(container).toBeInTheDocument();
 
-    // Check box with flex styling exists
-    const box = screen.getByTestId('mui-box');
-    expect(box).toBeInTheDocument();
+    // Get all boxes and find the main wrapper box with flex styling
+    const boxes = screen.getAllByTestId('mui-box');
+    
+    // Find the main wrapper box (the one with display="flex")
+    const mainBox = boxes.find(box => box.getAttribute('display') === 'flex');
+    expect(mainBox).toBeInTheDocument();
+    
+    // Verify the main box has the correct display properties
+    expect(mainBox).toHaveAttribute('display', 'flex');
+    expect(mainBox).toHaveAttribute('flexdirection', 'column');
+    expect(mainBox).toHaveAttribute('alignitems', 'center');
   });
 
   it('handles an error without a message', () => {

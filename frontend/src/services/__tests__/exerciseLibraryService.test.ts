@@ -5,8 +5,8 @@ import { apiService } from '../../../src/services/apiService';
 jest.mock('../../../src/services/apiService', () => ({
   apiService: {
     exercises: {
-      getAll: jest.fn(),
-      get: jest.fn(),
+      getAll: jest.fn().mockResolvedValue({ data: [], status: 200 }),
+      get: jest.fn().mockResolvedValue({ data: {}, status: 200 }),
       search: jest.fn(),
       filter: jest.fn(),
     },
@@ -68,16 +68,25 @@ describe('ExerciseLibraryService', () => {
       data: mockExercise, 
       status: 200
     });
+    
+    (apiService.exercises.getAll as jest.Mock).mockResolvedValue({
+      data: [mockExercise],
+      status: 200
+    });
+    
+    // Reset the service's cache before each test
+    // @ts-ignore - accessing private property for testing
+    exerciseLibraryService.exercises = new Map();
   });
 
   describe('getExercises', () => {
     it('should fetch exercises and update cache', async () => {
-      const mockResponse = { data: [mockExercise] };
+      const mockResponse = { data: [mockExercise], status: 200 };
       (apiService.exercises.getAll as jest.Mock).mockResolvedValue(mockResponse);
 
       const result = await exerciseLibraryService.getExercises();
 
-      expect(apiService.exercises.getAll).toHaveBeenCalled();
+      expect(apiService.exercises.getAll).toHaveBeenCalledTimes(1);
       expect(result).toEqual([mockExercise]);
     });
 
@@ -93,6 +102,7 @@ describe('ExerciseLibraryService', () => {
     it('should fetch from API and return exercise', async () => {
       const result = await exerciseLibraryService.getExercise('1');
       expect(apiService.exercises.get).toHaveBeenCalledTimes(1);
+      expect(apiService.exercises.get).toHaveBeenCalledWith('1');
       expect(result).toEqual(mockExercise);
     });
 
@@ -105,18 +115,14 @@ describe('ExerciseLibraryService', () => {
     it('should handle errors when fetching exercise', async () => {
       (apiService.exercises.get as jest.Mock).mockRejectedValueOnce(new Error('API error'));
       
-      try {
-        await exerciseLibraryService.getExercise('1');
-        fail('Should have thrown an error');
-      } catch (error) {
-        expect(error).toBeDefined();
-      }
+      await expect(exerciseLibraryService.getExercise('1')).resolves.toBeNull();
     });
   });
 
   describe('getFormRules', () => {
     it('should return form rules for an exercise', async () => {
       const rules = await exerciseLibraryService.getFormRules('1');
+      expect(apiService.exercises.get).toHaveBeenCalledWith('1');
       expect(rules).toEqual(mockExercise.formRules);
     });
 
@@ -164,15 +170,37 @@ describe('ExerciseLibraryService', () => {
 
   describe('validateForm', () => {
     const mockAngles = {
-      knee: 85, // Slightly off from optimal 90
-      hip: 75   // Slightly off from optimal 80
+      knee: 75, // Significantly off from optimal 90 (>10 degrees)
+      hip: 65   // Significantly off from optimal 80 (>10 degrees)
     };
 
     it('should provide feedback for suboptimal angles', () => {
+      // Directly access and modify the private cache for testing
+      // @ts-ignore - accessing private property for testing
+      exerciseLibraryService.exercises.set('1', {
+        ...mockExercise,
+        formRules: [{
+          ...mockFormRule,
+          jointAngles: {
+            knee: { min: 70, max: 100, optimal: 90 },
+            hip: { min: 60, max: 90, optimal: 80 }
+          }
+        }]
+      });
+      
       const result = exerciseLibraryService.validateForm('1', mockAngles);
       
       expect(result.isValid).toBe(true);
       expect(result.feedback.length).toBeGreaterThan(0);
+      expect(result.feedback).toContain('Try to keep knee angle closer to 90°');
+      expect(result.feedback).toContain('Try to keep hip angle closer to 80°');
+    });
+    
+    it('should return invalid when exercise not found', () => {
+      const result = exerciseLibraryService.validateForm('999', mockAngles);
+      
+      expect(result.isValid).toBe(false);
+      expect(result.feedback).toEqual(['Exercise not found']);
     });
   });
 

@@ -60,6 +60,7 @@ export const Switch: React.FC<SwitchProps> = ({
       disabled={disabled}
       role="switch"
       aria-checked={checked}
+      aria-disabled={disabled}
       aria-label={ariaLabel}
     >
       <SwitchTrack

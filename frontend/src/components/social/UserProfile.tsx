@@ -46,6 +46,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({ userId, currentUserId 
   const [commentDialogOpen, setCommentDialogOpen] = useState(false);
   const [selectedWorkout, setSelectedWorkout] = useState<WorkoutShare | null>(null);
   const [newComment, setNewComment] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadUserData();
@@ -53,12 +54,14 @@ export const UserProfile: React.FC<UserProfileProps> = ({ userId, currentUserId 
 
   const loadUserData = async () => {
     try {
+      setError(null);
       const userData = await socialService.getUserProfile(userId);
       setUser(userData);
       const workouts = await socialService.getSharedWorkouts(userId);
       setSharedWorkouts(workouts);
-    } catch (error) {
-      console.error('Failed to load user data:', error);
+    } catch (err) {
+      console.error('Failed to load user data:', err);
+      setError('Failed to load user data');
     }
   };
 
@@ -105,6 +108,14 @@ export const UserProfile: React.FC<UserProfileProps> = ({ userId, currentUserId 
       console.error('Failed to update profile:', error);
     }
   };
+
+  if (error) {
+    return (
+      <Typography color="error" align="center" variant="h6">
+        {error}
+      </Typography>
+    );
+  }
 
   if (!user) {
     return <Typography>Loading...</Typography>;

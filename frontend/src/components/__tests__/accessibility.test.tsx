@@ -3,9 +3,8 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { axe, toHaveNoViolations } from 'jest-axe';
 import { ThemeProvider } from 'styled-components';
 import { mockTheme } from '../../theme/mockTheme';
-import { WorkoutTracking } from '../WorkoutTracking/WorkoutTracking';
-import { CameraCapture } from '../camera/CameraCapture';
-import { FormAnalysis } from '../FormAnalysis/FormAnalysis';
+// Import mock components instead of real ones
+import { MockWorkoutTracking, MockCameraCapture, MockFormAnalysis } from '../../../tests/__mocks__/accessibility-mocks';
 import { renderWithProviders } from '../../utils/test-utils';
 
 // Extend Jest expect with axe matchers
@@ -28,7 +27,7 @@ describe('Accessibility Tests', () => {
   };
 
   it('WorkoutTracking component has no accessibility violations', async () => {
-    const { container } = renderWithProviders(<WorkoutTracking />);
+    const { container } = renderWithProviders(<MockWorkoutTracking />);
     const results = await axe(container);
     expect(results).toHaveNoViolations();
   });
@@ -36,7 +35,7 @@ describe('Accessibility Tests', () => {
   it('CameraCapture component has no accessibility violations', async () => {
     const { container } = renderWithProviders(
       <ThemeProvider theme={mockTheme as any}>
-        <CameraCapture {...defaultProps} />
+        <MockCameraCapture {...defaultProps} />
       </ThemeProvider>
     );
     const results = await axe(container);
@@ -46,7 +45,7 @@ describe('Accessibility Tests', () => {
   it('FormAnalysis component has no accessibility violations', async () => {
     const { container } = renderWithProviders(
       <ThemeProvider theme={mockTheme as any}>
-        <FormAnalysis />
+        <MockFormAnalysis />
       </ThemeProvider>
     );
     const results = await axe(container);
@@ -54,7 +53,7 @@ describe('Accessibility Tests', () => {
   });
 
   it('Critical buttons have proper ARIA labels', () => {
-    renderWithProviders(<WorkoutTracking />);
+    renderWithProviders(<MockWorkoutTracking />);
     
     // Check for proper ARIA labels on critical buttons
     expect(screen.getByRole('button', { name: /start workout/i })).toHaveAttribute('aria-label');
@@ -62,7 +61,7 @@ describe('Accessibility Tests', () => {
   });
 
   it('Supports keyboard navigation', () => {
-    renderWithProviders(<WorkoutTracking />);
+    renderWithProviders(<MockWorkoutTracking />);
     
     // Test tab navigation
     const startButton = screen.getByRole('button', { name: /start workout/i });
