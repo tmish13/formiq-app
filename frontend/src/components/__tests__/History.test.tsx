@@ -10,10 +10,52 @@ import formCheckReducer from '../../store/slices/formCheckSlice';
 import { formCheckService } from '../../services/formCheckService';
 import { testRender } from '../../test-utils';
 
+// Define types for mock components
+interface MockProps {
+  children?: React.ReactNode;
+  [key: string]: any;
+}
+
+// Mock Material UI components
+jest.mock('@mui/material', () => {
+  const original = jest.requireActual('@mui/material');
+  return {
+    ...original,
+    Box: ({ children, ...props }: MockProps) => <div {...props}>{children}</div>,
+    Typography: ({ children, ...props }: MockProps) => <div {...props}>{children}</div>,
+    Table: ({ children, ...props }: MockProps) => <table {...props}>{children}</table>,
+    TableBody: ({ children, ...props }: MockProps) => <tbody {...props}>{children}</tbody>,
+    TableCell: ({ children, ...props }: MockProps) => <td role="cell" {...props}>{children}</td>,
+    TableContainer: ({ children, ...props }: MockProps) => <div {...props}>{children}</div>,
+    TableHead: ({ children, ...props }: MockProps) => <thead {...props}>{children}</thead>,
+    TableRow: ({ children, ...props }: MockProps) => <tr {...props}>{children}</tr>,
+    Paper: ({ children, ...props }: MockProps) => <div {...props}>{children}</div>
+  };
+});
+
+// Mock LoadingSpinner
+jest.mock('../../components/common/LoadingSpinner', () => ({
+  LoadingSpinner: ({ ariaLabel }: { ariaLabel?: string }) => (
+    <div role="progressbar" aria-label={ariaLabel}>Loading...</div>
+  )
+}));
+
 // Mock formCheckService
 jest.mock('../../../src/services/formCheckService', () => ({
   formCheckService: {
     getFormChecks: jest.fn()
+  }
+}));
+
+// Mock useFormCheck hook
+jest.mock('../../hooks/useFormCheck', () => ({
+  useFormCheck: () => {
+    const state = (require('react-redux').useSelector)((state: any) => state.formCheck);
+    return {
+      formChecks: state.formChecks,
+      isLoading: state.isLoading,
+      error: state.error
+    };
   }
 }));
 
