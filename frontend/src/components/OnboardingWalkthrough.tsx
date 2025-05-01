@@ -170,9 +170,13 @@ export const OnboardingWalkthrough: React.FC<OnboardingWalkthroughProps> = ({ on
           </SlideContainer>
         </AnimatePresence>
 
-        <ProgressDots>
+        <ProgressDots data-testid="progress-dots">
           {slides.map((_, index) => (
-            <Dot key={index} active={index === currentSlide} />
+            <Dot 
+              key={index} 
+              active={index === currentSlide}
+              data-testid={`progress-dot-${index}`}
+            />
           ))}
         </ProgressDots>
 

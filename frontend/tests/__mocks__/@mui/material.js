@@ -1,12 +1,85 @@
 import React from 'react';
 
-// Mock material-ui components
-export const Box = ({ children, ...rest }) => <div {...rest}>{children}</div>;
-export const Button = ({ children, ...rest }) => <button {...rest}>{children}</button>;
-export const Typography = ({ children, variant, ...rest }) => {
-  const Tag = variant === 'h4' || variant === 'h6' ? variant : 'p';
-  return <Tag {...rest}>{children}</Tag>;
+// Create mock Material UI components
+export const Container = ({ children, maxWidth, ...props }) => (
+  <div data-testid="mui-container" {...props}>
+    {children}
+  </div>
+);
+
+export const Paper = ({ children, elevation, ...props }) => (
+  <div data-testid="mui-paper" {...props}>
+    {children}
+  </div>
+);
+
+export const Typography = ({ children, variant, component, ...props }) => (
+  <div data-testid={`mui-typography-${variant || 'default'}`} {...props}>
+    {children}
+  </div>
+);
+
+export const TextField = ({ label, type, value, onChange, margin, required, ...props }) => (
+  <div data-testid={`mui-textfield-${label ? label.toLowerCase() : 'default'}`}>
+    <label htmlFor={`${label}-input`}>{label}</label>
+    <input
+      id={`${label}-input`}
+      type={type || 'text'}
+      value={value}
+      onChange={onChange}
+      required={required}
+      aria-label={label}
+      {...props}
+    />
+  </div>
+);
+
+export const Button = ({ children, variant, color, type, disabled, ...props }) => (
+  <button
+    data-testid={`mui-button-${variant || 'default'}`}
+    disabled={disabled}
+    type={type || 'button'}
+    {...props}
+  >
+    {children}
+  </button>
+);
+
+export const Link = ({ children, component, to, ...props }) => {
+  // If component is specified, render that component
+  if (component) {
+    return React.createElement(component, { to, ...props }, children);
+  }
+  return <a href={to} {...props}>{children}</a>;
 };
+
+export const Box = ({ children, sx, display, justifyContent, alignItems, ...props }) => {
+  // Filter out style props to avoid React DOM attribute warnings
+  const filteredProps = { ...props };
+  
+  // Build a style object instead
+  const style = {};
+  if (display) style.display = display;
+  if (justifyContent) style.justifyContent = justifyContent;
+  if (alignItems) style.alignItems = alignItems;
+  if (sx) {
+    // In real app we'd process sx to CSS, here we just avoid the warning
+  }
+  
+  return (
+    <div data-testid="mui-box" style={style} {...filteredProps}>
+      {children}
+    </div>
+  );
+};
+
+export const Alert = ({ children, severity, ...props }) => (
+  <div data-testid={`mui-alert-${severity || 'default'}`} {...props}>
+    {children}
+  </div>
+);
+
+// Mock material-ui components
 export const CircularProgress = (props) => <div role="progressbar" aria-label={props['aria-label']}>Loading...</div>;
 export const List = ({ children, ...rest }) => <ul {...rest}>{children}</ul>;
 export const ListItem = ({ children, ...rest }) => <li {...rest}>{children}</li>;
@@ -23,5 +96,4 @@ export const TableBody = ({ children, ...rest }) => <tbody {...rest}>{children}<
 export const TableCell = ({ children, ...rest }) => <td {...rest}>{children}</td>;
 export const TableContainer = ({ children, ...rest }) => <div {...rest}>{children}</div>;
 export const TableHead = ({ children, ...rest }) => <thead {...rest}>{children}</thead>;
-export const TableRow = ({ children, ...rest }) => <tr {...rest}>{children}</tr>;
-export const Paper = ({ children, ...rest }) => <div {...rest}>{children}</div>; 
+export const TableRow = ({ children, ...rest }) => <tr {...rest}>{children}</tr>; 

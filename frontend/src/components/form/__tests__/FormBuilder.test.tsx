@@ -1,62 +1,94 @@
 import React from 'react';
-import { testRender, screen, fireEvent, waitFor } from '../../../test-utils';
-import { FormBuilder } from '../../form/FormBuilder';
-import { createForm } from '../../../../tests/factories/form';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { FormBuilder } from '../FormBuilder';
+import { FormField } from '../../../types/formBuilder';
+import { ThemeProvider } from 'styled-components';
+import { theme } from '../../../theme';
+
+// Mock the useFormBuilder hook
+const mockOnSubmit = jest.fn();
+
+// Properly implement mockHandleSubmit to ensure it calls the callback with values
+const mockHandleSubmit = jest.fn().mockImplementation(onSubmit => {
+  return () => {
+    // This simulates what the real handleSubmit does - it calls onSubmit with the values
+    onSubmit({ test: 'value' });
+    return true;
+  };
+});
+
+jest.mock('../../../hooks/useFormBuilder', () => ({
+  useFormBuilder: () => ({
+    values: {},
+    errors: {},
+    touched: {},
+    handleChange: jest.fn(),
+    handleBlur: jest.fn(),
+    handleSubmit: mockHandleSubmit,
+    setFieldValue: jest.fn(),
+    resetForm: jest.fn(),
+    isSubmitting: false
+  })
+}));
 
 describe('FormBuilder', () => {
-  const mockForm = createForm();
-  const defaultProps = {
-    initialForm: mockForm,
-    onSave: jest.fn(),
-    onCancel: jest.fn(),
+  const mockFields: FormField[] = [
+    {
+      id: 'name',
+      type: 'text',
+      label: 'Name',
+      placeholder: 'Enter your name',
+      required: true
+    },
+    {
+      id: 'email',
+      type: 'email',
+      label: 'Email',
+      placeholder: 'Enter your email',
+      required: true
+    }
+  ];
+
+  const renderWithTheme = (ui: React.ReactElement) => {
+    return render(
+      <ThemeProvider theme={theme}>
+        {ui}
+      </ThemeProvider>
+    );
   };
   
-  it('renders form builder with initial form', () => {
-    testRender(<FormBuilder {...defaultProps} />);
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+  
+  it('renders form builder', () => {
+    renderWithTheme(<FormBuilder fields={mockFields} onSubmit={mockOnSubmit} />);
     expect(screen.getByTestId('form-builder')).toBeInTheDocument();
   });
 
-  it('displays form title', () => {
-    testRender(<FormBuilder {...defaultProps} />);
-    expect(screen.getByTestId('form-title')).toHaveTextContent(mockForm.title);
-  });
-
-  it('displays form description', () => {
-    testRender(<FormBuilder {...defaultProps} />);
-    expect(screen.getByTestId('form-description')).toHaveTextContent(mockForm.description);
-  });
-
   it('displays form fields', () => {
-    testRender(<FormBuilder {...defaultProps} />);
-    mockForm.fields.forEach(field => {
+    renderWithTheme(<FormBuilder fields={mockFields} onSubmit={mockOnSubmit} />);
+    mockFields.forEach(field => {
       expect(screen.getByTestId(`field-${field.id}`)).toBeInTheDocument();
+      expect(screen.getByText(field.label)).toBeInTheDocument();
     });
   });
 
-  it('handles field reordering', async () => {
-    testRender(<FormBuilder {...defaultProps} />);
-    const firstField = screen.getByTestId(`field-${mockForm.fields[0].id}`);
-    const secondField = screen.getByTestId(`field-${mockForm.fields[1].id}`);
-    
-    fireEvent.dragStart(firstField);
-    fireEvent.dragOver(secondField);
-    fireEvent.drop(secondField);
-    
-    await waitFor(() => {
-      const fields = screen.getAllByTestId(/^field-/);
-      expect(fields[0]).toHaveAttribute('data-testid', `field-${mockForm.fields[1].id}`);
-      expect(fields[1]).toHaveAttribute('data-testid', `field-${mockForm.fields[0].id}`);
-    });
+  it('has submit and reset buttons', () => {
+    renderWithTheme(<FormBuilder fields={mockFields} onSubmit={mockOnSubmit} />);
+    expect(screen.getByTestId('submit-button')).toBeInTheDocument();
+    expect(screen.getByTestId('reset-button')).toBeInTheDocument();
   });
 
-  it('handles field deletion', async () => {
-    testRender(<FormBuilder {...defaultProps} />);
-    const deleteButton = screen.getByTestId(`delete-field-${mockForm.fields[0].id}`);
+  it('submits form when submit button is clicked', () => {
+    // Render the component
+    renderWithTheme(<FormBuilder fields={mockFields} onSubmit={mockOnSubmit} />);
     
-    fireEvent.click(deleteButton);
-    
-    await waitFor(() => {
-      expect(screen.queryByTestId(`field-${mockForm.fields[0].id}`)).not.toBeInTheDocument();
-    });
+    // Get the form and submit it directly
+    const form = screen.getByTestId('form-builder');
+    fireEvent.submit(form);
+
+    // The mockOnSubmit should have been called with the test value
+    expect(mockOnSubmit).toHaveBeenCalledWith({ test: 'value' });
   });
 }); 

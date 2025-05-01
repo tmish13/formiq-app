@@ -86,20 +86,28 @@ describe('OnboardingWalkthrough', () => {
   it('shows correct progress dots', () => {
     renderWithTheme(<OnboardingWalkthrough onComplete={mockOnComplete} />);
     
-    const dots = screen.getAllByRole('generic').filter(element => 
-      element.classList.contains('dot')
-    );
+    // Get the dots using the data-testid attributes
+    const dot0 = screen.getByTestId('progress-dot-0');
+    const dot1 = screen.getByTestId('progress-dot-1');
+    const dot2 = screen.getByTestId('progress-dot-2');
     
-    expect(dots).toHaveLength(3);
-    expect(dots[0]).toHaveStyle({ background: theme.colors.primary });
-    expect(dots[1]).toHaveStyle({ background: theme.colors.border });
-    expect(dots[2]).toHaveStyle({ background: theme.colors.border });
+    // Verify we have all dots
+    expect(screen.getByTestId('progress-dots')).toBeInTheDocument();
+    expect(dot0).toBeInTheDocument();
+    expect(dot1).toBeInTheDocument();
+    expect(dot2).toBeInTheDocument();
+    
+    // Check the styles of each dot on first slide
+    expect(dot0).toHaveStyle({ background: theme.colors.primary });
+    expect(dot1).toHaveStyle({ background: theme.colors.border });
+    expect(dot2).toHaveStyle({ background: theme.colors.border });
     
     // Navigate to second slide
     fireEvent.click(screen.getByText('Next'));
-    
-    expect(dots[0]).toHaveStyle({ background: theme.colors.border });
-    expect(dots[1]).toHaveStyle({ background: theme.colors.primary });
-    expect(dots[2]).toHaveStyle({ background: theme.colors.border });
+
+    // After navigation, the dots should update their styles
+    expect(dot0).toHaveStyle({ background: theme.colors.border });
+    expect(dot1).toHaveStyle({ background: theme.colors.primary });
+    expect(dot2).toHaveStyle({ background: theme.colors.border });
   });
 }); 
