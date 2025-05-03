@@ -293,6 +293,86 @@ describe('AuthService', () => {
       expect(mockLocalStorage.removeItem).toHaveBeenCalledWith('formiq_session');
       expect(mockLocalStorage.getItem('formiq_session')).toBeNull();
     });
+
+    it('should handle token refresh when token is about to expire', async () => {
+      // Setup a session with a token about to expire (5 minutes + 1 second from now)
+      const expiryTime = Math.floor(Date.now() / 1000) + 300 + 1;
+      const mockHeader = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+      const mockPayload = btoa(JSON.stringify({ 
+        exp: expiryTime,
+        sub: '123',
+        email: 'test@example.com' 
+      }));
+      const mockSignature = 'fake_signature';
+      const expiringToken = `${mockHeader}.${mockPayload}.${mockSignature}`;
+      
+      const mockSessionData = {
+        access_token: expiringToken,
+        user: mockUser
+      };
+      
+      mockLocalStorage.setItem('formiq_session', JSON.stringify(mockSessionData));
+      
+      const mockValidateResponse = {
+        data: {
+          access_token: mockAccessToken, // New token
+          user: mockUser
+        }
+      };
+      
+      (apiService.auth.validate as jest.Mock).mockResolvedValue(mockValidateResponse);
+      
+      authService = new AuthService();
+      
+      // Simulate token validation which should trigger refresh for expiring token
+      await authService.validateToken();
+      
+      // Should have called validate
+      expect(apiService.auth.validate).toHaveBeenCalled();
+      
+      // Should have updated localStorage with new token
+      const updatedSession = JSON.parse(mockLocalStorage.getItem('formiq_session') || '{}');
+      expect(updatedSession.access_token).toEqual(expect.any(String));
+    });
+
+    it('should handle token refresh failure after max retries', async () => {
+      // Setup a mock session with maximum refresh retries and directly mock the sessionData
+      authService = new AuthService();
+      
+      // Mock the internal sessionData property to have reached max retries
+      (authService as any).sessionData = {
+        access_token: mockAccessToken,
+        refreshCount: 3, // MAX_REFRESH_RETRIES value
+        user: mockUser,
+        lastRefresh: Date.now()
+      };
+      
+      // Store something in localStorage to test cleanup
+      mockLocalStorage.setItem('formiq_session', JSON.stringify({
+        access_token: mockAccessToken,
+        user: mockUser
+      }));
+      
+      // Mock a failing token refresh
+      const error = new Error('Token refresh failed');
+      (apiService.auth.validate as jest.Mock).mockRejectedValue(error);
+      
+      // Directly access the private refreshToken method using any
+      await expect((authService as any).refreshToken()).rejects.toThrow('Maximum token refresh attempts exceeded');
+      
+      // Session should be cleared
+      expect(mockLocalStorage.getItem('formiq_session')).toBeNull();
+    }, 15000);
+
+    it('should throw error when validating without an active session', async () => {
+      // Ensure no session in localStorage
+      mockLocalStorage.removeItem('formiq_session');
+      
+      authService = new AuthService();
+      
+      await expect(authService.validateToken()).rejects.toThrow('No active session');
+      expect(apiService.auth.validate).not.toHaveBeenCalled();
+    });
   });
 
   describe('session management', () => {
@@ -461,6 +541,33 @@ describe('AuthService', () => {
       authService = new AuthService();
       
       expect(authService.getCurrentUser()).toBeNull();
+    });
+  });
+
+  // Additional test cases for edge scenarios
+  describe('edge cases', () => {
+    it('should handle malformed JWT token gracefully', async () => {
+      // Setup a session with a malformed token
+      mockLocalStorage.setItem('formiq_session', JSON.stringify({
+        access_token: 'not.a.valid.jwt.token',
+        user: mockUser
+      }));
+      
+      // Store original implementation
+      const originalAtob = global.atob;
+      
+      // Mock the atob to throw for this specific test
+      global.atob = jest.fn().mockImplementation(() => {
+        throw new Error('Invalid character');
+      });
+      
+      authService = new AuthService();
+      
+      // The session initialization should clear the invalid session
+      expect(mockLocalStorage.getItem('formiq_session')).toBeNull();
+      
+      // Restore original mock
+      global.atob = originalAtob;
     });
   });
 

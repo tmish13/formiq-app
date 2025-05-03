@@ -71,6 +71,19 @@ describe('StorageService', () => {
       
       expect(instance1).toBe(instance2);
     });
+    
+    it('should create a new instance after resetInstance is called', () => {
+      const instance1 = StorageService.getInstance();
+      
+      // Reset the instance
+      StorageService.resetInstance();
+      
+      // Get a new instance
+      const instance2 = StorageService.getInstance();
+      
+      // Should be different instances
+      expect(instance1).not.toBe(instance2);
+    });
   });
   
   describe('basic storage operations', () => {

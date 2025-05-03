@@ -16,24 +16,29 @@ from fastapi.testclient import TestClient
 import pytest_asyncio
 from sqlalchemy.pool import StaticPool
 import shutil
+from sqlalchemy import create_engine, text
+import subprocess
+import sys
 
 from app.core.config import settings, get_settings
-from app.core.database import Base, get_db
+from app.core.database import Base, get_async_db
 from app.core.token import create_access_token
 from app.core.password import get_password_hash
-from app.main import app, create_application
-from app.models.user import User
-from app.models.workout import Workout, Exercise, WorkoutPlan
 from app.core.security import create_access_token, get_password_hash
 from app.core.cache import cache_service
-from app.core.database import get_async_db
+from app.db.session import get_async_db as app_get_async_db
 from tests.test_utils import MockRedis
 from datetime import datetime, timedelta
-from app.db.session import async_session
 from app.core import security
 from app.repositories.user_repository import UserRepository
+from tests.mock_lifespan import mock_lifespan
+
+# Import models needed for fixtures
+# We need to import these specifically for the fixtures that use them
+from app.models.user import User
 from app.models.exercise import ExerciseTemplate
-from app.models.form_check import FormCheck
+from app.models.form_check import FormCheck, FeedbackItem
+from app.models.workout import Workout, Exercise, WorkoutPlan
 from app.models.subscription import Subscription
 from app.models.video import Video
 
@@ -58,11 +63,56 @@ test_engine = create_async_engine(
 )
 
 # Create async session factory for tests
-TestingSessionLocal = sessionmaker(
+TestingSessionLocal = async_sessionmaker(
     test_engine,
     class_=AsyncSession,
     expire_on_commit=False,
 )
+
+def import_all_models():
+    """Import all models to ensure they're registered with Base.metadata."""
+    # Import models individually to avoid circular imports
+    from app.models.user import User
+    from app.models.exercise import ExerciseTemplate
+    from app.models.form_check import FormCheck
+    from app.models.form_check import FeedbackItem
+    from app.models.workout import Workout, Exercise, WorkoutPlan
+    from app.models.subscription import Subscription
+    from app.models.video import Video
+    
+    return {
+        "User": User,
+        "ExerciseTemplate": ExerciseTemplate,
+        "FormCheck": FormCheck,
+        "FeedbackItem": FeedbackItem,
+        "Workout": Workout,
+        "Exercise": Exercise,
+        "WorkoutPlan": WorkoutPlan,
+        "Subscription": Subscription,
+        "Video": Video
+    }
+
+def run_migrations():
+    """Run database migrations using Alembic."""
+    try:
+        # Set environment for Alembic
+        env = os.environ.copy()
+        env["ENVIRONMENT"] = "test"
+        
+        # Execute Alembic command
+        result = subprocess.run(
+            ["alembic", "upgrade", "head"],
+            env=env,
+            cwd=Path(__file__).parent.parent,  # backend directory
+            check=True,
+            capture_output=True,
+            text=True
+        )
+        print(f"Migration output: {result.stdout}")
+        return True
+    except subprocess.CalledProcessError as e:
+        print(f"Migration failed: {e.stderr}")
+        return False
 
 @pytest.fixture(scope="session")
 def event_loop() -> Generator:
@@ -74,18 +124,61 @@ def event_loop() -> Generator:
 @pytest.fixture(scope="session")
 async def test_app() -> FastAPI:
     """Create a test instance of the application."""
+    from app.main import create_application
+    # Override the app's lifespan to use the mock version
     app = create_application()
+    app.router.lifespan_context = mock_lifespan
     return app
+
+@pytest.fixture(scope="session", autouse=True)
+def initialize_test_db():
+    """Initialize test database schema once for all tests."""
+    # For SQLite only - create needed directories
+    db_file = Path("./test.db")
+    if db_file.exists():
+        db_file.unlink()
+    
+    # Import all models
+    import_all_models()
+    
+    # Try using Alembic migrations first
+    if not run_migrations():
+        print("Falling back to SQLAlchemy metadata for schema creation")
+        # Create tables directly from SQLAlchemy metadata as fallback
+        sync_engine = create_engine(
+            TEST_DATABASE_URL.replace("+aiosqlite", ""),
+            echo=False
+        )
+        Base.metadata.create_all(sync_engine)
+        sync_engine.dispose()
+    
+    yield
+    
+    # Cleanup after all tests
+    if db_file.exists():
+        db_file.unlink()
 
 @pytest.fixture(autouse=True)
 async def setup_database():
-    """Set up the test database."""
+    """Set up the test database for each test."""
+    # Make sure all models are imported
+    import_all_models()
+    
+    # Clear all existing data but keep structure
     async with test_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-        await conn.run_sync(Base.metadata.create_all)
+        # Delete data from all tables
+        tables = [table.name for table in reversed(Base.metadata.sorted_tables)]
+        for table in tables:
+            await conn.execute(text(f"DELETE FROM {table}"))
+    
     yield
+    
+    # Clean up after test
     async with test_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+        # Delete data from all tables again
+        tables = [table.name for table in reversed(Base.metadata.sorted_tables)]
+        for table in tables:
+            await conn.execute(text(f"DELETE FROM {table}"))
 
 @pytest.fixture
 async def db_session() -> AsyncGenerator[AsyncSession, None]:
@@ -94,15 +187,15 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
         yield session
 
 @pytest.fixture
-async def client(db_session: AsyncSession) -> Generator:
+async def client(db_session: AsyncSession, test_app: FastAPI) -> Generator:
     """Create a test client with a fresh database session."""
     async def override_get_db():
         yield db_session
 
-    app.dependency_overrides[get_async_db] = override_get_db
-    with TestClient(app) as test_client:
+    test_app.dependency_overrides[app_get_async_db] = override_get_db
+    with TestClient(test_app) as test_client:
         yield test_client
-    app.dependency_overrides.clear()
+    test_app.dependency_overrides.clear()
 
 @pytest.fixture
 async def test_user(db_session: AsyncSession):
@@ -377,7 +470,7 @@ async def async_client(setup_test_db, async_session) -> AsyncGenerator[AsyncClie
     async def override_get_db():
         yield async_session
 
-    app.dependency_overrides[get_async_db] = override_get_db
+    app.dependency_overrides[app_get_async_db] = override_get_db
     async with AsyncClient(app=app, base_url="http://test") as client:
         yield client
     app.dependency_overrides.clear()
@@ -404,7 +497,7 @@ def client(db_session) -> Generator:
         finally:
             db_session.close()
 
-    app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[app_get_async_db] = override_get_db
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
@@ -452,7 +545,7 @@ def client(db_session) -> Generator:
         finally:
             pass
 
-    app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[app_get_async_db] = override_get_db
     with TestClient(app) as test_client:
         yield test_client
 

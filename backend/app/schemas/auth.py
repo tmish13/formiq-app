@@ -1,7 +1,7 @@
 """Authentication schemas."""
 from typing import Optional, Dict, List, Any
 from datetime import datetime
-from pydantic import BaseModel, EmailStr, Field, validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, ConfigDict
 from app.core.validators import validate_password
 
 class UserCreate(BaseModel):
@@ -20,7 +20,7 @@ class UserCreate(BaseModel):
         max_length=100
     )
     
-    class Config:
+    model_config = ConfigDict(
         json_schema_extra={
             "example": {
                 "email": "user@example.com",
@@ -28,6 +28,7 @@ class UserCreate(BaseModel):
                 "full_name": "John Doe"
             }
         }
+    )
 
 class UserLogin(BaseModel):
     """User login schema."""
@@ -35,7 +36,7 @@ class UserLogin(BaseModel):
     password: str = Field(..., description="User's password")
     remember_me: bool = Field(default=False, description="Remember login session")
     
-    class Config:
+    model_config = ConfigDict(
         json_schema_extra={
             "example": {
                 "email": "user@example.com",
@@ -43,6 +44,7 @@ class UserLogin(BaseModel):
                 "remember_me": False
             }
         }
+    )
 
 class TokenResponse(BaseModel):
     """Token response schema."""
@@ -51,7 +53,7 @@ class TokenResponse(BaseModel):
     token_type: str = Field(default="bearer", description="Token type")
     expires_at: datetime = Field(..., description="Token expiration timestamp")
     
-    class Config:
+    model_config = ConfigDict(
         json_schema_extra={
             "example": {
                 "access_token": "eyJ0eXAiOiJKV1QiLCJhbGc...",
@@ -60,17 +62,19 @@ class TokenResponse(BaseModel):
                 "expires_at": "2024-02-20T12:00:00Z"
             }
         }
+    )
 
 class PasswordResetRequest(BaseModel):
     """Password reset request schema."""
     email: EmailStr = Field(..., description="Email address for password reset")
     
-    class Config:
+    model_config = ConfigDict(
         json_schema_extra={
             "example": {
                 "email": "user@example.com"
             }
         }
+    )
 
 class PasswordReset(BaseModel):
     """Password reset schema."""
@@ -83,21 +87,42 @@ class PasswordReset(BaseModel):
     )
     confirm_password: str = Field(..., description="Confirm new password")
     
-    @validator("confirm_password")
-    def passwords_match(cls, v, values, **kwargs):
-        if "new_password" in values and v != values["new_password"]:
+    @field_validator("confirm_password")
+    @classmethod
+    def passwords_match(cls, v, info: Any):
+        """
+        Validate that passwords match.
+        
+        Args:
+            v: The confirm_password value
+            info: Validation info containing other fields
+            
+        Returns:
+            The validated confirm_password
+        """
+        if "new_password" in info.data and v != info.data["new_password"]:
             raise ValueError("Passwords do not match")
         return v
 
-    @validator("new_password")
+    @field_validator("new_password")
+    @classmethod
     def validate_password_strength(cls, v):
+        """
+        Validate password strength.
+        
+        Args:
+            v: The password value
+            
+        Returns:
+            The validated password
+        """
         try:
             validate_password(v)
         except Exception as e:
             raise ValueError(str(e))
         return v
 
-    class Config:
+    model_config = ConfigDict(
         json_schema_extra={
             "example": {
                 "token": "reset-token-123",
@@ -105,25 +130,28 @@ class PasswordReset(BaseModel):
                 "confirm_password": "newstrongpassword123"
             }
         }
+    )
 
 class TokenRefresh(BaseModel):
     """Token refresh schema."""
     refresh_token: str = Field(..., description="JWT refresh token")
     
-    class Config:
+    model_config = ConfigDict(
         json_schema_extra={
             "example": {
                 "refresh_token": "eyJ0eXAiOiJKV1QiLCJhbGc..."
             }
         }
+    )
 
 class TokenVerify(BaseModel):
     """Token verification schema."""
     token: str = Field(..., description="JWT token to verify")
     
-    class Config:
+    model_config = ConfigDict(
         json_schema_extra={
             "example": {
                 "token": "eyJ0eXAiOiJKV1QiLCJhbGc..."
             }
-        } 
+        }
+    ) 

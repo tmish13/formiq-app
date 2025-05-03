@@ -7,8 +7,17 @@ from app.core.config import settings
 from app.core.logging import get_logger
 from app.core.cache import cache_service
 from app.core.connection_pool import monitor as connection_monitor
-from app.db.session import engine as async_engine
+from app.db.session import engine
 from app.core.database import init_db, close_db
+
+# Import additional initialization functions
+from app.core.monitoring import init_monitoring
+from app.core.logging import init_logging
+from app.core.cache import init_cache
+from app.core.rate_limit import init_rate_limit
+from app.core.storage import init_storage
+from app.core.security import init_security
+from app.api.deps import register_deps
 
 logger = get_logger(__name__)
 
@@ -18,8 +27,16 @@ async def lifespan(app: FastAPI):
     # Startup Logic
     logger.info(f"Application starting up in {settings.ENVIRONMENT} environment...")
     try:
+        # Initialize core services
+        init_monitoring()
+        init_logging()
+        await init_cache()
+        await init_rate_limit()
+        await init_storage()
+        init_security()
+        
         # Test database connection
-        async with async_engine.connect() as conn:
+        async with engine.connect() as conn:
             result = await conn.execute("SELECT 1")
             logger.info(f"Database connection successful: {result.scalar()}")
         
@@ -56,6 +73,10 @@ async def lifespan(app: FastAPI):
             logger.error(f"Redis connection failed: {str(redis_error)}")
             if settings.ENVIRONMENT == "production":
                 raise  # Re-raise in production
+        
+        # Register API dependencies to fix circular imports
+        register_deps()
+        logger.info("API dependencies registered")
             
     except Exception as e:
         logger.error(f"Startup error: {str(e)}")

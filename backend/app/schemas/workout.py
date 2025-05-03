@@ -1,83 +1,105 @@
-"""Workout schemas."""
-from typing import List, Optional
-from datetime import datetime
-from pydantic import BaseModel, Field
+"""Workout schema models."""
+from typing import List, Optional, Dict, Any, Union
+from pydantic import BaseModel, Field, ConfigDict
+from datetime import datetime, date
+from uuid import UUID
+from enum import Enum
+
+class WorkoutLevel(str, Enum):
+    """Workout difficulty level enum."""
+    BEGINNER = "beginner"
+    INTERMEDIATE = "intermediate" 
+    ADVANCED = "advanced"
 
 class ExerciseBase(BaseModel):
     """Base exercise schema."""
     name: str
     sets: int
     reps: int
-    weight: Optional[float] = None
+    rest_seconds: int = 60
     notes: Optional[str] = None
+    
+    model_config = ConfigDict(from_attributes=True)
 
-class ExerciseCreate(ExerciseBase):
-    """Exercise creation schema."""
-    pass
-
-class ExerciseResponse(ExerciseBase):
-    """Exercise response schema."""
-    id: str
+class Exercise(ExerciseBase):
+    """Exercise schema with ID."""
+    id: UUID
+    workout_id: UUID
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        orm_mode = True
+class ExerciseCreate(ExerciseBase):
+    """Schema for creating an exercise."""
+    workout_id: UUID
+
+class ExerciseUpdate(BaseModel):
+    """Schema for updating an exercise."""
+    name: Optional[str] = None
+    sets: Optional[int] = None
+    reps: Optional[int] = None
+    rest_seconds: Optional[int] = None
+    notes: Optional[str] = None
+    
+    model_config = ConfigDict(from_attributes=True)
 
 class WorkoutBase(BaseModel):
     """Base workout schema."""
     name: str
     description: Optional[str] = None
-    duration: Optional[int] = None  # in minutes
-    difficulty: Optional[str] = None
-    notes: Optional[str] = None
+    level: WorkoutLevel = WorkoutLevel.BEGINNER
+    duration_minutes: Optional[int] = None
+    
+    model_config = ConfigDict(from_attributes=True)
 
-class WorkoutCreate(WorkoutBase):
-    """Workout creation schema."""
-    pass
-
-class WorkoutUpdate(WorkoutBase):
-    """Workout update schema."""
-    name: Optional[str] = None
-    description: Optional[str] = None
-    duration: Optional[int] = None
-    difficulty: Optional[str] = None
-    notes: Optional[str] = None
-
-class WorkoutResponse(WorkoutBase):
-    """Workout response schema."""
-    id: str
-    user_id: str
+class Workout(WorkoutBase):
+    """Workout schema with ID and related exercises."""
+    id: UUID
+    user_id: UUID
     created_at: datetime
     updated_at: datetime
-    exercises: List[ExerciseResponse] = []
+    exercises: List[Exercise] = []
 
-    class Config:
-        orm_mode = True
+class WorkoutCreate(WorkoutBase):
+    """Schema for creating a workout."""
+    exercises: Optional[List[ExerciseBase]] = None
+
+class WorkoutUpdate(BaseModel):
+    """Schema for updating a workout."""
+    name: Optional[str] = None
+    description: Optional[str] = None
+    level: Optional[WorkoutLevel] = None
+    duration_minutes: Optional[int] = None
+    
+    model_config = ConfigDict(from_attributes=True)
+
+# Additional schemas for workout plans
 
 class WorkoutPlanBase(BaseModel):
     """Base workout plan schema."""
     name: str
     description: Optional[str] = None
-    frequency: str  # e.g., "3x per week"
-    duration: int  # in weeks
-    notes: Optional[str] = None
+    duration_weeks: int
+    level: WorkoutLevel = WorkoutLevel.BEGINNER
 
-class WorkoutPlanCreate(WorkoutPlanBase):
-    """Workout plan creation schema."""
-    pass
-
-class WorkoutPlanResponse(WorkoutPlanBase):
-    """Workout plan response schema."""
-    id: str
-    user_id: str
-    workout_id: str
+class WorkoutPlan(WorkoutPlanBase):
+    """Workout plan schema with ID and related workouts."""
+    id: UUID
+    user_id: UUID
     created_at: datetime
     updated_at: datetime
-    next_workout: Optional[datetime] = None
+    workouts: List[Workout] = []
 
-    class Config:
-        orm_mode = True
+class WorkoutPlanCreate(WorkoutPlanBase):
+    """Schema for creating a workout plan."""
+    workout_ids: Optional[List[UUID]] = None
+
+class WorkoutPlanUpdate(BaseModel):
+    """Schema for updating a workout plan."""
+    name: Optional[str] = None
+    description: Optional[str] = None
+    duration_weeks: Optional[int] = None
+    level: Optional[WorkoutLevel] = None
+    workout_ids: Optional[List[UUID]] = None
 
 class ExerciseProgressResponse(BaseModel):
     """Exercise progress response schema."""

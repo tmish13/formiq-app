@@ -207,3 +207,35 @@ def rate_limit(
             
         return wrapper
     return decorator 
+
+async def init_rate_limit():
+    """Initialize rate limiting at application startup.
+    
+    This function sets up the rate limiting system and ensures
+    all required resources are available.
+    """
+    from app.core.logging import get_logger
+    from app.core.config import settings
+    
+    logger = get_logger(__name__)
+    logger.info("Initializing rate limiting system")
+    
+    # Initialize rate limiter based on environment
+    try:
+        if settings.RATE_LIMIT_ENABLED:
+            # Use Redis for rate limiting if available
+            from app.core.cache import cache_service
+            
+            if cache_service.available:
+                logger.info("Using Redis for rate limiting storage")
+            else:
+                logger.warning("Redis unavailable - using in-memory rate limiting")
+                
+            logger.info(f"Rate limiting enabled: {settings.RATE_LIMIT_REQUESTS} requests per {settings.RATE_LIMIT_WINDOW} seconds")
+        else:
+            logger.info("Rate limiting disabled")
+            
+    except Exception as e:
+        logger.error(f"Failed to initialize rate limiting: {str(e)}")
+        # Don't raise error to prevent application startup failure
+        # Application can still function without rate limiting 

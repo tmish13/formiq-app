@@ -1,5 +1,20 @@
 import { Preferences } from '@capacitor/preferences';
 
+// Define types
+export interface UserProfile {
+  id: string;
+  name?: string;
+  email?: string;
+  [key: string]: any;
+}
+
+export interface AppSettings {
+  theme?: string;
+  notifications?: boolean;
+  language?: string;
+  [key: string]: any;
+}
+
 // Storage keys
 const KEYS = {
   AUTH_TOKEN: 'formiq_auth_token',
@@ -23,6 +38,17 @@ export class StorageService {
       StorageService.instance = new StorageService();
     }
     return StorageService.instance;
+  }
+
+  /**
+   * Reset the singleton instance for testing purposes.
+   * This should only be used in test environments.
+   */
+  public static resetInstance(): void {
+    if (StorageService.instance) {
+      // @ts-ignore - we're explicitly resetting for tests
+      StorageService.instance = null;
+    }
   }
 
   private async tryLocalStorage<T>(

@@ -1297,7 +1297,7 @@ export class PoseAnalysisService extends EventEmitter {
       movementPath,
       metrics: {
         alignment: this.calculateAlignment(keypoints, jointAngles),
-        stability: this.calculateStability(movementPath),
+        stability: this.calculateStability(keypoints),
         symmetry: this.calculateSymmetry(keypoints),
         consistency: this.calculateConsistency(movementPath)
       }
@@ -1383,6 +1383,11 @@ export class PoseAnalysisService extends EventEmitter {
     // Calculate stability based on joint movement variance
     const stabilityScores = [];
     const keyJoints = ['shoulder', 'hip', 'knee'];
+
+    // Ensure keypoints is an array before calling `.find`
+    if (!Array.isArray(keypoints)) {
+      return 0; // Return default value if not an array
+    }
 
     for (const joint of keyJoints) {
       const leftJoint = keypoints.find(kp => kp.name === `left_${joint}`);

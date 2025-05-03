@@ -418,24 +418,18 @@ class PermissionDeniedException(ApplicationException):
         )
 
 
-class ValidationException(ApplicationException):
-    """Raised when input validation fails."""
-    
+class ValidationException(BaseAPIException):
+    """Exception raised when validation fails."""
     def __init__(
         self,
-        message: str = "Validation failed",
-        error_code: str = "validation_error",
-        field_errors: Optional[Dict[str, List[str]]] = None,
+        message: str = "Validation error",
+        error_code: str = "VALIDATION_ERROR",
         details: Optional[Dict[str, Any]] = None
     ):
-        details = details or {}
-        if field_errors:
-            details["field_errors"] = field_errors
-            
         super().__init__(
             message=message,
-            status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
             error_code=error_code,
+            status_code=HTTPStatus.BAD_REQUEST,
             details=details
         )
 
@@ -748,8 +742,15 @@ class RateLimitException(HTTPException):
 
 class ValidationException(HTTPException):
     """Exception raised for validation errors."""
-    def __init__(self, detail: str = "Validation error", details: Optional[Dict[str, Any]] = None):
-        super().__init__(status_code=HTTPStatus.UNPROCESSABLE_ENTITY, detail=detail)
+    
+    def __init__(self, message: str = "Validation error", details: Optional[Dict[str, Any]] = None):
+        """Initialize validation exception with message and optional details.
+        
+        Args:
+            message: Error message
+            details: Additional error details
+        """
+        super().__init__(status_code=400, detail=message)
         self.details = details or {}
 
 """Custom exceptions."""
@@ -1183,8 +1184,7 @@ class PermissionDeniedException(BaseAPIException):
 
 
 class ValidationException(BaseAPIException):
-    """Raised when request validation fails."""
-    
+    """Validation error exception."""
     def __init__(
         self,
         message: str = "Validation error",
@@ -1193,8 +1193,8 @@ class ValidationException(BaseAPIException):
     ):
         super().__init__(
             message=message,
-            status_code=HTTPStatus.BAD_REQUEST,
             error_code=error_code,
+            status_code=HTTPStatus.BAD_REQUEST,
             details=details
         )
 

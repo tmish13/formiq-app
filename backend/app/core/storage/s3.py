@@ -4,6 +4,8 @@ from typing import Optional, Dict, Any, BinaryIO, Tuple, List
 import aiobotocore
 from aiobotocore.session import get_session
 from fastapi import UploadFile
+import boto3
+from botocore.exceptions import ClientError
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -202,6 +204,82 @@ class S3StorageProvider(StorageProvider):
         # Fallback - just return the last part
         return parts[-1]
 
+    async def verify_s3_connection(self) -> bool:
+        """Verify S3 credentials and bucket access.
+        
+        This function attempts to connect to S3 and verify access to the 
+        configured bucket.
+        
+        Returns:
+            bool: True if credentials are valid and bucket is accessible
+        """
+        try:
+            # Create S3 client
+            s3_client = boto3.client(
+                's3',
+                aws_access_key_id=self.aws_access_key_id,
+                aws_secret_access_key=self.aws_secret_access_key,
+                region_name=self.region_name,
+                endpoint_url=settings.AWS_S3_ENDPOINT
+            )
+            
+            # Verify bucket exists by listing objects (limits to 1)
+            s3_client.list_objects_v2(
+                Bucket=self.bucket_name,
+                MaxKeys=1
+            )
+            
+            logger.info(f"Successfully verified S3 access to bucket {self.bucket_name}")
+            return True
+            
+        except ClientError as e:
+            error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+            logger.error(f"S3 verification failed: {error_code} - {str(e)}")
+            return False
+        except Exception as e:
+            logger.error(f"S3 verification error: {str(e)}")
+            return False
+
+async def verify_s3_connection() -> bool:
+    """Verify S3 credentials and bucket access.
+    
+    This function attempts to connect to S3 and verify access to the 
+    configured bucket.
+    
+    Returns:
+        bool: True if credentials are valid and bucket is accessible
+    """
+    # Skip verification if S3 is not configured
+    if not settings.AWS_ACCESS_KEY_ID or not settings.AWS_SECRET_ACCESS_KEY:
+        logger.warning("S3 credentials not configured")
+        return False
+        
+    try:
+        # Create S3 client
+        s3_client = boto3.client(
+            's3',
+            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+            region_name=settings.AWS_REGION,
+            endpoint_url=settings.AWS_S3_ENDPOINT
+        )
+        
+        # Verify bucket exists by listing objects (limits to 1)
+        s3_client.list_objects_v2(
+            Bucket=settings.AWS_BUCKET_NAME,
+            MaxKeys=1
+        )
+        
+        logger.info(f"Successfully verified S3 access to bucket {settings.AWS_BUCKET_NAME}")
+        return True
+        
+    except ClientError as e:
+        error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+        logger.error(f"S3 verification failed: {error_code} - {str(e)}")
+        return False
+    except Exception as e:
+        logger.error(f"S3 verification error: {str(e)}")
+        return False
 
 # Create S3 storage provider instance
 s3_storage = S3StorageProvider() 

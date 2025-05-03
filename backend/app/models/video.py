@@ -35,7 +35,7 @@ class Video(BaseModel):
 
     # Relationships
     user = relationship("User", back_populates="videos")
-    form_checks = relationship("FormCheck", back_populates="video", cascade="all, delete-orphan")
+    form_checks = relationship("FormCheck", back_populates="video", cascade="all, delete-orphan", foreign_keys="FormCheck.video_id")
 
     def __repr__(self) -> str:
         """String representation of the video."""

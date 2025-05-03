@@ -1,6 +1,6 @@
 """Error response schemas."""
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class ErrorDetail(BaseModel):
@@ -22,10 +22,8 @@ class ErrorResponse(BaseModel):
     timestamp: str = Field(..., description="ISO formatted timestamp of the error")
     path: Optional[str] = Field(None, description="Request path where the error occurred")
     
-    class Config:
-        """Pydantic config."""
-        
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "status_code": 400,
                 "error_code": "VALIDATION_ERROR",
@@ -41,4 +39,5 @@ class ErrorResponse(BaseModel):
                 "timestamp": "2024-03-14T12:00:00Z",
                 "path": "/api/v1/users"
             }
-        } 
+        }
+    ) 

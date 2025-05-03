@@ -576,4 +576,31 @@ def track_exercise_progress(
     # Track exercise duration
     EXERCISE_DURATION.labels(
         exercise_type=exercise_type
-    ).observe(duration) 
+    ).observe(duration)
+
+def init_monitoring():
+    """Initialize monitoring at application startup.
+    
+    This function initializes all monitoring systems,
+    including Prometheus metrics, system metrics, and
+    custom application metrics.
+    """
+    logger.info("Initializing monitoring system")
+    
+    try:
+        # Initialize system metrics
+        update_system_metrics()
+        
+        # Set initial values for database connections
+        db_connections.labels(state="idle").set(0)
+        db_connections.labels(state="active").set(0)
+        db_connections.labels(state="total").set(0)
+        
+        # Set initial values for business metrics
+        active_users.set(0)
+        
+        logger.info("Monitoring system initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize monitoring: {str(e)}")
+        # Don't fail startup if monitoring initialization fails
+        # This isn't critical for application operation 

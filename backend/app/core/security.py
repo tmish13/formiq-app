@@ -18,9 +18,6 @@ from uuid import UUID
 from app.core.validators import validate_password as validate_password_strength
 import uuid
 from fastapi import Request
-from app.services.user_service import get_user_service
-from sqlalchemy.ext.asyncio import AsyncSession
-from app.core.database import get_db
 from app.core.password import verify_password
 from app.core.token import verify_token, decode_token
 
@@ -131,12 +128,13 @@ def verify_token(token: str) -> Optional[str]:
         return None
 
 # Password related functions
-def get_password_hash(password: str) -> str:
+def get_password_hash(password: str, validate: bool = True) -> str:
     """
     Hash a password using bcrypt.
     
     Args:
         password: Plain text password
+        validate: Whether to validate password strength (can be disabled for tests)
     
     Returns:
         str: Hashed password
@@ -145,11 +143,12 @@ def get_password_hash(password: str) -> str:
         ValueError: If password doesn't meet security requirements
     """
     # Validate password strength
-    validate_password_strength(password)
-    
-    # Check if password has been exposed in data breaches (optional/async)
-    # This is done asynchronously so we don't block
-    asyncio.create_task(is_password_pwned(password))
+    if validate:
+        validate_password_strength(password)
+        
+        # Check if password has been exposed in data breaches (optional/async)
+        # This is done asynchronously so we don't block
+        asyncio.create_task(is_password_pwned(password))
     
     # Hash and return
     return pwd_context.hash(password)
@@ -620,30 +619,50 @@ def create_jwt_token(
     data: Dict[str, Any],
     expires_delta: Optional[timedelta] = None
 ) -> str:
-    """Create a JWT token."""
-    to_encode = data.copy()
+    """
+    Create a generic JWT token.
+    
+    Args:
+        data: Data to encode in the token
+        expires_delta: Optional expiration time override
+        
+    Returns:
+        JWT token string
+    """
+    to_encode = data.copy() if isinstance(data, dict) else {"sub": str(data)}
+    
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = datetime.utcnow() + timedelta(minutes=15)
     
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(
-        to_encode,
-        settings.SECRET_KEY,
-        algorithm=settings.ALGORITHM
-    )
+    encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
     return encoded_jwt
 
 def create_access_token(
     data: Dict[str, Any],
     expires_delta: Optional[timedelta] = None
 ) -> str:
-    """Create an access token."""
-    return create_jwt_token(
-        data=data,
-        expires_delta=expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    )
+    """
+    Create access token with the given data.
+    
+    Args:
+        data: Data to encode in the token
+        expires_delta: Optional expiration time override
+        
+    Returns:
+        JWT access token string
+    """
+    if isinstance(data, dict) and "sub" in data:
+        return create_access_token(data["sub"], expires_delta, data)
+    elif isinstance(data, dict):
+        # If no subject is provided, use a default or raise an error
+        subject = data.get("email", str(uuid.uuid4()))
+        return create_access_token(subject, expires_delta, data)
+    else:
+        # Handle the case where data is not a dict
+        return create_access_token(str(data), expires_delta)
 
 def create_refresh_token(
     data: Dict[str, Any],
@@ -667,62 +686,58 @@ def decode_jwt_token(token: str) -> Dict[str, Any]:
     except JWTError as e:
         raise ValueError(f"Invalid token: {str(e)}")
 
-async def get_current_user(
-    token: str = Depends(oauth2_scheme),
-    db: AsyncSession = Depends(get_db),
-    user_service = Depends(get_user_service)
-):
-    """
-    Get current user from access token.
+def init_security():
+    """Initialize security systems at application startup.
     
-    Args:
-        token: JWT access token
-        db: Database session
-        user_service: User service instance
-        
-    Returns:
-        User: Current user
-        
-    Raises:
-        HTTPException: If token is invalid or user not found
+    This function validates security configurations and initializes
+    security-related subsystems.
     """
-    from app.models.user import User  # Import at function level to avoid circular import
+    from app.core.logging import get_logger
+    from app.core.config import settings
+    import secrets
     
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
+    logger = get_logger(__name__)
+    logger.info("Initializing security systems")
     
     try:
-        payload = decode_token(token)
-        user_id: str = payload.get("sub")
-        if user_id is None:
-            raise credentials_exception
-    except JWTError:
-        raise credentials_exception
+        # Validate required security settings
+        if not settings.SECRET_KEY or len(settings.SECRET_KEY) < 32:
+            logger.warning("SECRET_KEY is too short or not set - security risk!")
+            if settings.ENVIRONMENT == "production":
+                raise ValueError("SECRET_KEY must be at least 32 characters in production")
         
-    user = await user_service.get_by_id(user_id)
-    if user is None:
-        raise credentials_exception
+        if not settings.JWT_SECRET or len(settings.JWT_SECRET) < 32:
+            logger.warning("JWT_SECRET is too short or not set - security risk!")
+            if settings.ENVIRONMENT == "production":
+                raise ValueError("JWT_SECRET must be at least 32 characters in production")
         
-    return user
-
-async def get_current_active_user(
-    current_user = Depends(get_current_user)
-):
-    """
-    Get current active user.
-    
-    Args:
-        current_user: Current authenticated user
+        # Validate encryption key
+        from cryptography.fernet import Fernet
+        try:
+            if settings.ENCRYPTION_KEY:
+                Fernet(settings.ENCRYPTION_KEY.encode())
+                logger.info("Encryption key validated")
+            else:
+                logger.warning("ENCRYPTION_KEY not set - sensitive data will not be encrypted")
+                if settings.ENVIRONMENT == "production":
+                    raise ValueError("ENCRYPTION_KEY must be set in production")
+        except Exception as e:
+            logger.error(f"Invalid ENCRYPTION_KEY: {str(e)}")
+            if settings.ENVIRONMENT == "production":
+                raise
         
-    Returns:
-        User: Current active user
+        # Warn about insecure settings in production
+        if settings.ENVIRONMENT == "production":
+            if settings.DEBUG:
+                logger.warning("DEBUG mode is enabled in production - security risk!")
+            
+            if not settings.CORS_ORIGINS or "*" in settings.BACKEND_CORS_ORIGINS:
+                logger.warning("CORS is configured to allow all origins (*) - security risk!")
         
-    Raises:
-        HTTPException: If user is inactive
-    """
-    if not current_user.is_active:
-        raise HTTPException(status_code=400, detail="Inactive user")
-    return current_user 
+        logger.info("Security systems initialized successfully")
+    except Exception as e:
+        logger.error(f"Security initialization failed: {str(e)}")
+        # In production, security initialization failure is critical
+        if settings.ENVIRONMENT == "production":
+            raise
+        # In development/test, we can continue with warnings 

@@ -1,6 +1,22 @@
 """Base storage provider interface."""
 from typing import Optional, Dict, Any, BinaryIO, Tuple, List
 
+class StorageError(Exception):
+    """Exception raised for storage operations errors."""
+    
+    def __init__(self, message: str, code: Optional[str] = None, details: Optional[Dict[str, Any]] = None):
+        """Initialize StorageError.
+        
+        Args:
+            message: Error message
+            code: Optional error code
+            details: Optional additional error details
+        """
+        self.message = message
+        self.code = code or "STORAGE_ERROR"
+        self.details = details or {}
+        super().__init__(self.message)
+
 class StorageProvider:
     """Base storage provider interface."""
     

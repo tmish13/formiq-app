@@ -7,12 +7,12 @@ def test_validation_exception_with_details():
     details = {"field": "test", "error": "Invalid value"}
     exception = ValidationException("Test error", details=details)
     assert exception.status_code == 422
-    assert exception.detail == "Test error"
+    assert exception.message == "Test error"
     assert exception.details == details
 
 def test_validation_exception_without_details():
     """Test ValidationException without details parameter."""
     exception = ValidationException("Test error")
     assert exception.status_code == 422
-    assert exception.detail == "Test error"
+    assert exception.message == "Test error"
     assert exception.details == {} 

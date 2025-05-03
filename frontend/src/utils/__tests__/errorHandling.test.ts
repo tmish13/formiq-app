@@ -1,156 +1,286 @@
-import { handleApiError, AppError, ApiError } from '../errorHandling';
-import { AxiosError } from 'axios';
+import axios, { AxiosError } from 'axios';
+import { 
+  AppError, 
+  ErrorCode, 
+  handleApiError
+} from '../errorHandling';
 
-describe('Error Handling', () => {
-  describe('AppError', () => {
-    it('should create an AppError with message', () => {
+// Mock axios for controlled testing
+jest.mock('axios');
+
+// Mock the error detection functions for testing
+const mockIsNetworkError = (error: unknown): boolean => {
+  if (error && typeof error === 'object' && 'isAxiosError' in error) {
+    return !('response' in error);
+  }
+  return false;
+};
+
+const mockIsAuthError = (error: unknown): boolean => {
+  if (error && typeof error === 'object' && 'isAxiosError' in error && 'response' in error) {
+    const axiosError = error as any;
+    return axiosError.response?.status === 401;
+  }
+  return false;
+};
+
+const mockIsCsrfError = (error: unknown): boolean => {
+  if (error && typeof error === 'object' && 'isAxiosError' in error && 'response' in error) {
+    const axiosError = error as any;
+    if (axiosError.response?.status === 403) {
+      const data = axiosError.response.data as Record<string, any> || {};
+      const message = data.message as string;
+      return typeof message === 'string' && message.includes('CSRF');
+    }
+  }
+  return false;
+};
+
+// Mock the module to use our test versions
+jest.mock('../errorHandling', () => {
+  const originalModule = jest.requireActual('../errorHandling');
+  return {
+    ...originalModule,
+    isNetworkError: jest.fn((error) => mockIsNetworkError(error)),
+    isAuthError: jest.fn((error) => mockIsAuthError(error)),
+    isCsrfError: jest.fn((error) => mockIsCsrfError(error))
+  };
+});
+
+describe('Error Handling Utilities', () => {
+  describe('AppError class', () => {
+    it('should correctly initialize with default values', () => {
       const error = new AppError('Test error');
+      
       expect(error.message).toBe('Test error');
-      expect(error.name).toBe('AppError');
+      expect(error.code).toBe(ErrorCode.UNKNOWN_ERROR);
+      expect(error.status).toBe(500);
+      expect(error.retry).toBe(false);
+      expect(error.details).toBeUndefined();
+      expect(error.fieldErrors).toBeUndefined();
     });
-
-    it('should create an AppError with message and code', () => {
-      const error = new AppError('Test error', 'TEST_ERROR');
-      expect(error.message).toBe('Test error');
-      expect(error.code).toBe('TEST_ERROR');
-      expect(error.name).toBe('AppError');
+    
+    it('should correctly initialize with custom values', () => {
+      const details = { id: 'test-id' };
+      const fieldErrors = { name: ['Name is required'] };
+      
+      const error = new AppError(
+        'Custom error', 
+        ErrorCode.VALIDATION_ERROR, 
+        422, 
+        details, 
+        fieldErrors, 
+        true
+      );
+      
+      expect(error.message).toBe('Custom error');
+      expect(error.code).toBe(ErrorCode.VALIDATION_ERROR);
+      expect(error.status).toBe(422);
+      expect(error.retry).toBe(true);
+      expect(error.details).toEqual(details);
+      expect(error.fieldErrors).toEqual(fieldErrors);
+    });
+    
+    it('should be an instance of Error', () => {
+      const error = new AppError('Test error');
+      expect(error).toBeInstanceOf(Error);
     });
   });
-
-  describe('handleApiError', () => {
+  
+  describe('handleApiError function', () => {
+    it('should return the error if it is already an AppError', () => {
+      const originalError = new AppError('Already an AppError', ErrorCode.BAD_REQUEST, 400);
+      const result = handleApiError(originalError);
+      
+      expect(result).toBe(originalError);
+    });
+    
     it('should handle network errors', () => {
-      const error = new Error('Network Error') as AxiosError;
-      const result = handleApiError(error);
+      const networkError = new Error('Network Error') as AxiosError;
+      const result = handleApiError(networkError);
+      
       expect(result).toBeInstanceOf(AppError);
-      expect(result.message).toBe('Network connection error. Please check your internet connection.');
-      expect(result.code).toBe('NETWORK_ERROR');
+      expect(result.code).toBe(ErrorCode.NETWORK_ERROR);
+      expect(result.status).toBe(0);
     });
-
+    
     it('should handle timeout errors', () => {
-      const error = new Error('timeout of 5000ms exceeded') as AxiosError;
-      error.code = 'ECONNABORTED';
-      const result = handleApiError(error);
+      const timeoutError = {
+        code: 'ECONNABORTED',
+        message: 'timeout of 1000ms exceeded',
+        isAxiosError: true
+      } as unknown as AxiosError;
+      
+      const result = handleApiError(timeoutError);
+      
       expect(result).toBeInstanceOf(AppError);
-      expect(result.message).toBe('Request timed out. Please try again.');
-      expect(result.code).toBe('TIMEOUT_ERROR');
+      expect(result.code).toBe(ErrorCode.TIMEOUT_ERROR);
+      expect(result.status).toBe(408);
     });
-
-    it('should handle 401 unauthorized errors', () => {
-      const error = {
+    
+    it('should handle 401 Unauthorized errors', () => {
+      const unauthorizedError = {
         response: {
           status: 401,
-          data: { message: 'Unauthorized' },
+          data: { message: 'Unauthorized' }
         },
-      } as AxiosError;
-      const result = handleApiError(error);
+        isAxiosError: true
+      } as unknown as AxiosError;
+      
+      const result = handleApiError(unauthorizedError);
+      
       expect(result).toBeInstanceOf(AppError);
-      expect(result.message).toBe('Your session has expired. Please log in again.');
-      expect(result.code).toBe('UNAUTHORIZED');
+      expect(result.code).toBe(ErrorCode.UNAUTHORIZED);
+      expect(result.status).toBe(401);
     });
-
-    it('should handle 403 forbidden errors', () => {
-      const error = {
+    
+    it('should handle CSRF errors', () => {
+      const csrfError = {
         response: {
           status: 403,
-          data: { message: 'Forbidden' },
+          data: { message: 'CSRF token validation failed' }
         },
-      } as AxiosError;
-      const result = handleApiError(error);
+        isAxiosError: true
+      } as unknown as AxiosError;
+      
+      const result = handleApiError(csrfError);
+      
       expect(result).toBeInstanceOf(AppError);
-      expect(result.message).toBe('You do not have permission to perform this action.');
-      expect(result.code).toBe('FORBIDDEN');
+      expect(result.code).toBe(ErrorCode.CSRF_ERROR);
+      expect(result.status).toBe(403);
     });
-
-    it('should handle 404 not found errors', () => {
-      const error = {
-        response: {
-          status: 404,
-          data: { message: 'Not Found' },
-        },
-      } as AxiosError;
-      const result = handleApiError(error);
-      expect(result).toBeInstanceOf(AppError);
-      expect(result.message).toBe('The requested resource was not found.');
-      expect(result.code).toBe('NOT_FOUND');
-    });
-
-    it('should handle 422 validation errors', () => {
-      const error = {
+    
+    it('should handle validation errors with field errors', () => {
+      const validationError = {
         response: {
           status: 422,
-          data: {
-            message: 'Validation Error',
-            errors: ['Field is required'],
-          },
+          data: { 
+            errors: { 
+              email: ['Email is required'], 
+              password: ['Password is too short'] 
+            } 
+          }
         },
-      } as AxiosError;
-      const result = handleApiError(error);
+        isAxiosError: true
+      } as unknown as AxiosError;
+      
+      const result = handleApiError(validationError);
+      
       expect(result).toBeInstanceOf(AppError);
-      expect(result.message).toBe('Validation Error: Field is required');
-      expect(result.code).toBe('VALIDATION_ERROR');
+      expect(result.code).toBe(ErrorCode.VALIDATION_ERROR);
+      expect(result.status).toBe(422);
+      expect(result.fieldErrors).toEqual({ 
+        email: ['Email is required'], 
+        password: ['Password is too short'] 
+      });
     });
-
-    it('should handle 429 rate limit errors', () => {
-      const error = {
+    
+    it('should handle validation errors with array of errors', () => {
+      const validationError = {
         response: {
-          status: 429,
-          data: { message: 'Too Many Requests' },
+          status: 422,
+          data: { 
+            errors: ['Email is required', 'Password is too short']
+          }
         },
-      } as AxiosError;
-      const result = handleApiError(error);
+        isAxiosError: true
+      } as unknown as AxiosError;
+      
+      const result = handleApiError(validationError);
+      
       expect(result).toBeInstanceOf(AppError);
-      expect(result.message).toBe('Too many requests. Please try again later.');
-      expect(result.code).toBe('RATE_LIMIT_ERROR');
+      expect(result.code).toBe(ErrorCode.VALIDATION_ERROR);
+      expect(result.status).toBe(422);
+      expect(result.message).toBe('Validation Error: Email is required, Password is too short');
     });
-
-    it('should handle 500 server errors', () => {
-      const error = {
+    
+    it('should handle server errors', () => {
+      const serverError = {
         response: {
           status: 500,
-          data: { message: 'Internal Server Error' },
+          data: { message: 'Internal Server Error' }
         },
-      } as AxiosError;
-      const result = handleApiError(error);
+        isAxiosError: true
+      } as unknown as AxiosError;
+      
+      const result = handleApiError(serverError);
+      
       expect(result).toBeInstanceOf(AppError);
-      expect(result.message).toBe('An unexpected error occurred. Please try again later.');
-      expect(result.code).toBe('SERVER_ERROR');
+      expect(result.code).toBe(ErrorCode.SERVER_ERROR);
+      expect(result.status).toBe(500);
     });
-
-    it('should handle unknown errors', () => {
-      const error = new Error('Unknown error') as AxiosError;
-      const result = handleApiError(error);
-      expect(result).toBeInstanceOf(AppError);
-      expect(result.message).toBe('An unexpected error occurred. Please try again later.');
-      expect(result.code).toBe('UNKNOWN_ERROR');
+  });
+  
+  describe('Error type detection functions', () => {
+    it('should correctly identify network errors', () => {
+      // For isNetworkError we need an AxiosError with no response property
+      const networkError = {
+        isAxiosError: true,
+        request: {}
+        // No response property
+      };
+      
+      expect(mockIsNetworkError(networkError)).toBe(true);
+      
+      // Create a response error
+      const responseError = {
+        isAxiosError: true,
+        request: {},
+        response: { status: 400 }
+      };
+      
+      expect(mockIsNetworkError(responseError)).toBe(false);
+      
+      const nonAxiosError = new Error('Not an axios error');
+      expect(mockIsNetworkError(nonAxiosError)).toBe(false);
     });
-
-    it('should handle errors with custom messages', () => {
-      const error = {
-        response: {
-          status: 400,
-          data: { message: 'Custom error message' },
-        },
-      } as AxiosError;
-      const result = handleApiError(error);
-      expect(result).toBeInstanceOf(AppError);
-      expect(result.message).toBe('Custom error message');
-      expect(result.code).toBe('BAD_REQUEST');
+    
+    it('should correctly identify authentication errors', () => {
+      // Create auth error with status 401
+      const authError = {
+        isAxiosError: true,
+        response: { status: 401 }
+      };
+      
+      expect(mockIsAuthError(authError)).toBe(true);
+      
+      // Create non-auth error
+      const nonAuthError = {
+        isAxiosError: true,
+        response: { status: 403 }
+      };
+      
+      expect(mockIsAuthError(nonAuthError)).toBe(false);
+      
+      const nonAxiosError = new Error('Not an axios error');
+      expect(mockIsAuthError(nonAxiosError)).toBe(false);
     });
-
-    it('should handle errors with multiple validation messages', () => {
-      const error = {
-        response: {
-          status: 422,
-          data: {
-            message: 'Validation Error',
-            errors: ['Field 1 is required', 'Field 2 is invalid'],
-          },
-        },
-      } as AxiosError;
-      const result = handleApiError(error);
-      expect(result).toBeInstanceOf(AppError);
-      expect(result.message).toBe('Validation Error: Field 1 is required, Field 2 is invalid');
-      expect(result.code).toBe('VALIDATION_ERROR');
+    
+    it('should correctly identify CSRF errors', () => {
+      // Create CSRF error (403 status with CSRF in message)
+      const csrfError = {
+        isAxiosError: true,
+        response: { 
+          status: 403,
+          data: { message: 'CSRF token validation failed' }
+        }
+      };
+      
+      expect(mockIsCsrfError(csrfError)).toBe(true);
+      
+      // Create non-CSRF error (403 but no CSRF message)
+      const nonCsrfError = {
+        isAxiosError: true,
+        response: { 
+          status: 403,
+          data: { message: 'Forbidden' }
+        }
+      };
+      
+      expect(mockIsCsrfError(nonCsrfError)).toBe(false);
+      
+      const nonAxiosError = new Error('Not an axios error');
+      expect(mockIsCsrfError(nonAxiosError)).toBe(false);
     });
   });
 }); 

@@ -17,25 +17,56 @@ class UserService:
     def __init__(self, db: Session):
         """Initialize user service with database session."""
         self.db = db
+        self._is_async = False
 
-    def create_user(self, user_data: Dict[str, Any]) -> User:
-        """Create a new user."""
+    def set_async_mode(self, is_async: bool = True) -> None:
+        """Set the service to operate in async or sync mode."""
+        self._is_async = is_async
+        
+    def is_async(self) -> bool:
+        """Return whether the service is operating in async mode."""
+        return self._is_async
+
+    def create_user(self, 
+                   email: str, 
+                   username: str, 
+                   password: str, 
+                   subscription_tier: str = "FREE") -> User:
+        """
+        Create a new user.
+        
+        Args:
+            email: User's email address
+            username: User's username
+            password: User's password (plain text)
+            subscription_tier: Subscription tier (default: FREE)
+            
+        Returns:
+            User: Created user object
+            
+        Raises:
+            ValidationError: If validation fails
+        """
+        # Check if session is asynchronous
+        if self._is_async:
+            raise ValueError("Use create_user_async for async sessions")
+            
         try:
             # Check if user already exists
             existing_user = self.db.query(User).filter(
-                User.email == user_data["email"]
+                User.email == email
             ).first()
             if existing_user:
                 raise ValidationError("User with this email already exists")
 
             # Create new user
             user = User(
-                email=user_data["email"],
-                username=user_data["username"],
-                hashed_password=get_password_hash(user_data["password"]),
+                email=email,
+                username=username,
+                hashed_password=get_password_hash(password),
                 is_active=True,
                 is_superuser=False,
-                subscription_tier="FREE",
+                subscription_tier=subscription_tier,
                 created_at=datetime.now(),
                 updated_at=datetime.now()
             )
@@ -49,6 +80,62 @@ class UserService:
         except Exception as e:
             logger.error(f"Failed to create user: {str(e)}")
             self.db.rollback()
+            raise ValidationError(f"Failed to create user: {str(e)}")
+
+    async def create_user_async(self, 
+                              email: str, 
+                              username: str, 
+                              password: str, 
+                              subscription_tier: str = "FREE") -> User:
+        """
+        Create a new user asynchronously.
+        
+        Args:
+            email: User's email address
+            username: User's username
+            password: User's password (plain text)
+            subscription_tier: Subscription tier (default: FREE)
+            
+        Returns:
+            User: Created user object
+            
+        Raises:
+            ValidationError: If validation fails
+        """
+        # Check if session is synchronous
+        if not self._is_async:
+            raise ValueError("Use create_user for sync sessions")
+            
+        try:
+            # Check if user already exists
+            stmt = User.__table__.select().where(User.email == email)
+            result = await self.db.execute(stmt)
+            existing_user = result.scalar_one_or_none()
+            
+            if existing_user:
+                raise ValidationError("User with this email already exists")
+
+            # Create new user
+            user = User(
+                email=email,
+                username=username,
+                hashed_password=get_password_hash(password),
+                is_active=True,
+                is_superuser=False,
+                subscription_tier=subscription_tier,
+                created_at=datetime.now(),
+                updated_at=datetime.now()
+            )
+            self.db.add(user)
+            await self.db.commit()
+            await self.db.refresh(user)
+            logger.info(f"Created user {user.id}")
+            return user
+        except ValidationError:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to create user: {str(e)}")
+            await self.db.rollback()
             raise ValidationError(f"Failed to create user: {str(e)}")
 
     def authenticate_user(self, email: str, password: str) -> Dict[str, Any]:
@@ -115,27 +202,68 @@ class UserService:
             self.db.rollback()
             raise ValidationError(f"Failed to update user: {str(e)}")
 
-    def update_subscription(self, user_id: int, subscription_data: Dict[str, Any]) -> User:
-        """Update user subscription."""
+    def update_subscription(self, 
+                            user_id: int, 
+                            tier: str,
+                            start_date: datetime = None,
+                            end_date: datetime = None,
+                            status: str = "active",
+                            stripe_subscription_id: str = None,
+                            stripe_customer_id: str = None) -> User:
+        """
+        Update user subscription.
+        
+        Args:
+            user_id: User ID
+            tier: Subscription tier
+            start_date: Start date of subscription
+            end_date: End date of subscription
+            status: Subscription status
+            stripe_subscription_id: Stripe subscription ID
+            stripe_customer_id: Stripe customer ID
+            
+        Returns:
+            User: Updated user object
+            
+        Raises:
+            NotFoundError: If user not found
+            ValidationError: If validation fails
+        """
         try:
             user = self.get_user_by_id(user_id)
             
-            # Update subscription
-            user.subscription_tier = subscription_data["tier"]
+            # Default dates if not provided
+            if start_date is None:
+                start_date = datetime.now()
+            if end_date is None:
+                end_date = start_date + timedelta(days=30)  # Default to 30 days
+            
+            # Validate dates
+            if end_date <= start_date:
+                raise ValidationError("End date must be after start date")
+            
+            # Update subscription tier
+            user.subscription_tier = tier
             user.updated_at = datetime.now()
             
             # Create subscription record
             subscription = Subscription(
                 user_id=user_id,
-                tier=subscription_data["tier"],
-                start_date=datetime.now(),
-                end_date=datetime.now() + timedelta(days=subscription_data["duration_days"]),
+                tier=tier,
+                start_date=start_date,
+                end_date=end_date,
+                status=status,
+                stripe_subscription_id=stripe_subscription_id,
+                stripe_customer_id=stripe_customer_id,
                 created_at=datetime.now(),
                 updated_at=datetime.now()
             )
             self.db.add(subscription)
             
+            # Commit changes
             self.db.commit()
+            
+            # Refresh the user to get the updated data
             self.db.refresh(user)
             logger.info(f"Updated subscription for user {user_id}")
             return user
@@ -144,6 +272,77 @@ class UserService:
         except Exception as e:
             logger.error(f"Failed to update subscription: {str(e)}")
             self.db.rollback()
+            raise ValidationError(f"Failed to update subscription: {str(e)}")
+
+    async def update_subscription_async(self, 
+                                 user_id: int, 
+                                 tier: str,
+                                 start_date: datetime = None,
+                                 end_date: datetime = None,
+                                 status: str = "active",
+                                 stripe_subscription_id: str = None,
+                                 stripe_customer_id: str = None) -> User:
+        """
+        Update user subscription asynchronously.
+        
+        Args:
+            user_id: User ID
+            tier: Subscription tier
+            start_date: Start date of subscription
+            end_date: End date of subscription
+            status: Subscription status
+            stripe_subscription_id: Stripe subscription ID
+            stripe_customer_id: Stripe customer ID
+            
+        Returns:
+            User: Updated user object
+            
+        Raises:
+            NotFoundError: If user not found
+            ValidationError: If validation fails
+        """
+        try:
+            # Get user
+            user = await self.repository.get_by_id_async(user_id)
+            if not user:
+                raise NotFoundError(f"User {user_id} not found")
+            
+            # Default dates if not provided
+            if start_date is None:
+                start_date = datetime.now()
+            if end_date is None:
+                end_date = start_date + timedelta(days=30)  # Default to 30 days
+            
+            # Validate dates
+            if end_date <= start_date:
+                raise ValidationError("End date must be after start date")
+            
+            # Update subscription tier
+            user.subscription_tier = tier
+            user.updated_at = datetime.now()
+            
+            # Create subscription record
+            subscription = Subscription(
+                user_id=user_id,
+                tier=tier,
+                start_date=start_date,
+                end_date=end_date,
+                status=status,
+                stripe_subscription_id=stripe_subscription_id,
+                stripe_customer_id=stripe_customer_id,
+                created_at=datetime.now(),
+                updated_at=datetime.now()
+            )
+            self.db.add(subscription)
+            await self.db.commit()
+            await self.db.refresh(user)
+            logger.info(f"Updated subscription for user {user_id}")
+            return user
+        except NotFoundError:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to update subscription: {str(e)}")
+            await self.db.rollback()
             raise ValidationError(f"Failed to update subscription: {str(e)}")
 
     def deactivate_user(self, user_id: int) -> User:

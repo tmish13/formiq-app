@@ -2,7 +2,7 @@
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 from uuid import UUID
-from pydantic import BaseModel, Field, validator, constr
+from pydantic import BaseModel, Field, field_validator, constr, ConfigDict
 
 from app.models.enums import ExerciseType, MuscleGroup, Difficulty
 
@@ -17,7 +17,8 @@ class ExerciseCreate(BaseModel):
     tips: Optional[List[constr(max_length=200)]] = Field(None, description="Exercise tips and cues")
     video_url: Optional[str] = Field(None, description="Reference video URL")
     
-    @validator("muscle_groups")
+    @field_validator("muscle_groups")
+    @classmethod
     def validate_muscle_groups(cls, v):
         """Validate muscle groups list."""
         if not v:
@@ -26,7 +27,8 @@ class ExerciseCreate(BaseModel):
             raise ValueError("Maximum 5 muscle groups allowed")
         return v
     
-    @validator("instructions")
+    @field_validator("instructions")
+    @classmethod
     def validate_instructions(cls, v):
         """Validate instructions list."""
         if not v:
@@ -46,7 +48,8 @@ class ExerciseUpdate(BaseModel):
     tips: Optional[List[constr(max_length=200)]] = None
     video_url: Optional[str] = None
     
-    @validator("muscle_groups")
+    @field_validator("muscle_groups")
+    @classmethod
     def validate_muscle_groups(cls, v):
         """Validate muscle groups list."""
         if v is not None:
@@ -56,7 +59,8 @@ class ExerciseUpdate(BaseModel):
                 raise ValueError("Maximum 5 muscle groups allowed")
         return v
     
-    @validator("instructions")
+    @field_validator("instructions")
+    @classmethod
     def validate_instructions(cls, v):
         """Validate instructions list."""
         if v is not None:
@@ -80,6 +84,4 @@ class ExerciseResponse(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime] = None
     
-    class Config:
-        """Pydantic configuration."""
-        from_attributes = True 
+    model_config = ConfigDict(from_attributes=True) 

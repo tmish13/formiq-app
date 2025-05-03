@@ -2,6 +2,7 @@
 # Import dependencies from core.deps
 from app.core.deps import (
     get_db,
+    get_async_db,
     get_current_user,
     get_current_active_user,
     get_current_active_superuser,
@@ -16,13 +17,11 @@ from sqlalchemy.orm import Session
 from jose import jwt
 from fastapi.security import OAuth2PasswordBearer
 
-from app.db.session import get_db
 from app.repositories.user_repository import UserRepository
 from app.services.user_service import UserService
 from app.core.security import oauth2_scheme
 from app.core.config import settings
 from app.core.security import verify_session_token
-from app.db.session import SessionLocal
 from app.models.user import User
 from app.services.session_service import SessionService
 from app.repositories.session_repository import SessionRepository
@@ -37,12 +36,12 @@ def register_deps():
     dependencies["get_user_service"] = get_user_service
     dependencies["get_session_service"] = get_session_service
 
-async def get_user_service(db: AsyncSession = Depends(get_db)) -> UserService:
+async def get_user_service(db: AsyncSession = Depends(get_async_db)) -> UserService:
     """Dependency for getting the user service."""
     user_repo = UserRepository(db)
     return UserService(repository=user_repo)
 
-async def get_session_service(db: AsyncSession = Depends(get_db)) -> SessionService:
+async def get_session_service(db: AsyncSession = Depends(get_async_db)) -> SessionService:
     """Dependency for getting the session service."""
     session_repo = SessionRepository(db)
     return SessionService(repository=session_repo)

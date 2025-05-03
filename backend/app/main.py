@@ -122,28 +122,6 @@ def create_application() -> FastAPI:
     if settings.ENVIRONMENT != "production":
         app.openapi = custom_openapi(app)
 
-    # Initialize core services
-    @app.on_event("startup")
-    async def startup_event():
-        """Initialize services on application startup."""
-        # Initialize monitoring
-        init_monitoring()
-        
-        # Initialize logging
-        init_logging()
-        
-        # Initialize cache
-        await init_cache()
-        
-        # Initialize rate limiting
-        await init_rate_limit()
-        
-        # Initialize storage
-        await init_storage()
-        
-        # Initialize security
-        init_security()
-
     # Error handlers
     @app.exception_handler(StarletteHTTPException)
     async def http_exception_handler(request, exc):

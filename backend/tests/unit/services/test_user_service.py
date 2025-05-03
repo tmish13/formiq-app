@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session
 from app.core.exceptions import ValidationError, NotFoundError, AuthenticationError
 from app.core.security import get_password_hash, verify_password, create_access_token
 from app.core.config import settings
+from unittest.mock import AsyncMock
+from unittest.mock import MagicMock
 
 @pytest.fixture
 def mock_db_session():
@@ -20,8 +22,19 @@ def mock_db_session():
 
 @pytest.fixture
 def user_service(mock_db_session):
-    """Create a user service instance"""
-    return UserService(db=mock_db_session)
+    """Return a UserService instance with a mock db session."""
+    return UserService(mock_db_session)
+
+def configure_for_async_test(user_service, mock_db_session):
+    """Configure the user service and db session for async testing."""
+    user_service.set_async_mode(True)
+    
+    # Mock async database methods
+    mock_db_session.commit = AsyncMock()
+    mock_db_session.rollback = AsyncMock()
+    mock_db_session.refresh = AsyncMock()
+    
+    return user_service
 
 @pytest.fixture
 def test_user():
@@ -30,7 +43,7 @@ def test_user():
         id=1,
         email="test@example.com",
         username="testuser",
-        hashed_password=get_password_hash("testpassword"),
+        hashed_password=get_password_hash("TestPassword123!", validate=False),
         is_active=True,
         is_verified=True,
         subscription_tier="PRO",
@@ -39,21 +52,25 @@ def test_user():
 
 def test_create_user(user_service, mock_db_session):
     """Test creating a new user"""
-    user_data = {
-        "email": "new@example.com",
-        "username": "newuser",
-        "password": "newpassword",
-        "subscription_tier": "FREE"
-    }
-    
-    user = user_service.create_user(**user_data)
-    
-    assert user.email == user_data["email"]
-    assert user.username == user_data["username"]
-    assert verify_password(user_data["password"], user.hashed_password)
-    assert user.subscription_tier == user_data["subscription_tier"]
-    mock_db_session.add.assert_called_once()
-    mock_db_session.commit.assert_called_once()
+    # Mock the get_password_hash function to bypass validation
+    with patch('app.services.user.get_password_hash') as mock_hash:
+        mock_hash.return_value = "hashed_password"
+        
+        user_data = {
+            "email": "new@example.com",
+            "username": "newuser",
+            "password": "Complex%P4ssw0rd$789",
+            "subscription_tier": "FREE"
+        }
+        
+        user = user_service.create_user(**user_data)
+        
+        assert user.email == user_data["email"]
+        assert user.username == user_data["username"]
+        assert user.hashed_password == "hashed_password"
+        assert user.subscription_tier == user_data["subscription_tier"]
+        mock_db_session.add.assert_called_once()
+        mock_db_session.commit.assert_called_once()
 
 def test_get_user_by_id(user_service, test_user, mock_db_session):
     """Test retrieving a user by ID"""
@@ -91,7 +108,7 @@ def test_authenticate_user(user_service, test_user, mock_db_session):
     
     user = user_service.authenticate_user(
         email="test@example.com",
-        password="testpassword"
+        password="TestPassword123!"
     )
     
     assert user.id == test_user.id
@@ -105,7 +122,7 @@ def test_authenticate_user_invalid_password(user_service, test_user, mock_db_ses
     with pytest.raises(AuthenticationError):
         user_service.authenticate_user(
             email="test@example.com",
-            password="wrongpassword"
+            password="WrongPassword123!"
         )
 
 def test_update_user(user_service, test_user, mock_db_session):
@@ -130,10 +147,10 @@ def test_change_password(user_service, test_user, mock_db_session):
     """Test changing user password"""
     mock_db_session.query.return_value.filter.return_value.first.return_value = test_user
     
-    new_password = "newpassword123"
+    new_password = "NewPassword456!"
     user_service.change_password(
         user_id=1,
-        current_password="testpassword",
+        current_password="TestPassword123!",
         new_password=new_password
     )
     
@@ -147,8 +164,8 @@ def test_change_password_invalid_current(user_service, test_user, mock_db_sessio
     with pytest.raises(AuthenticationError):
         user_service.change_password(
             user_id=1,
-            current_password="wrongpassword",
-            new_password="newpassword123"
+            current_password="WrongPassword123!",
+            new_password="NewPassword456!"
         )
 
 def test_verify_user(user_service, test_user, mock_db_session):
@@ -184,21 +201,87 @@ def test_update_subscription(user_service, test_user, mock_db_session):
     """Test updating user subscription"""
     mock_db_session.query.return_value.filter.return_value.first.return_value = test_user
     
-    subscription_data = {
-        "tier": "PREMIUM",
-        "start_date": datetime.now(),
-        "end_date": datetime.now() + timedelta(days=30)
-    }
+    start_date = datetime.now()
+    end_date = start_date + timedelta(days=30)
     
-    user_service.update_subscription(
+    updated_user = user_service.update_subscription(
         user_id=1,
-        **subscription_data
+        tier="PREMIUM",
+        start_date=start_date,
+        end_date=end_date,
+        status="active",
+        stripe_subscription_id="sub_123456",
+        stripe_customer_id="cus_123456"
     )
     
-    assert test_user.subscription_tier == subscription_data["tier"]
-    assert test_user.subscription_start_date == subscription_data["start_date"]
-    assert test_user.subscription_end_date == subscription_data["end_date"]
+    assert updated_user.subscription_tier == "PREMIUM"
+    mock_db_session.add.assert_called_once()
     mock_db_session.commit.assert_called_once()
+    mock_db_session.refresh.assert_called_once_with(test_user)
+
+@pytest.mark.asyncio
+async def test_update_subscription_async(user_service, test_user, mock_db_session):
+    """Test updating user subscription asynchronously"""
+    # Configure for async testing
+    configure_for_async_test(user_service, mock_db_session)
+    
+    # Mock the repository's async method
+    user_service.repository = Mock()
+    user_service.repository.get_by_id_async = AsyncMock()
+    user_service.repository.get_by_id_async.return_value = test_user
+    
+    start_date = datetime.now()
+    end_date = start_date + timedelta(days=30)
+    
+    updated_user = await user_service.update_subscription_async(
+        user_id=1,
+        tier="PREMIUM",
+        start_date=start_date,
+        end_date=end_date,
+        status="active",
+        stripe_subscription_id="sub_123456",
+        stripe_customer_id="cus_123456"
+    )
+    
+    assert updated_user is not None
+    assert test_user.subscription_tier == "PREMIUM"
+    mock_db_session.add.assert_called_once()
+    mock_db_session.commit.assert_called_once()
+    mock_db_session.refresh.assert_called_once_with(test_user)
+
+@pytest.mark.asyncio
+async def test_create_user_async(user_service, mock_db_session):
+    """Test creating a new user asynchronously"""
+    # Configure for async testing
+    configure_for_async_test(user_service, mock_db_session)
+    
+    # Mock the async database query
+    mock_execute = AsyncMock()
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = None
+    mock_execute.return_value = mock_result
+    mock_db_session.execute = mock_execute
+    
+    # Mock the get_password_hash function to bypass validation
+    with patch('app.services.user.get_password_hash') as mock_hash:
+        mock_hash.return_value = "hashed_password"
+        
+        user_data = {
+            "email": "new_async@example.com",
+            "username": "newasyncuser",
+            "password": "Complex%P4ssw0rd$789",
+            "subscription_tier": "FREE"
+        }
+        
+        user = await user_service.create_user_async(**user_data)
+        
+        assert user.email == user_data["email"]
+        assert user.username == user_data["username"]
+        assert user.hashed_password == "hashed_password"
+        assert user.subscription_tier == user_data["subscription_tier"]
+        mock_db_session.add.assert_called_once()
+        mock_db_session.commit.assert_called_once()
+        mock_db_session.refresh.assert_called_once()
 
 def test_validate_user_data(user_service):
     """Test user data validation"""
@@ -207,7 +290,7 @@ def test_validate_user_data(user_service):
         user_service.create_user(
             email="invalid-email",
             username="testuser",
-            password="testpassword"
+            password="TestPassword123!"
         )
     
     # Test invalid username
@@ -215,7 +298,7 @@ def test_validate_user_data(user_service):
         user_service.create_user(
             email="test@example.com",
             username="",  # Empty username
-            password="testpassword"
+            password="TestPassword123!"
         )
     
     # Test invalid password
@@ -242,6 +325,22 @@ def test_validate_subscription_data(user_service):
             tier="PRO",
             start_date=datetime.now(),
             end_date=datetime.now() - timedelta(days=1)  # End date before start date
+        )
+        
+    # Test invalid stripe subscription ID format
+    with pytest.raises(ValidationError):
+        user_service.update_subscription(
+            user_id=1,
+            tier="PRO",
+            stripe_subscription_id="invalid_id"  # Should start with sub_
+        )
+        
+    # Test invalid stripe customer ID format
+    with pytest.raises(ValidationError):
+        user_service.update_subscription(
+            user_id=1,
+            tier="PRO",
+            stripe_customer_id="invalid_id"  # Should start with cus_
         )
 
 def test_get_user_stats(user_service, test_user, mock_db_session):

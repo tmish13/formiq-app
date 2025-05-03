@@ -8,10 +8,15 @@ import uuid
 from datetime import datetime, timedelta
 from unittest.mock import Mock, AsyncMock
 
-from app.core.database import Base, DatabaseSession
+from app.db.base_class import Base
+from app.core.database import DatabaseSession
 from app.models.user import User
 from app.models.subscription import Subscription, SubscriptionTier
 from app.models.workout import Workout, Exercise, WorkoutPlan
+from app.models.user_settings import UserSettings
+from app.models.user_session import UserSession
+from app.models.form_check import FormCheck, FeedbackItem
+from app.models.video import Video
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///./test.db"
 

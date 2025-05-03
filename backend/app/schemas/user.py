@@ -2,7 +2,7 @@
 from typing import Optional, List
 from datetime import datetime
 from uuid import UUID
-from pydantic import BaseModel, EmailStr, Field, validator, constr, UUID4
+from pydantic import BaseModel, EmailStr, Field, field_validator, constr, UUID4, ConfigDict
 from app.core.validators import validate_password
 import re
 
@@ -32,7 +32,8 @@ class UserBase(BaseModel):
     )
     is_verified: bool = Field(False, description="Whether the user is verified")
     
-    @validator("username")
+    @field_validator("username")
+    @classmethod
     def validate_username(cls, v):
         """Validate username format."""
         if v is None:
@@ -67,7 +68,8 @@ class UserCreate(UserBase):
         max_length=100
     )
 
-    @validator("username")
+    @field_validator("username")
+    @classmethod
     def set_username_default(cls, v, values):
         """Set username to email if not provided."""
         if not v and "email" in values:
@@ -75,7 +77,8 @@ class UserCreate(UserBase):
             return values["email"].split("@")[0]
         return v
 
-    @validator("password")
+    @field_validator("password")
+    @classmethod
     def validate_password(cls, v):
         """Validate password strength."""
         if len(v) < 8:
@@ -90,10 +93,20 @@ class UserCreate(UserBase):
             raise ValueError("Password must contain at least one special character")
         return v
 
-    @validator('confirm_password')
-    def passwords_match(cls, v, values, **kwargs):
-        """Validate that passwords match."""
-        if 'password' in values and v != values['password']:
+    @field_validator('confirm_password')
+    @classmethod
+    def passwords_match(cls, v, info):
+        """
+        Validate that password and confirm_password match.
+        
+        Args:
+            v: Confirm password value
+            info: Validation info object containing processed values
+            
+        Returns:
+            str: Confirmed password
+        """
+        if 'new_password' in info.data and v != info.data['new_password']:
             raise ValueError('Passwords do not match')
         return v
 
@@ -107,7 +120,8 @@ class UserUpdate(UserBase):
     subscription_tier: Optional[str] = Field(None, description="User's subscription tier")
     is_superuser: Optional[bool] = Field(None, description="Whether user is a superuser")
 
-    @validator("password")
+    @field_validator("password")
+    @classmethod
     def validate_password_field(cls, v):
         """Validate password strength."""
         if v is None:
@@ -120,7 +134,8 @@ class UserUpdate(UserBase):
         
         return v
     
-    @validator("subscription_tier")
+    @field_validator("subscription_tier")
+    @classmethod
     def validate_subscription_tier(cls, v):
         """Validate subscription tier."""
         if v is None:
@@ -153,9 +168,7 @@ class UserInDBBase(UserBase):
     subscription_tier: str = Field("FREE", description="User's subscription tier")
     subscription_end_date: Optional[datetime] = None
 
-    class Config:
-        """Pydantic model configuration."""
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class User(UserInDBBase):
     """
@@ -165,7 +178,8 @@ class User(UserInDBBase):
     """
     form_checks_count: Optional[int] = Field(0, description="Number of form checks submitted")
     
-    @validator("subscription_tier")
+    @field_validator("subscription_tier")
+    @classmethod
     def validate_subscription_tier(cls, v):
         """Validate subscription tier."""
         allowed_tiers = ["FREE", "BASIC", "PRO", "PREMIUM"]
@@ -197,9 +211,8 @@ class UserResponse(UserInDBBase):
         example="https://storage.formiq.com/profiles/user123.jpg"
     )
 
-    class Config:
-        """Pydantic model configuration."""
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "id": "123e4567-e89b-12d3-a456-426614174000",
                 "email": "user@example.com",
@@ -211,6 +224,7 @@ class UserResponse(UserInDBBase):
                 "updated_at": "2024-01-20T10:35:00Z"
             }
         }
+    )
 
 class UserFilter(BaseModel):
     """
@@ -225,7 +239,8 @@ class UserFilter(BaseModel):
     is_verified: Optional[bool] = Field(None, description="Filter by verification status")
     subscription_tier: Optional[str] = Field(None, description="Filter by subscription tier")
     
-    @validator("subscription_tier")
+    @field_validator("subscription_tier")
+    @classmethod
     def validate_subscription_tier(cls, v):
         """Validate subscription tier."""
         if v is None:
@@ -245,7 +260,8 @@ class UserUpdatePassword(BaseModel):
         max_length=128
     )
     
-    @validator("new_password")
+    @field_validator("new_password")
+    @classmethod
     def validate_password(cls, v):
         """Validate password."""
         # Check for uppercase letters
@@ -282,7 +298,8 @@ class UserPasswordReset(BaseModel):
         max_length=128
     )
     
-    @validator("new_password")
+    @field_validator("new_password")
+    @classmethod
     def validate_password(cls, v):
         """Validate password."""
         # Check for uppercase letters
@@ -303,10 +320,20 @@ class UserPasswordReset(BaseModel):
         
         return v
 
-    @validator('confirm_password')
-    def passwords_match(cls, v, values, **kwargs):
-        """Validate that passwords match."""
-        if 'new_password' in values and v != values['new_password']:
+    @field_validator('confirm_password')
+    @classmethod
+    def passwords_match(cls, v, info):
+        """
+        Validate that password and confirm_password match.
+        
+        Args:
+            v: Confirm password value
+            info: Validation info object containing processed values
+            
+        Returns:
+            str: Confirmed password
+        """
+        if 'new_password' in info.data and v != info.data['new_password']:
             raise ValueError('Passwords do not match')
         return v
 

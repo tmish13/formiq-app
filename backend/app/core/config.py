@@ -130,7 +130,8 @@ class Settings(BaseSettings):
         description="Sentry traces sample rate"
     )
     
-    @validator("SENTRY_DSN")
+    @field_validator("SENTRY_DSN")
+    @classmethod
     def validate_sentry_dsn(cls, v):
         """
         Validate Sentry DSN if provided.
@@ -156,7 +157,8 @@ class Settings(BaseSettings):
         description="API version 1 prefix"
     )
     SECRET_KEY: str = Field(
-        default_factory=lambda: os.getenv("SECRET_KEY", secrets.token_urlsafe(32)),
+        default=os.getenv("SECRET_KEY", secrets.token_urlsafe(32)),
+        min_length=32,
         description="Secret key for JWT and other cryptographic operations"
     )
     ENCRYPTION_KEY: str = Field(
@@ -200,7 +202,8 @@ class Settings(BaseSettings):
         description="List of allowed CORS origins"
     )
 
-    @validator("BACKEND_CORS_ORIGINS", pre=True)
+    @field_validator("BACKEND_CORS_ORIGINS", mode="before")
+    @classmethod
     def assemble_cors_origins(cls, v: Union[str, List[str]]) -> Union[List[str], str]:
         """Validate and process CORS origins from string to list."""
         if isinstance(v, str) and not v.startswith("["):
@@ -231,24 +234,28 @@ class Settings(BaseSettings):
         description="SQLAlchemy database URI"
     )
     
-    @validator("SQLALCHEMY_DATABASE_URI", pre=True)
-    def assemble_db_connection(cls, v: Optional[str], values: Dict[str, Any]) -> str:
+    @field_validator("SQLALCHEMY_DATABASE_URI", mode="before")
+    @classmethod
+    def assemble_db_connection(cls, v: Optional[str], info) -> str:
         """
         Assemble database connection URI from components or use the provided one.
         """
         if v:
             return v
             
+        # Get values from the data object
+        env = info.data.get("ENVIRONMENT", "")
+        
         # Use SQLite for test and development environments for simplicity
-        if values.get("ENVIRONMENT") in ["test", "development"]:
-            db_name = "test.db" if values.get("ENVIRONMENT") == "test" else "dev.db"
+        if env in ["test", "development"]:
+            db_name = "test.db" if env == "test" else "dev.db"
             return f"sqlite:///./{db_name}"
         
         # Use direct string formatting to ensure correct URI structure
-        user = values.get("POSTGRES_USER")
-        password = values.get("POSTGRES_PASSWORD")
-        server = values.get("POSTGRES_SERVER")
-        db = values.get("POSTGRES_DB")
+        user = info.data.get("POSTGRES_USER", "")
+        password = info.data.get("POSTGRES_PASSWORD", "")
+        server = info.data.get("POSTGRES_SERVER", "")
+        db = info.data.get("POSTGRES_DB", "")
         
         # Construct connection string manually to avoid path formatting issues
         return f"postgresql://{user}:{password}@{server}/{db}"
@@ -300,18 +307,23 @@ class Settings(BaseSettings):
         description="Redis connection URL"
     )
     
-    @validator("REDIS_URL", pre=True)
-    def assemble_redis_connection(cls, v: Optional[str], values: Dict[str, Any]) -> str:
+    @field_validator("REDIS_URL", mode="before")
+    @classmethod
+    def assemble_redis_connection(cls, v: Optional[str], info) -> str:
         """
         Assemble Redis connection URL from components or use the provided one.
         """
         if v:
             return v
             
-        password = values.get("REDIS_PASSWORD")
+        password = info.data.get("REDIS_PASSWORD", "")
+        host = info.data.get("REDIS_HOST", "")
+        port = info.data.get("REDIS_PORT", "")
+        db = info.data.get("REDIS_DB", "")
+        
         auth = f":{password}@" if password else ""
         
-        return f"redis://{auth}{values.get('REDIS_HOST')}:{values.get('REDIS_PORT')}/{values.get('REDIS_DB')}"
+        return f"redis://{auth}{host}:{port}/{db}"
 
     # Storage
     UPLOAD_DIR: str = Field(
@@ -441,15 +453,15 @@ class Settings(BaseSettings):
     
     # JWT Settings
     JWT_SECRET: str = Field(
-        default=os.getenv("JWT_SECRET", ""),
+        default=os.getenv("JWT_SECRET", secrets.token_urlsafe(32)),
+        min_length=32,
         description="Secret key for JWT tokens"
     )
 
-    @validator("JWT_SECRET")
-    def validate_jwt_secret(cls, v, values):
+    @field_validator("JWT_SECRET")
+    @classmethod
+    def validate_jwt_secret(cls, v):
         """Validate JWT secret key."""
-        if not v:
-            raise ValueError("JWT_SECRET must be set in production environment")
         if len(v) < 32:
             raise ValueError("JWT_SECRET must be at least 32 characters long")
         return v
@@ -629,7 +641,8 @@ class Settings(BaseSettings):
     ENABLE_METRICS: bool = True
     METRICS_PREFIX: str = "formiq_"
     
-    @validator("ENCRYPTION_KEY")
+    @field_validator("ENCRYPTION_KEY")
+    @classmethod
     def validate_encryption_key(cls, v: str) -> str:
         """
         Validate that the encryption key is a valid Fernet key.

@@ -13,37 +13,55 @@ export const Paper = ({ children, elevation, ...props }) => (
   </div>
 );
 
-export const Typography = ({ children, variant, component, ...props }) => (
-  <div data-testid={`mui-typography-${variant || 'default'}`} {...props}>
-    {children}
-  </div>
-);
+export const Typography = ({ children, variant, component, gutterBottom, align, ...props }) => {
+  // Filter out MUI-specific props to avoid React DOM attribute warnings
+  const filteredProps = { ...props };
+  
+  return (
+    <div data-testid={`mui-typography-${variant || 'default'}`} {...filteredProps}>
+      {children}
+    </div>
+  );
+};
 
-export const TextField = ({ label, type, value, onChange, margin, required, ...props }) => (
-  <div data-testid={`mui-textfield-${label ? label.toLowerCase() : 'default'}`}>
-    <label htmlFor={`${label}-input`}>{label}</label>
-    <input
-      id={`${label}-input`}
-      type={type || 'text'}
-      value={value}
-      onChange={onChange}
-      required={required}
-      aria-label={label}
-      {...props}
-    />
-  </div>
-);
+export const TextField = ({ label, type, value, onChange, margin, required, fullWidth, disabled, ...props }) => {
+  // Filter out MUI-specific props to avoid React DOM attribute warnings
+  const filteredProps = { ...props };
+  delete filteredProps.variant;
+  
+  return (
+    <div data-testid={`mui-textfield-${label ? label.toLowerCase() : 'default'}`}>
+      <label htmlFor={`${label}-input`}>{label}</label>
+      <input
+        id={`${label}-input`}
+        type={type || 'text'}
+        value={value}
+        onChange={onChange}
+        required={required}
+        disabled={disabled}
+        aria-label={label}
+        {...filteredProps}
+      />
+    </div>
+  );
+};
 
-export const Button = ({ children, variant, color, type, disabled, ...props }) => (
-  <button
-    data-testid={`mui-button-${variant || 'default'}`}
-    disabled={disabled}
-    type={type || 'button'}
-    {...props}
-  >
-    {children}
-  </button>
-);
+export const Button = ({ children, variant, color, type, disabled, fullWidth, size, ...props }) => {
+  // Filter out MUI-specific props to avoid React DOM attribute warnings  
+  const filteredProps = { ...props };
+  delete filteredProps.sx; // Remove sx prop to avoid warnings
+  
+  return (
+    <button 
+      data-testid={`mui-button-${variant || 'default'}`}
+      type={type || 'button'}
+      disabled={disabled === true}
+      {...filteredProps}
+    >
+      {children}
+    </button>
+  );
+};
 
 export const Link = ({ children, component, to, ...props }) => {
   // If component is specified, render that component
@@ -74,13 +92,17 @@ export const Box = ({ children, sx, display, justifyContent, alignItems, ...prop
 };
 
 export const Alert = ({ children, severity, ...props }) => (
-  <div data-testid={`mui-alert-${severity || 'default'}`} {...props}>
+  <div data-testid={`mui-alert-${severity || 'default'}`} role="alert" {...props}>
     {children}
   </div>
 );
 
 // Mock material-ui components
-export const CircularProgress = (props) => <div role="progressbar" aria-label={props['aria-label']}>Loading...</div>;
+export const CircularProgress = ({ size, color, 'aria-label': ariaLabel, ...props }) => (
+  <span role="progressbar" data-testid="mui-circular-progress" aria-label={ariaLabel || "Loading"}>
+    Loading...
+  </span>
+);
 export const List = ({ children, ...rest }) => <ul {...rest}>{children}</ul>;
 export const ListItem = ({ children, ...rest }) => <li {...rest}>{children}</li>;
 export const ListItemText = ({ primary, secondary, ...rest }) => (

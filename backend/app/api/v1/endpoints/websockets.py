@@ -1,10 +1,10 @@
 """WebSocket endpoints for real-time form analysis feedback."""
 from typing import Any, Dict, List
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api import deps
-from app.core.security import get_current_active_user
+from app.core.deps import get_current_active_user
 from app.models.user import User
 from app.services.feedback_service import FeedbackService
 from app.core.monitoring import track_websocket_connection, track_websocket_error
@@ -16,7 +16,7 @@ router = APIRouter()
 async def form_analysis_websocket(
     websocket: WebSocket,
     analysis_id: str,
-    db: Session = Depends(deps.get_db)
+    db: AsyncSession = Depends(deps.get_async_db)
 ):
     """
     WebSocket endpoint for real-time form analysis feedback.
@@ -78,7 +78,7 @@ async def form_analysis_websocket(
 async def exercise_session_websocket(
     websocket: WebSocket,
     session_id: str,
-    db: Session = Depends(deps.get_db)
+    db: AsyncSession = Depends(deps.get_async_db)
 ):
     """
     WebSocket endpoint for real-time exercise session feedback.

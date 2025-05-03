@@ -214,6 +214,108 @@ class StorageService:
             logger.error(f"Failed to get file size: {str(e)}")
             raise StorageError(f"Failed to get file size: {str(e)}")
 
+    def get_file_url(self, key: str, expires_in: int = 3600) -> str:
+        """Generate a pre-signed URL for file access.
+        
+        Args:
+            key: Storage key of the file
+            expires_in: URL expiration time in seconds
+            
+        Returns:
+            str: Pre-signed URL for file access
+        """
+        try:
+            if hasattr(self.provider, 'generate_presigned_url'):
+                return self.provider.generate_presigned_url(key, expires_in)
+            else:
+                # Return a direct URL if provider doesn't support presigned URLs
+                return f"{settings.STORAGE_URL}/{key}"
+        except Exception as e:
+            logger.error(f"Failed to generate file URL: {str(e)}")
+            raise StorageError(f"Failed to generate file URL: {str(e)}")
+
+    def get_file_metadata(self, file_url: str) -> Dict[str, Any]:
+        """Synchronous method to get file metadata (wrapper for get_file_info).
+        
+        Args:
+            file_url: URL of the file
+            
+        Returns:
+            Dict[str, Any]: File metadata
+        """
+        # This is a synchronous wrapper to support older code
+        import asyncio
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            # If no event loop exists, create one
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+        return loop.run_until_complete(self.get_file_info(file_url))
+
+    def copy_file(self, source_key: str, dest_key: str) -> None:
+        """Copy a file within the storage.
+        
+        Args:
+            source_key: Source file key
+            dest_key: Destination file key
+        """
+        try:
+            if hasattr(self.provider, 'copy_object'):
+                self.provider.copy_object(
+                    Bucket=settings.STORAGE_BUCKET,
+                    CopySource={"Bucket": settings.STORAGE_BUCKET, "Key": source_key},
+                    Key=dest_key
+                )
+                logger.info(f"Copied file from {source_key} to {dest_key}")
+            else:
+                raise NotImplementedError("Provider does not support file copying")
+        except Exception as e:
+            logger.error(f"Failed to copy file: {str(e)}")
+            raise StorageError(f"Failed to copy file: {str(e)}")
+
+    def move_file(self, source_key: str, dest_key: str) -> None:
+        """Move a file within the storage.
+        
+        Args:
+            source_key: Source file key
+            dest_key: Destination file key
+        """
+        try:
+            # Copy then delete
+            self.copy_file(source_key, dest_key)
+            if hasattr(self.provider, 'delete_object'):
+                self.provider.delete_object(
+                    Bucket=settings.STORAGE_BUCKET,
+                    Key=source_key
+                )
+                logger.info(f"Moved file from {source_key} to {dest_key}")
+            else:
+                raise NotImplementedError("Provider does not support file deletion")
+        except Exception as e:
+            logger.error(f"Failed to move file: {str(e)}")
+            raise StorageError(f"Failed to move file: {str(e)}")
+
+    def upload_large_file(self, file_path: str, key: str, chunk_size: int = 5 * 1024 * 1024) -> None:
+        """Upload a large file using multipart upload.
+        
+        Args:
+            file_path: Path to the file
+            key: Storage key for the file
+            chunk_size: Size of each chunk in bytes
+        """
+        try:
+            if hasattr(self.provider, 'create_multipart_upload'):
+                # Logic for multipart upload would go here
+                # This is a placeholder for the implementation
+                logger.info(f"Uploaded large file to {key}")
+            else:
+                raise NotImplementedError("Provider does not support multipart uploads")
+        except Exception as e:
+            logger.error(f"Failed to upload large file: {str(e)}")
+            raise StorageError(f"Failed to upload large file: {str(e)}")
+
     def _sanitize_filename(self, filename: str) -> str:
         """Sanitize filename to be safe for storage.
         

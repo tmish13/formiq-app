@@ -1,13 +1,30 @@
 """Storage module."""
+from typing import BinaryIO, Dict, Any, Optional, List
 import os
 import uuid
+import tempfile
 from fastapi import UploadFile
 import aiofiles
 import shutil
 
 from app.core.config import settings
-from app.core.exceptions import StorageError
+from app.core.logging import get_logger
 
+logger = get_logger(__name__)
+
+class StorageError(Exception):
+    """Base exception for storage errors."""
+    
+    def __init__(self, message: str, code: str = "STORAGE_ERROR"):
+        """Initialize StorageError.
+        
+        Args:
+            message: Error message
+            code: Error code
+        """
+        self.message = message
+        self.code = code
+        super().__init__(message)
 
 async def upload_video(file: UploadFile) -> str:
     """
@@ -73,6 +90,30 @@ async def delete_video(video_url: str) -> None:
         raise StorageError(f"Failed to delete video: {str(e)}")
 
 
+def create_temp_file(file_data: BinaryIO, suffix: Optional[str] = None) -> str:
+    """Create a temporary file from file data.
+    
+    Args:
+        file_data: File data
+        suffix: File suffix
+        
+    Returns:
+        str: Path to temporary file
+    """
+    try:
+        # Create a temporary file
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+        temp_file.close()
+        
+        # Write the file data
+        with open(temp_file.name, 'wb') as f:
+            f.write(file_data.read())
+        
+        return temp_file.name
+    except Exception as e:
+        raise StorageError(f"Failed to create temporary file: {str(e)}")
+
+
 def create_temp_copy(file: UploadFile) -> str:
     """
     Create a temporary copy of the uploaded file for testing.
@@ -90,4 +131,28 @@ def create_temp_copy(file: UploadFile) -> str:
             shutil.copyfileobj(file.file, f)
         return temp_file
     except Exception as e:
-        raise StorageError(f"Failed to create temporary file: {str(e)}") 
+        raise StorageError(f"Failed to create temporary file: {str(e)}")
+
+
+def get_video_url(video_key: str) -> str:
+    """Get the URL for a video.
+    
+    Args:
+        video_key: Video key
+        
+    Returns:
+        str: Video URL
+    """
+    if video_key.startswith(("http://", "https://", "s3://")):
+        return video_key
+    
+    # Assume local storage
+    if settings.ENVIRONMENT == "development":
+        base_url = f"http://localhost:{settings.API_PORT}/uploads"
+    else:
+        base_url = settings.UPLOAD_URL
+        
+    # Normalize path
+    video_key = video_key.lstrip("/")
+    
+    return f"{base_url}/{video_key}" 

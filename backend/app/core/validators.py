@@ -19,7 +19,7 @@ def validate_email(email: str) -> str:
         valid = validate_email_format(email)
         return valid.email
     except EmailNotValidError as e:
-        raise ValidationException(detail=str(e))
+        raise ValidationException(message=str(e))
 
 # Password validation
 PASSWORD_MIN_LENGTH = 8
@@ -61,46 +61,46 @@ def validate_password(password: str) -> None:
     # Check length
     if not PASSWORD_MIN_LENGTH <= len(password) <= PASSWORD_MAX_LENGTH:
         raise ValidationException(
-            detail=f"Password must be between {PASSWORD_MIN_LENGTH} and {PASSWORD_MAX_LENGTH} characters long"
+            message=f"Password must be between {PASSWORD_MIN_LENGTH} and {PASSWORD_MAX_LENGTH} characters long"
         )
     
     # Check for uppercase
     if not re.search(r"[A-Z]", password):
-        raise ValidationException(detail="Password must contain at least one uppercase letter")
+        raise ValidationException(message="Password must contain at least one uppercase letter")
     
     # Check for lowercase
     if not re.search(r"[a-z]", password):
-        raise ValidationException(detail="Password must contain at least one lowercase letter")
+        raise ValidationException(message="Password must contain at least one lowercase letter")
     
     # Check for numbers
     if not re.search(r"\d", password):
-        raise ValidationException(detail="Password must contain at least one number")
+        raise ValidationException(message="Password must contain at least one number")
     
     # Check for special characters
     if not any(c in PASSWORD_SPECIAL_CHARS for c in password):
-        raise ValidationException(detail="Password must contain at least one special character")
+        raise ValidationException(message="Password must contain at least one special character")
     
     # Check for common patterns
     for pattern in PASSWORD_COMMON_PATTERNS:
         if re.search(pattern, password.lower()):
-            raise ValidationException(detail="Password contains a common pattern that is not allowed")
+            raise ValidationException(message="Password contains a common pattern that is not allowed")
     
     # Check for sequential characters
     for i in range(len(password) - 2):
         # Check for ascending sequences like "abc", "123"
         if (ord(password[i+1]) == ord(password[i]) + 1 and
             ord(password[i+2]) == ord(password[i]) + 2):
-            raise ValidationException(detail="Password cannot contain sequential characters")
+            raise ValidationException(message="Password cannot contain sequential characters")
         
         # Check for descending sequences like "cba", "321"
         if (ord(password[i+1]) == ord(password[i]) - 1 and
             ord(password[i+2]) == ord(password[i]) - 2):
-            raise ValidationException(detail="Password cannot contain sequential characters")
+            raise ValidationException(message="Password cannot contain sequential characters")
     
     # Check for repeated characters (3 or more of the same character)
     for i in range(len(password) - 2):
         if password[i] == password[i+1] == password[i+2]:
-            raise ValidationException(detail="Password cannot contain 3 or more repeated characters")
+            raise ValidationException(message="Password cannot contain 3 or more repeated characters")
     
     return True
 
@@ -120,15 +120,15 @@ def validate_username(username: str) -> None:
     """
     if not USERNAME_MIN_LENGTH <= len(username) <= USERNAME_MAX_LENGTH:
         raise ValidationException(
-            detail=f"Username must be between {USERNAME_MIN_LENGTH} and {USERNAME_MAX_LENGTH} characters long"
+            message=f"Username must be between {USERNAME_MIN_LENGTH} and {USERNAME_MAX_LENGTH} characters long"
         )
     
     if not username[0].isalpha():
-        raise ValidationException(detail="Username must start with a letter")
+        raise ValidationException(message="Username must start with a letter")
     
     if not USERNAME_REGEX.match(username):
         raise ValidationException(
-            detail="Username can only contain letters, numbers, underscores, and hyphens"
+            message="Username can only contain letters, numbers, underscores, and hyphens"
         )
     
     # Check for reserved words
@@ -138,7 +138,7 @@ def validate_username(username: str) -> None:
         "api", "test", "demo", "example", "null", "undefined"
     }
     if username.lower() in reserved_words:
-        raise ValidationException(detail="This username is reserved and cannot be used")
+        raise ValidationException(message="This username is reserved and cannot be used")
 
 # File validation
 ALLOWED_VIDEO_TYPES = {
@@ -171,7 +171,7 @@ def validate_file_type(file_content: bytes, allowed_types: Dict[str, str]) -> st
     mime = magic.from_buffer(file_content, mime=True)
     if mime not in allowed_types:
         raise ValidationException(
-            detail=f"File type {mime} not allowed. Allowed types: {', '.join(allowed_types.keys())}"
+            message=f"File type {mime} not allowed. Allowed types: {', '.join(allowed_types.keys())}"
         )
     return allowed_types[mime]
 
@@ -189,7 +189,7 @@ def validate_file_size(size: int, max_size_mb: int) -> None:
     max_size_bytes = max_size_mb * 1024 * 1024
     if size > max_size_bytes:
         raise ValidationException(
-            detail=f"File size exceeds maximum allowed size of {max_size_mb}MB"
+            message=f"File size exceeds maximum allowed size of {max_size_mb}MB"
         )
 
 def validate_video_file(content: bytes, filename: str, max_size_mb: int = 50) -> None:
@@ -208,13 +208,13 @@ def validate_video_file(content: bytes, filename: str, max_size_mb: int = 50) ->
     # Check file size first (fast check)
     size_mb = len(content) / (1024 * 1024)
     if size_mb > max_size_mb:
-        raise ValidationException(detail=f"File size ({size_mb:.2f} MB) exceeds maximum allowed size of {max_size_mb} MB")
+        raise ValidationException(message=f"File size ({size_mb:.2f} MB) exceeds maximum allowed size of {max_size_mb} MB")
     
     # Check file extension
     allowed_extensions = ['.mp4', '.mov', '.avi', '.webm', '.mkv']
     _, ext = os.path.splitext(filename)
     if ext.lower() not in allowed_extensions:
-        raise ValidationException(detail=f"Invalid file extension. Allowed extensions: {', '.join(allowed_extensions)}")
+        raise ValidationException(message=f"Invalid file extension. Allowed extensions: {', '.join(allowed_extensions)}")
     
     # Skip MIME type validation in test environment
     if os.environ.get('PYTEST_CURRENT_TEST'):
@@ -248,7 +248,7 @@ def validate_video_file(content: bytes, filename: str, max_size_mb: int = 50) ->
             mime = magic.from_buffer(content[:4096], mime=True)
             allowed_mimes = ['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/webm', 'video/x-matroska']
             if mime not in allowed_mimes:
-                raise ValidationException(detail=f"Invalid file type. File appears to be {mime}, not a valid video format")
+                raise ValidationException(message=f"Invalid file type. File appears to be {mime}, not a valid video format")
             return
         except Exception:
             pass
@@ -292,7 +292,7 @@ async def validate_video_dimensions(file: UploadFile, max_resolution: int = 1920
         # Open video file
         cap = cv2.VideoCapture(temp_file)
         if not cap.isOpened():
-            raise ValidationException(detail="Could not open video file")
+            raise ValidationException(message="Could not open video file")
         
         # Get video properties
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -304,13 +304,15 @@ async def validate_video_dimensions(file: UploadFile, max_resolution: int = 1920
         # Validate dimensions
         if width > max_resolution or height > max_resolution:
             raise ValidationException(
-                detail=f"Video resolution ({width}x{height}) exceeds maximum allowed ({max_resolution})")
+                message=f"Video resolution ({width}x{height}) exceeds maximum allowed ({max_resolution})"
+            )
         
         # Validate duration (3 minutes max)
         max_duration = 180  # 3 minutes
         if duration > max_duration:
             raise ValidationException(
-                detail=f"Video duration ({duration:.1f}s) exceeds maximum allowed ({max_duration}s)")
+                message=f"Video duration ({duration:.1f}s) exceeds maximum allowed ({max_duration}s)"
+            )
         
         # Release video
         cap.release()
@@ -328,7 +330,7 @@ async def validate_video_dimensions(file: UploadFile, max_resolution: int = 1920
         raise
     except Exception as e:
         # General error - might not be a valid video
-        raise ValidationException(detail=f"Invalid video file: {str(e)}")
+        raise ValidationException(message=f"Invalid video file: {str(e)}")
     finally:
         # Clean up temp file
         if temp_file and os.path.exists(temp_file):
@@ -360,13 +362,13 @@ def validate_required_fields(data: Dict[str, Any], required_fields: List[str]) -
     
     if missing_fields:
         raise ValidationException(
-            detail="Missing required fields",
+            message="Missing required fields",
             details={"missing_fields": missing_fields}
         )
     
     if empty_fields:
         raise ValidationException(
-            detail="Required fields cannot be empty",
+            message="Required fields cannot be empty",
             details={"empty_fields": empty_fields}
         )
 
@@ -388,16 +390,19 @@ def validate_field_length(
     Raises:
         ValidationException: If field length is invalid
     """
+    if value is None or (isinstance(value, str) and not value.strip()):
+        raise ValidationException(
+            message=f"Field '{field_name}' is required"
+        )
+    
     if min_length is not None and len(value) < min_length:
         raise ValidationException(
-            detail=f"{field_name} must be at least {min_length} characters long",
-            details={"field": field_name, "min_length": min_length}
+            message=f"Field '{field_name}' must be at least {min_length} characters long"
         )
     
     if max_length is not None and len(value) > max_length:
         raise ValidationException(
-            detail=f"{field_name} must be at most {max_length} characters long",
-            details={"field": field_name, "max_length": max_length}
+            message=f"Field '{field_name}' must be at most {max_length} characters long"
         )
 
 def validate_numeric_range(
@@ -420,14 +425,12 @@ def validate_numeric_range(
     """
     if min_value is not None and value < min_value:
         raise ValidationException(
-            detail=f"{field_name} must be at least {min_value}",
-            details={"field": field_name, "min_value": min_value}
+            message=f"Field '{field_name}' must be greater than or equal to {min_value}"
         )
     
     if max_value is not None and value > max_value:
         raise ValidationException(
-            detail=f"{field_name} must be at most {max_value}",
-            details={"field": field_name, "max_value": max_value}
+            message=f"Field '{field_name}' must be less than or equal to {max_value}"
         )
 
 def validate_rate_limit(requests: int, burst: int) -> None:
@@ -439,19 +442,19 @@ def validate_rate_limit(requests: int, burst: int) -> None:
         burst: Maximum burst size
     """
     if requests < 1:
-        raise ValidationException(detail="Rate limit requests must be greater than 0")
+        raise ValidationException(message="Rate limit requests must be greater than 0")
     
     if burst < requests:
-        raise ValidationException(detail="Burst size must be greater than or equal to requests")
+        raise ValidationException(message="Burst size must be greater than or equal to requests")
     
     if requests > settings.RATE_LIMIT_REQUESTS:
         raise ValidationException(
-            detail=f"Rate limit requests ({requests}) exceeds maximum allowed ({settings.RATE_LIMIT_REQUESTS})"
+            message=f"Rate limit requests ({requests}) exceeds maximum allowed ({settings.RATE_LIMIT_REQUESTS})"
         )
     
     if burst > settings.RATE_LIMIT_BURST:
         raise ValidationException(
-            detail=f"Burst size ({burst}) exceeds maximum allowed ({settings.RATE_LIMIT_BURST})"
+            message=f"Burst size ({burst}) exceeds maximum allowed ({settings.RATE_LIMIT_BURST})"
         )
 
 def validate_workout_data(data: Dict[str, Any]) -> None:
@@ -471,7 +474,7 @@ def validate_workout_data(data: Dict[str, Any]) -> None:
     valid_types = {"strength", "cardio", "flexibility", "balance"}
     if data["type"] not in valid_types:
         raise ValidationException(
-            detail=f"Invalid workout type. Must be one of: {', '.join(valid_types)}"
+            message=f"Invalid workout type. Must be one of: {', '.join(valid_types)}"
         )
     
     # Validate duration
@@ -481,7 +484,7 @@ def validate_workout_data(data: Dict[str, Any]) -> None:
     valid_difficulties = {"beginner", "intermediate", "advanced"}
     if data["difficulty"] not in valid_difficulties:
         raise ValidationException(
-            detail=f"Invalid difficulty level. Must be one of: {', '.join(valid_difficulties)}"
+            message=f"Invalid difficulty level. Must be one of: {', '.join(valid_difficulties)}"
         )
 
 def validate_feedback(
@@ -506,24 +509,24 @@ def validate_feedback(
     """
     # Validate timestamp
     if timestamp < 0:
-        raise ValidationException(detail="Timestamp cannot be negative")
+        raise ValidationException(message="Timestamp cannot be negative")
     
     # Validate description
     if not description:
-        raise ValidationException(detail="Description is required")
+        raise ValidationException(message="Description is required")
     
     if len(description) > 1000:
-        raise ValidationException(detail="Description is too long (maximum 1000 characters)")
+        raise ValidationException(message="Description is too long (maximum 1000 characters)")
     
     # Validate suggestions
     if suggestions and not isinstance(suggestions, list):
-        raise ValidationException(detail="Suggestions must be a list")
+        raise ValidationException(message="Suggestions must be a list")
     
     if suggestions and any(not isinstance(s, str) for s in suggestions):
-        raise ValidationException(detail="All suggestions must be strings")
+        raise ValidationException(message="All suggestions must be strings")
     
     if suggestions and any(len(s) > 500 for s in suggestions):
-        raise ValidationException(detail="Suggestions are too long (maximum 500 characters each)")
+        raise ValidationException(message="Suggestions are too long (maximum 500 characters each)")
 
 def validate_form_check_summary(summary: str, overall_score: float) -> None:
     """
@@ -538,24 +541,24 @@ def validate_form_check_summary(summary: str, overall_score: float) -> None:
     """
     # Validate summary
     if not summary:
-        raise ValidationException(detail="Summary is required")
+        raise ValidationException(message="Summary is required")
     
     if len(summary) < 10:
-        raise ValidationException(detail="Summary is too short (minimum 10 characters)")
+        raise ValidationException(message="Summary is too short (minimum 10 characters)")
     
     if len(summary) > 2000:
-        raise ValidationException(detail="Summary is too long (maximum 2000 characters)")
+        raise ValidationException(message="Summary is too long (maximum 2000 characters)")
     
     # Validate score
     if not isinstance(overall_score, (int, float)):
-        raise ValidationException(detail="Overall score must be a number")
+        raise ValidationException(message="Overall score must be a number")
     
     if overall_score < 0 or overall_score > 10:
-        raise ValidationException(detail="Overall score must be between 0 and 10")
+        raise ValidationException(message="Overall score must be between 0 and 10")
 
 def validate_difficulty_level(difficulty: str, valid_difficulties: List[str]) -> None:
     """Validate difficulty level."""
     if difficulty not in valid_difficulties:
         raise ValidationException(
-            detail=f"Invalid difficulty level. Must be one of: {', '.join(valid_difficulties)}"
+            message=f"Invalid difficulty level. Must be one of: {', '.join(valid_difficulties)}"
         ) 

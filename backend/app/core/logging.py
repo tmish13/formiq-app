@@ -361,3 +361,30 @@ def configure_logging() -> None:
         log_level=get_log_level(),
         sentry_enabled=bool(settings.SENTRY_DSN),
     ) 
+
+def init_logging():
+    """Initialize logging at application startup.
+    
+    This function ensures the logging system is properly configured
+    based on the current environment and settings.
+    """
+    logger = get_logger(__name__)
+    logger.info(f"Initializing logging for {settings.ENVIRONMENT} environment")
+    
+    # Set global log level based on settings
+    log_level = getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO)
+    logging.getLogger().setLevel(log_level)
+    
+    # Configure log handlers based on environment
+    if settings.ENVIRONMENT == "production":
+        # In production, ensure we have proper file logging configured
+        setup_file_logging()
+        logger.info("Production file logging configured")
+    
+    # Log startup information
+    logger.info(f"Application logging initialized with level {settings.LOG_LEVEL}")
+    logger.info(f"Running in {settings.ENVIRONMENT} environment")
+    
+    # Log warning about debug mode if enabled in production
+    if settings.DEBUG and settings.ENVIRONMENT == "production":
+        logger.warning("WARNING: Debug mode is enabled in production environment") 

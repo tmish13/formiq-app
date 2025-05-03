@@ -1,7 +1,7 @@
 """Form analysis schemas."""
 from datetime import datetime
-from typing import List, Optional, Dict, Union
-from pydantic import BaseModel, Field, UUID4, validator, constr, confloat
+from typing import List, Optional, Dict, Union, Any
+from pydantic import BaseModel, Field, UUID4, field_validator, constr, confloat, ConfigDict
 from uuid import UUID
 
 from app.models.enums import ExerciseType
@@ -119,8 +119,7 @@ class FormAnalysisResponse(BaseModel):
         example="2024-01-20T10:35:00Z"
     )
 
-    class Config:
-        """Pydantic model configuration."""
+    model_config = ConfigDict(
         json_schema_extra = {
             "example": {
                 "id": "123e4567-e89b-12d3-a456-426614174000",
@@ -152,6 +151,7 @@ class FormAnalysisResponse(BaseModel):
                 "updated_at": "2024-01-20T10:35:00Z"
             }
         }
+    )
 
 class FormAnalysisRequest(BaseModel):
     """Schema for form analysis request."""
@@ -160,9 +160,18 @@ class FormAnalysisRequest(BaseModel):
     user_id: UUID = Field(..., description="ID of the user submitting the analysis")
     notes: Optional[str] = Field(None, max_length=500, description="Additional notes about the exercise")
 
-    @validator("exercise_type")
+    @field_validator("exercise_type")
+    @classmethod
     def validate_exercise_type(cls, v):
-        """Validate exercise type is supported."""
+        """
+        Validate exercise type is supported.
+        
+        Args:
+            v: The exercise type value
+            
+        Returns:
+            The validated exercise type
+        """
         if v not in ExerciseType.__members__:
             raise ValueError(f"Exercise type must be one of: {', '.join(ExerciseType.__members__.keys())}")
         return v
@@ -190,9 +199,18 @@ class FormAnalysisResult(BaseModel):
     movement_analysis: Optional[Dict[str, List[float]]] = Field(None, description="Movement velocity analysis")
     created_at: datetime = Field(default_factory=datetime.utcnow, description="Analysis timestamp")
 
-    @validator("risk_level")
+    @field_validator("risk_level")
+    @classmethod
     def validate_risk_level(cls, v):
-        """Validate risk level value."""
+        """
+        Validate risk level value.
+        
+        Args:
+            v: The risk level value
+            
+        Returns:
+            The validated risk level
+        """
         valid_levels = ["low", "medium", "high"]
         if v not in valid_levels:
             raise ValueError(f"Risk level must be one of: {', '.join(valid_levels)}")
@@ -207,10 +225,20 @@ class FormAnalysisHistoryRequest(BaseModel):
     limit: Optional[int] = Field(10, ge=1, le=100, description="Maximum number of results")
     offset: Optional[int] = Field(0, ge=0, description="Number of results to skip")
 
-    @validator("end_date")
-    def validate_date_range(cls, v, values):
-        """Validate end_date is after start_date if both are provided."""
-        if v and "start_date" in values and values["start_date"]:
-            if v <= values["start_date"]:
+    @field_validator("end_date")
+    @classmethod
+    def validate_date_range(cls, v, info: Any):
+        """
+        Validate end_date is after start_date if both are provided.
+        
+        Args:
+            v: The end date value
+            info: Validation info containing data
+            
+        Returns:
+            The validated end date
+        """
+        if v and "start_date" in info.data and info.data["start_date"]:
+            if v <= info.data["start_date"]:
                 raise ValueError("End date must be after start date")
         return v 

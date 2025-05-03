@@ -2,7 +2,7 @@
 from typing import Any, List, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, status, Body
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api import deps
 from app.models.user import User
@@ -30,8 +30,8 @@ def read_user_me(
 
 
 @router.get("/", response_model=List[UserSchema])
-def read_users(
-    db: Session = Depends(deps.get_db),
+async def read_users(
+    db: AsyncSession = Depends(deps.get_async_db),
     skip: int = 0,
     limit: int = 100,
     current_user: User = Depends(deps.get_current_active_user),
@@ -49,13 +49,13 @@ def read_users(
     Returns:
         List of users
     """
-    return user_service.get_all()
+    return await user_service.get_all_async()
 
 
 @router.post("/", response_model=UserSchema)
-def create_user(
+async def create_user(
     *,
-    db: Session = Depends(deps.get_db),
+    db: AsyncSession = Depends(deps.get_async_db),
     user_in: UserCreate,
     current_user: User = Depends(deps.get_current_active_user),
     user_service: UserService = Depends(deps.get_user_service),
@@ -74,19 +74,19 @@ def create_user(
     Raises:
         HTTPException: If user with the same email already exists
     """
-    user = user_service.get_by_email(user_in.email)
+    user = await user_service.get_by_email_async(user_in.email)
     if user:
         raise HTTPException(
             status_code=400,
             detail="The user with this email already exists in the system.",
         )
-    return user_service.create(user_in)
+    return await user_service.create_async(user_in)
 
 
 @router.put("/me", response_model=UserSchema)
-def update_user_me(
+async def update_user_me(
     *,
-    db: Session = Depends(deps.get_db),
+    db: AsyncSession = Depends(deps.get_async_db),
     user_in: UserUpdate,
     current_user: User = Depends(deps.get_current_active_user),
     user_service: UserService = Depends(deps.get_user_service),
@@ -102,11 +102,11 @@ def update_user_me(
     Returns:
         Updated user
     """
-    return user_service.update(current_user, user_in)
+    return await user_service.update_async(current_user, user_in)
 
 
 @router.get("/{user_id}", response_model=UserSchema)
-def read_user_by_id(
+async def read_user_by_id(
     user_id: int,
     current_user: User = Depends(deps.get_current_active_user),
     user_service: UserService = Depends(deps.get_user_service),
@@ -124,7 +124,7 @@ def read_user_by_id(
     Raises:
         HTTPException: If user not found
     """
-    user = user_service.get_by_id(user_id)
+    user = await user_service.get_by_id_async(user_id)
     if not user:
         raise HTTPException(
             status_code=404,
@@ -134,9 +134,9 @@ def read_user_by_id(
 
 
 @router.put("/{user_id}", response_model=UserSchema)
-def update_user(
+async def update_user(
     *,
-    db: Session = Depends(deps.get_db),
+    db: AsyncSession = Depends(deps.get_async_db),
     user_id: int,
     user_in: UserUpdate,
     current_user: User = Depends(deps.get_current_active_user),
@@ -157,19 +157,19 @@ def update_user(
     Raises:
         HTTPException: If user not found
     """
-    user = user_service.get_by_id(user_id)
+    user = await user_service.get_by_id_async(user_id)
     if not user:
         raise HTTPException(
             status_code=404,
             detail="The user with this id does not exist in the system",
         )
-    return user_service.update(user, user_in)
+    return await user_service.update_async(user, user_in)
 
 
 @router.delete("/{user_id}", response_model=UserSchema)
-def delete_user(
+async def delete_user(
     *,
-    db: Session = Depends(deps.get_db),
+    db: AsyncSession = Depends(deps.get_async_db),
     user_id: int,
     current_user: User = Depends(deps.get_current_active_user),
     user_service: UserService = Depends(deps.get_user_service),
@@ -188,20 +188,20 @@ def delete_user(
     Raises:
         HTTPException: If user not found
     """
-    user = user_service.get_by_id(user_id)
+    user = await user_service.get_by_id_async(user_id)
     if not user:
         raise HTTPException(
             status_code=404,
             detail="The user with this id does not exist in the system",
         )
-    return user_service.delete(user)
+    return await user_service.delete_async(user)
 
 
 @router.put("/me/password", response_model=Message)
 @rate_limit(limit=5, window=300)  # 5 requests per 5 minutes
 async def change_password(
     *,
-    db: Session = Depends(deps.get_db),
+    db: AsyncSession = Depends(deps.get_async_db),
     current_user: User = Depends(deps.get_current_user),
     password_data: dict = Body(..., example={
         "current_password": "oldpass123",
@@ -241,7 +241,7 @@ async def change_password(
 @rate_limit(limit=10, window=60)  # 10 requests per minute
 async def update_profile(
     *,
-    db: Session = Depends(deps.get_db),
+    db: AsyncSession = Depends(deps.get_async_db),
     current_user: User = Depends(deps.get_current_user),
     profile_data: UserUpdate = Body(...)
 ) -> Any:
@@ -261,13 +261,13 @@ async def update_profile(
     
     # If email is being changed, verify it's not already taken
     if profile_data.email and profile_data.email != current_user.email:
-        if user_service.get_by_email(profile_data.email):
+        if await user_service.get_by_email_async(profile_data.email):
             raise HTTPException(
                 status_code=400,
                 detail="Email already registered"
             )
     
-    updated_user = await user_service.update(current_user, profile_data)
+    updated_user = await user_service.update_async(current_user, profile_data)
     return updated_user
 
 @router.get("/me/settings", response_model=Dict[str, Any])
@@ -295,7 +295,7 @@ async def get_settings(
 @rate_limit(limit=10, window=60)  # 10 requests per minute
 async def update_settings(
     *,
-    db: Session = Depends(deps.get_db),
+    db: AsyncSession = Depends(deps.get_async_db),
     current_user: User = Depends(deps.get_current_user),
     settings_data: Dict[str, Any] = Body(...),
     user_service: UserService = Depends(deps.get_user_service)

@@ -1,6 +1,6 @@
 """Profile and settings schemas for validation."""
 from typing import Optional, Dict, Any, List
-from pydantic import BaseModel, Field, validator, EmailStr, constr
+from pydantic import BaseModel, Field, field_validator, EmailStr, constr, ConfigDict
 from datetime import datetime
 
 class ProfileUpdate(BaseModel):
@@ -11,9 +11,18 @@ class ProfileUpdate(BaseModel):
     bio: Optional[constr(max_length=500)] = Field(None, description="User biography")
     avatar_url: Optional[str] = Field(None, description="URL to user's avatar image")
     
-    @validator("username")
+    @field_validator("username")
+    @classmethod
     def validate_username(cls, v):
-        """Validate username format."""
+        """
+        Validate username format.
+        
+        Args:
+            v: The username value
+            
+        Returns:
+            The validated username
+        """
         if v is not None:
             if not v.isalnum() and not any(c in v for c in "_-"):
                 raise ValueError("Username must contain only alphanumeric characters, underscores, or hyphens")
@@ -50,25 +59,52 @@ class UserSettings(BaseModel):
         description="Exercise and workout preferences"
     )
     
-    @validator("theme")
+    @field_validator("theme")
+    @classmethod
     def validate_theme(cls, v):
-        """Validate theme setting."""
+        """
+        Validate theme setting.
+        
+        Args:
+            v: The theme value
+            
+        Returns:
+            The validated theme
+        """
         allowed_themes = ["light", "dark", "system"]
         if v not in allowed_themes:
             raise ValueError(f"Theme must be one of: {', '.join(allowed_themes)}")
         return v
     
-    @validator("language")
+    @field_validator("language")
+    @classmethod
     def validate_language(cls, v):
-        """Validate language setting."""
+        """
+        Validate language setting.
+        
+        Args:
+            v: The language value
+            
+        Returns:
+            The validated language
+        """
         allowed_languages = ["en", "es", "fr", "de", "it", "pt", "ru", "zh"]
         if v not in allowed_languages:
             raise ValueError(f"Language must be one of: {', '.join(allowed_languages)}")
         return v
     
-    @validator("exercise_preferences")
+    @field_validator("exercise_preferences")
+    @classmethod
     def validate_exercise_preferences(cls, v):
-        """Validate exercise preferences."""
+        """
+        Validate exercise preferences.
+        
+        Args:
+            v: The exercise preferences dict
+            
+        Returns:
+            The validated exercise preferences
+        """
         allowed_difficulties = ["beginner", "intermediate", "advanced", "expert"]
         if v.get("difficulty_level") not in allowed_difficulties:
             raise ValueError(f"Difficulty level must be one of: {', '.join(allowed_difficulties)}")
@@ -91,6 +127,4 @@ class ProfileResponse(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime] = None
     
-    class Config:
-        """Pydantic configuration."""
-        from_attributes = True 
+    model_config = ConfigDict(from_attributes=True) 

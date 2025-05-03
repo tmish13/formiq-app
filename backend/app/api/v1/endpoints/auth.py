@@ -5,7 +5,6 @@ import time
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, Response, Cookie, Body
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
-from sqlalchemy.orm import Session
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 
@@ -88,7 +87,7 @@ async def register(
             "full_name": "John Doe"
         }
     ),
-    db: Session = Depends(deps.get_db),
+    db: AsyncSession = Depends(deps.get_async_db),
     user_service: UserService = Depends(deps.get_user_service)
 ) -> Any:
     """
@@ -105,7 +104,7 @@ async def register(
     Sends a verification email to the user.
     """
     # Check for existing user
-    existing_user = await user_service.get_by_email(user_in.email)
+    existing_user = await user_service.get_by_email_async(user_in.email)
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -113,7 +112,7 @@ async def register(
         )
     
     # Create new user
-    user = await user_service.create(user_in)
+    user = await user_service.create_async(user_in)
     
     # Send verification email
     try:
@@ -136,7 +135,7 @@ async def register(
 async def register_admin(
     request: Request,
     *,
-    db: Session = Depends(deps.get_db),
+    db: AsyncSession = Depends(deps.get_async_db),
     user_in: UserCreate,
     admin_code: str = Query(..., description="Special admin registration code"),
     user_service: UserService = Depends(deps.get_user_service),
@@ -157,7 +156,7 @@ async def register_admin(
             detail="Invalid admin registration code",
         )
     
-    user = await user_service.get_by_email(user_in.email)
+    user = await user_service.get_by_email_async(user_in.email)
     if user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -165,7 +164,7 @@ async def register_admin(
         )
     
     # Create user with admin privileges
-    admin_user = await user_service.create(user_in, is_superuser=True)
+    admin_user = await user_service.create_async(user_in, is_superuser=True)
     return admin_user
 
 
@@ -216,7 +215,7 @@ async def register_admin(
 async def login(
     request: Request,
     response: Response,
-    db: Session = Depends(deps.get_db),
+    db: AsyncSession = Depends(deps.get_async_db),
     form_data: OAuth2PasswordRequestForm = Depends(),
     user_service: UserService = Depends(deps.get_user_service)
 ) -> Any:
@@ -244,7 +243,7 @@ async def login(
     device_info = get_device_info(request)
     
     # Authenticate user with rate limiting protection
-    user = await user_service.authenticate(
+    user = await user_service.authenticate_async(
         email=form_data.username,
         password=form_data.password,
         device_info=device_info
@@ -290,7 +289,7 @@ async def login(
     )
     
     # Update user's last login and reset failed attempts
-    await user_service.update(
+    await user_service.update_async(
         user.id,
         {
             "last_login": datetime.utcnow(),
@@ -344,7 +343,7 @@ async def login(
 async def refresh_token(
     request: Request,
     response: Response,
-    db: Session = Depends(deps.get_db),
+    db: AsyncSession = Depends(deps.get_async_db),
     refresh_token: Optional[str] = None,
     refresh_token_cookie: Optional[str] = Cookie(None, alias="refresh_token"),
     user_service: UserService = Depends(deps.get_user_service)
@@ -380,7 +379,7 @@ async def refresh_token(
             )
         
         # Get user
-        user = await user_service.get_by_id(token_data["user_id"])
+        user = await user_service.get_by_id_async(token_data["user_id"])
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -544,7 +543,7 @@ async def logout_all(
 async def reset_password(
     request: Request,
     email: str,
-    db: Session = Depends(deps.get_db),
+    db: AsyncSession = Depends(deps.get_async_db),
     user_service: UserService = Depends(deps.get_user_service),
 ):
     """
@@ -560,7 +559,7 @@ async def reset_password(
     with the provided email exists, to prevent email enumeration attacks.
     """
     # Look up user by email
-    user = await user_service.get_by_email(email)
+    user = await user_service.get_by_email_async(email)
     if not user:
         # Return success even if user doesn't exist to prevent email enumeration
         # But add a small delay to prevent timing attacks
@@ -588,7 +587,7 @@ async def reset_password(
 async def reset_password_confirm(
     request: Request,
     *,
-    db: Session = Depends(deps.get_db),
+    db: AsyncSession = Depends(deps.get_async_db),
     reset_data: UserPasswordReset,
     user_service: UserService = Depends(deps.get_user_service),
 ):
@@ -615,7 +614,7 @@ async def reset_password_confirm(
         )
     
     # Get user by email
-    user = await user_service.get_by_email(email)
+    user = await user_service.get_by_email_async(email)
     if not user:
         track_password_reset(email, "user_not_found")
         raise HTTPException(
@@ -697,7 +696,7 @@ def test_token(
 )
 async def request_password_reset(
     email: str = Body(..., embed=True, example="user@example.com"),
-    db: Session = Depends(deps.get_db)
+    db: AsyncSession = Depends(deps.get_async_db)
 ) -> Any:
     """
     Request a password reset email.
@@ -745,7 +744,7 @@ async def request_password_reset(
 async def reset_password(
     token: str = Body(..., embed=True),
     new_password: str = Body(..., embed=True),
-    db: Session = Depends(deps.get_db)
+    db: AsyncSession = Depends(deps.get_async_db)
 ) -> Any:
     """
     Reset password using reset token.
@@ -835,7 +834,7 @@ async def send_verification_email(
 )
 async def verify_email(
     token: str,
-    db: Session = Depends(deps.get_db),
+    db: AsyncSession = Depends(deps.get_async_db),
     user_service: UserService = Depends(deps.get_user_service)
 ) -> Any:
     """

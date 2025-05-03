@@ -28,6 +28,7 @@ class FormCheck(BaseModel):
     
     Relationships:
     - Many-to-one with User
+    - Many-to-one with Video
     - One-to-many with FeedbackItem
     
     Attributes:
@@ -50,6 +51,7 @@ class FormCheck(BaseModel):
     video_url = Column(String, nullable=False)
     exercise_id = Column(SQLiteUUID(), ForeignKey("exercise_templates.id"), nullable=False)
     user_id = Column(SQLiteUUID(), ForeignKey("users.id"), nullable=False)
+    video_id = Column(SQLiteUUID(), ForeignKey("videos.id"), nullable=True)
     feedback = Column(String)
     score = Column(Float)
     keypoints = Column(JSON)
@@ -73,6 +75,12 @@ class FormCheck(BaseModel):
         "User",
         back_populates="form_checks",
         lazy="select"
+    )
+    video = relationship(
+        "Video",
+        back_populates="form_checks",
+        lazy="select",
+        foreign_keys=[video_id]
     )
     feedback_items = relationship(
         "FeedbackItem",
@@ -152,7 +160,7 @@ class FormCheck(BaseModel):
             self.validate_score('confidence_score', self.confidence_score)
 
     def __repr__(self) -> str:
-        return f"<FormCheck {self.id} - {self.exercise_type}>"
+        return f"<FormCheck {self.id} - {self.exercise_id}>"
 
 class FeedbackItem(BaseModel):
     """

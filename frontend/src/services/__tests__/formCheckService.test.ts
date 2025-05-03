@@ -4,6 +4,17 @@ import { formCheckService } from '../formCheckService';
 import { apiService } from '../api';
 import { FormCheck, FormCheckStatus, ExerciseType } from '../../types/formCheck';
 
+// Mock the API service first
+jest.mock('../api', () => ({
+  apiService: {
+    get: jest.fn(),
+    post: jest.fn(),
+    put: jest.fn(),
+    patch: jest.fn(),
+    delete: jest.fn()
+  }
+}));
+
 // Mock the service methods directly instead of mocking the module
 jest.mock('../formCheckService', () => {
   // Save original module
@@ -37,17 +48,6 @@ const mockFormCheck: FormCheck = {
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString()
 };
-
-// Mock the API service
-jest.mock('../api', () => ({
-  apiService: {
-    get: jest.fn(),
-    post: jest.fn(),
-    put: jest.fn(),
-    patch: jest.fn(),
-    delete: jest.fn()
-  }
-}));
 
 // Create test server
 const server = setupServer(
@@ -227,6 +227,183 @@ describe('formCheckService', () => {
       });
 
       await expect(formCheckService.updateFormCheckStatus('123', newStatus)).rejects.toThrow('API Error');
+    });
+  });
+
+  describe('uploadVideo', () => {
+    it('should upload a video file with exercise type', async () => {
+      // Create mock file and exercise type
+      const mockFile = new File(['mock video content'], 'test-video.mp4', { type: 'video/mp4' });
+      const exerciseType: ExerciseType = 'squat';
+      
+      // Mock successful API response
+      const mockResponse = { data: mockFormCheck };
+      (apiService.post as jest.Mock).mockResolvedValue(mockResponse);
+      
+      // Mock progress callback
+      const mockProgressCallback = jest.fn();
+      
+      (formCheckService.uploadVideo as jest.Mock).mockImplementation(async (file, exType, progressCb) => {
+        const formData = new FormData();
+        formData.append('video', file);
+        formData.append('exerciseType', exType);
+        
+        const response = await apiService.post('/api/form-checks/upload', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+          onUploadProgress: progressCb ? (progressEvent: any) => {
+            if (progressEvent.total) {
+              const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+              progressCb(progress);
+            }
+          } : undefined
+        });
+        
+        return response.data;
+      });
+      
+      const result = await formCheckService.uploadVideo(mockFile, exerciseType, mockProgressCallback);
+
+      // Verify API call
+      expect(apiService.post).toHaveBeenCalled();
+      
+      // Get the arguments for the post call
+      const postCall = (apiService.post as jest.Mock).mock.calls[0];
+      
+      // Verify endpoint
+      expect(postCall[0]).toBe('/api/form-checks/upload');
+      
+      // Verify form data was created
+      const formData = postCall[1];
+      expect(formData instanceof FormData).toBe(true);
+      
+      // Verify config with headers and progress handler
+      const config = postCall[2];
+      expect(config).toHaveProperty('headers');
+      expect(config.headers['Content-Type']).toBe('multipart/form-data');
+      expect(config).toHaveProperty('onUploadProgress');
+      
+      // Simulate progress event
+      if (config.onUploadProgress) {
+        const progressEvent = { loaded: 50, total: 100 };
+        config.onUploadProgress(progressEvent);
+        expect(mockProgressCallback).toHaveBeenCalledWith(50);
+      }
+      
+      // Verify result
+      expect(result).toEqual(mockFormCheck);
+    });
+
+    it('should handle errors during video upload', async () => {
+      // Create mock file and exercise type
+      const mockFile = new File(['mock video content'], 'test-video.mp4', { type: 'video/mp4' });
+      const exerciseType: ExerciseType = 'squat';
+      
+      // Mock API error
+      const error = new Error('Upload failed');
+      (apiService.post as jest.Mock).mockRejectedValue(error);
+      
+      (formCheckService.uploadVideo as jest.Mock).mockImplementation(async (file, exType) => {
+        const formData = new FormData();
+        formData.append('video', file);
+        formData.append('exerciseType', exType);
+        
+        try {
+          const response = await apiService.post('/api/form-checks/upload', formData, {
+            headers: {
+              'Content-Type': 'multipart/form-data',
+            }
+          });
+          return response.data;
+        } catch (err) {
+          throw err;
+        }
+      });
+      
+      // Verify error is propagated
+      await expect(formCheckService.uploadVideo(mockFile, exerciseType)).rejects.toThrow('Upload failed');
+      expect(apiService.post).toHaveBeenCalled();
+    });
+  });
+
+  describe('analyze', () => {
+    it('should trigger analysis of a form check', async () => {
+      // Mock successful API response
+      const mockResponse = { data: { ...mockFormCheck, status: 'analyzed' } };
+      (apiService.post as jest.Mock).mockResolvedValue(mockResponse);
+
+      (formCheckService.analyze as jest.Mock).mockImplementation(async (id) => {
+        const response = await apiService.post(`/api/form-checks/${id}/analyze`);
+        return response.data;
+      });
+
+      const result = await formCheckService.analyze('form-check-123');
+
+      // Verify API call
+      expect(apiService.post).toHaveBeenCalledWith('/api/form-checks/form-check-123/analyze');
+      
+      // Verify result
+      expect(result).toEqual({ ...mockFormCheck, status: 'analyzed' });
+    });
+
+    it('should handle errors during analysis', async () => {
+      // Mock API error
+      const error = new Error('Analysis failed');
+      (apiService.post as jest.Mock).mockRejectedValue(error);
+
+      (formCheckService.analyze as jest.Mock).mockImplementation(async (id) => {
+        try {
+          const response = await apiService.post(`/api/form-checks/${id}/analyze`);
+          return response.data;
+        } catch (err) {
+          throw err;
+        }
+      });
+
+      // Verify error is propagated
+      await expect(formCheckService.analyze('form-check-123')).rejects.toThrow('Analysis failed');
+      expect(apiService.post).toHaveBeenCalledWith('/api/form-checks/form-check-123/analyze');
+    });
+  });
+
+  describe('getHistory', () => {
+    it('should fetch user form check history', async () => {
+      // Mock successful API response
+      const mockResponse = { data: [mockFormCheck] };
+      (apiService.get as jest.Mock).mockResolvedValue(mockResponse);
+
+      (formCheckService.getHistory as jest.Mock).mockImplementation(async () => {
+        const response = await apiService.get('/api/form-checks/history');
+        return response.data;
+      });
+
+      const result = await formCheckService.getHistory();
+
+      // Verify API call
+      expect(apiService.get).toHaveBeenCalledWith('/api/form-checks/history');
+      
+      // Verify result
+      expect(result).toEqual([mockFormCheck]);
+    });
+
+    it('should handle errors when fetching history', async () => {
+      // Mock API error
+      const error = new Error('Failed to fetch history');
+      (apiService.get as jest.Mock).mockRejectedValue(error);
+
+      (formCheckService.getHistory as jest.Mock).mockImplementation(async () => {
+        try {
+          const response = await apiService.get('/api/form-checks/history');
+          return response.data;
+        } catch (err) {
+          throw err;
+        }
+      });
+
+      // Verify error is propagated
+      await expect(formCheckService.getHistory()).rejects.toThrow('Failed to fetch history');
+      expect(apiService.get).toHaveBeenCalledWith('/api/form-checks/history');
     });
   });
 }); 
