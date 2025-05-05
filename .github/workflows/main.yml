@@ -1,0 +1,72 @@
+name: FormIQ CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main, dev ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [16.x]
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+        cache-dependency-path: 'frontend/package-lock.json'
+    
+    - name: Install dependencies
+      run: |
+        cd frontend
+        npm ci
+    
+    - name: Lint
+      run: |
+        cd frontend
+        npm run lint
+    
+    - name: Type check
+      run: |
+        cd frontend
+        npm run typecheck
+    
+    - name: Run tests
+      run: |
+        cd frontend
+        npm test -- --coverage
+    
+    - name: Run consolidated tests
+      run: |
+        cd frontend
+        npm test -- --testPathPattern="../tests/consolidated" --coverage
+    
+    - name: Coverage audit
+      run: |
+        ./scripts/coverage-audit.sh
+    
+    - name: Upload coverage report
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverage-report
+        path: coverage/
+    
+    - name: Comment coverage on PR
+      uses: marocchino/sticky-pull-request-comment@v2
+      if: github.event_name == 'pull_request'
+      with:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        path: coverage/COVERAGE_REPORT.md
+    
+    - name: Build
+      run: |
+        cd frontend
+        npm run build 

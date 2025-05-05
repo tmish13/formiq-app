@@ -56,45 +56,36 @@ module.exports = {
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
   transform: {
     '^.+\\.(ts|tsx)$': ['ts-jest', {
-      tsconfig: '<rootDir>/tsconfig.json',
-      diagnostics: {
-        ignoreCodes: [151001]
-      }
+      tsconfig: 'tsconfig.json',
     }],
     '^.+\\.(js|jsx)$': ['babel-jest', {
       presets: ['@babel/preset-env', '@babel/preset-react'],
-      plugins: [
-        '@babel/plugin-transform-object-rest-spread', 
-        'babel-plugin-styled-components',
-        '@babel/plugin-transform-runtime'
-      ]
-    }]
+    }],
   },
   transformIgnorePatterns: [
     '/node_modules/(?!(@formiq|react-native|@react-native|react-navigation|@react-navigation|react-router-dom|@tensorflow|@tensorflow-models)/)'
   ],
   collectCoverage: true,
   collectCoverageFrom: [
-    'src/**/*.{ts,tsx,js,jsx}',
-    '!src/**/*.d.ts',
-    '!src/**/*.stories.{ts,tsx}',
-    '!src/**/*.test.{ts,tsx}',
-    '!src/**/index.{ts,tsx}',
-    '!src/**/types.{ts,tsx}'
+    "src/**/*.{ts,tsx}",
+    "!src/**/*.d.ts",
+    "!src/**/*.test.{ts,tsx}",
+    "!src/**/*.spec.{ts,tsx}",
+    "!src/**/__tests__/**",
+    "!src/**/__mocks__/**"
   ],
   coverageThreshold: {
     global: {
-      branches: 0,
-      functions: 0,
-      lines: 0,
-      statements: 0
+      statements: 85,
+      branches: 75,
+      functions: 80,
+      lines: 85
     }
   },
   testMatch: [
-    '<rootDir>/src/**/*.{spec,test}.{ts,tsx}',
-    '<rootDir>/src/**/__tests__/**/*.{ts,tsx}',
-    '<rootDir>/frontend/src/**/*.{spec,test}.{ts,tsx}',
-    '<rootDir>/frontend/src/**/__tests__/**/*.{ts,tsx}'
+    "**/__tests__/**/*.ts?(x)",
+    "**/?(*.)+(spec|test).ts?(x)",
+    "../tests/consolidated/*.consolidated.test.ts?(x)"
   ],
   testPathIgnorePatterns: [
     '/node_modules/',
@@ -105,5 +96,7 @@ module.exports = {
   ],
   verbose: true,
   testTimeout: 10000,
-  maxWorkers: '50%'
+  maxWorkers: '50%',
+  modulePaths: ['<rootDir>/src'],
+  roots: ['<rootDir>/src', '<rootDir>/../tests']
 }; 

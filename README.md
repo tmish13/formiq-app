@@ -174,20 +174,26 @@ formiq-app-1/
 
 ## 🧪 Testing
 
-```bash
-# Frontend tests
-cd frontend
-npm test
+FormIQ utilizes a comprehensive testing strategy to ensure application reliability:
 
-# Backend tests
-cd backend
-pytest
+- **Consolidated Tests**: Tests have been organized into consolidated files in the `tests/consolidated` directory for better maintainability and coverage analysis.
+- **Coverage Requirements**: We maintain strict code coverage requirements through a budget system defined in `coverage-budget.json`.
+- **Running Tests**:
+  ```bash
+  # Run all tests
+  cd frontend && npm test
+  
+  # Run only consolidated tests
+  cd frontend && npm test -- --testPathPattern="tests/consolidated"
+  
+  # Update snapshots
+  ./scripts/update-snapshots.sh
+  
+  # Run coverage audit
+  ./scripts/coverage-audit.sh
+  ```
 
-# Mobile app tests
-cd frontend
-npm run ios:test
-npm run android:test
-```
+For more details on our testing approach, see [TESTING_COVERAGE.md](TESTING_COVERAGE.md).
 
 ## 📈 Monitoring
 
