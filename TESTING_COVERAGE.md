@@ -11,7 +11,13 @@ To run only consolidated tests:
 
 ```bash
 cd frontend
-npm test -- --testPathPattern="tests/consolidated"
+npm run test:consolidated
+```
+
+Or use the provided script to run consolidated tests and generate a coverage report:
+
+```bash
+./scripts/run-consolidated-tests.sh
 ```
 
 To update snapshots:
@@ -19,6 +25,20 @@ To update snapshots:
 ```bash
 ./scripts/update-snapshots.sh
 ```
+
+## Ensuring Proper Test Structure
+
+To verify that all tests are properly structured and follow the consolidated pattern:
+
+```bash
+./scripts/verify-test-structure.sh
+```
+
+This will:
+1. Count the number of tests in various locations
+2. Verify that consolidated tests follow the proper naming pattern
+3. Check for the existence of a snapshots directory
+4. Provide a summary of the test structure
 
 ## Coverage Audit
 
