@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your Video Analysis is Complete</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .logo {
+            width: 120px;
+            height: auto;
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #3a86ff;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        .content {
+            margin-bottom: 30px;
+        }
+        .button {
+            display: inline-block;
+            background-color: #3a86ff;
+            color: white;
+            text-decoration: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            font-weight: bold;
+            margin: 20px 0;
+        }
+        .button:hover {
+            background-color: #2a6ed6;
+        }
+        .footer {
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+        .score-container {
+            text-align: center;
+            margin: 20px 0;
+        }
+        .score {
+            font-size: 48px;
+            font-weight: bold;
+            color: #3a86ff;
+        }
+        .feedback-list {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .feedback-item {
+            margin-bottom: 10px;
+            padding-left: 20px;
+            position: relative;
+        }
+        .feedback-item:before {
+            content: "•";
+            position: absolute;
+            left: 0;
+            color: #3a86ff;
+        }
+        @media only screen and (max-width: 480px) {
+            body {
+                padding: 10px;
+            }
+            .container {
+                padding: 20px;
+            }
+            h1 {
+                font-size: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="https://formiq.com/assets/logo.png" alt="FormIQ Logo" class="logo">
+            <h1>Your Video Analysis is Complete</h1>
+        </div>
+        
+        <div class="content">
+            <p>Hi {{ user.full_name or user.username }},</p>
+            
+            <p>Great news! We've completed the analysis of your workout video "{{ video.filename }}" that you uploaded on {{ video.created_at.strftime('%B %d, %Y') }}.</p>
+            
+            {% if score is not none %}
+            <div class="score-container">
+                <p>Your form score:</p>
+                <div class="score">{{ score }}/100</div>
+            </div>
+            {% endif %}
+            
+            {% if feedback_points %}
+            <p><strong>Here's our feedback on your form:</strong></p>
+            <div class="feedback-list">
+                {% for point in feedback_points %}
+                <div class="feedback-item">{{ point }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            
+            <p>To view your complete analysis with detailed insights and recommendations, click the button below:</p>
+            
+            <p style="text-align: center;">
+                <a href="{{ view_url }}" class="button">View Your Analysis</a>
+            </p>
+            
+            <p>Or copy and paste this link into your browser:</p>
+            <p style="word-break: break-all; font-size: 14px;">{{ view_url }}</p>
+            
+            <p>Keep up the great work with your fitness journey!</p>
+        </div>
+        
+        <div class="footer">
+            <p>© {{ year }} {{ app_name }}. All rights reserved.</p>
+            <p>
+                <a href="https://formiq.com/terms">Terms of Service</a> | 
+                <a href="https://formiq.com/privacy">Privacy Policy</a> |
+                <a href="https://formiq.com/email-preferences">Email Preferences</a>
+            </p>
+        </div>
+    </div>
+</body>
+</html> 

@@ -112,25 +112,6 @@ model_confidence_scores = Histogram(
     buckets=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
 )
 
-model_errors = Counter(
-    "model_errors_total",
-    "Total number of AI model errors",
-    ["model_type", "error_type"]
-)
-
-model_fallbacks = Counter(
-    "model_fallbacks_total",
-    "Number of times fallback model was used",
-    ["primary_model", "fallback_model"]
-)
-
-# Enhanced error tracking
-error_details = Counter(
-    "error_details_total",
-    "Detailed error tracking",
-    ["service", "endpoint", "error_type", "error_code"]
-)
-
 # Authentication metrics
 AUTH_FAILED_LOGINS = Counter(
     'auth_failed_login_attempts_total',
@@ -199,11 +180,20 @@ VIDEO_UPLOAD_SIZE = Histogram(
     buckets=(1e6, 5e6, 10e6, 50e6, 100e6)  # 1MB, 5MB, 10MB, 50MB, 100MB
 )
 
-# ML model metrics
+# TODO: Review the distinction between model_errors_total and MODEL_INFERENCE_ERRORS.
+# model_errors_total is used in Prometheus alerts (alerts.yml) and tracked by track_model_error().
+# MODEL_INFERENCE_ERRORS is tracked by track_model_inference() for errors during that specific step.
+# Ensure their use cases are distinct or consolidate carefully, updating alerts if model_errors_total is removed.
+model_errors = Counter(
+    "model_errors_total",
+    "Total number of AI model errors (e.g., loading, unexpected issues - see track_model_error)",
+    ["model_type", "error_type"]
+)
+
 MODEL_INFERENCE_ERRORS = Counter(
-    'model_inference_errors_total',
-    'Total number of ML model inference errors',
-    ['model_type', 'error_type']
+    "model_inference_errors_total",
+    "Total number of ML model inference errors (errors during the inference process - see track_model_inference)",
+    ["model_type", "error_type"]
 )
 
 # Feedback system metrics
@@ -211,6 +201,13 @@ FEEDBACK_MESSAGES_SENT = Counter(
     'feedback_messages_sent_total',
     'Total number of feedback messages sent',
     ['exercise_type']
+)
+
+# Add new counter for emails sent
+EMAILS_SENT_TOTAL = Counter(
+    "emails_sent_total",
+    "Total number of emails sent",
+    ["email_type"]  # e.g., "verification", "password_reset", "notification"
 )
 
 FEEDBACK_ITEMS_SENT = Counter(
@@ -269,6 +266,19 @@ EXERCISE_DURATION = Histogram(
     'Duration of exercise sessions',
     ['exercise_type'],
     buckets=[30, 60, 120, 300, 600]
+)
+
+model_fallbacks = Counter(
+    "model_fallbacks_total",
+    "Number of times fallback model was used",
+    ["primary_model", "fallback_model"]
+)
+
+# Enhanced error tracking
+error_details = Counter(
+    "error_details_total",
+    "Detailed error tracking",
+    ["service", "endpoint", "error_type", "error_code"]
 )
 
 def setup_monitoring(app: FastAPI) -> None:
@@ -388,21 +398,8 @@ def track_model_inference(
     ).observe(confidence)
     
     # Track errors if any
-    if has_errors and error_type:
-        MODEL_INFERENCE_ERRORS.labels(
-            model_type=model_type,
-            error_type=error_type
-        ).inc()
-
-def track_model_error(model_type: str, error_type: str) -> None:
-    """Track AI model errors."""
-    try:
-        model_errors.labels(
-            model_type=model_type,
-            error_type=error_type
-        ).inc()
-    except Exception as e:
-        logger.error(f"Failed to track model error: {str(e)}")
+    if has_errors:
+        MODEL_INFERENCE_ERRORS.labels(model_type=model_type, error_type=error_type or 'unknown').inc()
 
 def track_model_fallback(primary_model: str, fallback_model: str) -> None:
     """Track when fallback model is used."""
@@ -494,6 +491,14 @@ def track_video_processing(
 def track_video_upload(exercise_type: str, size_bytes: int) -> None:
     """Track video upload metrics."""
     VIDEO_UPLOAD_SIZE.labels(exercise_type=exercise_type).observe(size_bytes)
+
+def track_email_sent(email_type: str) -> None:
+    """Tracks a sent email by type."""
+    try:
+        EMAILS_SENT_TOTAL.labels(email_type=email_type).inc()
+        logger.debug(f"Email sent tracked: type={email_type}")
+    except Exception as e:
+        logger.warning(f"Failed to track email sent (type: {email_type}): {e}", exc_info=True)
 
 def track_feedback_sent(
     exercise_type: str,

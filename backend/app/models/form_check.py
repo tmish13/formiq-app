@@ -44,6 +44,9 @@ class FormCheck(BaseModel):
         confidence_score (float): AI model confidence (0-1)
         form_metadata (dict): Additional metadata
         results (dict): Detailed analysis results
+        configuration_id (UUID): ID of the exercise configuration used for analysis
+        reps_per_minute (float): Reps per minute
+        reps_detected (int): Detected reps
     """
     __tablename__ = "form_checks"
 
@@ -55,7 +58,7 @@ class FormCheck(BaseModel):
     feedback = Column(String)
     score = Column(Float)
     keypoints = Column(JSON)
-    status = Column(String, default="pending")
+    status = Column(Enum(FormCheckStatus), default=FormCheckStatus.PENDING, nullable=False)
     analysis_url = Column(String(1024), nullable=True)
     overall_feedback = Column(String(2048), nullable=True)
     issues = Column(JSON, nullable=True)
@@ -63,6 +66,9 @@ class FormCheck(BaseModel):
     confidence_score = Column(Float, nullable=True)
     form_metadata = Column(JSON, nullable=True)
     results = Column(JSON, nullable=True)
+    configuration_id = Column(SQLiteUUID(), ForeignKey("exercise_configs.id", ondelete="SET NULL"), nullable=True, index=True)
+    reps_per_minute = Column(Float, nullable=True)
+    reps_detected = Column(Integer, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
@@ -86,6 +92,10 @@ class FormCheck(BaseModel):
         "FeedbackItem",
         back_populates="form_check",
         cascade="all, delete-orphan",
+        lazy="select"
+    )
+    configuration = relationship(
+        "ExerciseConfig",
         lazy="select"
     )
 

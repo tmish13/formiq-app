@@ -1,22 +1,19 @@
-// Mock implementation of @capacitor/network
-class MockNetwork {
-  async getStatus() {
-    return {
-      connected: true,
-      connectionType: 'wifi'
-    };
-  }
+import { WebPlugin } from '@capacitor/core';
 
-  async addListener(_eventName: string, _listenerFunc: Function) {
-    return {
-      remove: () => {}
-    };
-  }
-
-  async removeAllListeners() {
-    return;
-  }
+export interface NetworkStatus {
+  connected: boolean;
+  connectionType: string;
 }
 
-const Network = new MockNetwork();
-export { Network }; 
+export const Network = {
+  getStatus: jest.fn().mockResolvedValue({
+    connected: true,
+    connectionType: 'wifi'
+  }),
+  
+  addListener: jest.fn().mockReturnValue(Promise.resolve({
+    remove: jest.fn().mockResolvedValue(undefined)
+  }))
+};
+
+export default Network; 

@@ -5,7 +5,7 @@ from uuid import UUID
 from sqlalchemy import select, and_
 from sqlalchemy.orm import Session
 
-from app.models.session import UserSession
+from app.models.user_session import UserSession
 from app.repositories.base import BaseRepository
 
 class SessionRepository(BaseRepository[UserSession]):

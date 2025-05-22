@@ -11,6 +11,7 @@ export const ROUTES = {
   WORKOUT: '/workout',
   FORM_ANALYSIS: '/form-analysis',
   PROGRESS: '/progress',
+  VIDEOS: '/videos',
   SETTINGS: '/settings',
 
   // Form analysis routes

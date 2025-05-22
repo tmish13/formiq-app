@@ -2,8 +2,8 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, Optional, Union, Tuple
 import secrets
 
-from fastapi import Depends, HTTPException, status, Request
-from fastapi.security import OAuth2PasswordBearer
+from fastapi import Depends, HTTPException, status, Request, Security
+from fastapi.security import OAuth2PasswordBearer, APIKeyHeader
 from jose import jwt, JWTError
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
@@ -20,13 +20,36 @@ from app.core.security import (
 from app.core.config import settings
 from app.core.constants import ROLE_PERMISSIONS, Roles
 from app.core.exceptions import AuthenticationException, AuthorizationException
-from app.core.logging import logger
+from app.core.logging import get_logger
 from app.models.user import User
 from app.schemas.token import TokenPayload
 
 oauth2_scheme = OAuth2PasswordBearer(
     tokenUrl=f"{settings.API_V1_STR}/auth/login"
 )
+
+# Define API Key Security Scheme (for X-API-Key header)
+api_key_header_auth = APIKeyHeader(name="X-API-Key", auto_error=True)
+
+async def get_api_key(api_key: str = Security(api_key_header_auth)) -> str:
+    """
+    Dependency to validate an API key from the X-API-Key header.
+    Compares against settings.TRAINING_API_KEY.
+    """
+    if not settings.TRAINING_API_KEY:
+        logger.error("TRAINING_API_KEY is not configured in settings.")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="API Key authentication is not configured on the server."
+        )
+    if secrets.compare_digest(api_key, settings.TRAINING_API_KEY):
+        return api_key # Or some principal representing the authenticated service
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid or missing API Key"
+    )
+
+logger = get_logger(__name__)
 
 class AuthService:
     """Enhanced authentication service with security features."""
@@ -269,4 +292,19 @@ class AuthService:
         }
 
 # Create a singleton instance
-auth_service = AuthService() 
+auth_service = AuthService()
+
+# New dependency for admin checks
+def get_current_admin_user(
+    current_user: User = Depends(AuthService.get_current_active_user)
+) -> User:
+    """
+    Dependency to get the current active user and verify if they are an admin.
+    Raises HTTPException if the user is not an admin.
+    """
+    if current_user.role != Roles.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="The user does not have administrative privileges.",
+        )
+    return current_user 

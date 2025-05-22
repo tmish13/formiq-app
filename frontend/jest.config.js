@@ -14,8 +14,8 @@ module.exports = {
     '^@contexts/(.*)$': '<rootDir>/src/contexts/$1',
     '^@store/(.*)$': '<rootDir>/src/store/$1',
     '^@types/(.*)$': '<rootDir>/src/types/$1',
-    '^styled-components$': '<rootDir>/tests/__mocks__/styled-components.js',
-    '^react-router-dom$': '<rootDir>/tests/__mocks__/react-router-dom.tsx',
+    '^styled-components$': '<rootDir>/node_modules/styled-components',
+    '^react-router-dom$': '<rootDir>/node_modules/react-router-dom',
     '^ioredis$': '<rootDir>/tests/__mocks__/ioredis.ts',
     '^@theme$': '<rootDir>/tests/__mocks__/mockTheme.ts',
     '^../../mocks/server$': '<rootDir>/tests/utils/testServer.ts',
@@ -50,13 +50,17 @@ module.exports = {
     '^rc-picker/lib/utils/miscUtil$': '<rootDir>/tests/__mocks__/miscUtil.ts',
     '^..\/..\/..\/utils\/miscUtil$': '<rootDir>/tests/__mocks__/miscUtil.ts',
     'rc-picker/lib/utils/miscUtil': '<rootDir>/tests/__mocks__/miscUtil.ts',
-    '\\.(jpg|jpeg|png|gif|webp|svg)$': '<rootDir>/tests/__mocks__/fileMock.js'
+    '\\.(jpg|jpeg|png|gif|webp|svg)$': '<rootDir>/tests/__mocks__/fileMock.js',
+    '^react$': '<rootDir>/node_modules/react',
+    '^react-dom$': '<rootDir>/node_modules/react-dom',
   },
   moduleDirectories: ['node_modules', 'src', '<rootDir>'],
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
   transform: {
     '^.+\\.(ts|tsx)$': ['ts-jest', {
       tsconfig: 'tsconfig.json',
+      isolatedModules: true,
+      diagnostics: false,
     }],
     '^.+\\.(js|jsx)$': ['babel-jest', {
       presets: ['@babel/preset-env', '@babel/preset-react'],

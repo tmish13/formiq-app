@@ -154,4 +154,14 @@ class TokenVerify(BaseModel):
                 "token": "eyJ0eXAiOiJKV1QiLCJhbGc..."
             }
         }
-    ) 
+    )
+
+class EmailVerificationRequest(BaseModel):
+    """Email verification request schema."""
+    email: EmailStr = Field(..., description="Email address for verification link")
+    model_config = ConfigDict(json_schema_extra={"example": {"email": "user@example.com"}})
+
+class EmailVerificationConfirm(BaseModel):
+    """Email verification confirmation schema."""
+    token: str = Field(..., description="Email verification token")
+    model_config = ConfigDict(json_schema_extra={"example": {"token": "your_verification_token_string"}}) 

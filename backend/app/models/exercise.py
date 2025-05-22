@@ -33,4 +33,5 @@ class ExerciseTemplate(BaseModel):
     equipment = Column(String, nullable=True)
 
     # Relationships
-    form_checks = relationship("FormCheck", back_populates="exercise", cascade="all, delete-orphan", lazy="select") 
+    form_checks = relationship("FormCheck", back_populates="exercise", cascade="all, delete-orphan", lazy="select")
+    exercise_configs = relationship("ExerciseConfig", back_populates="exercise", cascade="all, delete-orphan", lazy="select") 

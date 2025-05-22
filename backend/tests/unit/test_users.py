@@ -1,5 +1,8 @@
 """Test users module."""
 from fastapi.testclient import TestClient
+import pytest
+from tests.utils.factories import UserFactory
+from app.models.user import User
 
 from app.core.config import settings
 
@@ -87,4 +90,22 @@ def test_delete_user(client: TestClient) -> None:
 def test_delete_user_not_found(client: TestClient) -> None:
     """Test delete user not found."""
     response = client.delete(f"{settings.API_V1_STR}/users/999")
-    assert response.status_code == 404 
+    assert response.status_code == 404
+
+
+def test_user_creation_from_factory():
+    '''Test basic user creation using UserFactory.'''
+    user = UserFactory()
+    assert user.email.endswith("@example.com") # Default factory behavior
+    assert user.is_active is True # Default factory behavior
+    assert user.is_superuser is False # Default factory behavior
+    assert isinstance(user, User)
+
+
+def test_superuser_creation_from_factory():
+    '''Test superuser creation using UserFactory.'''
+    admin_user = UserFactory(is_superuser=True)
+    assert admin_user.is_superuser is True
+    assert admin_user.is_active is True # Superusers should also be active by default from factory
+    assert admin_user.email.endswith("@example.com")
+    assert isinstance(admin_user, User) 

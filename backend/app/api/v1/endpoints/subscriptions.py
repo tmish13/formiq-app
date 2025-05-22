@@ -1,8 +1,9 @@
 """Subscription endpoints."""
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
-from sqlalchemy.orm import Session
-from app.api.deps import get_db, get_current_user
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.core import deps
+from app.models.user import User
 from app.models.enums import SubscriptionTier
 from app.schemas.subscription import (
     SubscriptionCreate,
@@ -11,7 +12,7 @@ from app.schemas.subscription import (
     StripeWebhookEvent,
     SubscriptionUsageResponse
 )
-from app.services.subscription_service import SubscriptionService
+from app.services.subscription_service import SubscriptionService, get_async_subscription_service
 from app.core.logging import logger
 
 router = APIRouter()
@@ -19,16 +20,14 @@ router = APIRouter()
 @router.post("/", response_model=SubscriptionResponse)
 async def create_subscription(
     *,
-    db: Session = Depends(get_db),
-    current_user = Depends(get_current_user),
+    current_user: User = Depends(deps.get_current_active_user),
     tier: SubscriptionTier,
-    payment_method_id: str
+    payment_method_id: str,
+    subscription_service: SubscriptionService = Depends(get_async_subscription_service)
 ) -> SubscriptionResponse:
     """Create a new subscription."""
     try:
-        subscription_service = SubscriptionService()
-        return await subscription_service.create_subscription(
-            db,
+        return await subscription_service.create_subscription_async(
             user_id=current_user.id,
             tier=tier,
             payment_method_id=payment_method_id
@@ -43,22 +42,17 @@ async def create_subscription(
 @router.post("/webhook")
 async def stripe_webhook(
     *,
-    db: Session = Depends(get_db),
-    request: Request
+    request: Request,
+    subscription_service: SubscriptionService = Depends(get_async_subscription_service)
 ) -> Response:
     """Handle Stripe webhook events."""
     try:
-        # Get webhook payload and signature
         payload = await request.body()
         signature = request.headers.get("stripe-signature")
         
-        subscription_service = SubscriptionService()
-        await subscription_service.handle_webhook(
-            db,
-            event=StripeWebhookEvent(
-                payload=payload,
-                signature=signature
-            )
+        await subscription_service.handle_stripe_webhook_async(
+            event_payload=payload.decode(),
+            stripe_signature=signature
         )
         
         return Response(status_code=status.HTTP_200_OK)
@@ -72,14 +66,12 @@ async def stripe_webhook(
 @router.get("/current", response_model=Optional[SubscriptionResponse])
 async def get_current_subscription(
     *,
-    db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user: User = Depends(deps.get_current_active_user),
+    subscription_service: SubscriptionService = Depends(get_async_subscription_service)
 ) -> Optional[SubscriptionResponse]:
     """Get user's current active subscription."""
     try:
-        subscription_service = SubscriptionService()
-        return await subscription_service.get_active_subscription(
-            db,
+        return await subscription_service.get_active_subscription_async(
             user_id=current_user.id
         )
     except Exception as e:
@@ -92,15 +84,13 @@ async def get_current_subscription(
 @router.put("/current", response_model=SubscriptionResponse)
 async def update_subscription(
     *,
-    db: Session = Depends(get_db),
-    current_user = Depends(get_current_user),
-    new_tier: SubscriptionTier
+    current_user: User = Depends(deps.get_current_active_user),
+    new_tier: SubscriptionTier,
+    subscription_service: SubscriptionService = Depends(get_async_subscription_service)
 ) -> SubscriptionResponse:
     """Update subscription tier."""
     try:
-        subscription_service = SubscriptionService()
-        return await subscription_service.update_subscription(
-            db,
+        return await subscription_service.update_subscription_tier_async(
             user_id=current_user.id,
             new_tier=new_tier
         )
@@ -114,14 +104,12 @@ async def update_subscription(
 @router.delete("/current", status_code=status.HTTP_204_NO_CONTENT)
 async def cancel_subscription(
     *,
-    db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user: User = Depends(deps.get_current_active_user),
+    subscription_service: SubscriptionService = Depends(get_async_subscription_service)
 ) -> None:
     """Cancel current subscription."""
     try:
-        subscription_service = SubscriptionService()
-        await subscription_service.cancel_subscription(
-            db,
+        await subscription_service.cancel_subscription_async(
             user_id=current_user.id
         )
     except Exception as e:
@@ -134,14 +122,12 @@ async def cancel_subscription(
 @router.get("/usage", response_model=SubscriptionUsageResponse)
 async def get_subscription_usage(
     *,
-    db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user: User = Depends(deps.get_current_active_user),
+    subscription_service: SubscriptionService = Depends(get_async_subscription_service)
 ) -> SubscriptionUsageResponse:
     """Get current subscription usage metrics."""
     try:
-        subscription_service = SubscriptionService()
-        subscription = await subscription_service.get_active_subscription(
-            db,
+        subscription = await subscription_service.get_active_subscription_async(
             user_id=current_user.id
         )
         if not subscription:
@@ -150,11 +136,7 @@ async def get_subscription_usage(
                 detail="No active subscription found"
             )
         
-        # Get usage metrics
-        form_checks_used = await subscription_service.repository.count_monthly_submissions(
-            db,
-            user_id=current_user.id
-        )
+        form_checks_used = await subscription_service.count_monthly_form_checks_for_user_async(user_id=current_user.id)
         
         return SubscriptionUsageResponse(
             tier=subscription.tier,

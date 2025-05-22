@@ -508,4 +508,19 @@ The following issues have been fixed to ensure the application is ready for depl
 - Updated error handling in API service
 - Fixed theme types to ensure proper integration with styled-components
 
+## Enhanced Authentication Security
+
+FormIQ implements a highly secure authentication system using:
+
+- **HttpOnly Cookies**: Instead of storing tokens in localStorage, we use HttpOnly cookies which cannot be accessed by JavaScript, protecting against XSS attacks.
+- **CSRF Protection**: All non-GET requests require a valid CSRF token to prevent cross-site request forgery attacks.
+- **Rate Limiting**: Authentication endpoints have rate limiting to prevent brute force attacks.
+
+### Authentication Flow
+
+1. User logs in with email/password
+2. Server sets JWT tokens as HttpOnly cookies
+3. For subsequent requests, the browser automatically includes the cookie
+4. For non-GET requests, a CSRF token must be included in the request header
+
 Follow the standard deployment process to deploy the updated application. 

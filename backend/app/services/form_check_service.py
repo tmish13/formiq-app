@@ -1,15 +1,19 @@
 """Form check service module."""
 from typing import Optional, List, Dict, Any
-from uuid import UUID
-import os
-from fastapi import UploadFile
-from sqlalchemy.orm import Session
-from datetime import datetime
-import uuid
-import hashlib
+from uuid import UUID, uuid4
 import logging
+import os
+import hashlib
 import cv2
-import numpy as np
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from sqlalchemy import delete as sqlalchemy_delete
+from fastapi import UploadFile, HTTPException, status, Depends
+from enum import Enum
+from datetime import datetime, timedelta
+import asyncio
+from sqlalchemy.orm import selectinload
+from sqlalchemy import and_
 
 from app.models.form_check import FormCheck, FeedbackItem
 from app.models.enums import (
@@ -18,331 +22,479 @@ from app.models.enums import (
     FeedbackType,
     FeedbackSeverity
 )
-from app.repositories.form_check_repository import FormCheckRepository
-from app.repositories.feedback_repository import FeedbackRepository
-from app.core.storage import upload_video, delete_video
-from app.core.validators import ValidationException
+from app.core.storage import upload_video as core_upload_video, delete_video as core_delete_video
 from app.schemas.form_check import (
     FormCheckCreate,
     FormCheckUpdate,
     FormCheckResponse,
     FeedbackItemCreate,
+    FeedbackItemUpdate,
     FeedbackItemResponse
 )
-from app.services.storage import StorageService
-from app.services.ai_model_service import AIModelService
-from app.core.config import settings
+from app.services.base_service import BaseService
+from app.services.storage_service import StorageService
+from app.services.ai_service import AIService
+from app.core.config import Settings
 from app.core.exceptions import (
     ValidationError,
-    NotFoundException
+    NotFoundException,
+    ServerErrorException,
+    PermissionDeniedException
 )
+from app.models.exercise import ExerciseTemplate
+from app.core.cache import CacheService, cache_service
+# from app.core.deps import get_async_db, get_settings # REMOVED
 
-# Initialize logger
 logger = logging.getLogger(__name__)
 
-# Initialize services
-ai_model_service = AIModelService()
-
-# Replace this import to fix the module not found error
-# from app.services.tasks import enqueue_form_check_analysis
-# Instead, create a stub function that we'll implement later
 async def enqueue_form_check_analysis(form_check_id: UUID) -> None:
-    """
-    Placeholder function to queue a form check for analysis.
-    This will be implemented properly once the tasks module is fixed.
-    """
-    logging.getLogger(__name__).info(f"Would enqueue form check {form_check_id} for analysis")
+    logger.info(f"Would enqueue form check {form_check_id} for analysis (stub)")
     pass
 
-class FormCheckService:
-    """Service class for form check operations."""
+class FormCheckService(BaseService[FormCheck, FormCheckCreate, FormCheckUpdate]):
+    def __init__(self, db: AsyncSession, settings: Settings, storage_service: StorageService, ai_service: AIService, cache_service: Optional[CacheService] = None):
+        super().__init__(db=db, model=FormCheck, settings=settings)
+        self.storage_service = storage_service
+        self.ai_service = ai_service
+        self.cache_service = cache_service
+        self.response_schema = FormCheckResponse
 
-    def __init__(self, db: Session, storage_service: Optional[StorageService] = None, s3_client = None, ai_service = None):
-        """Initialize form check service.
+    async def _process_video_frames_cv2(self, video_path: str) -> List[Dict[str, Any]]:
+        """Synchronous helper function to process video frames using OpenCV."""
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            raise IOError(f"Could not open video file: {video_path}")
 
-        Args:
-            db: Database session
-            storage_service: Optional storage service instance
-            s3_client: Optional S3 client (used in tests)
-            ai_service: Optional AI service (used in tests)
-        """
-        self.db = db
-        self.form_check_repository = FormCheckRepository(db)
-        self.feedback_repository = FeedbackRepository(db)
-        self.storage_service = storage_service or StorageService()
-        self.s3_client = s3_client  # Store this for backward compatibility with tests
-        self.ai_service = ai_service  # Store this for backward compatibility with tests
+        frame_results = []
+        processed_frames = 0
+        max_frames_to_process = 300
 
-    async def analyze_video(self, video_path: str, exercise_type: ExerciseType) -> Dict[str, Any]:
-        """Analyze video using AI model service."""
+        while cap.isOpened() and processed_frames < max_frames_to_process:
+            ret, frame = cap.read()
+            if not ret:
+                break
+            landmarks, confidence = self.ai_service.detect_pose(frame)
+            
+            if landmarks:
+                frame_results.append({"landmarks": landmarks, "confidence": confidence})
+            processed_frames += 1
+
+        cap.release()
+        if processed_frames >= max_frames_to_process:
+            logger.warning(f"Video {video_path} exceeded max frames ({max_frames_to_process}), processing truncated.")
+        return frame_results
+
+    async def analyze_video_via_ai_service(self, video_path: str, exercise_type: ExerciseType) -> Dict[str, Any]:
         try:
-            # Open video file
-            cap = cv2.VideoCapture(video_path)
-            if not cap.isOpened():
-                raise ValidationError("Could not open video file")
-
-            # Process video frames
-            frame_results = []
-            while cap.isOpened():
-                ret, frame = cap.read()
-                if not ret:
-                    break
-
-                # Detect pose in frame
-                landmarks, confidence = ai_model_service.detect_pose(frame)
-                if landmarks:
-                    frame_results.append({
-                        "landmarks": landmarks,
-                        "confidence": confidence
-                    })
-
-            cap.release()
+            frame_results = await asyncio.to_thread(self._process_video_frames_cv2, video_path)
 
             if not frame_results:
-                return {
-                    "score": 0.0,
-                    "feedback": ["No poses detected in the video"],
-                    "risk_level": "high"
-                }
+                logger.info(f"No poses detected in video: {video_path}")
+                return {"score": 0.0, "feedback": ["No poses detected in the video."], "risk_level": "low", "feedback_structured": []}
 
-            # Analyze form using the most confident frame
-            best_frame = max(frame_results, key=lambda x: x["confidence"])
+            best_frame_data = max(frame_results, key=lambda x: x["confidence"])
             
-            # Use ai_service from constructor if provided (for tests), otherwise use global one
-            if self.ai_service:
-                analysis = self.ai_service.analyze_form(
-                    best_frame["landmarks"],
-                    exercise_type.value
-                )
-            else:
-                analysis = ai_model_service.analyze_form(
-                    best_frame["landmarks"],
-                    exercise_type.value
-                )
+            analysis_results = await self.ai_service.analyze_form(
+                best_frame_data["landmarks"],
+                exercise_type.value
+            )
+            return analysis_results
 
-            return analysis
-
+        except IOError as ioe:
+            logger.error(f"Video IO error during analysis ({video_path}): {ioe}")
+            raise ServerErrorException(f"Error accessing video file for analysis: {ioe}")
         except Exception as e:
-            logger.error(f"Error analyzing video: {str(e)}")
-            raise
-
-    async def get_cached_analysis(self, video_hash: str) -> Optional[Dict[str, Any]]:
-        """
-        Check if we already analyzed this exact video before.
-        
-        Args:
-            video_hash: MD5 hash of the video file
-            
-        Returns:
-            Optional cached analysis results
-        """
-        if not hasattr(self, 'cache_service') or not self.cache_service.available:
-            return None
-            
-        cache_key = f"video_analysis:{video_hash}"
-        return await self.cache_service.get(cache_key)
-        
-    async def cache_analysis_results(self, video_hash: str, analysis_results: Dict[str, Any], ttl: int = 86400 * 30) -> None:
-        """
-        Cache analysis results for a video to speed up future identical uploads.
-        
-        Args:
-            video_hash: MD5 hash of the video file
-            analysis_results: Analysis results to cache
-            ttl: Cache TTL in seconds (default 30 days)
-        """
-        if not hasattr(self, 'cache_service') or not self.cache_service.available:
-            return
-            
-        cache_key = f"video_analysis:{video_hash}"
-        await self.cache_service.set(cache_key, analysis_results, expire=ttl)
+            logger.error(f"Unexpected error in analyze_video_via_ai_service for {video_path}: {e}", exc_info=True)
+            raise ServerErrorException("Video analysis failed due to an unexpected error.")
 
     async def submit_form_check(
         self,
         user_id: UUID,
-        video: UploadFile,
-        exercise_type: ExerciseType,
+        video_file: UploadFile,
+        exercise_type_enum: ExerciseType,
         notes: Optional[str] = None
     ) -> FormCheckResponse:
-        """Submit a new form check for analysis.
+        logger.info(f"Submitting form check for user {user_id}, exercise: {exercise_type_enum.value}, video: {video_file.filename}")
+        video_cloud_url: Optional[str] = None # Initialize to None
 
-        Args:
-            user_id: ID of the user submitting the form check
-            video: Video file upload
-            exercise_type: Type of exercise
-            notes: Optional notes from the user
-
-        Returns:
-            Created form check data
-        """
         try:
-            # For compatibility with tests
-            if self.s3_client:
-                # Test function using mocked s3 client
-                video_url = self.generate_video_url("test.mp4")
-            else:
-                # Upload video to storage
-                video_url = await upload_video(video)
+            # 1. Upload video using StorageService to cloud storage
+            logger.info(f"Uploading video '{video_file.filename}' to cloud storage.")
+            folder = f"form_check_videos/{user_id}"
             
-            # Get video content hash for cache lookup
-            await video.seek(0)
-            content = await video.read()
-            video_hash = hashlib.md5(content).hexdigest()
-            
-            # Check if we've analyzed this exact video before
-            cached_results = await self.get_cached_analysis(video_hash)
-            
-            # Create form check record
-            form_check_data = {
-                "video_url": video_url,
-                "user_id": user_id,
-                "exercise_type": exercise_type,
-                "status": FormCheckStatus.PENDING,
-                "notes": notes
-            }
-            
-            # Create form check in database
-            form_check = self.form_check_repository.create(form_check_data)
-            
-            # Analyze video
-            analysis = await self.analyze_video(video_url, exercise_type)
-            
-            # Update form check with analysis results
-            update_data = {
-                "status": FormCheckStatus.COMPLETED,
-                "overall_feedback": "\n".join(analysis["feedback"]),
-                "score": analysis["score"],
-                "confidence_score": 0.95,  # TODO: Use actual confidence
-                "processing_time": 0.1,
-                "form_metadata": {
-                    "risk_level": analysis["risk_level"]
-                }
-            }
-            
-            form_check = self.form_check_repository.update(
-                db_obj=form_check,
-                obj_in=update_data
+            video_cloud_url = await self.storage_service.upload_file(
+                file=video_file,
+                folder=folder,
+                user_id=str(user_id) 
             )
+            logger.info(f"Video uploaded to: {video_cloud_url}")
+
+            # 2. Get Exercise ID from ExerciseType enum
+            exercise_template_stmt = select(ExerciseTemplate).where(ExerciseTemplate.name == exercise_type_enum.value)
+            exercise_template_result = await self.db.execute(exercise_template_stmt)
+            exercise_template = exercise_template_result.scalars().first()
             
-            # Create feedback items
-            for feedback in analysis["feedback"]:
-                self.feedback_repository.create({
-                    "form_check_id": form_check.id,
-                    "type": FeedbackType.FORM,
-                    "message": feedback,
-                    "timestamp": 0.0,
-                    "severity": FeedbackSeverity.MEDIUM,
-                    "is_ai_generated": True
-                })
-            
-            return form_check
-            
+            if not exercise_template:
+                if video_cloud_url: # If video was uploaded, try to delete it
+                    try:
+                        logger.warning(f"ExerciseTemplate for type '{exercise_type_enum.value}' not found. Deleting uploaded video: {video_cloud_url}")
+                        await self.storage_service.delete_file(video_cloud_url)
+                    except Exception as e_del:
+                        logger.error(f"Failed to delete orphaned video {video_cloud_url} after ExerciseTemplate not found: {e_del}")
+                raise NotFoundException(f"ExerciseTemplate for type '{exercise_type_enum.value}' not found.")
+            actual_exercise_id: UUID = exercise_template.id
+
+            # 3. Create initial FormCheck record with PENDING status
+            form_check_create_schema = FormCheckCreate(
+                user_id=user_id,
+                exercise_id=actual_exercise_id,
+                video_url=video_cloud_url, # Store the cloud URL
+                notes=notes,
+                status=FormCheckStatus.PENDING 
+            )
+            db_form_check = await super().create_async(obj_in=form_check_create_schema)
+            logger.info(f"Created FormCheck record ID {db_form_check.id} with PENDING status.")
+
+            # 4. Dispatch background task for analysis
+            try:
+                from app.tasks.analysis_tasks import process_form_check_task
+                process_form_check_task.delay(form_check_id_str=str(db_form_check.id))
+                logger.info(f"Successfully dispatched analysis task for FormCheck ID {db_form_check.id}.")
+            except Exception as e_task_dispatch:
+                logger.error(f"Failed to dispatch Celery task for FormCheck ID {db_form_check.id}: {e_task_dispatch}", exc_info=True)
+                # Critical error: FormCheck created but analysis not started. Update status to ERROR.
+                # This requires db_form_check to be an actual ORM object that can be updated.
+                if db_form_check: # Ensure db_form_check is not None
+                    error_update_payload = {"status": FormCheckStatus.ERROR, "error_details": f"Failed to dispatch analysis task: {str(e_task_dispatch)}"}
+                    await super().update_async(db_obj=db_form_check, obj_in=error_update_payload) # Use db_obj if get_async was called prior, or id if not
+                    await self.db.commit() # Ensure error status is saved
+                # Re-raise or raise a specific HTTPException to inform the client of the dispatch failure.
+                # This depends on how much detail the client needs.
+                raise ServerErrorException(f"Form check submitted (ID: {db_form_check.id}) but failed to start analysis processing. Please contact support.")
+
+            return self.response_schema.from_orm(db_form_check)
+
+        except NotFoundException as nfe:
+            logger.warning(f"Error submitting form check: {nfe}")
+            # video_cloud_url might exist if error happened after upload but before this catch
+            # However, NotFoundException for ExerciseTemplate already handles deletion.
+            raise 
+        except ValidationError as ve: 
+            logger.warning(f"Validation error submitting form check: {ve}")
+            if video_cloud_url: # If video was uploaded before validation error
+                try:
+                    logger.info(f"Attempting to delete video {video_cloud_url} due to validation error.")
+                    await self.storage_service.delete_file(video_cloud_url)
+                except Exception as e_clean:
+                    logger.error(f"Failed to cleanup video {video_cloud_url} after validation error: {e_clean}")
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(ve))
         except Exception as e:
-            logger.error(f"Error submitting form check: {str(e)}")
-            raise
+            logger.error(f"General error submitting form check: {e}", exc_info=True)
+            if video_cloud_url: # If video was uploaded before a general error
+                try:
+                    logger.info(f"Attempting to delete video {video_cloud_url} due to general error.")
+                    await self.storage_service.delete_file(video_cloud_url)
+                except Exception as e_clean:
+                    logger.error(f"Failed to cleanup video {video_cloud_url} after general error: {e_clean}")
+            raise ServerErrorException("An unexpected error occurred while submitting the form check.")
+        # The 'finally' block for local temp file cleanup is removed as we are using StorageService
+        # which should manage its own temporary file handling if any during cloud upload.
 
-    # Add a method used in the tests
-    def generate_video_url(self, key: str) -> str:
-        """Generate presigned URL for video access.
+    async def finalize_form_check_analysis_async(
+        self,
+        form_check_id: UUID,
+        analysis_results: Dict[str, Any],
+        status: FormCheckStatus = FormCheckStatus.COMPLETED # Can be ERROR too
+    ) -> FormCheckResponse:
+        logger.info(f"Finalizing analysis for FormCheck ID {form_check_id} with status {status.value}")
         
-        Args:
-            key: Storage key
-            
-        Returns:
-            str: Presigned URL
-        """
-        if self.s3_client:
-            return self.s3_client.generate_presigned_url(
-                ClientMethod='get_object',
-                Params={
-                    'Bucket': settings.STORAGE_BUCKET,
-                    'Key': key
-                },
-                ExpiresIn=3600
-            )
-        else:
-            # Use storage service for real implementation
-            return self.storage_service.get_file_url(key)
+        form_check = await super().get_async(id=form_check_id)
+        if not form_check:
+            # This should ideally not happen if the task was dispatched for a valid ID
+            logger.error(f"FormCheck ID {form_check_id} not found during finalization.")
+            # Depending on policy, could raise, or just log and exit.
+            # If we can't find it, can't update it.
+            raise NotFoundException(f"FormCheck ID {form_check_id} not found during finalization.")
 
-    # Add a few more methods used in tests
-    def validate_video_format(self, video, filename: str) -> None:
-        """Validate video format.
-        
-        Args:
-            video: Video file-like object
-            filename: Video filename
-            
-        Raises:
-            ValidationError: If format is invalid
-        """
-        valid_formats = ['.mp4', '.avi', '.mov', '.mkv']
-        file_ext = os.path.splitext(filename)[1].lower()
-        if file_ext not in valid_formats:
-            raise ValidationError(f"Invalid video format: {file_ext}. Supported formats: {', '.join(valid_formats)}")
-            
-    def validate_video_size(self, video) -> None:
-        """Validate video size.
-        
-        Args:
-            video: Video file-like object
-            
-        Raises:
-            ValidationError: If size exceeds limits
-        """
-        # Save current position
-        current_pos = video.tell()
-        
-        # Go to end of file to get size
-        video.seek(0, os.SEEK_END)
-        size = video.tell()
-        
-        # Restore position
-        video.seek(current_pos)
-        
-        if size > settings.MAX_CONTENT_LENGTH:
-            max_mb = settings.MAX_CONTENT_LENGTH / (1024 * 1024)
-            raise ValidationError(f"Video size exceeds maximum limit of {max_mb} MB")
-            
-    def handle_processing_error(self, form_check, error_message: str) -> None:
-        """Handle processing error.
-        
-        Args:
-            form_check: Form check object
-            error_message: Error message
-        """
-        form_check.status = "ERROR"
-        form_check.error_message = error_message
-        self.db.commit()
-        
-    def process_form_check_async(self, form_check) -> None:
-        """Process form check asynchronously.
-        
-        Args:
-            form_check: Form check object
-        """
-        # This would normally queue a background task
-        # but for testing purposes, we'll process immediately
-        
-        # Mock analysis
-        analysis = {
-            "score": 8.5,
-            "overall_feedback": "Good form overall",
-            "issues": [
-                {"timestamp": 1.5, "description": "Slight knee valgus"},
-                {"timestamp": 3.0, "description": "Back not straight"}
-            ]
+        update_payload = {
+            "status": status,
+            "score": analysis_results.get("score"),
+            "summary": "\n".join(analysis_results.get("feedback", [])), # Or a more structured summary
+            "details": { # Storing raw/additional details from AI service
+                "risk_level": analysis_results.get("risk_level"),
+                "raw_feedback_strings": analysis_results.get("feedback", []),
+                "model_version": analysis_results.get("model_version", "unknown") # Example additional detail
+            },
+            "analysis_completed_at": datetime.utcnow()
         }
         
-        # Update form check
-        form_check.score = analysis["score"]
-        form_check.overall_feedback = analysis["overall_feedback"]
-        form_check.status = "COMPLETED"
+        if status == FormCheckStatus.ERROR:
+            update_payload["error_details"] = analysis_results.get("error_message", "Analysis failed due to an unknown error.")
+
+        updated_form_check = await super().update_async(db_obj=form_check, obj_in=update_payload)
+
+        # Delete old FeedbackItems and create new ones
+        logger.info(f"Deleting existing feedback items for FormCheck ID {form_check_id}")
+        await self.db.execute(sqlalchemy_delete(FeedbackItem).where(FeedbackItem.form_check_id == form_check_id))
+        # The commit for this deletion will happen after adding new items or at end of service method call if using session context manager
+
+        created_feedback_items_count = 0
+        if status == FormCheckStatus.COMPLETED and "feedback_structured" in analysis_results:
+            structured_feedback_list = analysis_results.get("feedback_structured", [])
+            logger.info(f"Creating {len(structured_feedback_list)} new feedback items for FormCheck ID {form_check_id}")
+            for item_data in structured_feedback_list:
+                try:
+                    feedback_item_create_schema = FeedbackItemCreate(
+                        form_check_id=updated_form_check.id,
+                        is_ai_generated=True, # Assuming these are from AI
+                        **item_data # type, message, timestamp, severity, suggestions, joint_angles etc.
+                    )
+                    fb_item_model = FeedbackItem(**feedback_item_create_schema.model_dump())
+                    self.db.add(fb_item_model)
+                    created_feedback_items_count += 1
+                except Exception as e_fb_create:
+                    logger.error(f"Error creating structured FeedbackItem for FC {updated_form_check.id}: {e_fb_create}. Data: {item_data}", exc_info=True)
         
-        self.db.commit()
+        await self.db.commit() # Commit FormCheck update and new/deleted FeedbackItems
+        logger.info(f"Successfully finalized analysis for FormCheck ID {form_check_id}. Created {created_feedback_items_count} feedback items.")
+
+        # Refresh to load relationships if needed by the response schema
+        await self.db.refresh(updated_form_check, attribute_names=['feedback_items'])
         
-        # If ai_service was provided (for tests)
-        if self.ai_service:
-            self.ai_service.analyze_form.assert_called_once()
+        # Handle caching if applicable (example from existing FCS code)
+        if self.cache_service and status == FormCheckStatus.COMPLETED:
+            # Assuming video_hash can be derived or is part of analysis_results or form_check
+            # For example, if AIService adds a video_hash to its results:
+            video_hash = analysis_results.get("video_hash") 
+            if not video_hash and updated_form_check.details and isinstance(updated_form_check.details, dict):
+                 video_hash = updated_form_check.details.get("video_file_hash") # Or however it's stored
+
+            if video_hash:
+                # Prepare data for caching, might be the analysis_results itself or a specific format
+                cacheable_results = {
+                    "score": updated_form_check.score,
+                    "summary": updated_form_check.summary,
+                    "details": updated_form_check.details,
+                    "feedback_items": [FeedbackItemResponse.from_orm(fi).model_dump() for fi in updated_form_check.feedback_items]
+                }
+                await self.cache_analysis_results(video_hash, cacheable_results)
+            else:
+                logger.warning(f"Video hash not available for FormCheck ID {form_check_id}, skipping caching.")
+
+        return self.response_schema.from_orm(updated_form_check)
+
+    async def get_form_check_details(self, form_check_id: UUID, user_id: UUID, is_superuser: bool) -> Optional[FormCheckResponse]:
+        form_check = await super().get_async(id=form_check_id)
+        if not form_check:
+            return None
+        
+        if form_check.user_id != user_id and not is_superuser:
+            raise PermissionDeniedException("Not authorized to view this form check.")
+        return self.response_schema.from_orm(form_check)
+
+    async def list_user_form_checks(
+        self,
+        user_id: UUID,
+        status_filter: Optional[FormCheckStatus] = None,
+        exercise_id_filter: Optional[UUID] = None,
+        skip: int = 0,
+        limit: int = 10
+    ) -> List[FormCheckResponse]:
+        filters = [FormCheck.user_id == user_id]
+        if status_filter:
+            filters.append(FormCheck.status == status_filter)
+        if exercise_id_filter:
+            filters.append(FormCheck.exercise_id == exercise_id_filter)
+        
+        form_checks_db = await super().get_multi_async(
+            filters=filters,
+            skip=skip,
+            limit=limit,
+            order_by=FormCheck.created_at.desc()
+        )
+        return [self.response_schema.from_orm(fc) for fc in form_checks_db]
+
+    async def create_form_check_with_url(
+        self,
+        user_id: UUID,
+        video_url: str,
+        exercise_id: UUID,
+        notes: Optional[str] = None,
+        status: FormCheckStatus = FormCheckStatus.PENDING
+    ) -> FormCheckResponse:
+        create_schema = FormCheckCreate(
+            user_id=user_id,
+            video_url=video_url,
+            exercise_id=exercise_id,
+            notes=notes,
+            status=status 
+        )
+        new_form_check_db = await super().create_async(obj_in=create_schema)
+        return self.response_schema.from_orm(new_form_check_db)
+
+    async def delete_form_check_record(
+        self,
+        form_check_id: UUID,
+        user_id: UUID,
+        is_superuser: bool,
+        delete_associated_file: bool = True # Default to true for file deletion
+    ) -> None:
+        form_check = await super().get_async(id=form_check_id)
+        if not form_check:
+            raise NotFoundException("FormCheck not found.")
+
+        if form_check.user_id != user_id and not is_superuser:
+            raise PermissionDeniedException("Not authorized to delete this form check.")
+
+        video_url_to_delete = form_check.video_url
+        
+        # Delete related FeedbackItems first
+        stmt_delete_feedback = sqlalchemy_delete(FeedbackItem).where(FeedbackItem.form_check_id == form_check_id)
+        await self.db.execute(stmt_delete_feedback)
+        # No separate commit here, will be part of the transaction with FormCheck deletion or committed after.
+
+        deleted_fc_db_obj = await super().remove_async(id=form_check_id) # remove_async should handle its own commit for FormCheck.
+        
+        if not deleted_fc_db_obj: # Check if remove_async was successful
+            # This case implies that the FormCheck was found by get_async but remove_async failed to delete it
+            # or returned None indicating it couldn't find it (which would be strange here).
+            # Consider rolling back feedback deletion if formcheck deletion fails and not cascaded by DB.
+            # However, BaseService.remove_async should raise an error if deletion fails after finding.
+            # If it returns None because it re-fetched and couldn't find, that's an edge case.
+            logger.error(f"FormCheck {form_check_id} was found but remove_async failed or returned None.")
+            # Attempt to commit feedback deletion if super().remove_async doesn't commit or failed before commit.
+            # This part is a bit tricky depending on BaseService's transaction handling.
+            # For now, assume remove_async either succeeds and commits, or raises an error.
+            # If it returns None on failure to find (after initial find), then feedback items might be deleted without formcheck.
+            # To be safe, commit feedback deletion explicitly if formcheck deletion is confirmed OR handle transactions more globally.
+            # For now, we commit everything at the end if file deletion is also attempted.
+            pass # Let errors from remove_async propagate if it raises them.
+
+        if delete_associated_file and video_url_to_delete:
+            try:
+                await core_delete_video(video_url_to_delete) 
+                logger.info(f"Deleted video file {video_url_to_delete} for form check {form_check_id}")
+            except Exception as e_storage:
+                logger.error(f"Failed to delete video file {video_url_to_delete} for form check {form_check_id}: {e_storage}. DB record was deleted.")
+                # Consider if this should re-raise or just log, as DB part is done.
+
+        # Commit FeedbackItem deletions if not handled by remove_async transaction scope
+        # BaseService.remove_async likely commits for its own model.
+        # We need to ensure FeedbackItem deletions are committed.
+        await self.db.commit() # Commit FeedbackItem deletions and potentially FormCheck if super().remove_async doesn't
+
+    async def complete_form_check_analysis_manually(
+        self,
+        form_check_id: UUID,
+        user_id: UUID,
+        is_superuser: bool,
+        summary: str,
+        overall_score: float,
+        status_val: FormCheckStatus = FormCheckStatus.COMPLETED
+    ) -> FormCheckResponse:
+        form_check = await super().get_async(id=form_check_id)
+        if not form_check:
+            raise NotFoundException("FormCheck not found.")
+        if form_check.user_id != user_id and not is_superuser:
+            raise PermissionDeniedException("Not authorized to complete this form check analysis.")
+
+        # FormCheckUpdate schema from file: video_url, exercise_id, status, overall_feedback, score
+        update_payload = FormCheckUpdate(
+            status=status_val,
+            overall_feedback=summary,
+            score=overall_score
+        )
+        updated_fc = await super().update_async(id=form_check_id, obj_in=update_payload)
+        if not updated_fc: 
+            raise ServerErrorException("Failed to update FormCheck for manual completion.")
+        
+        return self.response_schema.from_orm(updated_fc)
+
+    async def add_feedback_item_to_form_check(self, form_check_id: UUID, feedback_data: FeedbackItemCreate) -> FeedbackItemResponse:
+        # Ensure the FormCheck record exists to associate with
+        form_check = await super().get_async(id=form_check_id)
+        if not form_check:
+            raise NotFoundException(f"FormCheck with ID {form_check_id} not found. Cannot add feedback item.")
+        
+        # Validate payload form_check_id if it exists in FeedbackItemCreate, though it's often path-derived
+        # For now, assuming FeedbackItemCreate does not enforce form_check_id from payload if derived from path.
+        # Or, we ensure feedback_data (schema) is created with the correct form_check_id.
+        # The schema FeedbackItemCreate has form_check_id: UUID
+        if feedback_data.form_check_id != form_check_id:
+            raise ValidationError("Path form_check_id does not match form_check_id in payload")
+
+        new_item_model = FeedbackItem(**feedback_data.model_dump())
+        self.db.add(new_item_model)
+        await self.db.commit() # Commit this new item
+        await self.db.refresh(new_item_model) # Refresh to get DB-generated fields like ID
+        return FeedbackItemResponse.from_orm(new_item_model)
+
+    async def get_feedback_items_for_form_check(self, form_check_id: UUID) -> List[FeedbackItemResponse]:
+        stmt = select(FeedbackItem).filter(FeedbackItem.form_check_id == form_check_id).order_by(FeedbackItem.timestamp)
+        result = await self.db.execute(stmt)
+        items_db = result.scalars().all()
+        if not items_db:
+            return []
+        return [FeedbackItemResponse.from_orm(item) for item in items_db]
+
+    async def get_single_feedback_item(self, feedback_item_id: int) -> Optional[FeedbackItemResponse]: 
+        # FeedbackItem.id is an Integer in the model snippet
+        item_db = await self.db.get(FeedbackItem, feedback_item_id) # Use self.db.get for PK lookup
+        if not item_db:
+            return None
+        return FeedbackItemResponse.from_orm(item_db)
+
+    async def update_feedback_item(self, feedback_item_id: int, update_data: FeedbackItemUpdate) -> Optional[FeedbackItemResponse]:
+        item_db = await self.db.get(FeedbackItem, feedback_item_id)
+        if not item_db:
+            # Or raise NotFoundException(f"FeedbackItem with ID {feedback_item_id} not found.")
+            return None 
+
+        update_dict = update_data.model_dump(exclude_unset=True)
+        for key, value in update_dict.items():
+            setattr(item_db, key, value)
+        
+        self.db.add(item_db) # Add to session before commit
+        await self.db.commit()
+        await self.db.refresh(item_db)
+        return FeedbackItemResponse.from_orm(item_db)
+
+    async def delete_feedback_item(self, feedback_item_id: int) -> bool:
+        item_db = await self.db.get(FeedbackItem, feedback_item_id)
+        if not item_db:
+            return False # Or raise NotFoundException
+        
+        await self.db.delete(item_db)
+        await self.db.commit()
+        return True
+
+    async def get_cached_analysis(self, video_hash: str) -> Optional[Dict[str, Any]]:
+        if not self.cache_service or not await self.cache_service.is_available(): # Make is_available async if it involves IO
+            logger.debug("Cache service not available or not configured.")
+            return None
+        
+        cache_key = f"form_check_analysis:{video_hash}"
+        try:
+            cached_data = await self.cache_service.get(cache_key)
+            if cached_data:
+                logger.info(f"Retrieved cached analysis for video hash: {video_hash}")
+                return cached_data # Assuming it's stored as a dict
+            return None
+        except Exception as e:
+            logger.error(f"Error retrieving from cache for key {cache_key}: {e}", exc_info=True)
+            return None # Treat cache errors as a cache miss
+        
+    async def cache_analysis_results(self, video_hash: str, analysis_results: Dict[str, Any], ttl: int = 86400 * 7) -> None: # Cache for 7 days
+        if not self.cache_service or not await self.cache_service.is_available():
+            logger.debug("Cache service not available, skipping caching analysis results.")
+            return
+            
+        cache_key = f"form_check_analysis:{video_hash}"
+        try:
+            await self.cache_service.set(cache_key, analysis_results, expire=ttl)
+            logger.info(f"Cached analysis results for video hash: {video_hash}")
+        except Exception as e:
+            logger.error(f"Error caching analysis results for key {cache_key}: {e}", exc_info=True)
 
     async def get_user_form_checks(
         self,
@@ -716,3 +868,142 @@ class FormCheckService:
             logger.error(f"Error creating form check with URL: {str(e)}", exc_info=True)
             await self.db.rollback()
             raise Exception(f"Failed to create form check: {str(e)}")
+
+    async def list_user_form_checks_detailed(
+        self,
+        user_id: UUID,
+        skip: int = 0,
+        limit: int = 100,
+        exercise_id_filter: Optional[UUID] = None,
+        exercise_type_filter: Optional[ExerciseType] = None,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
+        status_filter: Optional[FormCheckStatus] = None # API sends string, convert before calling
+    ) -> List[FormCheck]: # Returns ORM models for API to convert to FormCheckDetailedResponse
+        """
+        Retrieves a list of form checks for a user with detailed information (exercise, feedback items)
+        eagerly loaded. Suitable for FormCheckDetailedResponse.
+        """
+        logger.info(
+            f"Listing detailed form checks for user {user_id} with filters: "
+            f"exercise_id={exercise_id_filter}, exercise_type={exercise_type_filter}, "
+            f"start_date={start_date}, end_date={end_date}, status={status_filter}, "
+            f"skip={skip}, limit={limit}"
+        )
+        
+        filter_conditions: List[ColumnElement] = []
+        if user_id:
+            filter_conditions.append(self.model.user_id == user_id)
+        if exercise_id_filter:
+            filter_conditions.append(self.model.exercise_id == exercise_id_filter)
+        
+        if start_date:
+            filter_conditions.append(self.model.created_at >= start_date)
+        if end_date:
+            # Make end_date inclusive for the whole day
+            inclusive_end_date = end_date + timedelta(days=1)
+            filter_conditions.append(self.model.created_at < inclusive_end_date)
+
+        if status_filter:
+            # Ensure status_filter is an enum instance; if it's a string, convert it.
+            # This should ideally be handled at the API layer or Pydantic model.
+            # For robustness here, let's assume it's already a FormCheckStatus enum instance.
+            status_condition = self.model.status == str(status_filter.value) # Explicit str cast
+            logger.info(f"FormCheckService: Adding status_condition: {str(status_condition)}")
+            logger.info(f"FormCheckService: status_filter.value type: {type(status_filter.value)}, value: {status_filter.value}")
+            logger.info(f"FormCheckService: self.model.status type: {type(self.model.status)}")
+            try:
+                compiled_status_condition = status_condition.compile(compile_kwargs={"literal_binds": True})
+                logger.info(f"FormCheckService: Compiled status_condition: {str(compiled_status_condition)}")
+            except Exception as e:
+                logger.error(f"FormCheckService: FAILED to compile status_condition: {e}")
+
+            filter_conditions.append(status_condition)
+
+        # Handling ExerciseType filter requires a join or subquery.
+        # For simplicity with BaseService.get_multi_async, if exercise_type_filter is present,
+        # we first fetch matching ExerciseTemplate IDs.
+        exercise_ids_for_type: Optional[List[UUID]] = None
+        if exercise_type_filter:
+            stmt_exercise_tpl = select(ExerciseTemplate.id).where(ExerciseTemplate.type == exercise_type_filter)
+            result_exercise_tpl = await self.db.execute(stmt_exercise_tpl)
+            exercise_ids_for_type = result_exercise_tpl.scalars().all()
+            if not exercise_ids_for_type:
+                logger.info(f"No ExerciseTemplates found for type {exercise_type_filter}, returning empty list for user {user_id}")
+                return [] # No exercises of this type, so no form checks
+            filter_conditions.append(self.model.exercise_id.in_(exercise_ids_for_type))
+
+        eager_loading_options = [
+            selectinload(self.model.exercise),      # Eager load ExerciseTemplate
+            selectinload(self.model.feedback_items) # Eager load FeedbackItems
+        ]
+
+        query = select(self.model).where(and_(*filter_conditions)).order_by(self.model.created_at.desc()).offset(skip).limit(limit)
+        
+        result = await self.db.execute(query)
+        return result.scalars().all()
+
+    async def get_or_create_form_check_for_video(
+        self, 
+        video_id: UUID, 
+        user_id: UUID, 
+        exercise_id: UUID # This should be the ExerciseTemplate.id
+    ) -> Optional[FormCheck]:
+        """
+        Retrieves an existing FormCheck for a given video_id, or creates a new one.
+        Ensures that a FormCheck is linked to the video for storing analysis results.
+        Args:
+            video_id: The ID of the video being analyzed.
+            user_id: The ID of the user who owns the video.
+            exercise_id: The ID of the exercise (ExerciseTemplate) associated with the video.
+        Returns:
+            The existing or newly created FormCheck ORM instance, or None if creation fails.
+        """
+        # Check if a FormCheck already exists for this video_id
+        stmt = select(self.model).where(self.model.video_id == video_id)
+        result = await self.db.execute(stmt)
+        existing_form_check = result.scalars().first()
+
+        if existing_form_check:
+            logger.info(f"Found existing FormCheck {existing_form_check.id} for video {video_id}.")
+            return existing_form_check
+        
+        # If not, create a new one
+        logger.info(f"No existing FormCheck for video {video_id}. Creating a new one.")
+        try:
+            form_check_create_data = FormCheckCreate(
+                user_id=user_id,
+                exercise_id=exercise_id, # This is ExerciseTemplate.id
+                video_id=video_id,
+                # video_url might be populated from video.url if needed, or left for FormCheckService to manage
+                status=FormCheckStatus.PENDING, # Initial status before analysis task runs its course
+                # Other fields like notes, score will be updated by the analysis task
+            )
+            new_form_check = await super().create_async(obj_in=form_check_create_data)
+            logger.info(f"Successfully created new FormCheck {new_form_check.id} for video {video_id}.")
+            return new_form_check
+        except Exception as e:
+            logger.error(f"Failed to create FormCheck for video {video_id}: {e}", exc_info=True)
+            return None
+
+async def get_async_form_check_service(
+    # db: AsyncSession = Depends(get_async_db), # MODIFIED: Removed Depends from signature
+    # settings: Settings = Depends(get_settings), # MODIFIED: Removed Depends from signature
+    storage_service: StorageService = Depends(StorageService),
+    ai_service: AIService = Depends(AIService),
+    cache_service_instance: CacheService = Depends(lambda: cache_service) # MODIFIED: use imported cache_service
+) -> FormCheckService:
+    from app.core.deps import get_async_db, get_settings # Local import
+    from fastapi import Depends # Ensure Depends is available
+
+    # Obtain db and settings using Depends with the locally imported functions
+    db: AsyncSession = Depends(get_async_db)
+    settings: Settings = Depends(get_settings)
+
+    return FormCheckService(
+        db=db, 
+        settings=settings, 
+        storage_service=storage_service, 
+        ai_service=ai_service,
+        cache_service=cache_service_instance
+    )

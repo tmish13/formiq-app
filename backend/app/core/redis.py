@@ -2,7 +2,9 @@
 from typing import Optional
 from redis import Redis
 from app.core.config import settings
-from app.core.logging import logger
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 redis_client: Optional[Redis] = None
 

@@ -8,6 +8,7 @@ from app.models.form_check import FormCheck, FeedbackItem
 from app.models.workout import Workout, Exercise, WorkoutPlan
 from app.models.subscription import Subscription
 from app.models.video import Video
+from app.models.user_session import UserSession
 
 # Ensure all models are imported and registered with Base.metadata
 __all__ = [
@@ -19,5 +20,6 @@ __all__ = [
     "Exercise", 
     "WorkoutPlan",
     "Subscription",
-    "Video"
+    "Video",
+    "UserSession"
 ] 

@@ -4,7 +4,7 @@ from types import ModuleType
 
 # Core imports that should always be available
 from app.core.config import settings
-from app.core.logging import logger
+from app.core.logging import get_logger
 from app.core.exceptions import ConfigurationException
 
 # Type definitions for static type checking
@@ -19,6 +19,8 @@ class TracerProvider(Protocol):
 # Global state with proper type hints
 _tracer_provider: Optional[Any] = None
 _trace_module: Optional[ModuleType] = None
+
+logger = get_logger(__name__)
 
 def _import_module(module_path: str) -> Optional[ModuleType]:
     """Safely import a module and return None if import fails."""

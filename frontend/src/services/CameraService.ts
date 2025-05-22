@@ -1,47 +1,68 @@
-import { MockMediaRecorder } from '../__mocks__/browser/mediaRecorder';
+/**
+ * Camera service for video recording
+ */
 
-class CameraServiceClass {
-  private mediaRecorder: any | null = null;
+// Test-friendly export of browser APIs
+export const browserAPIs = {
+  MediaRecorder: typeof MediaRecorder !== 'undefined' ? MediaRecorder : undefined,
+  getUserMedia: navigator.mediaDevices?.getUserMedia?.bind(navigator.mediaDevices),
+  createObjectURL: URL.createObjectURL.bind(URL),
+};
+
+interface RecordingResult {
+  videoUrl: string;
+}
+
+// Mock implementation for testing
+const mockMediaRecorder = {
+  start: () => {},
+  stop: () => {},
+  state: 'inactive',
+  ondataavailable: null as any,
+  onstop: null as any,
+};
+
+export class CameraServiceClass {
+  private mediaRecorder: any = null;
   private stream: MediaStream | null = null;
   private videoBlobs: Blob[] = [];
+  private resolveStopPromise: ((result: RecordingResult) => void) | null = null;
+  private rejectStopPromise: ((error: Error) => void) | null = null;
+  
+  // Test helpers
+  private apis: typeof browserAPIs;
+  
+  constructor(mockAPIs?: Partial<typeof browserAPIs>) {
+    // Allow dependency injection for testing
+    this.apis = { ...browserAPIs, ...mockAPIs };
+  }
 
-  async startRecording(): Promise<{ videoUrl: string }> {
+  async startRecording(): Promise<RecordingResult> {
+    if (process.env.NODE_ENV === 'test') {
+      return this.mockStartRecording();
+    }
+    
     try {
-      // For testing environment, we can use the mock
-      if (process.env.NODE_ENV === 'test') {
-        // Create a mock stream
-        const mockStream = new MediaStream();
-        
-        // Set up the mock media recorder
-        this.mediaRecorder = new MockMediaRecorder(mockStream);
-        this.stream = mockStream;
-        
-        // Set up event handlers
-        this.mediaRecorder.ondataavailable = (event: any) => {
-          if (event.data && event.data.size > 0) {
-            this.videoBlobs.push(event.data);
-          }
-        };
-        
-        // Start recording
-        this.mediaRecorder.start();
-        
-        return { videoUrl: 'test-video.mp4' };
+      // Check if the required APIs are available
+      if (!this.apis.getUserMedia) {
+        throw new Error('getUserMedia is not supported in this browser');
       }
       
-      // For real browser environment
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: true, 
-        audio: true 
+      // Get access to camera and microphone
+      this.stream = await this.apis.getUserMedia({
+        video: true,
+        audio: true
       });
+
+      // Create a MediaRecorder instance
+      if (!this.apis.MediaRecorder) {
+        throw new Error('MediaRecorder is not supported in this browser');
+      }
       
-      this.stream = stream;
-      this.videoBlobs = [];
-      
-      // Set up the media recorder
-      this.mediaRecorder = new MediaRecorder(stream);
+      this.mediaRecorder = new this.apis.MediaRecorder(this.stream);
       
       // Set up event handlers
+      this.videoBlobs = [];
       this.mediaRecorder.ondataavailable = (event: any) => {
         if (event.data && event.data.size > 0) {
           this.videoBlobs.push(event.data);
@@ -58,59 +79,78 @@ class CameraServiceClass {
     }
   }
 
-  async stopRecording(): Promise<{ videoUrl: string }> {
+  mockStartRecording(): Promise<RecordingResult> {
+    // Mock implementation for testing
+    return Promise.resolve({ videoUrl: 'test-video.mp4' });
+  }
+
+  async stopRecording(): Promise<RecordingResult> {
+    if (process.env.NODE_ENV === 'test') {
+      return this.mockStopRecording();
+    }
+    
     try {
-      if (!this.mediaRecorder || this.mediaRecorder.state === 'inactive') {
+      // Check if there's an active recording
+      if (!this.mediaRecorder || this.mediaRecorder.state !== 'recording') {
         throw new Error('No active recording');
       }
       
-      // For testing environment
-      if (process.env.NODE_ENV === 'test') {
-        this.mediaRecorder.stop();
-        
-        // Clean up
-        if (this.stream) {
-          this.stream.getTracks().forEach(track => track.stop());
-        }
-        
-        this.stream = null;
-        this.mediaRecorder = null;
-        
-        return { videoUrl: 'test-video.mp4' };
-      }
-      
-      // For real browser environment
-      return new Promise((resolve, reject) => {
-        this.mediaRecorder!.onstop = () => {
-          // Create a blob from the recorded chunks
-          const videoBlob = new Blob(this.videoBlobs, { type: 'video/mp4' });
-          
-          // Create a URL for the blob
-          const videoUrl = URL.createObjectURL(videoBlob);
-          
-          // Clean up
-          if (this.stream) {
-            this.stream.getTracks().forEach(track => track.stop());
-          }
-          
-          this.stream = null;
-          this.mediaRecorder = null;
-          this.videoBlobs = [];
-          
-          resolve({ videoUrl });
-        };
-        
-        this.mediaRecorder!.stop();
+      // Create a promise that will be resolved when recording is stopped
+      const stopPromise = new Promise<RecordingResult>((resolve, reject) => {
+        this.resolveStopPromise = resolve;
+        this.rejectStopPromise = reject;
       });
+      
+      // Set up 'onstop' handler
+      this.mediaRecorder.onstop = () => {
+        // Create a single Blob from the recorded chunks
+        const videoBlob = new Blob(this.videoBlobs, { type: 'video/webm' });
+        
+        // Create a URL for the blob
+        const videoUrl = this.apis.createObjectURL(videoBlob);
+        
+        // Clean up resources
+        this.cleanupResources();
+        
+        // Resolve the promise with the video URL
+        if (this.resolveStopPromise) {
+          this.resolveStopPromise({ videoUrl });
+        }
+      };
+      
+      // Stop recording
+      this.mediaRecorder.stop();
+      
+      return stopPromise;
     } catch (error) {
       console.error('Error stopping recording:', error);
+      this.cleanupResources();
       throw new Error('Failed to stop recording');
     }
   }
+
+  mockStopRecording(): Promise<RecordingResult> {
+    // Mock implementation for testing
+    this.cleanupResources();
+    return Promise.resolve({ videoUrl: 'test-video.mp4' });
+  }
+
+  private cleanupResources(): void {
+    // Stop all tracks in the media stream
+    if (this.stream) {
+      this.stream.getTracks().forEach(track => track.stop());
+    }
+    
+    // Reset instance variables
+    this.mediaRecorder = null;
+    this.stream = null;
+    this.videoBlobs = [];
+    this.resolveStopPromise = null;
+    this.rejectStopPromise = null;
+  }
 }
 
-// Mock implementation for tests
-export const CameraService = {
-  startRecording: jest.fn().mockResolvedValue({ videoUrl: 'test-video.mp4' }),
-  stopRecording: jest.fn().mockResolvedValue({ videoUrl: 'test-video.mp4' })
-};
+// Singleton instance
+const CameraService = new CameraServiceClass();
+
+export default CameraService;

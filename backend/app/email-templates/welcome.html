@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to FormIQ!</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .logo {
+            width: 120px;
+            height: auto;
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #3a86ff;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        .content {
+            margin-bottom: 30px;
+        }
+        .button {
+            display: inline-block;
+            background-color: #3a86ff;
+            color: white;
+            text-decoration: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            font-weight: bold;
+            margin: 20px 0;
+        }
+        .button:hover {
+            background-color: #2a6ed6;
+        }
+        .footer {
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+        .feature-box {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .feature-box h3 {
+            color: #3a86ff;
+            margin-top: 0;
+        }
+        .feature-icon {
+            font-size: 24px;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+        @media only screen and (max-width: 480px) {
+            body {
+                padding: 10px;
+            }
+            .container {
+                padding: 20px;
+            }
+            h1 {
+                font-size: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="https://formiq.com/assets/logo.png" alt="FormIQ Logo" class="logo">
+            <h1>Welcome to FormIQ!</h1>
+        </div>
+        
+        <div class="content">
+            <p>Hi {{ user.full_name or user.username }},</p>
+            
+            <p>Thank you for joining FormIQ! Your account has been successfully verified, and we're excited to help you improve your workout form and achieve your fitness goals.</p>
+            
+            <p style="text-align: center;">
+                <a href="{{ login_url }}" class="button">Start Using FormIQ</a>
+            </p>
+            
+            <h2>Getting Started</h2>
+            
+            <div class="feature-box">
+                <h3>📱 Upload Your First Workout Video</h3>
+                <p>Record a video of yourself performing an exercise and upload it to FormIQ for instant form analysis and personalized feedback.</p>
+            </div>
+            
+            <div class="feature-box">
+                <h3>📊 Track Your Progress</h3>
+                <p>Monitor your form improvements over time with our comprehensive tracking tools and analytics dashboard.</p>
+            </div>
+            
+            <div class="feature-box">
+                <h3>🎯 Set Fitness Goals</h3>
+                <p>Update your profile with your fitness goals, level, and preferences to get customized recommendations.</p>
+            </div>
+            
+            <p>If you have any questions or need assistance, our support team is always here to help. Just reply to this email!</p>
+        </div>
+        
+        <div class="footer">
+            <p>© {{ year }} FormIQ. All rights reserved.</p>
+            <p>123 Fitness Street, Exercise City, FT 12345</p>
+            <p>
+                <a href="https://formiq.com/terms">Terms of Service</a> | 
+                <a href="https://formiq.com/privacy">Privacy Policy</a> |
+                <a href="https://formiq.com/unsubscribe?email={{ user.email }}">Unsubscribe</a>
+            </p>
+        </div>
+    </div>
+</body>
+</html> 

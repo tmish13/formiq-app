@@ -1,3 +1,79 @@
+# Backend Test Suite Guide
+
+## Testing Philosophy
+
+- **Fail Fast, Isolate, and Integrate:**
+  - Unit tests should isolate logic and fail quickly on regressions.
+  - Integration tests should cover cross-service, pipeline, DB flows.
+  - E2E tests should simulate real user flows and critical backend journeys.
+- **Pipeline-Critical Coverage:**
+  - All AI/video pipeline and core business logic should have 80%+ coverage.
+- **Infra-Support:**
+  - Utilities, mocks, and fixtures should be reusable and minimal.
+
+## How to Run Tests
+
+### Unit Tests
+```bash
+pytest backend/tests/unit/
+```
+
+### Integration Tests
+```bash
+pytest backend/tests/integration/
+```
+
+### End-to-End (E2E) Tests
+```bash
+pytest backend/tests/e2e/
+```
+
+### All Tests
+```bash
+pytest backend/tests/
+```
+
+### Performance/Load Tests
+```bash
+pytest backend/tests/performance/
+# or
+locust -f backend/tests/locustfile.py
+```
+
+## Structure Overview
+
+```
+backend/tests/
+├── unit/           # Isolated logic, models, security, storage, etc.
+├── integration/    # Cross-service, pipeline, Celery, S3, DB flows
+├── api/            # API endpoint tests
+├── analysis/       # AI and form analysis tests
+├── services/       # Service-layer tests
+├── videos/         # Video processing and service tests
+├── storage/        # Storage service tests
+├── email/          # Email service tests
+├── users/          # User service tests
+├── auth/           # Auth service tests
+├── performance/    # Load and performance tests
+├── e2e/            # End-to-end user flow tests
+├── utils/          # Fixtures, factories, test infra
+├── mocks/          # Mock objects/context managers
+├── README.md       # (This file)
+├── .env.test       # Test environment variables
+├── test_schema_upgrade.py # DB migration test
+├── locustfile.py   # Load test entrypoint
+└── ...
+```
+
+## Coverage Expectations
+
+- **Pipeline-Critical:** 80%+ coverage required (AI, video, core business logic)
+- **API/Service:** 70%+ coverage recommended
+- **Infra/Support:** As needed for reliability
+- **E2E:** Cover all critical user journeys
+
+## Database Testing Details
+
 # Database Testing Guide
 
 This document explains how to use the various database testing approaches in this codebase, including the recent fixes for mapper initialization and test database setup.

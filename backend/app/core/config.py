@@ -35,6 +35,9 @@ import logging
 import json
 from cryptography.fernet import Fernet
 
+BASE_DIR = Path(__file__).resolve().parent.parent.parent # Should be backend/
+logger = logging.getLogger(__name__)
+
 # Load environment variables
 def load_environment():
     """
@@ -122,12 +125,16 @@ class Settings(BaseSettings):
         description="Sentry DSN URL for error reporting"
     )
     SENTRY_ENVIRONMENT: str = Field(
-        default=os.getenv("SENTRY_ENVIRONMENT", "production"),
+        default=os.getenv("SENTRY_ENVIRONMENT", os.getenv("ENVIRONMENT", "development")),
         description="Sentry environment name"
     )
     SENTRY_TRACES_SAMPLE_RATE: float = Field(
         default=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1")),
         description="Sentry traces sample rate"
+    )
+    SENTRY_ENABLED_IN_DEVELOPMENT: bool = Field(
+        default=os.getenv("SENTRY_ENABLED_IN_DEVELOPMENT", "false").lower() == "true",
+        description="Enable Sentry error reporting in the development environment"
     )
     
     @field_validator("SENTRY_DSN")
@@ -159,11 +166,15 @@ class Settings(BaseSettings):
     SECRET_KEY: str = Field(
         default=os.getenv("SECRET_KEY", secrets.token_urlsafe(32)),
         min_length=32,
-        description="Secret key for JWT and other cryptographic operations"
+        description="Primary secret key for non-JWT cryptographic operations (e.g., CSRF, message signing). Must be strong."
     )
     ENCRYPTION_KEY: str = Field(
         default=os.getenv("ENCRYPTION_KEY", DEFAULT_ENCRYPTION_KEY),
-        description="Encryption key for sensitive data"
+        description="Encryption key for sensitive data using Fernet (e.g., PII). Must be a valid Fernet key."
+    )
+    REQUIRE_ENCRYPTION_KEY_IN_PROD: bool = Field(
+        default=os.getenv("REQUIRE_ENCRYPTION_KEY_IN_PROD", "false").lower() == "true",
+        description="If true, application will fail to start in production if ENCRYPTION_KEY is invalid or not set."
     )
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(
         default=60 * 24,  # 24 hours
@@ -214,7 +225,7 @@ class Settings(BaseSettings):
 
     # Database
     POSTGRES_SERVER: str = Field(
-        default=os.getenv("POSTGRES_SERVER", "localhost"),
+        default=os.getenv("POSTGRES_SERVER", "db"),
         description="PostgreSQL server hostname"
     )
     POSTGRES_USER: str = Field(
@@ -229,9 +240,17 @@ class Settings(BaseSettings):
         default=os.getenv("POSTGRES_DB", "formiq"),
         description="PostgreSQL database name"
     )
+    TEST_DATABASE_URL: Optional[str] = Field(
+        default=None, 
+        description="Database URI for test environment (loaded from .env.test)"
+    )
     SQLALCHEMY_DATABASE_URI: Optional[str] = Field(
         default=None,
-        description="SQLAlchemy database URI"
+        description="SQLAlchemy database URI (for synchronous operations if any)"
+    )
+    ASYNC_DATABASE_URL: Optional[str] = Field(
+        default=None,
+        description="Asynchronous database URI (e.g., postgresql+asyncpg or sqlite+aiosqlite for test)"
     )
     
     @field_validator("SQLALCHEMY_DATABASE_URI", mode="before")
@@ -239,44 +258,82 @@ class Settings(BaseSettings):
     def assemble_db_connection(cls, v: Optional[str], info) -> str:
         """
         Assemble database connection URI from components or use the provided one.
+        Prioritizes TEST_DATABASE_URL (synchronous version) for test environment.
         """
-        if v:
+        current_env = info.data.get("ENVIRONMENT") or os.getenv("ENVIRONMENT", "development")
+        test_db_url_from_env = info.data.get("TEST_DATABASE_URL") # Loaded from .env.test
+
+        if current_env == "test":
+            if test_db_url_from_env:
+                # Use the synchronous part for alembic if TEST_DATABASE_URL is sqlite+aiosqlite
+                sync_url = test_db_url_from_env.replace("+aiosqlite", "")
+                print(f"CONFIG/TEST: Using synchronous test DB URL: {sync_url}")
+                return sync_url
+            # Fallback if not in .env.test 
+            print("CONFIG/TEST: Using fallback synchronous test DB URL: sqlite:///./test.db")
+            return "sqlite:///./test.db" 
+        
+        if v: # If SQLALCHEMY_DATABASE_URI is explicitly set in env for non-test, use it
+             print(f"CONFIG/NON-TEST: Using explicit SQLALCHEMY_DATABASE_URI: {v}")
+             return v
+        
+        # For non-test environments, assemble PostgreSQL URL
+        user = info.data.get("POSTGRES_USER") or os.getenv("POSTGRES_USER", "postgres")
+        password = info.data.get("POSTGRES_PASSWORD") or os.getenv("POSTGRES_PASSWORD", "")
+        server = info.data.get("POSTGRES_SERVER") or os.getenv("POSTGRES_SERVER", "db")
+        db_name = info.data.get("POSTGRES_DB") or os.getenv("POSTGRES_DB", "formiq")
+        pg_url = f"postgresql://{user}:{password}@{server}/{db_name}"
+        print(f"CONFIG/NON-TEST: Assembled PostgreSQL URL: {pg_url}")
+        return pg_url
+    
+    @field_validator("ASYNC_DATABASE_URL", mode="before")
+    @classmethod
+    def assemble_async_db_connection(cls, v: Optional[str], info) -> Optional[str]:
+        """
+        Assemble async database connection URI.
+        Prioritizes TEST_DATABASE_URL for test environment.
+        """
+        current_env = info.data.get("ENVIRONMENT") or os.getenv("ENVIRONMENT", "development")
+        test_db_url_from_env = info.data.get("TEST_DATABASE_URL") # Loaded from .env.test
+
+        if current_env == "test":
+            if test_db_url_from_env:
+                print(f"CONFIG/TEST: Using async test DB URL from TEST_DATABASE_URL: {test_db_url_from_env}")
+                return test_db_url_from_env # Should be sqlite+aiosqlite:///./test.db
+            # Fallback if not in .env.test
+            print("CONFIG/TEST: Using fallback async test DB URL: sqlite+aiosqlite:///./test.db")
+            return "sqlite+aiosqlite:///./test.db" 
+
+        if v: # If ASYNC_DATABASE_URL is explicitly set in env for non-test, use it
+            print(f"CONFIG/NON-TEST: Using explicit ASYNC_DATABASE_URL: {v}")
             return v
-            
-        # Get values from the data object
-        env = info.data.get("ENVIRONMENT", "")
         
-        # Use SQLite for test and development environments for simplicity
-        if env in ["test", "development"]:
-            db_name = "test.db" if env == "test" else "dev.db"
-            return f"sqlite:///./{db_name}"
-        
-        # Use direct string formatting to ensure correct URI structure
-        user = info.data.get("POSTGRES_USER", "")
-        password = info.data.get("POSTGRES_PASSWORD", "")
-        server = info.data.get("POSTGRES_SERVER", "")
-        db = info.data.get("POSTGRES_DB", "")
-        
-        # Construct connection string manually to avoid path formatting issues
-        return f"postgresql://{user}:{password}@{server}/{db}"
+        # For non-test environments, assemble async PostgreSQL URL
+        user = info.data.get("POSTGRES_USER") or os.getenv("POSTGRES_USER", "postgres")
+        password = info.data.get("POSTGRES_PASSWORD") or os.getenv("POSTGRES_PASSWORD", "")
+        server = info.data.get("POSTGRES_SERVER") or os.getenv("POSTGRES_SERVER", "db")
+        db_name = info.data.get("POSTGRES_DB") or os.getenv("POSTGRES_DB", "formiq")
+        async_pg_url = f"postgresql+asyncpg://{user}:{password}@{server}:5432/{db_name}"
+        print(f"CONFIG/NON-TEST: Assembled async PostgreSQL URL: {async_pg_url}")
+        return async_pg_url
     
     DB_ECHO: bool = Field(
         default=os.getenv("DB_ECHO", "false").lower() == "true",
         description="Enable SQLAlchemy query logging"
     )
-    DB_POOL_SIZE: int = Field(
+    DB_POOL_SIZE: Optional[int] = Field(
         default=safe_int(os.getenv("DB_POOL_SIZE"), 20) if not os.getenv("SQLALCHEMY_DATABASE_URI", "").startswith("sqlite") else None,
         description="Database connection pool size"
     )
-    DB_MAX_OVERFLOW: int = Field(
+    DB_MAX_OVERFLOW: Optional[int] = Field(
         default=safe_int(os.getenv("DB_MAX_OVERFLOW"), 30) if not os.getenv("SQLALCHEMY_DATABASE_URI", "").startswith("sqlite") else None,
         description="Maximum overflow connections in the pool"
     )
-    DB_POOL_TIMEOUT: int = Field(
+    DB_POOL_TIMEOUT: Optional[int] = Field(
         default=safe_int(os.getenv("DB_POOL_TIMEOUT"), 60) if not os.getenv("SQLALCHEMY_DATABASE_URI", "").startswith("sqlite") else None,
         description="Connection pool timeout in seconds"
     )
-    DB_POOL_RECYCLE: int = Field(
+    DB_POOL_RECYCLE: Optional[int] = Field(
         default=safe_int(os.getenv("DB_POOL_RECYCLE"), 1800) if not os.getenv("SQLALCHEMY_DATABASE_URI", "").startswith("sqlite") else None,  # 30 minutes
         description="Connection recycle time in seconds"
     )
@@ -324,6 +381,36 @@ class Settings(BaseSettings):
         auth = f":{password}@" if password else ""
         
         return f"redis://{auth}{host}:{port}/{db}"
+
+    # Celery Configuration
+    CELERY_BROKER_URL: str = Field(
+        default=os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0"),
+        description="URL for the Celery message broker."
+    )
+    CELERY_RESULT_BACKEND: Optional[str] = Field(
+        default=os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/1"),
+        description="URL for the Celery result backend (optional)."
+    )
+    CELERY_SHARED_DATA_PATH: str = Field(
+        default=os.getenv("CELERY_SHARED_DATA_PATH", "/tmp/formiq_celery_shared"),
+        description="Shared filesystem path for Celery tasks to exchange large data."
+    )
+    CELERY_TASK_ALWAYS_EAGER: bool = Field(
+        default=os.getenv("CELERY_TASK_ALWAYS_EAGER", "false").lower() == "true",
+        description="If true, Celery tasks execute locally, useful for testing."
+    )
+    CELERY_MAX_RETRIES: int = Field(
+        default=safe_int(os.getenv("CELERY_MAX_RETRIES"), 3),
+        description="Maximum number of retries for a Celery task."
+    )
+    CELERY_RETRY_COUNTDOWN: int = Field(
+        default=safe_int(os.getenv("CELERY_RETRY_COUNTDOWN"), 60), # Default to 60 seconds
+        description="Default countdown in seconds before retrying a Celery task."
+    )
+    TIMEZONE: str = Field(
+        default=os.getenv("TIMEZONE", "UTC"),
+        description="Application timezone."
+    )
 
     # Storage
     UPLOAD_DIR: str = Field(
@@ -395,35 +482,80 @@ class Settings(BaseSettings):
         description="Stripe price ID for premium plan"
     )
     
-    # SMTP Settings
-    SMTP_HOST: str = Field(
-        default=os.getenv("SMTP_HOST", "smtp.gmail.com"),
-        description="SMTP server hostname"
+    # SMTP Settings / Email Configuration for fastapi-mail
+    MAIL_SERVER: str = Field(
+        default=os.getenv("MAIL_SERVER", os.getenv("SMTP_HOST", "smtp.gmail.com")),
+        description="SMTP server hostname for fastapi-mail"
     )
-    SMTP_PORT: int = Field(
-        default=safe_int(os.getenv("SMTP_PORT"), 587),
-        description="SMTP server port"
+    MAIL_PORT: int = Field(
+        default=safe_int(os.getenv("MAIL_PORT", os.getenv("SMTP_PORT")), 587),
+        description="SMTP server port for fastapi-mail"
     )
-    SMTP_USER: str = Field(
-        default=os.getenv("SMTP_USER", ""),
-        description="SMTP username"
+    MAIL_USERNAME: str = Field(
+        default=os.getenv("MAIL_USERNAME", os.getenv("SMTP_USER", "")),
+        description="SMTP username for fastapi-mail"
     )
-    SMTP_PASSWORD: str = Field(
-        default=os.getenv("SMTP_PASSWORD", ""),
-        description="SMTP password"
+    MAIL_PASSWORD: SecretStr = Field(
+        default=SecretStr(os.getenv("MAIL_PASSWORD", os.getenv("SMTP_PASSWORD", ""))),
+        description="SMTP password for fastapi-mail"
     )
-    SMTP_TLS: bool = Field(
-        default=os.getenv("SMTP_TLS", "true").lower() == "true",
-        description="Enable SMTP TLS"
+    MAIL_FROM_EMAIL: str = Field( # Used as MAIL_FROM by ConnectionConfig
+        default=os.getenv("MAIL_FROM_EMAIL", os.getenv("SMTP_FROM_EMAIL", "noreply@formiq.app")),
+        description="Sender email address for fastapi-mail"
     )
-    SMTP_FROM_EMAIL: str = Field(
-        default=os.getenv("SMTP_FROM_EMAIL", "noreply@formiq.app"),
-        description="From email address"
+    MAIL_FROM_NAME: Optional[str] = Field(
+        default=os.getenv("MAIL_FROM_NAME", os.getenv("SMTP_FROM_NAME")),
+        description="Sender name for fastapi-mail (optional)"
     )
-    SMTP_USERNAME: str = Field(
-        default_factory=lambda: os.getenv("SMTP_USERNAME", os.getenv("SMTP_USER", "")),
-        description="Alias for SMTP_USER"
+    MAIL_STARTTLS: bool = Field(
+        default=(os.getenv("MAIL_STARTTLS", os.getenv("SMTP_TLS", "true")).lower() == "true"),
+        description="Enable STARTTLS for fastapi-mail"
     )
+    MAIL_SSL_TLS: bool = Field(
+        default=(os.getenv("MAIL_SSL_TLS", "false").lower() == "true"),
+        description="Enable SSL/TLS for fastapi-mail"
+    )
+    MAIL_USE_CREDENTIALS: bool = Field(
+        default=(os.getenv("MAIL_USE_CREDENTIALS", "true").lower() == "true"),
+        description="Use credentials for fastapi-mail"
+    )
+    MAIL_VALIDATE_CERTS: bool = Field(
+        default=(os.getenv("MAIL_VALIDATE_CERTS", "true").lower() == "true"),
+        description="Validate certificates for fastapi-mail"
+    )
+    EMAIL_TEMPLATES_DIR: Path = Field(
+        default="app/templates/email", # Default to relative, validator will absolutize
+        description="Directory for email templates"
+    )
+    
+    @field_validator("EMAIL_TEMPLATES_DIR", mode="before")
+    @classmethod
+    def absolutize_template_dir(cls, v: Union[str, Path]) -> Path:
+        # logger.debug(f"Current environment for EMAIL_TEMPLATES_DIR validation: {info.data.get('ENVIRONMENT')}") # Commented out/removed
+
+        # if str(info.data.get("ENVIRONMENT")).lower() == "test": 
+        #     test_templates_dir = Path(__file__).resolve().parent.parent 
+        #     logger.debug(f"TEST ENV: Overriding EMAIL_TEMPLATES_DIR to: {test_templates_dir} which is backend/app/")
+        #     logger.debug(f"Check from config.py for {test_templates_dir}: Exists: {test_templates_dir.exists()}, Is Dir: {test_templates_dir.is_dir()}")
+        #     return test_templates_dir
+
+        # Original logic restored
+        path = Path(v)
+        if not path.is_absolute():
+            # BASE_DIR is defined at the module level
+            logger.debug(f"EMAIL_TEMPLATES_DIR: Resolving relative path '{v}' against BASE_DIR '{BASE_DIR}'")
+            abs_path = (BASE_DIR / path).resolve()
+            logger.debug(f"EMAIL_TEMPLATES_DIR: Resolved to absolute path '{abs_path}'")
+            return abs_path
+        resolved_path = path.resolve()
+        logger.debug(f"EMAIL_TEMPLATES_DIR: Using absolute path '{resolved_path}'")
+        return resolved_path
+
+    # Old SMTP_USERNAME alias is no longer needed as MAIL_USERNAME covers it.
+    # SMTP_USERNAME: str = Field(
+    #     default_factory=lambda: os.getenv("SMTP_USERNAME", os.getenv("SMTP_USER", "")),
+    #     description="Alias for SMTP_USER"
+    # )
     
     # Rate Limiting
     RATE_LIMIT_REQUESTS: int = Field(
@@ -440,7 +572,39 @@ class Settings(BaseSettings):
     )
     RATE_LIMIT_PER_MINUTE: int = Field(
         default=safe_int(os.getenv("RATE_LIMIT_PER_MINUTE"), 60),
-        description="Rate limit requests per minute"
+        description="Rate limit requests per minute (potentially redundant, review usage)"
+    )
+    RATE_LIMIT_RULES: Dict[str, Dict[str, int]] = Field(
+        default_factory=lambda: json.loads(os.getenv("RATE_LIMIT_RULES", "{}")),
+        description="Specific rate limits for endpoints, e.g., {\"/api/v1/auth/login\": {\"limit\": 5, \"window\": 60}}"
+    )
+    RATE_LIMIT_EXCLUDE_PATHS: List[str] = Field(
+        default_factory=lambda: json.loads(os.getenv("RATE_LIMIT_EXCLUDE_PATHS", '["/health", "/metrics", "/docs", "/redoc", "/openapi.json"]')),
+        description="Paths to exclude from API rate limiting"
+    )
+    EMAIL_VERIFICATION_RATE_LIMIT: int = Field(
+        default=safe_int(os.getenv("EMAIL_VERIFICATION_RATE_LIMIT"), 3),
+        description="Rate limit for email verification requests per window (e.g., per hour)"
+    )
+    EMAIL_VERIFICATION_WINDOW: int = Field(
+        default=safe_int(os.getenv("EMAIL_VERIFICATION_WINDOW"), 3600),  # 1 hour in seconds
+        description="Window in seconds for email verification rate limit"
+    )
+    EMAIL_PASSWORD_RESET_RATE_LIMIT: int = Field(
+        default=safe_int(os.getenv("EMAIL_PASSWORD_RESET_RATE_LIMIT"), 3),
+        description="Rate limit for password reset requests per window"
+    )
+    EMAIL_PASSWORD_RESET_WINDOW: int = Field(
+        default=safe_int(os.getenv("EMAIL_PASSWORD_RESET_WINDOW"), 3600),
+        description="Window in seconds for password reset rate limit (default 1 hour)"
+    )
+    EMAIL_NOTIFICATION_RATE_LIMIT: int = Field(
+        default=safe_int(os.getenv("EMAIL_NOTIFICATION_RATE_LIMIT"), 5),
+        description="Rate limit for general email notifications per window"
+    )
+    EMAIL_NOTIFICATION_WINDOW: int = Field(
+        default=safe_int(os.getenv("EMAIL_NOTIFICATION_WINDOW"), 3600),  # 1 hour in seconds
+        description="Window in seconds for email notification rate limit"
     )
     RATE_LIMIT_ENABLED: bool = Field(
         default=os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "true",
@@ -455,7 +619,7 @@ class Settings(BaseSettings):
     JWT_SECRET: str = Field(
         default=os.getenv("JWT_SECRET", secrets.token_urlsafe(32)),
         min_length=32,
-        description="Secret key for JWT tokens"
+        description="Secret key dedicated to JWT signing and verification. Must be strong."
     )
 
     @field_validator("JWT_SECRET")
@@ -467,10 +631,14 @@ class Settings(BaseSettings):
         return v
         
     JWT_ALGORITHM: str = Field(
-        default=os.getenv("JWT_ALGORITHM", "HS256"),
-        description="Algorithm for JWT token signing"
+        default=DEFAULT_ALGORITHM,
+        description="Algorithm used for JWT token signing (e.g., HS256)"
     )
     
+    # Note: We use standard JWT token authentication with tokens stored in localStorage
+    # This is suitable for both web and mobile applications without the need for HttpOnly cookies
+    # and CSRF protection, which are less compatible with mobile apps.
+
     # File Upload Limits
     MAX_CONTENT_LENGTH: int = Field(
         default=safe_int(os.getenv("MAX_CONTENT_LENGTH"), DEFAULT_MAX_CONTENT_LENGTH),
@@ -490,6 +658,18 @@ class Settings(BaseSettings):
         default=os.getenv("AI_MODEL_PATH", "models"),
         description="Path to AI model files"
     )
+    AI_MODEL_COMPLEXITY: int = Field(
+        default=safe_int(os.getenv("AI_MODEL_COMPLEXITY"), 1),
+        description="MediaPipe Pose model complexity (0, 1, or 2)."
+    )
+    AI_MIN_DETECTION_CONFIDENCE: float = Field(
+        default=float(os.getenv("AI_MIN_DETECTION_CONFIDENCE", "0.5")),
+        description="MediaPipe Pose minimum detection confidence."
+    )
+    AI_MIN_TRACKING_CONFIDENCE: float = Field(
+        default=float(os.getenv("AI_MIN_TRACKING_CONFIDENCE", "0.5")),
+        description="MediaPipe Pose minimum tracking confidence."
+    )
     AI_CONFIDENCE_THRESHOLD: float = Field(
         default=float(os.getenv("AI_CONFIDENCE_THRESHOLD") or "0.7"),
         description="Confidence threshold for AI predictions"
@@ -497,6 +677,22 @@ class Settings(BaseSettings):
     AI_MAX_BATCH_SIZE: int = Field(
         default=safe_int(os.getenv("AI_MAX_BATCH_SIZE"), 32),
         description="Maximum batch size for AI inference"
+    )
+    AI_SMOOTHING_WINDOW_SIZE: int = Field(
+        default=safe_int(os.getenv("AI_SMOOTHING_WINDOW_SIZE"), 5),
+        description="Window size for moving average smoothing of pose landmarks (must be odd)."
+    )
+    AI_MAX_INTERPOLATION_GAP: int = Field(
+        default=safe_int(os.getenv("AI_MAX_INTERPOLATION_GAP"), 3),
+        description="Maximum number of consecutive frames to interpolate missing pose landmarks across."
+    )
+    AI_TARGET_FRAME_WIDTH: int = Field(
+        default=safe_int(os.getenv("AI_TARGET_FRAME_WIDTH"), 256),
+        description="Target width for frames processed by AI pipeline (e.g., for normalization)."
+    )
+    AI_TARGET_FRAME_HEIGHT: int = Field(
+        default=safe_int(os.getenv("AI_TARGET_FRAME_HEIGHT"), 256),
+        description="Target height for frames processed by AI pipeline (e.g., for normalization)."
     )
     
     # Logging
@@ -551,15 +747,15 @@ class Settings(BaseSettings):
     # Frontend
     FRONTEND_URL: str = "http://localhost:3000"
     
-    # Email
-    SMTP_TLS: bool = True
-    SMTP_PORT: Optional[int] = None
-    SMTP_HOST: Optional[str] = None
-    SMTP_USER: Optional[str] = None
-    SMTP_PASSWORD: Optional[str] = None
-    EMAILS_FROM_EMAIL: Optional[str] = None
-    EMAILS_FROM_NAME: Optional[str] = None
-    EMAIL_TEMPLATES_DIR: str = "app/email-templates"
+    # Email (This block will be removed)
+    # SMTP_TLS: bool = True
+    # SMTP_PORT: Optional[int] = None
+    # SMTP_HOST: Optional[str] = None
+    # SMTP_USER: Optional[str] = None
+    # SMTP_PASSWORD: Optional[str] = None
+    # EMAILS_FROM_EMAIL: Optional[str] = None
+    # EMAILS_FROM_NAME: Optional[str] = None
+    # EMAIL_TEMPLATES_DIR: str = "app/email-templates"
     
     # Database
     POSTGRES_SERVER: str = "localhost"
@@ -592,11 +788,16 @@ class Settings(BaseSettings):
     MAX_VIDEO_FRAMES: int = int(os.getenv("MAX_VIDEO_FRAMES", "300"))
     MAX_VIDEO_SIZE_MB: int = int(os.getenv("MAX_VIDEO_SIZE_MB", "100"))
     MAX_VIDEO_DURATION: int = int(os.getenv("MAX_VIDEO_DURATION", "60"))
+    FFMPEG_TIMEOUT: int = safe_int(os.getenv("FFMPEG_TIMEOUT"), 60)  # Timeout for FFmpeg commands in seconds
     SUPPORTED_VIDEO_FORMATS: List[str] = ["mp4", "mov", "webm"]
     
     # Form analysis settings
     MIN_CONFIDENCE_THRESHOLD: float = float(os.getenv("MIN_CONFIDENCE_THRESHOLD", "0.7"))
     POSE_DETECTION_MODEL: str = os.getenv("POSE_DETECTION_MODEL", "movenet")  # movenet, mediapipe
+    TRAINING_API_KEY: Optional[str] = Field( # Added for training data submission
+        default=os.getenv("TRAINING_API_KEY"),
+        description="API key for submitting training data externally (e.g., Zapier)"
+    )
     EXERCISE_CONFIGS: Dict[str, Any] = {
         "squat": {
             "key_points": ["hip", "knee", "ankle"],
@@ -641,39 +842,51 @@ class Settings(BaseSettings):
     ENABLE_METRICS: bool = True
     METRICS_PREFIX: str = "formiq_"
     
+    BCRYPT_ROUNDS: int = Field(
+        default=safe_int(os.getenv("BCRYPT_ROUNDS"), 12),
+        description="Number of rounds for bcrypt password hashing"
+    )
+    
+    LOGIN_ATTEMPT_LOCKOUT_TIME: int = Field(
+        default=300,  # 5 minutes in seconds
+        description="Lockout duration in seconds after too many failed login attempts"
+    )
+    LOGIN_MAX_ATTEMPTS: int = Field(
+        default=5,
+        description="Maximum allowed failed login attempts before lockout"
+    )
+    LOGIN_ATTEMPT_KEY_TTL_SECONDS: int = Field(
+        default=600,  # 10 minutes in seconds
+        description="TTL for login attempt tracking keys in Redis"
+    )
+    
     @field_validator("ENCRYPTION_KEY")
     @classmethod
     def validate_encryption_key(cls, v: str) -> str:
         """
         Validate that the encryption key is a valid Fernet key.
-        
-        Args:
-            v: The encryption key value
-            
-        Returns:
-            str: Valid Fernet key
-            
-        Raises:
-            ValueError: If the key is not in valid Fernet format
+        If not provided or invalid, a new one is generated (and will be used by the settings instance).
         """
         try:
-            # If the key is not provided, generate a new one
-            if not v:
+            if not v: # if v is None or empty string
+                logger.warning("ENCRYPTION_KEY not provided or empty, generating a new one for this session.")
                 return generate_fernet_key()
-                
-            # Try to create a Fernet instance with the key
-            key_bytes = v.encode()
-            Fernet(key_bytes)
+            
+            key_bytes = base64.urlsafe_b64decode(v.encode() if isinstance(v, str) else v) # Ensure it's bytes
+            if len(key_bytes) != 32: # Fernet keys must be 32 url-safe base64-encoded bytes
+                raise ValueError("Fernet key must be 32 url-safe base64-encoded bytes.")
+            Fernet(v.encode() if isinstance(v, str) else v) # Check if it can initialize Fernet
             return v
         except Exception as e:
-            # If the key is invalid, generate a new one
+            logger.warning(f"Provided ENCRYPTION_KEY is invalid ('{str(e)}'), generating a new one for this session.")
             return generate_fernet_key()
 
     model_config = SettingsConfigDict(
-        case_sensitive=True,
-        env_file=".env",
+        env_file=".env",          # Default .env file
         env_file_encoding="utf-8",
-        extra="ignore"
+        extra="ignore",           # Ignore extra fields from environment
+        case_sensitive=False,     # Environment variable names are case-insensitive
+        env_nested_delimiter='__' # For nested model settings from env vars
     )
     
     def validate_settings(self) -> List[Dict[str, Any]]:
@@ -718,7 +931,7 @@ class Settings(BaseSettings):
             })
         
         # Check if SMTP settings are valid
-        if not self.SMTP_HOST or not self.SMTP_USER:
+        if not self.MAIL_SERVER or not self.MAIL_USERNAME:
             issues.append({
                 "severity": "medium",
                 "message": "SMTP settings are incomplete",

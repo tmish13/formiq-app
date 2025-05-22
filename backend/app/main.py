@@ -1,12 +1,13 @@
 """Main application module."""
 import logging
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
+import time
 
 # Core imports
 from app.core.config import settings
@@ -36,8 +37,12 @@ tags_metadata = [
         "description": "Operations about users. Includes profile management and settings."
     },
     {
-        "name": "form-analysis",
-        "description": "Exercise form analysis operations. Includes video upload and analysis results."
+        "name": "form-checks",
+        "description": "Exercise form check operations. Includes video upload, status tracking, and analysis results retrieval."
+    },
+    {
+        "name": "analysis",
+        "description": "Operations related to triggering and managing AI analysis of forms and videos."
     },
     {
         "name": "workouts",
@@ -101,6 +106,7 @@ def create_application() -> FastAPI:
 
     # Configure middleware
     setup_middleware(app)
+    logger.info("CORS middleware configured")
 
     # Add CORS middleware
     app.add_middleware(
@@ -111,9 +117,6 @@ def create_application() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Add rate limiting middleware
-    app.add_middleware(EnhancedRateLimiter)
-
     # Add API router
     app.include_router(api_router, prefix=settings.API_V1_STR)
     app.include_router(health_router)
@@ -121,6 +124,26 @@ def create_application() -> FastAPI:
     # Set custom OpenAPI schema
     if settings.ENVIRONMENT != "production":
         app.openapi = custom_openapi(app)
+
+    # Request logging middleware
+    @app.middleware("http")
+    async def log_requests(request: Request, call_next):
+        """Log all incoming requests and their processing time."""
+        start_time = time.time()
+        
+        # Process the request
+        response = await call_next(request)
+        
+        # Calculate duration
+        duration = time.time() - start_time
+        
+        # Log the request
+        logger.info(
+            f"{request.client.host} - {request.method} {request.url.path} "
+            f"- {response.status_code} - {duration:.4f}s"
+        )
+        
+        return response
 
     # Error handlers
     @app.exception_handler(StarletteHTTPException)

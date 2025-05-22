@@ -1,0 +1,28 @@
+YOUR VIDEO ANALYSIS IS COMPLETE
+================================
+
+Hi {{ user.full_name or user.username }},
+
+Great news! We've completed the analysis of your workout video "{{ video.filename }}" that you uploaded on {{ video.created_at.strftime('%B %d, %Y') }}.
+
+{% if score is not none %}
+YOUR FORM SCORE: {{ score }}/100
+{% endif %}
+
+{% if feedback_points %}
+HERE'S OUR FEEDBACK ON YOUR FORM:
+{% for point in feedback_points %}
+* {{ point }}
+{% endfor %}
+{% endif %}
+
+To view your complete analysis with detailed insights and recommendations, visit:
+{{ view_url }}
+
+Keep up the great work with your fitness journey!
+
+---
+© {{ year }} {{ app_name }}. All rights reserved.
+Terms of Service: https://formiq.com/terms
+Privacy Policy: https://formiq.com/privacy
+Email Preferences: https://formiq.com/email-preferences 

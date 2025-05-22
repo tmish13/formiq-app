@@ -5,7 +5,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import desc, and_, or_
 from app.models.workout import Workout, Exercise, WorkoutPlan
-from app.repositories.base import BaseRepository
+from .base_repository import BaseRepository
 
 class WorkoutRepository(BaseRepository[Workout]):
     """

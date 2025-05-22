@@ -3,31 +3,104 @@ from typing import Optional, Dict, Any, List
 from pydantic import BaseModel, Field, validator, constr
 from fastapi import UploadFile
 from datetime import datetime
+from uuid import UUID
 
+from app.models.enums import VideoStatus
 from app.core.config import settings
 
-class VideoUploadBase(BaseModel):
-    """Base schema for video upload."""
-    title: constr(min_length=3, max_length=100) = Field(..., description="Video title")
-    description: Optional[constr(max_length=500)] = Field(None, description="Video description")
-    exercise_type: constr(min_length=1) = Field(..., description="Type of exercise being performed")
-    
-    @validator("title")
-    def validate_title(cls, v):
-        """Validate video title."""
-        if not v.strip():
-            raise ValueError("Title cannot be empty or just whitespace")
-        return v.strip()
+class AngleDataItem(BaseModel):
+    """Schema for a single calculated angle data point."""
+    angle_name: str = Field(..., description="Name of the calculated angle")
+    value: float = Field(..., description="Value of the calculated angle")
 
-class VideoCreate(VideoUploadBase):
-    """Schema for creating a video record."""
-    user_id: str = Field(..., description="ID of the user who uploaded the video")
-    url: str = Field(..., description="URL where the video is stored")
-    filename: str = Field(..., description="Original filename of the video")
-    
+class VideoBase(BaseModel):
+    """Base Video schema."""
+    filename: str
+    mime_type: str
+    size: Optional[int] = None
+    url: Optional[str] = None
+
+class VideoCreate(VideoBase):
+    """Schema for creating a new video."""
+    user_id: UUID
+    status: str = "pending"
+    object_key: Optional[str] = None
+    exercise_type: Optional[str] = None
+
+    @validator("mime_type")
+    def validate_mime_type(cls, v):
+        if not v.startswith("video/"):
+            raise ValueError("MIME type must be a video format")
+        return v
+
+class VideoUpdate(BaseModel):
+    """Schema for updating an existing video."""
+    filename: Optional[constr(max_length=255)] = None
+    mime_type: Optional[constr(max_length=100)] = None
+    size: Optional[int] = None
+    url: Optional[constr(max_length=2048)] = None
+    status: Optional[VideoStatus] = None
+    processed_url: Optional[constr(max_length=2048)] = None
+    exercise_type: Optional[constr(max_length=100)] = None
+    duration: Optional[float] = None
+    resolution: Optional[constr(max_length=50)] = None
+    fps: Optional[float] = None
+    error_message: Optional[str] = None
+    score: Optional[float] = None
+    rep_count: Optional[int] = None
+    pose_data: Optional[List[Optional[Dict[str, Any]]]] = None
+    calculated_angles: Optional[List[Optional[AngleDataItem]]] = None
+
+    @validator("mime_type", check_fields=False)
+    def validate_update_mime_type(cls, v):
+        if v is not None and not v.startswith("video/"):
+            raise ValueError("MIME type must be a video format")
+        return v
+
+class VideoResponse(VideoBase):
+    """Schema for returning video information."""
+    id: UUID
+    user_id: UUID
+    status: str
+    created_at: datetime
+    updated_at: datetime
+    celery_task_id: Optional[str] = None
+    processed_url: Optional[str] = None
+    exercise_type: Optional[str] = None
+    duration: Optional[float] = None
+    resolution: Optional[str] = None
+    fps: Optional[float] = None
+    error_message: Optional[str] = None
+    score: Optional[float] = None
+    rep_count: Optional[int] = None
+
     class Config:
-        """Pydantic configuration."""
+        orm_mode = True
         from_attributes = True
+
+class VideoAnalysisRequest(BaseModel):
+    """Schema for requesting video analysis."""
+    video_id: UUID = Field(..., description="ID of the video to analyze")
+    # Add other analysis parameters here if needed in the future, e.g.:
+    # analysis_type: Optional[str] = None
+    # requested_metrics: Optional[List[str]] = None
+
+class VideoFeedbackItem(BaseModel):
+    """Schema for a feedback item."""
+    joint: str
+    phase: str
+    message: str
+    severity: str
+    frame_examples: List[int] = []
+
+class VideoAnalysisResult(BaseModel):
+    """Schema for video analysis results."""
+    video_id: str
+    score: float = Field(..., ge=0, le=10, description="Overall form score")
+    rep_count: int = Field(0, ge=0, description="Number of repetitions detected")
+    feedback: List[VideoFeedbackItem] = []
+    phases: List[Dict[str, Any]] = []
+    issues: List[Dict[str, Any]] = []
 
 class VideoAnalysis(BaseModel):
     """Schema for video analysis results."""
@@ -46,7 +119,7 @@ class VideoAnalysis(BaseModel):
             datetime: lambda v: v.isoformat()
         }
 
-class VideoUploadRequest(VideoUploadBase):
+class VideoUploadRequest(VideoBase):
     """Schema for video upload request."""
     file: UploadFile = Field(..., description="Video file to upload")
     
@@ -74,13 +147,10 @@ class VideoUploadRequest(VideoUploadBase):
         
         return v
 
-class VideoUploadResponse(VideoUploadBase):
+class VideoUploadResponse(BaseModel):
     """Schema for video upload response."""
-    id: str = Field(..., description="Unique identifier for the uploaded video")
-    url: str = Field(..., description="URL where the video can be accessed")
-    status: str = Field("processing", description="Processing status of the video")
-    created_at: str = Field(..., description="Timestamp when the video was uploaded")
-    
-    class Config:
-        """Pydantic configuration."""
-        from_attributes = True 
+    upload_url: str
+    video_id: str
+    object_key: str
+    expires_in: int
+    fields: Dict[str, Any] = {} 

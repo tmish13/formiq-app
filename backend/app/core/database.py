@@ -223,6 +223,34 @@ async def get_async_db() -> AsyncGenerator[Union[AsyncSession, Session], None]:
         finally:
             await session.close()
 
+@asynccontextmanager
+async def get_async_session_for_celery() -> AsyncGenerator[AsyncSession, None]:
+    """
+    Provides an SQLAlchemy AsyncSession for Celery tasks, ensuring it's closed.
+    Manages the session lifecycle including rollback on error.
+    Commit should be handled explicitly within the Celery task where appropriate.
+
+    Usage:
+        async with get_async_session_for_celery() as db_session:
+            # ... perform database operations ...
+            # await db_session.commit() # Commit explicitly if needed
+    """
+    if 'async_session_factory' not in globals():
+        logger.error("async_session_factory is not defined. Database operations in Celery task will fail.")
+        raise RuntimeError("async_session_factory is not configured globally in database.py.")
+
+    session: AsyncSession = async_session_factory()
+    try:
+        yield session
+        # Note: Commit is intentionally omitted here. 
+        # The Celery task should manage its own commits explicitly.
+    except Exception:
+        logger.error("Exception in Celery task DB session, rolling back.", exc_info=True)
+        await session.rollback()
+        raise
+    finally:
+        await session.close()
+
 async def init_db():
     """
     Initialize the database by creating all tables.

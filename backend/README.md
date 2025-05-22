@@ -103,3 +103,10 @@ pytest
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details. 
+## Migration Notes
+
+Migrations were consolidated on Tue May  6 12:40:53 PDT 2025. All migration files are now in backend/migrations/versions/.
+
+## Cleanup Notes
+
+Codebase was cleaned up on Tue May  6 12:41:28 PDT 2025. Redundant files have been removed and migrations consolidated.

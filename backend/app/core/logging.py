@@ -6,7 +6,6 @@ import sys
 from typing import Dict, Any, Optional
 import json
 from pathlib import Path
-from datetime import datetime
 from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
 import structlog
 
@@ -22,38 +21,24 @@ LOG_DIR = os.path.join(os.getcwd(), "logs")
 LOG_FILE = os.path.join(LOG_DIR, "app.log")
 ERROR_LOG_FILE = os.path.join(LOG_DIR, "error.log")
 
-
-class JSONFormatter(logging.Formatter):
-    """Custom JSON formatter for structured logging."""
-    
-    def format(self, record: logging.LogRecord) -> str:
-        """Format the log record as JSON."""
-        # Base log data
-        log_data = {
-            "timestamp": self.formatTime(record),
-            "level": record.levelname,
-            "message": record.getMessage(),
-            "logger": record.name,
-            "module": record.module,
-            "function": record.funcName,
-            "line": record.lineno,
-            "environment": settings.ENVIRONMENT
-        }
-        
-        # Add extra fields from record
-        if hasattr(record, "extra"):
-            log_data.update(record.extra)
-            
-        # Add exception info if present
-        if record.exc_info:
-            log_data["exception"] = self.formatException(record.exc_info)
-            
-        # Add stack info if present
-        if record.stack_info:
-            log_data["stack_info"] = self.formatStack(record.stack_info)
-            
-        return json.dumps(log_data)
-
+# Structlog configuration for JSON output
+structlog.configure(
+    processors=[
+        structlog.stdlib.add_logger_name,
+        structlog.stdlib.add_log_level,
+        structlog.stdlib.PositionalArgumentsFormatter(),
+        structlog.processors.StackInfoRenderer(),
+        structlog.dev.set_exc_info, # Sets exc_info correctly for format_exc_info
+        structlog.processors.format_exc_info, # Formats the exception
+        structlog.processors.TimeStamper(fmt="iso", key="timestamp"), # Adds timestamp
+        # Add environment to the log output if needed by all logs
+        structlog.processors.dict_tracebacks, # For better tracebacks in JSON
+        structlog.processors.JSONRenderer()  # Renders the final dict to JSON string
+    ],
+    logger_factory=structlog.stdlib.LoggerFactory(),
+    wrapper_class=structlog.stdlib.BoundLogger,
+    cache_logger_on_first_use=True,
+)
 
 def setup_logging(
     environment: str = settings.ENVIRONMENT,
@@ -62,53 +47,50 @@ def setup_logging(
     sentry_dsn: str = settings.SENTRY_DSN
 ) -> None:
     """
-    Configure application logging.
-    
-    Args:
-        environment: Application environment (development, production, etc.)
-        log_level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-        log_file: Path to log file (if file logging is desired)
-        sentry_dsn: Sentry DSN for error reporting
+    Configure application logging. structlog will format to JSON.
+    Standard library handlers will just pass through the pre-formatted message.
     """
-    # Create logs directory if it doesn't exist
-    log_dir = os.path.dirname(log_file)
-    if log_dir:
-        os.makedirs(log_dir, exist_ok=True)
-    
-    # Determine log level
+    log_dir_path = Path(log_file).parent # Path import needed
+    log_dir_path.mkdir(parents=True, exist_ok=True)
+    error_log_dir_path = Path(ERROR_LOG_FILE).parent
+    error_log_dir_path.mkdir(parents=True, exist_ok=True)
+
     if log_level is None:
-        log_level = "DEBUG" if settings.DEBUG else "INFO"
-    numeric_level = getattr(logging, log_level.upper(), logging.INFO)
-    
-    # Base configuration
+        log_level_to_use = "DEBUG" if settings.DEBUG else "INFO"
+    else:
+        log_level_to_use = log_level.upper()
+    numeric_level = getattr(logging, log_level_to_use, logging.INFO)
+
     config = {
         "version": 1,
         "disable_existing_loggers": False,
         "formatters": {
-            "json": {
-                "()": JSONFormatter
+            "passthrough": { # For messages already formatted by structlog
+                "format": "%(message)s"
             },
-            "standard": {
-                "format": "%(asctime)s [%(levelname)s] %(message)s",
-                "datefmt": "%Y-%m-%d %H:%M:%S"
+            "standard_dev": { # For development console, if non-JSON is preferred for readability
+                 "format": "%(asctime)s [%(levelname)s] [%(name)s] %(message)s",
+                 "datefmt": "%Y-%m-%d %H:%M:%S"
             }
         },
         "handlers": {
             "console": {
                 "class": "logging.StreamHandler",
-                "formatter": "standard" if environment == "development" else "json",
-                "stream": sys.stdout
+                "formatter": "standard_dev" if environment == "development" else "passthrough",
+                "stream": sys.stdout,
+                "level": numeric_level
             },
             "file": {
                 "class": "logging.handlers.RotatingFileHandler",
-                "formatter": "json",
+                "formatter": "passthrough", # structlog provides JSON
                 "filename": log_file,
                 "maxBytes": settings.LOG_MAX_BYTES,
-                "backupCount": settings.LOG_BACKUP_COUNT
+                "backupCount": settings.LOG_BACKUP_COUNT,
+                "level": numeric_level
             },
             "error_file": {
                 "class": "logging.handlers.RotatingFileHandler",
-                "formatter": "json",
+                "formatter": "passthrough", # structlog provides JSON
                 "filename": ERROR_LOG_FILE,
                 "maxBytes": settings.LOG_MAX_BYTES,
                 "backupCount": settings.LOG_BACKUP_COUNT,
@@ -116,174 +98,71 @@ def setup_logging(
             }
         },
         "loggers": {
-            "": {  # Root logger
+            "": { 
                 "handlers": ["console", "file", "error_file"],
                 "level": numeric_level,
-                "propagate": True
+                "propagate": False # Set to False if this is the final handling point for root
             },
-            "uvicorn": {
+            "uvicorn.access": {
                 "handlers": ["console"],
-                "level": logging.WARNING if environment == "production" else numeric_level,
+                "level": logging.WARNING,
+                "propagate": False
+            },
+            "uvicorn.error": {
+                "handlers": ["console", "error_file"],
+                "level": numeric_level,
                 "propagate": False
             },
             "sqlalchemy": {
                 "handlers": ["console"],
                 "level": logging.WARNING,
                 "propagate": False
+            },
+            "app": { # Specific logger for app, if needed for separate handling
+                "handlers": ["console", "file", "error_file"],
+                "level": numeric_level,
+                "propagate": False
             }
         }
     }
     
-    # Configure Sentry if DSN is provided
-    if sentry_dsn and environment != "development":
+    if sentry_dsn and (environment != "development" or settings.SENTRY_ENABLED_IN_DEVELOPMENT):
+      # Sentry setup (remains largely the same)
         try:
-            sentry_logging = LoggingIntegration(
-                level=logging.WARNING,
-                event_level=logging.ERROR
+            sentry_logging_integration = LoggingIntegration(
+                level=logging.INFO, 
+                event_level=logging.ERROR 
             )
-            
             sentry_sdk.init(
                 dsn=sentry_dsn,
                 environment=environment,
                 integrations=[
-                    sentry_logging,
+                    sentry_logging_integration, 
                     SqlalchemyIntegration(),
                     RedisIntegration()
                 ],
-                traces_sample_rate=1.0 if environment != "production" else 0.1,
-                release=settings.VERSION
+                traces_sample_rate=settings.SENTRY_TRACES_SAMPLE_RATE, 
+                release=settings.VERSION,
+                send_default_pii=True 
             )
+            logging.info("Sentry initialized for error reporting.") # This will be structlog formatted
         except ImportError:
-            logging.warning("Sentry SDK not installed. Error reporting disabled.")
-    
-    # Apply configuration
+            logging.warning("Sentry SDK not installed or import error. Sentry error reporting disabled.")
+        except Exception as e:
+            logging.error(f"Failed to initialize Sentry: {e}", exc_info=True)
+
     logging.config.dictConfig(config)
     
-    # Log initial configuration
-    logger = logging.getLogger(__name__)
-    logger.info(
-        "Logging configured",
-        extra={
-            "environment": environment,
-            "log_level": log_level,
-            "sentry_enabled": bool(sentry_dsn)
-        }
+    # Initial log message using structlog logger
+    init_logger = get_logger("app.core.logging.setup") # get_logger now returns structlog logger
+    init_logger.info(
+        "Application logging configured with structlog to JSON.",
+        environment=environment,
+        log_level_configured=log_level_to_use,
+        sentry_enabled=bool(sentry_dsn and (environment != "development" or settings.SENTRY_ENABLED_IN_DEVELOPMENT)),
+        log_file_path=log_file,
+        error_log_file_path=ERROR_LOG_FILE
     )
-
-
-def get_logger(name: str) -> logging.Logger:
-    """
-    Get a logger instance with the specified name.
-    
-    Args:
-        name: Logger name (usually __name__ of the module)
-        
-    Returns:
-        logging.Logger: Configured logger instance
-    """
-    return logging.getLogger(name)
-
-def get_log_level() -> str:
-    """Get the appropriate log level based on environment."""
-    if settings.ENVIRONMENT == "production":
-        return "INFO"
-    elif settings.ENVIRONMENT == "staging":
-        return "INFO"
-    elif settings.ENVIRONMENT == "test":
-        return "DEBUG" if settings.DEBUG else "INFO"
-    else:  # development
-        return "DEBUG" if settings.DEBUG else "INFO"
-
-def init_sentry() -> None:
-    """Initialize Sentry for error tracking."""
-    if settings.SENTRY_DSN and settings.SENTRY_DSN != "https://sentry.io/your-project-id":
-        try:
-            sentry_logging = LoggingIntegration(
-                level=logging.INFO,
-                event_level=logging.ERROR
-            )
-            sentry_sdk.init(
-                dsn=settings.SENTRY_DSN,
-                integrations=[
-                    sentry_logging,
-                    SqlalchemyIntegration(),
-                    RedisIntegration(),
-                ],
-                traces_sample_rate=settings.SENTRY_TRACES_SAMPLE_RATE,
-                environment=settings.SENTRY_ENVIRONMENT,
-                release=settings.VERSION
-            )
-        except Exception as e:
-            print(f"Failed to initialize Sentry: {e}")
-    else:
-        print("Sentry DSN not configured, skipping initialization")
-
-def setup_logging() -> None:
-    """Configure logging with both file and console handlers."""
-    # Create logs directory if it doesn't exist
-    log_dir = Path(LOG_DIR)
-    log_dir.mkdir(exist_ok=True)
-    
-    # Configure root logger
-    root_logger = logging.getLogger()
-    root_logger.setLevel(get_log_level())
-    
-    # Clear existing handlers
-    root_logger.handlers = []
-    
-    # Main log file handler with daily rotation
-    file_handler = TimedRotatingFileHandler(
-        LOG_FILE,
-        when="midnight",
-        interval=1,
-        backupCount=30,  # Keep 30 days of logs
-        encoding="utf-8"
-    )
-    file_handler.setFormatter(JSONFormatter())
-    file_handler.setLevel(get_log_level())
-    
-    # Error log file handler with size-based rotation
-    error_handler = RotatingFileHandler(
-        ERROR_LOG_FILE,
-        maxBytes=10 * 1024 * 1024,  # 10MB
-        backupCount=5,
-        encoding="utf-8"
-    )
-    error_handler.setFormatter(JSONFormatter())
-    error_handler.setLevel(logging.ERROR)
-    
-    # Console handler with color formatting in development
-    console_handler = logging.StreamHandler(sys.stdout)
-    if settings.ENVIRONMENT == "development":
-        console_handler.setFormatter(
-            logging.Formatter(
-                "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-                datefmt="%Y-%m-%d %H:%M:%S"
-            )
-        )
-    else:
-        console_handler.setFormatter(JSONFormatter())
-    console_handler.setLevel(get_log_level())
-    
-    # Add handlers
-    root_logger.addHandler(file_handler)
-    root_logger.addHandler(error_handler)
-    root_logger.addHandler(console_handler)
-    
-    # Set log levels for third-party libraries
-    logging.getLogger("uvicorn").setLevel(logging.WARNING)
-    logging.getLogger("sqlalchemy").setLevel(logging.WARNING)
-    logging.getLogger("redis").setLevel(logging.WARNING)
-    
-    # Initialize Sentry if configured
-    if settings.ENVIRONMENT != "test":
-        init_sentry()
-
-# Initialize logging
-setup_logging()
-
-# Create logger instance
-logger = structlog.get_logger("app")
 
 def get_logger(name: str) -> structlog.BoundLogger:
     """Get a structured logger instance with the specified name."""
@@ -291,100 +170,43 @@ def get_logger(name: str) -> structlog.BoundLogger:
 
 def log_error(
     message: str,
-    error: Exception,
-    extra: Optional[Dict[str, Any]] = None,
-    logger_name: str = "app"
+    error: Optional[Exception] = None, 
+    logger_name: str = "app",
+    **kwargs: Any 
 ) -> None:
-    """Log an error with exception details."""
-    log_data = {
-        "error_type": type(error).__name__,
-        "error_message": str(error),
-        "traceback": traceback.format_exc()
-    }
-    if extra:
-        log_data.update(extra)
-    logger.error(message, extra=log_data)
+    """Log an error with exception details using structlog."""
+    log = get_logger(logger_name)
+    if error:
+        log.error(message, exc_info=error, **kwargs)
+    else:
+        log.error(message, **kwargs)
 
 def log_info(
     message: str,
-    extra: Optional[Dict[str, Any]] = None,
-    logger_name: str = "app"
+    logger_name: str = "app",
+    **kwargs: Any 
 ) -> None:
-    """Log an info message with proper formatting."""
+    """Log an info message with proper formatting using structlog."""
     log = get_logger(logger_name)
-    log.info(message, **(extra or {}))
+    log.info(message, **kwargs)
 
 def log_warning(
     message: str,
-    extra: Optional[Dict[str, Any]] = None,
-    logger_name: str = "app"
+    logger_name: str = "app",
+    **kwargs: Any 
 ) -> None:
-    """Log a warning message with proper formatting."""
+    """Log a warning message with proper formatting using structlog."""
     log = get_logger(logger_name)
-    log.warning(message, **(extra or {}))
+    log.warning(message, **kwargs)
 
 def log_debug(
     message: str,
-    extra: Optional[Dict[str, Any]] = None,
-    logger_name: str = "app"
+    logger_name: str = "app",
+    **kwargs: Any
 ) -> None:
-    """Log a debug message with proper formatting."""
+    """Log a debug message with proper formatting using structlog."""
     log = get_logger(logger_name)
-    log.debug(message, **(extra or {}))
+    log.debug(message, **kwargs)
 
-# Add the configure_logging function
-def configure_logging() -> None:
-    """
-    Configure application logging at startup.
-    This function is called by the main FastAPI application.
-    """
-    # Re-initialize logging for runtime configuration
-    setup_logging()
-    
-    # Apply custom configurations based on environment
-    if settings.ENVIRONMENT == "production":
-        # Set third-party loggers to higher levels in production
-        logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
-        logging.getLogger("uvicorn.error").setLevel(logging.ERROR)
-        logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
-    else:
-        # Development logging
-        logging.getLogger("uvicorn.access").setLevel(logging.INFO)
-        logging.getLogger("uvicorn.error").setLevel(logging.INFO)
-        logging.getLogger("sqlalchemy.engine").setLevel(logging.INFO if settings.DEBUG else logging.WARNING)
-    
-    # Log configuration information
-    logger = get_logger("app.logging")
-    logger.info(
-        "Logging configured",
-        environment=settings.ENVIRONMENT,
-        log_level=get_log_level(),
-        sentry_enabled=bool(settings.SENTRY_DSN),
-    ) 
-
-def init_logging():
-    """Initialize logging at application startup.
-    
-    This function ensures the logging system is properly configured
-    based on the current environment and settings.
-    """
-    logger = get_logger(__name__)
-    logger.info(f"Initializing logging for {settings.ENVIRONMENT} environment")
-    
-    # Set global log level based on settings
-    log_level = getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO)
-    logging.getLogger().setLevel(log_level)
-    
-    # Configure log handlers based on environment
-    if settings.ENVIRONMENT == "production":
-        # In production, ensure we have proper file logging configured
-        setup_file_logging()
-        logger.info("Production file logging configured")
-    
-    # Log startup information
-    logger.info(f"Application logging initialized with level {settings.LOG_LEVEL}")
-    logger.info(f"Running in {settings.ENVIRONMENT} environment")
-    
-    # Log warning about debug mode if enabled in production
-    if settings.DEBUG and settings.ENVIRONMENT == "production":
-        logger.warning("WARNING: Debug mode is enabled in production environment") 
+logger = get_logger("app")
+init_logging = setup_logging 

@@ -1,0 +1,28 @@
+WELCOME TO FORMIQ!
+=================
+
+Hi {{ user.full_name or user.username }},
+
+Thank you for joining FormIQ! Your account has been successfully verified, and we're excited to help you improve your workout form and achieve your fitness goals.
+
+To get started, visit: {{ login_url }}
+
+GETTING STARTED
+
+1. UPLOAD YOUR FIRST WORKOUT VIDEO
+   Record a video of yourself performing an exercise and upload it to FormIQ for instant form analysis and personalized feedback.
+
+2. TRACK YOUR PROGRESS
+   Monitor your form improvements over time with our comprehensive tracking tools and analytics dashboard.
+
+3. SET FITNESS GOALS
+   Update your profile with your fitness goals, level, and preferences to get customized recommendations.
+
+If you have any questions or need assistance, our support team is always here to help. Just reply to this email!
+
+---
+© {{ year }} FormIQ. All rights reserved.
+123 Fitness Street, Exercise City, FT 12345
+Terms of Service: https://formiq.com/terms
+Privacy Policy: https://formiq.com/privacy
+Unsubscribe: https://formiq.com/unsubscribe?email={{ user.email }} 

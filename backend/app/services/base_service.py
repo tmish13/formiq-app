@@ -7,12 +7,15 @@ from app.core.config import Settings
 from app.models.base import BaseModel
 from app.core.exceptions import ServiceError
 
+# Define TypeVars for Model, Create Schema, and Update Schema
 ModelType = TypeVar("ModelType", bound=BaseModel)
+CreateSchemaType = TypeVar("CreateSchemaType")
+UpdateSchemaType = TypeVar("UpdateSchemaType")
 
-class BaseService(Generic[ModelType]):
+class BaseService(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
     """Base service with repository pattern and error handling for both sync and async sessions."""
     
-    def __init__(self, db: Union[Session, AsyncSession], settings: Settings, model: Type[ModelType]):
+    def __init__(self, db: Union[Session, AsyncSession], model: Type[ModelType], settings: Optional[Settings] = None):
         self.db = db
         self.settings = settings
         self.model = model
@@ -35,12 +38,28 @@ class BaseService(Generic[ModelType]):
         except Exception as e:
             raise ServiceError(f"Failed to get {self.model.__name__}: {str(e)}")
 
-    async def get_multi_async(self, *, skip: int = 0, limit: int = 100) -> List[ModelType]:
-        """Get multiple records with pagination asynchronously."""
+    async def get_multi_async(
+        self, 
+        *, 
+        skip: int = 0, 
+        limit: int = 100, 
+        filter_conditions: Optional[List[Any]] = None,
+        order_by: Optional[List[Any]] = None
+    ) -> List[ModelType]:
+        """Get multiple records with pagination and optional filtering/ordering asynchronously."""
         try:
-            result = await self.db.execute(
-                select(self.model).offset(skip).limit(limit)
-            )
+            stmt = select(self.model)
+            
+            if filter_conditions:
+                for condition in filter_conditions:
+                    stmt = stmt.where(condition)
+            
+            if order_by:
+                stmt = stmt.order_by(*order_by)
+
+            stmt = stmt.offset(skip).limit(limit)
+            
+            result = await self.db.execute(stmt)
             return result.scalars().all()
         except Exception as e:
             raise ServiceError(f"Failed to get {self.model.__name__} list: {str(e)}")
@@ -80,10 +99,15 @@ class BaseService(Generic[ModelType]):
             self.db.rollback()
             raise ServiceError(f"Failed to create {self.model.__name__}: {str(e)}")
 
-    async def update_async(self, *, db_obj: ModelType, obj_in: dict) -> ModelType:
+    async def update_async(self, *, db_obj: ModelType, obj_in: Union[UpdateSchemaType, dict]) -> ModelType:
         """Update an existing record asynchronously."""
         try:
-            for field, value in obj_in.items():
+            if not isinstance(obj_in, dict):
+                update_data = obj_in.model_dump(exclude_unset=True)
+            else:
+                update_data = obj_in
+
+            for field, value in update_data.items():
                 setattr(db_obj, field, value)
             self.db.add(db_obj)
             await self.db.commit()
@@ -93,12 +117,17 @@ class BaseService(Generic[ModelType]):
             await self.db.rollback()
             raise ServiceError(f"Failed to update {self.model.__name__}: {str(e)}")
 
-    def update(self, *, db_obj: ModelType, obj_in: dict) -> ModelType:
+    def update(self, *, db_obj: ModelType, obj_in: Union[UpdateSchemaType, dict]) -> ModelType:
         """Update an existing record synchronously."""
         if self._is_async:
             raise ServiceError("Use update_async for async sessions")
         try:
-            for field, value in obj_in.items():
+            if not isinstance(obj_in, dict):
+                update_data = obj_in.model_dump(exclude_unset=True)
+            else:
+                update_data = obj_in
+
+            for field, value in update_data.items():
                 setattr(db_obj, field, value)
             self.db.add(db_obj)
             self.db.commit()

@@ -8,8 +8,7 @@ from fastapi import Depends
 from app.models.user import User
 from app.schemas.user import UserCreate, UserUpdate
 from app.repositories.base_repository import BaseRepository
-from app.core.database import get_db
-from app.core.deps import get_async_db
+from app.core.db_deps import get_async_db, get_db
 
 class UserRepository(BaseRepository[User]):
     """Repository for user database operations."""

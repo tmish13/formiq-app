@@ -9,6 +9,10 @@ export const ROUTES = {
   LOGIN: '/login',
   REGISTER: '/register',
   NOT_FOUND: '/404',
+  FORGOT_PASSWORD: '/forgot-password',
+  RESET_PASSWORD: '/reset-password',
+  REQUEST_EMAIL_VERIFICATION: '/request-verification',
+  VERIFY_EMAIL: '/verify-email',
   
   // Protected routes
   HOME: '/',
@@ -19,6 +23,7 @@ export const ROUTES = {
   WORKOUT: '/workout',
   FORM_CHECK_UPLOAD: '/workout/form-check/upload',
   ANALYSIS: '/analysis',
+  VIDEOS: '/videos',
   
   // Admin routes
   ADMIN_USERS: '/admin/users',
@@ -35,7 +40,14 @@ const FormCheckUploadPage = lazy(() => import('../pages/workout/FormCheckUploadP
 const AnalysisPage = lazy(() => import('../pages/analysis/AnalysisPage').then(module => ({ default: module.AnalysisPage })));
 const ProfilePage = lazy(() => import('../pages/profile/ProfilePage').then(module => ({ default: module.ProfilePage })));
 const WorkoutPage = lazy(() => import('../pages/workout/WorkoutPage').then(module => ({ default: module.WorkoutPage })));
+const VideosPage = lazy(() => import('../pages/Videos'));
 const NotFoundPage = lazy(() => import('../pages/NotFoundPage').then(module => ({ default: module.NotFoundPage })));
+
+// Import authentication components directly
+import { ResetPasswordForm } from '../components/auth/ResetPasswordForm';
+import { ConfirmPasswordResetForm } from '../components/auth/ConfirmPasswordResetForm';
+import { RequestEmailVerificationForm } from '../components/auth/RequestEmailVerificationForm';
+import { ConfirmEmailVerification } from '../components/auth/ConfirmEmailVerification';
 
 // Admin pages
 const UserManagement = lazy(() => import('../pages/admin/UserManagement').then(module => ({ default: module.UserManagement })));
@@ -59,6 +71,22 @@ export const publicRoutes: RouteObject[] = [
   {
     path: ROUTES.REGISTER,
     element: withSuspense(RegisterPage)
+  },
+  {
+    path: ROUTES.FORGOT_PASSWORD,
+    element: <ResetPasswordForm />
+  },
+  {
+    path: ROUTES.RESET_PASSWORD,
+    element: <ConfirmPasswordResetForm />
+  },
+  {
+    path: ROUTES.REQUEST_EMAIL_VERIFICATION,
+    element: <RequestEmailVerificationForm />
+  },
+  {
+    path: ROUTES.VERIFY_EMAIL,
+    element: <ConfirmEmailVerification />
   },
   {
     path: ROUTES.NOT_FOUND,
@@ -101,6 +129,10 @@ export const protectedRoutes: RouteObject[] = [
   {
     path: ROUTES.ANALYSIS,
     element: <ProtectedRoute><AnalysisPage /></ProtectedRoute>
+  },
+  {
+    path: ROUTES.VIDEOS,
+    element: <ProtectedRoute><VideosPage /></ProtectedRoute>
   }
 ];
 

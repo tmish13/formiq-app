@@ -15,6 +15,7 @@ export * from './exerciseLibraryService';
 export * from './socialService';
 export * from './videoService';
 export * from './healthService';
+export * from './exerciseConfigService';
 
 // Auth Services
 export * from './auth';

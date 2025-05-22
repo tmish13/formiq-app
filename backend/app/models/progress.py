@@ -3,6 +3,7 @@ from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Tex
 from sqlalchemy.orm import relationship
 from app.db.base_class import Base
 
+print(f"PROGRESS_MODEL: id(Base.metadata) before ExerciseProgress class def: {id(Base.metadata)}, tables: {list(Base.metadata.tables.keys())}")
 class ExerciseProgress(Base):
     """Model for tracking exercise progress."""
     __tablename__ = "exercise_progress"

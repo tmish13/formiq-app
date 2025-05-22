@@ -1,7 +1,9 @@
 from typing import Any, Dict, List, Optional, Union
 from fastapi import HTTPException, status
-from app.core.logging import logger
+from app.core.logging import get_logger
 from http import HTTPStatus
+
+logger = get_logger(__name__)
 
 class BaseAPIException(Exception):
     """Base exception class for API errors.
@@ -1317,8 +1319,7 @@ class ExternalServiceException(BaseAPIException):
 
 
 class VideoProcessingException(BaseAPIException):
-    """Base class for video processing errors."""
-    
+    """Base exception for errors related to video processing operations."""
     def __init__(
         self,
         message: str = "Video processing error",
@@ -1327,15 +1328,28 @@ class VideoProcessingException(BaseAPIException):
     ):
         super().__init__(
             message=message,
-            status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
             error_code=error_code,
+            status_code=HTTPStatus.INTERNAL_SERVER_ERROR, # Or UNPROCESSABLE_ENTITY
             details=details
         )
 
 
+class VideoReadError(VideoProcessingException): # New class
+    """Raised when a video file cannot be read or accessed.""" # New class
+    def __init__( # New class
+        self, # New class
+        message: str = "Failed to read or access video file", # New class
+        details: Optional[Dict[str, Any]] = None # New class
+    ): # New class
+        super().__init__( # New class
+            message=message, # New class
+            error_code="VIDEO_READ_ERROR", # New class
+            details=details # New class
+        ) # New class
+
+
 class VideoValidationException(ValidationException):
-    """Base class for video validation errors."""
-    
+    """Base exception for errors during video validation."""
     def __init__(
         self,
         message: str = "Video validation error",
@@ -1426,4 +1440,36 @@ class EmailError(ApplicationException):
             error_code=error_code,
             status_code=status_code,
             details=details
-        ) 
+        )
+
+class ServerErrorException(AppException):
+    """Generic server error."""
+    def __init__(self, message: str = "An unexpected server error occurred", details: Optional[Dict[str, Any]] = None):
+        super().__init__(message=message, code="SERVER_ERROR", status_code=HTTPStatus.INTERNAL_SERVER_ERROR, details=details)
+
+class StripeWebhookError(PaymentError):
+    """Raised when Stripe webhook processing fails."""
+    def __init__(
+        self,
+        message: str = "Stripe webhook processing failed",
+        error_code: str = "STRIPE_WEBHOOK_ERROR",
+        details: Optional[Dict[str, Any]] = None
+    ):
+        super().__init__(
+            message=message,
+            error_code=error_code,
+            status_code=HTTPStatus.BAD_REQUEST,
+            details=details
+        )
+
+class VideoProcessingError(Exception):
+    """Base exception for video processing errors."""
+    pass
+
+class VideoValidationError(VideoProcessingError):
+    """Exception raised for video validation failures."""
+    pass
+
+class VideoReadError(VideoProcessingError):
+    """Exception raised when a video file cannot be read or opened."""
+    pass 

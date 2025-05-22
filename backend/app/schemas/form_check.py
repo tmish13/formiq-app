@@ -1,6 +1,6 @@
 """Form check schema module."""
 from datetime import datetime
-from typing import Dict, List, Optional, Literal, Any
+from typing import Dict, List, Optional, Literal, Any, Union
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, HttpUrl, constr, confloat, ConfigDict
@@ -65,20 +65,22 @@ class FormCheckBase(BaseModel):
         return v
 
 
-class FormCheckCreate(FormCheckBase):
-    """
-    Schema for creating a new form check.
-    """
-    exercise_type: ExerciseType = Field(..., description="Type of exercise being analyzed")
-    notes: Optional[str] = Field(None, description="Additional notes from the user")
+class FormCheckCreate(BaseModel):
+    """Schema for creating a new form check."""
+    user_id: UUID = Field(..., description="ID of the user submitting the form check")
+    exercise_id: UUID = Field(..., description="ID of the exercise template")
+    video_url: str = Field(..., description="URL to the uploaded video")
+    notes: Optional[str] = Field(None, description="Optional user notes for the form check")
+    status: FormCheckStatus = Field(FormCheckStatus.PENDING, description="Initial status of the form check")
     
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "video_url": "https://example.com/videos/squat.mp4",
-                "exercise_id": "123e4567-e89b-12d3-a456-426614174000",
-                "exercise_type": "SQUAT",
-                "notes": "I think my knees might be caving in slightly."
+                "user_id": "4e059a37-95ac-4a40-8a0d-6690864d9890",
+                "exercise_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                "video_url": "https://example.com/video.mp4",
+                "notes": "Checking my squat depth.",
+                "status": "pending"
             }
         }
     )
@@ -95,26 +97,137 @@ class FormCheckUpdate(BaseModel):
     status: Optional[FormCheckStatus] = None
     overall_feedback: Optional[str] = None
     score: Optional[float] = Field(None, ge=0, le=100, description="Score from 0-100")
+    details: Optional[Dict[str, Any]] = Field(None, description="Additional details or metadata from analysis")
 
 
 class FormCheckResponse(BaseModel):
     """
-    Schema for form check responses from the API.
-    
-    Includes all form check data and relationships.
+    Schema for form check response.
     """
-    id: UUID
-    video_url: str
-    exercise_id: UUID
-    user_id: UUID
-    status: FormCheckStatus
-    score: Optional[float] = None
-    overall_feedback: Optional[str] = None
-    analysis_url: Optional[str] = None
-    created_at: datetime
-    updated_at: Optional[datetime] = None
+    id: str = Field(..., description="Form check ID")
+    user_id: str = Field(..., description="User ID")
+    exercise_id: str = Field(..., description="Exercise ID")
+    video_url: str = Field(..., description="URL to the uploaded video")
+    status: str = Field(..., description="Processing status")
+    created_at: datetime = Field(..., description="Creation timestamp")
     
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "example": {
+                "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                "user_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                "exercise_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                "video_url": "https://example.com/video.mp4",
+                "status": "pending",
+                "created_at": "2023-01-01T00:00:00Z"
+            }
+        }
+    )
+
+
+class FormCheckListResponse(BaseModel):
+    """
+    Schema for form check list response, includes summary information.
+    """
+    id: str = Field(..., description="Form check ID")
+    user_id: str = Field(..., description="User ID")
+    exercise_id: str = Field(..., description="Exercise ID")
+    video_url: str = Field(..., description="URL to the uploaded video")
+    status: str = Field(..., description="Processing status")
+    score: Optional[float] = Field(None, description="Overall form score (0-100)")
+    overall_feedback: Optional[str] = Field(None, description="Summary feedback")
+    created_at: datetime = Field(..., description="Creation timestamp")
+    exercise_name: Optional[str] = Field(None, description="Name of the exercise")
+    configuration_id: Optional[str] = Field(None, description="ID of the configuration used")
+    configuration_name: Optional[str] = Field(None, description="Name of the configuration used")
+    
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "example": {
+                "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                "user_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                "exercise_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                "video_url": "https://example.com/video.mp4",
+                "status": "completed",
+                "score": 85.5,
+                "overall_feedback": "Your form is mostly good, with 2 minor issues to fine-tune.",
+                "created_at": "2023-01-01T00:00:00Z",
+                "exercise_name": "Squat",
+                "configuration_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                "configuration_name": "Squat Standard Configuration"
+            }
+        }
+    )
+
+
+class FeedbackItemResponse(BaseModel):
+    """
+    Schema for feedback item response.
+    """
+    id: int = Field(..., description="Feedback item ID")
+    form_check_id: str = Field(..., description="Form check ID")
+    type: str = Field(..., description="Type of feedback")
+    message: str = Field(..., description="Feedback message")
+    timestamp: float = Field(..., description="Video timestamp in seconds")
+    severity: str = Field(..., description="Feedback severity level")
+    joint_angles: Optional[Dict[str, float]] = Field(None, description="Joint angle measurements")
+    suggestions: Optional[List[str]] = Field(None, description="Improvement suggestions")
+    
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "example": {
+                "id": 1,
+                "form_check_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                "type": "form",
+                "message": "Your knees are going too far forward",
+                "timestamp": 2.5,
+                "severity": "medium",
+                "joint_angles": {"leftKnee": 85.2, "rightKnee": 87.5},
+                "suggestions": ["Keep your knees aligned with your toes"]
+            }
+        }
+    )
+
+
+class FormCheckDetailedResponse(FormCheckListResponse):
+    """
+    Schema for detailed form check response, including feedback items.
+    """
+    feedback_items: Optional[List[FeedbackItemResponse]] = Field(None, description="List of detailed feedback items")
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "example": {
+                "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                "user_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                "exercise_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                "video_url": "https://example.com/video.mp4",
+                "status": "completed",
+                "score": 85.5,
+                "overall_feedback": "Your form is mostly good, with 2 minor issues to fine-tune.",
+                "created_at": "2023-01-01T00:00:00Z",
+                "exercise_name": "Squat",
+                "configuration_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                "configuration_name": "Squat Standard Configuration",
+                "feedback_items": [
+                    {
+                        "id": 1,
+                        "form_check_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                        "type": "form",
+                        "message": "Your knees are going too far forward",
+                        "timestamp": 2.5,
+                        "severity": "medium",
+                        "joint_angles": {"leftKnee": 85.2, "rightKnee": 87.5},
+                        "suggestions": ["Keep your knees aligned with your toes"]
+                    }
+                ]
+            }
+        }
+    )
 
 
 class FeedbackItemBase(BaseModel):
@@ -191,11 +304,31 @@ class FeedbackItemBase(BaseModel):
         return v
 
 
-class FeedbackItemCreate(FeedbackItemBase):
+class FeedbackItemCreate(BaseModel):
     """
-    Schema for creating a new feedback item.
+    Schema for creating a feedback item.
     """
-    pass
+    form_check_id: UUID = Field(..., description="Form check ID")
+    type: FeedbackType = Field(..., description="Type of feedback")
+    message: str = Field(..., description="Feedback message")
+    timestamp: float = Field(..., description="Video timestamp in seconds")
+    severity: FeedbackSeverity = Field(..., description="Feedback severity level")
+    joint_angles: Optional[Dict[str, float]] = Field(None, description="Joint angle measurements")
+    suggestions: Optional[List[str]] = Field(None, description="Improvement suggestions")
+    
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "form_check_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                "type": "form",
+                "message": "Your knees are going too far forward",
+                "timestamp": 2.5,
+                "severity": "medium",
+                "joint_angles": {"leftKnee": 85.2, "rightKnee": 87.5},
+                "suggestions": ["Keep your knees aligned with your toes"]
+            }
+        }
+    )
 
 
 class FeedbackItemUpdate(BaseModel):
@@ -210,26 +343,6 @@ class FeedbackItemUpdate(BaseModel):
     severity: Optional[FeedbackSeverity] = None
     suggestions: Optional[List[constr(max_length=500)]] = None
     joint_angles: Optional[Dict[str, float]] = None
-
-
-class FeedbackItemResponse(BaseModel):
-    """
-    Schema for feedback item responses from the API.
-    
-    Includes all feedback item data and relationships.
-    """
-    id: int
-    form_check_id: UUID
-    feedback_type: FeedbackType
-    description: str
-    timestamp: float
-    severity: FeedbackSeverity
-    suggestions: Optional[List[str]] = None
-    joint_angles: Optional[Dict[str, float]] = None
-    is_ai_generated: bool
-    created_at: datetime
-    
-    model_config = ConfigDict(from_attributes=True)
 
 
 class FormCheckCompleteRequest(BaseModel):

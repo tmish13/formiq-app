@@ -9,13 +9,12 @@ from app.models.user import User
 from app.schemas.user import User as UserSchema, UserCreate, UserUpdate
 from app.schemas.common import Message
 from app.services.user_service import UserService
-from app.utils.rate_limit import rate_limit
 
 router = APIRouter()
 
 
 @router.get("/me", response_model=UserSchema)
-def read_user_me(
+async def read_user_me(
     current_user: User = Depends(deps.get_current_user),
 ) -> Any:
     """Get current user.
@@ -198,11 +197,11 @@ async def delete_user(
 
 
 @router.put("/me/password", response_model=Message)
-@rate_limit(limit=5, window=300)  # 5 requests per 5 minutes
 async def change_password(
     *,
     db: AsyncSession = Depends(deps.get_async_db),
     current_user: User = Depends(deps.get_current_user),
+    user_service: UserService = Depends(deps.get_user_service),
     password_data: dict = Body(..., example={
         "current_password": "oldpass123",
         "new_password": "newpass123",
@@ -214,9 +213,7 @@ async def change_password(
     
     Requires current password verification.
     New password must meet security requirements.
-    Rate limited to 5 requests per 5 minutes.
     """
-    user_service: UserService = deps.get_user_service()
     
     # Verify current password
     if not user_service.verify_password(password_data["current_password"], current_user.hashed_password):
@@ -238,7 +235,6 @@ async def change_password(
     return {"message": "Password updated successfully"}
 
 @router.put("/me/profile", response_model=UserSchema)
-@rate_limit(limit=10, window=60)  # 10 requests per minute
 async def update_profile(
     *,
     db: AsyncSession = Depends(deps.get_async_db),
@@ -254,8 +250,6 @@ async def update_profile(
     - Bio
     - Avatar
     - Preferences
-    
-    Rate limited to 10 requests per minute.
     """
     user_service: UserService = deps.get_user_service()
     
@@ -271,7 +265,6 @@ async def update_profile(
     return updated_user
 
 @router.get("/me/settings", response_model=Dict[str, Any])
-@rate_limit(limit=60, window=60)  # 60 requests per minute
 async def get_settings(
     current_user: User = Depends(deps.get_current_user),
     user_service: UserService = Depends(deps.get_user_service)
@@ -285,14 +278,11 @@ async def get_settings(
     - UI preferences
     - Exercise preferences
     - Subscription details
-    
-    Rate limited to 60 requests per minute.
     """
     settings = await user_service.get_user_settings(current_user.id)
     return settings
 
 @router.put("/me/settings", response_model=Dict[str, Any])
-@rate_limit(limit=10, window=60)  # 10 requests per minute
 async def update_settings(
     *,
     db: AsyncSession = Depends(deps.get_async_db),
@@ -308,8 +298,6 @@ async def update_settings(
     - Privacy settings
     - UI preferences
     - Exercise preferences
-    
-    Rate limited to 10 requests per minute.
     """
     updated_settings = await user_service.update_user_settings(
         user_id=current_user.id,

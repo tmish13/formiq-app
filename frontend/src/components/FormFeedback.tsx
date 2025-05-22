@@ -88,15 +88,9 @@ export const FormFeedback: React.FC<FormFeedbackProps> = ({
     <Container data-testid="form-feedback">
       <FeedbackList>
         {feedback.map((item, index) => (
-          item.isValid ? (
-            <ValidFeedbackItem key={index}>
-              {item.message}
-            </ValidFeedbackItem>
-          ) : (
-            <InvalidFeedbackItem key={index}>
-              {item.message}
-            </InvalidFeedbackItem>
-          )
+          <li key={index}>
+            {item.message}
+          </li>
         ))}
       </FeedbackList>
       

@@ -101,7 +101,7 @@ class PoseEstimationModel:
             self._model = mp.solutions.pose.Pose(
                 static_image_mode=False,
                 model_complexity=2,
-                min_detection_confidence=settings.MODEL_CONFIDENCE_THRESHOLD,
+                min_detection_confidence=settings.MIN_CONFIDENCE_THRESHOLD,
                 min_tracking_confidence=0.5,
                 enable_segmentation=False,
                 smooth_segmentation=True,

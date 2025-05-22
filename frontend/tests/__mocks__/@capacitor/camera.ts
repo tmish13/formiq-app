@@ -17,11 +17,13 @@ export enum CameraResultType {
   DataUrl = 'dataUrl',
 }
 
-export class Camera extends WebPlugin {
-  constructor() {
-    super();
-  }
+export interface CameraPlugin extends WebPlugin {
+  getPhoto(): Promise<any>;
+  checkPermissions(): Promise<{ camera: string }>;
+  requestPermissions(): Promise<{ camera: string }>;
+}
 
+export class Camera extends WebPlugin implements CameraPlugin {
   async getPhoto() {
     return {
       path: 'mock/path/to/photo.jpg',
@@ -38,4 +40,9 @@ export class Camera extends WebPlugin {
   async requestPermissions() {
     return { camera: 'granted' };
   }
-} 
+}
+
+export const CameraMock = new Camera();
+
+// Export an instance of the Camera class as the default export
+export default CameraMock; 

@@ -6,9 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api import deps
 from app.core.deps import get_current_active_user
 from app.models.user import User
-from app.services.feedback_service import FeedbackService
+from app.services.feedback_service import FeedbackService, get_async_feedback_service
 from app.core.monitoring import track_websocket_connection, track_websocket_error
-from app.core.rate_limit import rate_limit
 
 router = APIRouter()
 
@@ -16,7 +15,7 @@ router = APIRouter()
 async def form_analysis_websocket(
     websocket: WebSocket,
     analysis_id: str,
-    db: AsyncSession = Depends(deps.get_async_db)
+    feedback_service: FeedbackService = Depends(get_async_feedback_service)
 ):
     """
     WebSocket endpoint for real-time form analysis feedback.
@@ -31,9 +30,6 @@ async def form_analysis_websocket(
     try:
         # Accept the WebSocket connection
         await websocket.accept()
-        
-        # Get feedback service
-        feedback_service = FeedbackService(db)
         
         # Track connection
         track_websocket_connection(analysis_id=analysis_id, is_connected=True)
@@ -78,7 +74,7 @@ async def form_analysis_websocket(
 async def exercise_session_websocket(
     websocket: WebSocket,
     session_id: str,
-    db: AsyncSession = Depends(deps.get_async_db)
+    feedback_service: FeedbackService = Depends(get_async_feedback_service)
 ):
     """
     WebSocket endpoint for real-time exercise session feedback.
@@ -93,9 +89,6 @@ async def exercise_session_websocket(
     try:
         # Accept the WebSocket connection
         await websocket.accept()
-        
-        # Get feedback service
-        feedback_service = FeedbackService(db)
         
         # Track connection
         track_websocket_connection(session_id=session_id, is_connected=True)

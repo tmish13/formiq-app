@@ -2,6 +2,7 @@ import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import styled from 'styled-components';
 import { useAuth } from '../../hooks/useAuth';
+import { ROUTES } from '../../routes/constants';
 
 const BottomNavContainer = styled.nav`
   position: fixed;
@@ -28,10 +29,10 @@ const NavItem = styled(NavLink)`
   align-items: center;
   text-decoration: none;
   color: ${({ theme }) => theme.colors.secondary.main};
-  font-size: 0.75rem;
+  font-size: 0.65rem;
   font-weight: 500;
   padding: 8px 0;
-  width: 20%;
+  width: 16.66%; /* Adjusted for 6 items */
   
   &.active {
     color: ${({ theme }) => theme.colors.primary.main};
@@ -53,23 +54,27 @@ export const MobileNavigation: React.FC<MobileNavigationProps> = ({ className })
   
   return (
     <BottomNavContainer className={className}>
-      <NavItem to="/dashboard" end>
+      <NavItem to={ROUTES.DASHBOARD} end>
         <span>Home</span>
       </NavItem>
       
-      <NavItem to="/workout">
+      <NavItem to={ROUTES.WORKOUT}>
         <span>Workout</span>
       </NavItem>
       
-      <NavItem to="/form-analysis">
+      <NavItem to={ROUTES.FORM_ANALYSIS}>
         <span>Form</span>
       </NavItem>
       
-      <NavItem to="/progress">
+      <NavItem to={ROUTES.VIDEOS}>
+        <span>Videos</span>
+      </NavItem>
+      
+      <NavItem to={ROUTES.PROGRESS}>
         <span>Progress</span>
       </NavItem>
       
-      <NavItem to="/profile">
+      <NavItem to={ROUTES.PROFILE}>
         <span>Profile</span>
       </NavItem>
     </BottomNavContainer>

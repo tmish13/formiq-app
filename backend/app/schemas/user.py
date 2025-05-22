@@ -119,6 +119,7 @@ class UserUpdate(UserBase):
     )
     subscription_tier: Optional[str] = Field(None, description="User's subscription tier")
     is_superuser: Optional[bool] = Field(None, description="Whether user is a superuser")
+    last_login: Optional[datetime] = Field(None, description="Timestamp of the last login")
 
     @field_validator("password")
     @classmethod

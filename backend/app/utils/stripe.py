@@ -6,8 +6,6 @@ from app.core.logging import get_logger
 # Initialize logger
 logger = get_logger(__name__)
 
-stripe.api_key = settings.STRIPE_SECRET_KEY
-
 class StripeService:
     @staticmethod
     async def create_customer(email: str, name: Optional[str] = None) -> Dict[str, Any]:

@@ -1,13 +1,17 @@
-import { useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { authService } from '../services/auth';
 import { storageService } from '../services/storageService';
 import { setUser, setToken, setRefreshToken, setError, setLoading, logout as logoutAction, setTokens } from '../store/slices/authSlice';
 import type { User } from '../types';
-import { apiService } from '../services/apiService';
+import apiService from '../services/apiService';
 import { logError } from '../utils/logger';
 
+/**
+ * Custom hook for authentication
+ * Manages user authentication state and provides authentication methods
+ */
 export const useAuth = () => {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
@@ -158,6 +162,100 @@ export const useAuth = () => {
     }
   };
 
+  /**
+   * Request password reset email
+   * @param email User's email address
+   */
+  const requestPasswordReset = useCallback(async (email: string) => {
+    dispatch(setLoading(true));
+    dispatch(setError(null));
+    
+    try {
+      await apiService.post('/auth/reset-password/request', { email });
+      return true;
+    } catch (err: any) {
+      if (err.status === 429) {
+        // Handle rate limit error
+        const retryAfter = err.details?.retryAfter;
+        const retryMinutes = retryAfter ? Math.ceil(parseInt(retryAfter) / 60) : 60;
+        dispatch(setError(`Too many password reset requests. Please try again in ${retryMinutes} minutes.`));
+      } else {
+        dispatch(setError(err.message));
+      }
+      return false;
+    } finally {
+      dispatch(setLoading(false));
+    }
+  }, [dispatch]);
+
+  /**
+   * Confirm password reset with token and new password
+   * @param token Reset token from email
+   * @param newPassword New password
+   */
+  const confirmPasswordReset = useCallback(async (token: string, newPassword: string) => {
+    dispatch(setLoading(true));
+    dispatch(setError(null));
+    
+    try {
+      await apiService.post('/auth/reset-password/confirm', { 
+        token, 
+        new_password: newPassword 
+      });
+      return true;
+    } catch (err: any) {
+      dispatch(setError(err.message));
+      return false;
+    } finally {
+      dispatch(setLoading(false));
+    }
+  }, [dispatch]);
+
+  /**
+   * Request email verification
+   * @param email User's email address
+   */
+  const requestEmailVerification = useCallback(async (email: string) => {
+    dispatch(setLoading(true));
+    dispatch(setError(null));
+    
+    try {
+      await apiService.post('/auth/verify-email/request', { email });
+      return true;
+    } catch (err: any) {
+      if (err.status === 429) {
+        // Handle rate limit error
+        const retryAfter = err.details?.retryAfter;
+        const retryMinutes = retryAfter ? Math.ceil(parseInt(retryAfter) / 60) : 60;
+        dispatch(setError(`Too many verification requests. Please try again in ${retryMinutes} minutes.`));
+      } else {
+        dispatch(setError(err.message));
+      }
+      return false;
+    } finally {
+      dispatch(setLoading(false));
+    }
+  }, [dispatch]);
+
+  /**
+   * Confirm email verification with token
+   * @param token Verification token from email
+   */
+  const confirmEmailVerification = useCallback(async (token: string) => {
+    dispatch(setLoading(true));
+    dispatch(setError(null));
+    
+    try {
+      await apiService.post('/auth/verify-email/confirm', { token });
+      return true;
+    } catch (err: any) {
+      dispatch(setError(err.message));
+      return false;
+    } finally {
+      dispatch(setLoading(false));
+    }
+  }, [dispatch]);
+
   return {
     user,
     isAuthenticated,
@@ -168,5 +266,9 @@ export const useAuth = () => {
     register,
     updateProfile,
     verifyEmail,
+    requestPasswordReset,
+    confirmPasswordReset,
+    requestEmailVerification,
+    confirmEmailVerification,
   };
 }; 

@@ -247,33 +247,32 @@ class CacheService:
     
     # Add other Redis operations as needed...
 
-async def init_cache():
-    """Initialize the cache service at application startup."""
-    logger.info("Initializing cache service")
-    try:
-        await cache_service.connect()
-        if cache_service.available:
-            # Clear any stale data from previous runs in development/test
-            if settings.ENVIRONMENT in ["development", "test"]:
-                logger.info("Development/test environment - clearing cache")
-                # We don't want to completely flush in case Redis is shared
-                # Instead, clear application-specific keys
-                if cache_service.redis_client:
-                    keys = await cache_service.redis_client.keys(f"{settings.PROJECT_NAME.lower()}:*")
-                    if keys:
-                        await cache_service.redis_client.delete(*keys)
-                        logger.info(f"Cleared {len(keys)} cached items")
-            
-            logger.info("Cache service initialized successfully")
-        else:
-            logger.warning("Redis unavailable - using memory cache fallback")
-    except Exception as e:
-        logger.error(f"Failed to initialize cache service: {str(e)}")
-        # Do not raise error to prevent application startup failure
-        # Application can still function without cache
-
-# Initialize global cache service instance
+# Global instance of CacheService
 cache_service = CacheService()
 
-# Alias for backward compatibility
-redis_cache = cache_service 
+async def init_cache():
+    """Initialize the global cache service instance."""
+    global cache_service
+    if not cache_service.available:
+        await cache_service.connect()
+
+async def close_cache():
+    """Close the global cache service instance."""
+    global cache_service
+    await cache_service.close()
+
+# Expose main symbols
+__all__ = [
+    "CacheService",
+    "cache_service", # Export the global instance
+    "init_cache",    # Export init function for lifespan
+    "close_cache",   # Export close function for lifespan
+    "init_redis_pool",
+    "get_redis",
+    "close_redis_pool",
+    "set_cache",
+    "get_cache",
+    "delete_cache",
+    "increment_counter",
+    "get_counter"
+] 

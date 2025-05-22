@@ -1,15 +1,25 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
+export interface ModalContent {
+  title?: string;
+  content: React.ReactNode;
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+}
+
 interface UIState {
   isLoading: boolean;
   error: string | null;
   isOffline: boolean;
+  isModalOpen: boolean;
+  modalContent: ModalContent | null;
 }
 
 const initialState: UIState = {
   isLoading: false,
   error: null,
-  isOffline: false
+  isOffline: false,
+  isModalOpen: false,
+  modalContent: null
 };
 
 const uiSlice = createSlice({
@@ -27,9 +37,25 @@ const uiSlice = createSlice({
     },
     clearError: (state) => {
       state.error = null;
+    },
+    openModal: (state, action: PayloadAction<ModalContent>) => {
+      state.isModalOpen = true;
+      state.modalContent = action.payload;
+    },
+    closeModal: (state) => {
+      state.isModalOpen = false;
+      state.modalContent = null;
     }
   }
 });
 
-export const { setLoading, setError, setOffline, clearError } = uiSlice.actions;
+export const { 
+  setLoading, 
+  setError, 
+  setOffline, 
+  clearError,
+  openModal,
+  closeModal 
+} = uiSlice.actions;
+
 export default uiSlice.reducer; 

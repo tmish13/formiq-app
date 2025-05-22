@@ -6,6 +6,7 @@ import platform
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Response
 from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 import redis
 import gc
@@ -13,14 +14,14 @@ import tracemalloc
 import json
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST, Counter, Gauge
 
+from app.core import deps
 from app.core.deps import get_db
 from app.core.config import settings
 from app.core.logging import logger, get_logger
 from app.core.database import get_db_stats
 from app.core.cache import cache_service
 from app.utils.system import get_memory_usage, get_cpu_usage
-from app.core.rate_limit import rate_limit
-from app.services.health import HealthService
+from app.services.health_service import HealthService
 
 # Create router
 router = APIRouter(prefix="/health", tags=["health"])
@@ -75,8 +76,7 @@ RATE_LIMIT_CURRENT = Gauge(
         }
     }
 )
-@rate_limit(limit=60, window=60)  # 60 requests per minute
-async def health_check() -> Dict[str, Any]:
+async def health_check(health_service: HealthService = Depends(deps.get_async_health_service)) -> Dict[str, Any]:
     """
     Check system health status.
     
@@ -86,14 +86,11 @@ async def health_check() -> Dict[str, Any]:
     * Redis connection
     * Storage service
     * Current version
-    
-    Rate limit: 60 requests per minute
     """
-    health_service = HealthService()
     return await health_service.check_health()
 
 @router.get("/db", response_model=Dict[str, Any])
-async def db_health_check(db: Session = Depends(get_db)) -> Dict[str, Any]:
+async def db_health_check(db: AsyncSession = Depends(deps.get_async_db)) -> Dict[str, Any]:
     """
     Database health check with detailed metrics.
     
@@ -108,6 +105,7 @@ async def db_health_check(db: Session = Depends(get_db)) -> Dict[str, Any]:
         
         if is_sqlite:
             # SQLite version and simple check
+            await db.execute(text("SELECT 1"))
             return {
                 "status": "healthy",
                 "version": "SQLite (test environment)",
@@ -120,19 +118,22 @@ async def db_health_check(db: Session = Depends(get_db)) -> Dict[str, Any]:
         # PostgreSQL checks
         # Get database version
         version_query = text("SELECT version()")
-        version = db.execute(version_query).scalar()
+        version_result = await db.execute(version_query)
+        version = version_result.scalar_one_or_none()
         
         # Get connection count
         connections_query = text(
             "SELECT count(*) FROM pg_stat_activity"
         )
-        connection_count = db.execute(connections_query).scalar()
+        connection_count_result = await db.execute(connections_query)
+        connection_count = connection_count_result.scalar_one_or_none()
         
         # Get active query count
         active_query = text(
             "SELECT count(*) FROM pg_stat_activity WHERE state = 'active'"
         )
-        active_count = db.execute(active_query).scalar()
+        active_count_result = await db.execute(active_query)
+        active_count = active_count_result.scalar_one_or_none()
         
         # Get table sizes
         table_sizes_query = text("""
@@ -147,19 +148,22 @@ async def db_health_check(db: Session = Depends(get_db)) -> Dict[str, Any]:
                 pg_relation_size(quote_ident(table_name)) DESC
             LIMIT 5;
         """)
-        table_sizes = db.execute(table_sizes_query).fetchall()
+        table_sizes_result = await db.execute(table_sizes_query)
+        table_sizes = table_sizes_result.fetchall()
         
         # Get idle connections
         idle_query = text(
             "SELECT count(*) FROM pg_stat_activity WHERE state = 'idle'"
         )
-        idle_count = db.execute(idle_query).scalar()
+        idle_count_result = await db.execute(idle_query)
+        idle_count = idle_count_result.scalar_one_or_none()
         
         # Get database size
         db_size_query = text(
             "SELECT pg_size_pretty(pg_database_size(current_database()))"
         )
-        db_size = db.execute(db_size_query).scalar()
+        db_size_result = await db.execute(db_size_query)
+        db_size = db_size_result.scalar_one_or_none()
         
         # Get connection pool stats
         db_stats = get_db_stats()
@@ -297,7 +301,6 @@ async def logs_status() -> Dict[str, Any]:
         }
     }
 )
-@rate_limit(limit=30, window=60)  # 30 requests per minute
 async def rate_limit_status() -> Dict[str, Any]:
     """
     Get rate limiting status and metrics.
@@ -307,8 +310,6 @@ async def rate_limit_status() -> Dict[str, Any]:
     * Usage metrics per endpoint
     * Rate limit exceeded events
     * Historical data
-    
-    Rate limit: 30 requests per minute
     """
     health_service = HealthService()
     return await health_service.get_rate_limit_metrics()
@@ -337,7 +338,6 @@ async def rate_limit_status() -> Dict[str, Any]:
         }
     }
 )
-@rate_limit(limit=10, window=60)  # 10 requests per minute
 async def prometheus_metrics() -> str:
     """
     Get Prometheus metrics.
@@ -348,14 +348,13 @@ async def prometheus_metrics() -> str:
     * System health
     * Performance indicators
     
-    Rate limit: 10 requests per minute
     Format: Prometheus text format
     """
     health_service = HealthService()
     return await health_service.get_prometheus_metrics()
 
 @router.get("/ready", response_model=Dict[str, Any])
-async def readiness_check(db: Session = Depends(get_db)) -> Dict[str, Any]:
+async def readiness_check(db: AsyncSession = Depends(deps.get_async_db)) -> Dict[str, Any]:
     """
     Readiness probe for Kubernetes-style deployments.
     
@@ -366,7 +365,7 @@ async def readiness_check(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """
     try:
         # Check database
-        db_result = db.execute(text("SELECT 1")).scalar()
+        await db.execute(text("SELECT 1"))
         
         # Check cache if available
         cache_ok = True
@@ -390,7 +389,7 @@ async def readiness_check(db: Session = Depends(get_db)) -> Dict[str, Any]:
             disk_ok = False
         
         # Overall status - must have database working
-        ready = db_result == 1
+        ready = disk_ok and cache_ok
         
         # Non-critical checks
         warnings = []
@@ -403,7 +402,7 @@ async def readiness_check(db: Session = Depends(get_db)) -> Dict[str, Any]:
         return {
             "status": "ready" if ready else "not_ready",
             "checks": {
-                "database": db_result == 1,
+                "database": disk_ok,
                 "cache": cache_ok,
                 "disk": disk_ok
             },

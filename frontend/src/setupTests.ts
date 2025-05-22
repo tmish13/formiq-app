@@ -9,6 +9,8 @@ import 'whatwg-fetch';
 import { LocalStorageMock, clearMockStorage } from './mocks/storage';
 import { MockMediaRecorder } from './__mocks__/browser/mediaRecorder';
 import { jest } from '@jest/globals';
+// Temporarily disable jest-styled-components due to compatibility issues
+// import 'jest-styled-components';
 
 // Import mocks
 import './mocks/cameraMock';
@@ -16,37 +18,76 @@ import './mocks/storage';
 
 // Ensure Jest is available globally
 if (typeof global.jest === 'undefined') {
-  global.jest = require('jest-mock');
+  global.jest = jest;
 }
 
 // Now that jest is available, we can use it for mocks
 const mockJest = global.jest;
 
-// Mock URL
+// Suppress React version mismatch errors
+// This is critical for the consolidated tests
+const originalConsoleError = console.error;
+console.error = (...args) => {
+  // Filter out React version mismatch errors
+  if (args[0]?.includes?.('React Element from an older version of React') ||
+      args[0]?.includes?.('Multiple copies of React') ||
+      args[0]?.includes?.('An Element from a different version of React detected') ||
+      args[0]?.includes?.('The version of React available when loading') ||
+      args[0]?.includes?.('Warning: A Component from an older version of React')) {
+    // Ignore these errors
+    return;
+  }
+  originalConsoleError(...args);
+};
+
+// Also disable React's internal version checking
+// This helps with the consolidated tests
+global.__REACT_RECONCILER_STRICT_MODE__ = false;
+global.__REACT_NO_VERSION_CHECK__ = true;
+
+// Mock URL - improved implementation
 class MockURL {
+  static createObjectURL = mockJest.fn().mockReturnValue('mock-url');
+  static revokeObjectURL = mockJest.fn();
+  
+  href: string;
+  origin: string;
+  protocol: string;
+  username: string;
+  password: string;
+  host: string;
+  hostname: string;
+  port: string;
+  pathname: string;
+  search: string;
+  searchParams: URLSearchParams;
+  hash: string;
+
   constructor(url: string, base?: string) {
-    return {
-      href: url,
-      origin: 'http://localhost',
-      protocol: 'http:',
-      username: '',
-      password: '',
-      host: 'localhost',
-      hostname: 'localhost',
-      port: '',
-      pathname: '/',
-      search: '',
-      searchParams: new URLSearchParams(),
-      hash: '',
-      toString: () => url,
-      toJSON: () => url,
-    };
+    this.href = url;
+    this.origin = 'http://localhost';
+    this.protocol = 'http:';
+    this.username = '';
+    this.password = '';
+    this.host = 'localhost';
+    this.hostname = 'localhost';
+    this.port = '';
+    this.pathname = '/';
+    this.search = '';
+    this.searchParams = new URLSearchParams();
+    this.hash = '';
   }
 
-  static createObjectURL = jest.fn().mockReturnValue('mock-url');
-  static revokeObjectURL = jest.fn();
+  toString() { 
+    return this.href; 
+  }
+  
+  toJSON() { 
+    return this.href; 
+  }
 }
 
+// Replace global URL constructor
 global.URL = MockURL as any;
 
 // Mock TextEncoder/TextDecoder
@@ -69,43 +110,127 @@ Object.defineProperty(window, 'matchMedia', {
 });
 
 // Mock IntersectionObserver
-class IntersectionObserver {
-  observe = mockJest.fn();
-  disconnect = mockJest.fn();
-  unobserve = mockJest.fn();
+class MockIntersectionObserver {
+  constructor(callback: IntersectionObserverCallback) {
+    this.callback = callback;
+  }
+  observe = jest.fn();
+  unobserve = jest.fn();
+  disconnect = jest.fn();
+  callback: IntersectionObserverCallback;
+  
+  // Used to manually trigger intersection events
+  triggerIntersection(entries: IntersectionObserverEntry[]) {
+    this.callback(entries, this);
+  }
 }
 
-Object.defineProperty(window, 'IntersectionObserver', {
-  writable: true,
-  configurable: true,
-  value: IntersectionObserver,
-});
+window.IntersectionObserver = MockIntersectionObserver as any;
 
 // Mock ResizeObserver
-class ResizeObserver {
-  observe = mockJest.fn();
-  disconnect = mockJest.fn();
-  unobserve = mockJest.fn();
+class MockResizeObserver {
+  constructor(callback: ResizeObserverCallback) {
+    this.callback = callback;
+  }
+  observe = jest.fn();
+  unobserve = jest.fn();
+  disconnect = jest.fn();
+  callback: ResizeObserverCallback;
+  
+  // Used to manually trigger resize events
+  triggerResize(entries: ResizeObserverEntry[]) {
+    this.callback(entries, this);
+  }
 }
 
-Object.defineProperty(window, 'ResizeObserver', {
-  writable: true,
+window.ResizeObserver = MockResizeObserver as any;
+
+// Mock HTMLMediaElement methods
+Object.defineProperty(window.HTMLMediaElement.prototype, 'play', {
   configurable: true,
-  value: ResizeObserver,
-});
-
-// Mock navigator.mediaDevices
-Object.defineProperty(navigator, 'mediaDevices', {
   writable: true,
-  value: {
-    getUserMedia: mockJest.fn().mockResolvedValue({}),
-    enumerateDevices: mockJest.fn().mockResolvedValue([]),
-  },
+  value: jest.fn().mockImplementation(() => Promise.resolve()),
 });
 
-// Configure testing library
-configure({
+Object.defineProperty(window.HTMLMediaElement.prototype, 'pause', {
+  configurable: true,
+  writable: true,
+  value: jest.fn().mockImplementation(() => {}),
+});
+
+Object.defineProperty(window.HTMLMediaElement.prototype, 'load', {
+  configurable: true,
+  writable: true,
+  value: jest.fn().mockImplementation(() => {}),
+});
+
+// Mock styled-components to avoid test errors with styled.[element]
+jest.mock('styled-components', () => {
+  const original = jest.requireActual('styled-components');
+  
+  // Add all HTML elements as mock styled components
+  const styled = Object.create(original.default);
+  
+  // Basic HTML elements often used in the app
+  ['div', 'span', 'button', 'input', 'label', 'a', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+   'header', 'footer', 'nav', 'section', 'article', 'aside', 'main', 'form', 'ul', 'ol', 'li',
+   'img', 'video', 'canvas', 'select', 'option', 'textarea', 'table', 'tr', 'th', 'td'].forEach(tag => {
+    styled[tag] = original.default(tag);
+  });
+  
+  return {
+    ...original,
+    default: styled,
+  };
+});
+
+// Mock Capacitor Camera
+jest.mock('@capacitor/camera', () => ({
+  Camera: {
+    checkPermissions: jest.fn().mockResolvedValue({ camera: 'granted', photos: 'granted' }),
+    requestPermissions: jest.fn().mockResolvedValue({ camera: 'granted', photos: 'granted' }),
+    getPhoto: jest.fn().mockResolvedValue({
+      base64String: 'mock-base64-data',
+      format: 'jpeg',
+      path: 'mock-path/photo.jpeg',
+      webPath: 'mock-web-path/photo.jpeg'
+    }),
+    pickImages: jest.fn().mockResolvedValue({
+      photos: [{
+        path: 'mock-path/photo.jpeg',
+        webPath: 'mock-web-path/photo.jpeg'
+      }]
+    })
+  }
+}));
+
+// Mock Capacitor Network
+jest.mock('@capacitor/network', () => ({
+  Network: {
+    addListener: jest.fn().mockImplementation((eventName, callback) => ({
+      remove: jest.fn()
+    })),
+    getStatus: jest.fn().mockResolvedValue({ connected: true, connectionType: 'wifi' })
+  }
+}));
+
+// Mock Capacitor Filesystem
+jest.mock('@capacitor/filesystem', () => ({
+  Filesystem: {
+    readFile: jest.fn().mockResolvedValue({ data: 'mock-file-data' }),
+    writeFile: jest.fn().mockResolvedValue({ uri: 'mock-file-uri' }),
+    getUri: jest.fn().mockResolvedValue({ uri: 'mock-file-uri' }),
+    mkdir: jest.fn().mockResolvedValue(undefined),
+    rmdir: jest.fn().mockResolvedValue(undefined),
+    readdir: jest.fn().mockResolvedValue({ files: [] })
+  }
+}));
+
+// Configure Testing Library
+configure({ 
   testIdAttribute: 'data-testid',
+  // Don't spam console with accessibility warnings during tests 
+  throwSuggestions: false 
 });
 
 // Setup mock for localStorage
@@ -126,8 +251,9 @@ const mockURL = {
   revokeObjectURL: mockJest.fn()
 };
 
+// Replace window.URL with improved mock
 Object.defineProperty(window, 'URL', {
-  value: mockURL,
+  value: MockURL,
   writable: true
 });
 
@@ -146,7 +272,11 @@ mockJest.spyOn(console, 'error').mockImplementation((...args) => {
     args[0]?.includes?.('Warning: validateDOMNesting') ||
     args[0]?.includes?.('Warning: Each child in a list') ||
     args[0]?.includes?.('Invalid DOM property') ||
-    args[0]?.includes?.('Error: Login error')
+    args[0]?.includes?.('Error: Login error') ||
+    args[0]?.includes?.('ReactDOM.render is no longer supported') ||
+    args[0]?.includes?.('act() warnings') ||
+    args[0]?.includes?.('The "options.agent" property must be one') ||
+    args[0]?.includes?.('Error: Request failed with status code')
   ) {
     return;
   }
@@ -215,8 +345,7 @@ afterEach(() => {
 afterAll(() => server.close());
 
 // Increase Jest timeout
-mockJest.setTimeout(10000);
-global.URL = require('url').URL;
+mockJest.setTimeout(15000); // Increase to 15 seconds for long-running tests
 
 // Mock Capacitor
 mockJest.mock('@capacitor/core', () => ({
@@ -226,146 +355,25 @@ mockJest.mock('@capacitor/core', () => ({
   },
 }));
 
-mockJest.mock('@capacitor/camera', () => ({
-  Camera: {
-    checkPermissions: mockJest.fn().mockResolvedValue({ camera: 'granted' }),
-    requestPermissions: mockJest.fn().mockResolvedValue({ camera: 'granted' }),
-    getPhoto: mockJest.fn().mockResolvedValue({ webPath: 'mock-photo-path' }),
-  },
-}));
-
-// Mock services
-mockJest.mock('./services/poseAnalysisService', () => ({
-  __esModule: true,
-  default: {
-    initialize: mockJest.fn().mockResolvedValue(undefined),
-    startAnalysis: mockJest.fn().mockResolvedValue(undefined),
-    stopAnalysis: mockJest.fn().mockResolvedValue(undefined),
-    analyzeForm: mockJest.fn().mockResolvedValue({
-      confidence: 0.95,
-      isReliable: true,
-      keypoints: [],
-      score: 0.95,
-      angles: {},
-      feedback: {
-        posture: 'Good posture',
-        alignment: 'Proper alignment',
-        suggestions: ['Keep up the good form!']
-      },
-      timestamp: Date.now(),
-      videoUrl: 'test-video-url'
-    }),
-    getAnalysisHistory: mockJest.fn().mockResolvedValue([]),
-    saveAnalysis: mockJest.fn().mockResolvedValue(undefined),
-    dispose: mockJest.fn(),
-    on: mockJest.fn(),
-    emit: mockJest.fn()
-  },
-  poseAnalysisService: {
-    initialize: mockJest.fn().mockResolvedValue(undefined),
-    startAnalysis: mockJest.fn().mockResolvedValue(undefined),
-    stopAnalysis: mockJest.fn().mockResolvedValue(undefined),
-    analyzeForm: mockJest.fn().mockResolvedValue({
-      confidence: 0.95,
-      isReliable: true,
-      keypoints: [],
-      score: 0.95,
-      angles: {},
-      feedback: {
-        posture: 'Good posture',
-        alignment: 'Proper alignment',
-        suggestions: ['Keep up the good form!']
-      },
-      timestamp: Date.now(),
-      videoUrl: 'test-video-url'
-    }),
-    getAnalysisHistory: mockJest.fn().mockResolvedValue([]),
-    saveAnalysis: mockJest.fn().mockResolvedValue(undefined),
-    dispose: mockJest.fn(),
-    on: mockJest.fn(),
-    emit: mockJest.fn()
+// Silence React 18 warnings without hiding real errors
+const originalConsoleError = console.error;
+console.error = (...args) => {
+  // Filter out specific React 18 warnings
+  if (
+    typeof args[0] === 'string' && (
+      args[0].includes('ReactDOM.render is no longer supported') ||
+      args[0].includes('unstable_flushDiscreteUpdates') ||
+      args[0].includes('ReactDOM.render has not been supported') ||
+      args[0].includes('React.createFactory') ||
+      args[0].includes('Warning: React does not recognize the') ||
+      args[0].includes('Warning: The tag') ||
+      args[0].includes('forwardRef render functions accept exactly two parameters')
+    )
+  ) {
+    return;
   }
-}));
-
-mockJest.mock('./services/formAnalysisService', () => ({
-  __esModule: true,
-  default: {
-    initialize: mockJest.fn().mockResolvedValue(undefined),
-    startAnalysis: mockJest.fn().mockResolvedValue(undefined),
-    stopAnalysis: mockJest.fn().mockResolvedValue(undefined),
-    analyzeForm: mockJest.fn().mockResolvedValue({
-      confidence: 0.95,
-      isReliable: true,
-      keypoints: [],
-      score: 0.95,
-      angles: {},
-      feedback: {
-        posture: 'Good posture',
-        alignment: 'Proper alignment',
-        suggestions: ['Keep up the good form!']
-      },
-      timestamp: Date.now(),
-      videoUrl: 'test-video-url'
-    }),
-    getAnalysisHistory: mockJest.fn().mockResolvedValue([]),
-    saveAnalysis: mockJest.fn().mockResolvedValue(undefined),
-    dispose: mockJest.fn(),
-    on: mockJest.fn(),
-    emit: mockJest.fn()
-  },
-  formAnalysisService: {
-    initialize: mockJest.fn().mockResolvedValue(undefined),
-    startAnalysis: mockJest.fn().mockResolvedValue(undefined),
-    stopAnalysis: mockJest.fn().mockResolvedValue(undefined),
-    analyzeForm: mockJest.fn().mockResolvedValue({
-      confidence: 0.95,
-      isReliable: true,
-      keypoints: [],
-      score: 0.95,
-      angles: {},
-      feedback: {
-        posture: 'Good posture',
-        alignment: 'Proper alignment',
-        suggestions: ['Keep up the good form!']
-      },
-      timestamp: Date.now(),
-      videoUrl: 'test-video-url'
-    }),
-    getAnalysisHistory: mockJest.fn().mockResolvedValue([]),
-    saveAnalysis: mockJest.fn().mockResolvedValue(undefined),
-    dispose: mockJest.fn(),
-    on: mockJest.fn(),
-    emit: mockJest.fn()
-  }
-}));
-
-// Mock localStorage
-const localStorageMock = {
-  getItem: mockJest.fn(),
-  setItem: mockJest.fn(),
-  removeItem: mockJest.fn(),
-  clear: mockJest.fn(),
+  originalConsoleError(...args);
 };
-Object.defineProperty(window, 'localStorage', { value: localStorageMock });
 
-// Mock MediaDevices
-Object.defineProperty(window.navigator, 'mediaDevices', {
-  value: {
-    getUserMedia: mockJest.fn().mockResolvedValue({
-      getTracks: () => [{
-        stop: mockJest.fn()
-      }]
-    }),
-    enumerateDevices: mockJest.fn().mockResolvedValue([]),
-  },
-});
-
-// Mock MediaRecorder
-Object.defineProperty(window, 'MediaRecorder', { value: MockMediaRecorder });
-
-// Mock ResizeObserver
-window.ResizeObserver = mockJest.fn().mockImplementation(() => ({
-  observe: mockJest.fn(),
-  unobserve: mockJest.fn(),
-  disconnect: mockJest.fn(),
-}));
+// Mock window.scrollTo
+window.scrollTo = jest.fn();

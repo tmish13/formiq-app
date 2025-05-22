@@ -26,7 +26,7 @@ class SQLiteUUID(TypeDecorator):
         if dialect.name == 'postgresql':
             return dialect.type_descriptor(UUID())
         else:
-            return dialect.type_descriptor(CHAR(36))
+            return dialect.type_descriptor(String(36))
 
     def process_bind_param(self, value, dialect):
         if value is None:
@@ -65,6 +65,24 @@ class BaseModel(Base):
     id = Column(SQLiteUUID(), primary_key=True, default=uuid.uuid4, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    def __init__(self, **kwargs):
+        """Initialize a new model instance.
+        
+        Args:
+            **kwargs: Keyword arguments for model attributes
+        """
+        # Get valid fields for this model
+        valid_fields = inspect(self.__class__).columns.keys()
+        
+        # Filter out invalid fields
+        filtered_kwargs = {k: v for k, v in kwargs.items() if k in valid_fields}
+        
+        # Call SQLAlchemy's __init__
+        super().__init__(**filtered_kwargs)
+        
+        # Validate after initialization
+        self.validate()
 
     def to_dict(self) -> Dict[str, Any]:
         """

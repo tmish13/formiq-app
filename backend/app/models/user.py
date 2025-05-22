@@ -1,16 +1,19 @@
 """User model module for managing user data and relationships."""
 from typing import Optional, List, Dict, Any
 from sqlalchemy import Column, Integer, String, Boolean, Enum, DateTime, ForeignKey
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, validates
 from datetime import datetime
 import enum
 import re
-from app.models.base import BaseModel, SQLiteUUID
+from app.models.base import BaseModel
 from app.models.enums import SubscriptionTier
+from app.models.user_session import UserSession
 from app.core.password import get_password_hash, verify_password
 from app.core.exceptions import ValidationError
 from app.core.validators import validate_password as validate_password_strength
 import uuid
+from uuid import uuid4
 
 class User(BaseModel):
     """
@@ -51,7 +54,7 @@ class User(BaseModel):
     """
     __tablename__ = "users"
 
-    id = Column(SQLiteUUID(), primary_key=True, default=uuid.uuid4, index=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4, index=True)
     email = Column(String, unique=True, index=True, nullable=False)
     username = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
@@ -101,17 +104,35 @@ class User(BaseModel):
         lazy="select"
     )
     settings = relationship("UserSettings", back_populates="user", uselist=False)
-    sessions = relationship("UserSession", back_populates="user", cascade="all, delete-orphan")
+    sessions = relationship(UserSession, back_populates="user", cascade="all, delete-orphan")
     videos = relationship("Video", back_populates="user", cascade="all, delete-orphan")
+    exercise_progress = relationship("ExerciseProgress", back_populates="user", cascade="all, delete-orphan", lazy="select")
 
-    @validates('email')
-    def validate_email(self, key: str, email: str) -> str:
+    def __init__(self, **kwargs):
+        """Initialize a new User instance.
+        
+        Args:
+            **kwargs: Keyword arguments for user attributes
+        """
+        # Handle password hashing if provided
+        if "password" in kwargs:
+            kwargs["hashed_password"] = get_password_hash(kwargs.pop("password"))
+
+        # Validate email and username before initialization
+        if "email" in kwargs:
+            kwargs["email"] = self._validate_email(kwargs["email"])
+        if "username" in kwargs:
+            kwargs["username"] = self._validate_username(kwargs["username"])
+
+        # Initialize SQLAlchemy model
+        super().__init__(**kwargs)
+
+    def _validate_email(self, email: str) -> str:
         """
         Validate email format.
         
         Args:
-            key (str): Field name
-            email (str): Email to validate
+            email: Email to validate
             
         Returns:
             str: Validated email
@@ -128,14 +149,12 @@ class User(BaseModel):
         
         return email.lower()
 
-    @validates('username')
-    def validate_username(self, key: str, username: str) -> str:
+    def _validate_username(self, username: str) -> str:
         """
         Validate username format.
         
         Args:
-            key (str): Field name
-            username (str): Username to validate
+            username: Username to validate
             
         Returns:
             str: Validated username
@@ -159,6 +178,16 @@ class User(BaseModel):
             )
             
         return username.lower()
+
+    @validates('email')
+    def validate_email(self, key: str, value: str) -> str:
+        """SQLAlchemy validator for email field."""
+        return self._validate_email(value)
+
+    @validates('username')
+    def validate_username(self, key: str, value: str) -> str:
+        """SQLAlchemy validator for username field."""
+        return self._validate_username(value)
 
     def verify_password(self, password: str) -> bool:
         """
@@ -203,8 +232,8 @@ class User(BaseModel):
             ValidationError: If any validation fails
         """
         super().validate()
-        self.validate_email(None, self.email)
-        self.validate_username(None, self.username)
+        self.validate_email('email', self.email)
+        self.validate_username('username', self.username)
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'User':
@@ -226,8 +255,3 @@ class User(BaseModel):
 
     def __repr__(self) -> str:
         return f"<User {self.id} - {self.email}>"
-
-    def __init__(self, **kwargs):
-        if "password" in kwargs:
-            kwargs["hashed_password"] = get_password_hash(kwargs.pop("password"))
-        super().__init__(**kwargs) 

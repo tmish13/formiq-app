@@ -110,5 +110,4 @@ class ExerciseProgressResponse(BaseModel):
     weight: Optional[float] = None
     notes: Optional[str] = None
 
-    class Config:
-        orm_mode = True 
+    model_config = ConfigDict(from_attributes=True) 

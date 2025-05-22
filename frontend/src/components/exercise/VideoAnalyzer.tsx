@@ -45,13 +45,19 @@ const VideoAnalyzer: React.FC<VideoAnalyzerProps> = ({
   }, [videoFile]);
 
   useEffect(() => {
-    if (isAnalyzing && videoRef.current) {
-      try {
-        videoRef.current.currentTime = 0;
-        videoRef.current.play();
-        onAnalysisStart();
-      } catch (error) {
-        onError(error);
+    const videoElement = videoRef.current;
+    if (isAnalyzing && videoElement) {
+      videoElement.currentTime = 0;
+      
+      const playPromise = videoElement.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            onAnalysisStart();
+          })
+          .catch((error) => {
+            onError(error);
+          });
       }
     }
   }, [isAnalyzing, onAnalysisStart, onError]);
@@ -65,6 +71,7 @@ const VideoAnalyzer: React.FC<VideoAnalyzerProps> = ({
         playsInline
         muted
         loop={isAnalyzing}
+        aria-label="Video player"
       />
     </VideoContainer>
   );

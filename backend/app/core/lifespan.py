@@ -14,16 +14,29 @@ from app.core.database import init_db, close_db
 from app.core.monitoring import init_monitoring
 from app.core.logging import init_logging
 from app.core.cache import init_cache
-from app.core.rate_limit import init_rate_limit
 from app.core.storage import init_storage
 from app.core.security import init_security
 from app.api.deps import register_deps
+from app.services.scheduler_service import scheduler
 
 logger = get_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Lifespan context manager for startup and shutdown events."""
+    """
+    Application lifespan context manager.
+    
+    Handles startup and shutdown events for the application.
+    """
+    # Startup
+    logger.info("Application startup")
+    
+    # Start the scheduler in non-production environments
+    # In production, scheduler should be controlled via admin API
+    if app.debug:
+        logger.info("Starting scheduler in development mode")
+        await scheduler.start()
+    
     # Startup Logic
     logger.info(f"Application starting up in {settings.ENVIRONMENT} environment...")
     try:
@@ -31,7 +44,6 @@ async def lifespan(app: FastAPI):
         init_monitoring()
         init_logging()
         await init_cache()
-        await init_rate_limit()
         await init_storage()
         init_security()
         
@@ -85,6 +97,14 @@ async def lifespan(app: FastAPI):
 
     # Yield control to app
     yield
+    
+    # Shutdown
+    logger.info("Application shutdown")
+    
+    # Stop the scheduler if it's running
+    if scheduler.is_running:
+        logger.info("Stopping scheduler")
+        await scheduler.stop()
     
     # Shutdown Logic
     logger.info("Application shutting down...")

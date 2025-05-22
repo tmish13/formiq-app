@@ -1,13 +1,19 @@
 from typing import List, Dict, Any
 from datetime import datetime, timedelta
-from sqlalchemy.orm import Session
-from ..models.database.form_analysis import FormAnalysis
-from ..models.form_analysis import FormAnalysisMetrics
-from ..core.utils.pose_estimation import calculate_pose_metrics
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from app.core.config import Settings
+from app.models.form_check import FormCheck
+from app.models.exercise import ExerciseTemplate
+# from ..core.utils.pose_estimation import calculate_pose_metrics
+import logging
+
+logger = logging.getLogger(__name__)
 
 class PersonalizedFeedbackService:
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession, settings: Settings):
         self.db = db
+        self.settings = settings
 
     async def generate_personalized_feedback(
         self,
@@ -17,16 +23,12 @@ class PersonalizedFeedbackService:
     ) -> Dict[str, Any]:
         """Generate personalized feedback based on user history and current analysis."""
         
-        # Get user's exercise history for the past 30 days
         history = await self._get_user_history(user_id, exercise_type)
         
-        # Calculate user's progress metrics
         progress_metrics = self._calculate_progress_metrics(history)
         
-        # Generate personalized feedback
         feedback = self._generate_feedback(current_analysis, progress_metrics)
         
-        # Generate personalized suggestions
         suggestions = self._generate_suggestions(current_analysis, progress_metrics)
         
         return {
@@ -39,19 +41,26 @@ class PersonalizedFeedbackService:
         self,
         user_id: str,
         exercise_type: str
-    ) -> List[FormAnalysis]:
+    ) -> List[FormCheck]:
         """Get user's exercise history for the past 30 days."""
         thirty_days_ago = datetime.utcnow() - timedelta(days=30)
         
-        return self.db.query(FormAnalysis).filter(
-            FormAnalysis.user_id == user_id,
-            FormAnalysis.exercise_type == exercise_type,
-            FormAnalysis.created_at >= thirty_days_ago
-        ).order_by(FormAnalysis.created_at.desc()).all()
+        stmt = (
+            select(FormCheck)
+            .join(FormCheck.exercise)
+            .filter(
+                FormCheck.user_id == user_id,
+                ExerciseTemplate.name == exercise_type,
+                FormCheck.created_at >= thirty_days_ago
+            )
+            .order_by(FormCheck.created_at.desc())
+        )
+        result = await self.db.execute(stmt)
+        return result.scalars().all()
 
     def _calculate_progress_metrics(
         self,
-        history: List[FormAnalysis]
+        history: List[FormCheck]
     ) -> Dict[str, Any]:
         """Calculate user's progress metrics based on exercise history."""
         if not history:
@@ -59,60 +68,85 @@ class PersonalizedFeedbackService:
                 "trend": "neutral",
                 "improvement_areas": [],
                 "strengths": [],
-                "consistency_score": 0.0
+                "consistency_score": 0.0,
+                "metric_trends": {}
             }
 
-        # Calculate trends in metrics
-        metric_trends = {
-            "alignment": self._calculate_metric_trend([h.metrics["alignment"] for h in history]),
-            "stability": self._calculate_metric_trend([h.metrics["stability"] for h in history]),
-            "symmetry": self._calculate_metric_trend([h.metrics["symmetry"] for h in history]),
-            "consistency": self._calculate_metric_trend([h.metrics["consistency"] for h in history])
-        }
+        metric_trends = {}
+        possible_metrics = ["alignment", "stability", "symmetry", "consistency"]
+        for metric_name in possible_metrics:
+            values = []
+            for h_item in history:
+                if h_item.results and isinstance(h_item.results, dict) and metric_name in h_item.results:
+                    values.append(float(h_item.results[metric_name]))
+                elif h_item.results and isinstance(h_item.results, dict) and "metrics" in h_item.results and isinstance(h_item.results["metrics"], dict):
+                    values.append(float(h_item.results["metrics"].get(metric_name, 0.0)))
+                else:
+                    values.append(0.0)
+            metric_trends[metric_name] = self._calculate_metric_trend(values)
 
-        # Identify improvement areas and strengths
         improvement_areas = [
-            metric for metric, trend in metric_trends.items()
-            if trend < 0 or (trend == 0 and self._get_latest_metric(history, metric) < 0.7)
+            metric for metric, trend_val in metric_trends.items()
+            if trend_val < 0 or (trend_val == 0 and self._get_latest_metric(history, metric) < 0.7)
         ]
         
         strengths = [
-            metric for metric, trend in metric_trends.items()
-            if trend > 0 and self._get_latest_metric(history, metric) >= 0.8
+            metric for metric, trend_val in metric_trends.items()
+            if trend_val > 0 and self._get_latest_metric(history, metric) >= 0.8
         ]
 
-        # Calculate consistency score
-        consistency_score = len([h for h in history if h.metrics["consistency"] >= 0.7]) / len(history)
+        consistency_values = []
+        for h_item in history:
+            if h_item.results and isinstance(h_item.results, dict) and "consistency" in h_item.results:
+                consistency_values.append(float(h_item.results["consistency"]))
+            elif h_item.results and isinstance(h_item.results, dict) and "metrics" in h_item.results and isinstance(h_item.results["metrics"], dict):
+                consistency_values.append(float(h_item.results["metrics"].get("consistency", 0.0)))
+            else:
+                consistency_values.append(0.0)
+                
+        consistency_score = len([val for val in consistency_values if val >= 0.7]) / len(consistency_values) if consistency_values else 0.0
+        
+        sum_trends = sum(metric_trends.values())
+        overall_trend = "neutral"
+        if sum_trends > 0.1:
+            overall_trend = "improving"
+        elif sum_trends < -0.1:
+            overall_trend = "declining"
 
         return {
-            "trend": "improving" if sum(metric_trends.values()) > 0 else "declining",
+            "trend": overall_trend,
             "improvement_areas": improvement_areas,
             "strengths": strengths,
-            "consistency_score": consistency_score,
+            "consistency_score": round(consistency_score, 2),
             "metric_trends": metric_trends
         }
 
     def _calculate_metric_trend(self, values: List[float]) -> float:
-        """Calculate the trend of a metric over time."""
+        """Calculate the trend of a metric over time using simple linear regression slope."""
         if len(values) < 2:
             return 0.0
         
-        # Simple linear regression slope
-        x = list(range(len(values)))
-        y = values
+        x_coords = list(range(len(values)))
         n = len(values)
         
-        mean_x = sum(x) / n
-        mean_y = sum(y) / n
+        mean_x = sum(x_coords) / n
+        mean_y = sum(values) / n
         
-        numerator = sum((x[i] - mean_x) * (y[i] - mean_y) for i in range(n))
-        denominator = sum((x[i] - mean_x) ** 2 for i in range(n))
+        numerator = sum((x_coords[i] - mean_x) * (values[i] - mean_y) for i in range(n))
+        denominator = sum((x_coords[i] - mean_x) ** 2 for i in range(n))
         
-        return numerator / denominator if denominator != 0 else 0.0
+        return round(numerator / denominator, 3) if denominator != 0 else 0.0
 
-    def _get_latest_metric(self, history: List[FormAnalysis], metric: str) -> float:
+    def _get_latest_metric(self, history: List[FormCheck], metric: str) -> float:
         """Get the latest value for a specific metric."""
-        return history[0].metrics[metric] if history else 0.0
+        if not history:
+            return 0.0
+        latest_item = history[0]
+        if latest_item.results and isinstance(latest_item.results, dict) and metric in latest_item.results:
+            return float(latest_item.results[metric])
+        elif latest_item.results and isinstance(latest_item.results, dict) and "metrics" in latest_item.results and isinstance(latest_item.results["metrics"], dict):
+            return float(latest_item.results["metrics"].get(metric, 0.0))
+        return 0.0
 
     def _generate_feedback(
         self,
@@ -122,24 +156,25 @@ class PersonalizedFeedbackService:
         """Generate personalized feedback based on current analysis and progress metrics."""
         feedback = []
 
-        # Add progress-based feedback
-        if progress_metrics["trend"] == "improving":
-            feedback.append("Your form has been improving consistently!")
-        elif progress_metrics["trend"] == "declining":
-            feedback.append("Let's focus on maintaining proper form throughout your exercises.")
+        if progress_metrics.get("trend") == "improving":
+            feedback.append("Your form has been improving consistently! Keep up the great work.")
+        elif progress_metrics.get("trend") == "declining":
+            feedback.append("Let's focus on maintaining proper form throughout your exercises. Reviewing basics might help.")
 
-        # Add metric-specific feedback
-        for area in progress_metrics["improvement_areas"]:
+        for area in progress_metrics.get("improvement_areas", []):
             feedback.append(f"Continue working on your {area} - try focusing on this aspect during your next session.")
 
-        for strength in progress_metrics["strengths"]:
+        for strength in progress_metrics.get("strengths", []):
             feedback.append(f"Great job maintaining excellent {strength}!")
 
-        # Add consistency feedback
-        if progress_metrics["consistency_score"] >= 0.8:
-            feedback.append("You're maintaining very consistent form across sessions!")
-        elif progress_metrics["consistency_score"] < 0.5:
-            feedback.append("Try to maintain more consistent form across your sessions.")
+        consistency_score = progress_metrics.get("consistency_score", 0.0)
+        if consistency_score >= 0.8:
+            feedback.append("You're maintaining very consistent form across sessions! That's key to progress.")
+        elif consistency_score < 0.5 and len(progress_metrics.get("metric_trends", {})) > 0:
+            feedback.append("Try to maintain more consistent form across your sessions. Focus on one or two cues each time.")
+
+        if not feedback:
+            feedback.append("Keep focusing on your form and consistency for the best results.")
 
         return feedback
 
@@ -151,25 +186,37 @@ class PersonalizedFeedbackService:
         """Generate personalized suggestions based on current analysis and progress metrics."""
         suggestions = []
 
-        # Add improvement area suggestions
-        for area in progress_metrics["improvement_areas"]:
+        for area in progress_metrics.get("improvement_areas", []):
             if area == "alignment":
-                suggestions.append("Practice with lighter weights while focusing on proper alignment.")
+                suggestions.append("Practice with lighter weights or bodyweight, focusing on proper alignment cues.")
             elif area == "stability":
-                suggestions.append("Consider incorporating balance exercises into your routine.")
+                suggestions.append("Consider incorporating unilateral (single-leg or single-arm) exercises to improve stability.")
             elif area == "symmetry":
-                suggestions.append("Pay attention to equal engagement on both sides of your body.")
-            elif area == "consistency":
-                suggestions.append("Try using a metronome to maintain consistent tempo.")
+                suggestions.append("Pay close attention to equal engagement and movement on both sides of your body. Using a mirror can help.")
 
-        # Add progression suggestions
-        if progress_metrics["trend"] == "improving":
-            suggestions.append("You're ready to gradually increase the intensity of your workouts.")
-        elif progress_metrics["trend"] == "declining":
-            suggestions.append("Consider reducing weight/intensity to focus on form.")
+        if progress_metrics.get("trend") == "improving" and progress_metrics.get("consistency_score", 0.0) >= 0.7:
+            suggestions.append("You're showing solid improvement and consistency! You might be ready to gradually increase the intensity or complexity of your workouts.")
+        elif progress_metrics.get("trend") == "declining":
+            suggestions.append("Consider slightly reducing weight or intensity to really nail down the form on each rep.")
 
-        # Add consistency suggestions
-        if progress_metrics["consistency_score"] < 0.7:
-            suggestions.append("Record your exercises more frequently to track your progress better.")
+        if progress_metrics.get("consistency_score", 0.0) < 0.7 and len(progress_metrics.get("metric_trends", {})) > 0:
+            suggestions.append("Focus on achieving consistent form in each session. Pick one or two key aspects to concentrate on each time.")
 
-        return suggestions 
+        if not suggestions:
+            suggestions.append("Keep practicing and stay mindful of your technique. Consistent effort builds good habits!")
+        return suggestions
+
+from fastapi import Depends
+
+async def get_async_personalized_feedback_service(
+    # db: AsyncSession = Depends(get_async_db), # Original problematic Depends
+    # settings: Settings = Depends(get_settings) # Original problematic Depends
+) -> PersonalizedFeedbackService:
+    from app.core.deps import get_async_db, get_settings # ADDING LOCAL IMPORTS
+    from sqlalchemy.ext.asyncio import AsyncSession # For type hint
+    from app.core.config import Settings # For type hint
+    from fastapi import Depends as FastAPI_Depends # Alias to avoid conflict if Depends is used differently above
+
+    db: AsyncSession = FastAPI_Depends(get_async_db)
+    settings: Settings = FastAPI_Depends(get_settings)
+    return PersonalizedFeedbackService(db=db, settings=settings) 

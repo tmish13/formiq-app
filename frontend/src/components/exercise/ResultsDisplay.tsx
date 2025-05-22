@@ -1,128 +1,149 @@
 import React from 'react';
 import styled from 'styled-components';
+import { motion } from 'framer-motion';
 
-interface ResultsDisplayProps {
+interface Analysis {
   score: number;
   feedback: string[];
   videoUrl: string;
 }
 
-const Container = styled.div`
-  margin-top: 30px;
-  padding: 20px;
-  border-radius: 8px;
-  background-color: ${({ theme }) => theme.colors.background.light};
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+interface ResultsDisplayProps {
+  results: Analysis | null;
+  onNewCheck: () => void;
+}
+
+const Container = styled(motion.div)`
+  padding: ${({ theme }) => theme.spacing.lg};
+  border-radius: ${({ theme }) => theme.borderRadius.md};
+  background-color: ${({ theme }) => theme.colors.background.paper};
+  box-shadow: ${({ theme }) => theme.shadows.md};
+  margin-bottom: ${({ theme }) => theme.spacing.xl};
 `;
 
-const Title = styled.h2`
-  margin-top: 0;
-  color: ${({ theme }) => theme.colors.text.primary};
-  margin-bottom: 20px;
+const ScoreContainer = styled.div`
+  text-align: center;
+  margin-bottom: ${({ theme }) => theme.spacing.lg};
 `;
 
-const ResultCard = styled.div`
-  display: flex;
-  margin-bottom: 30px;
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-`;
-
-const ScoreSection = styled.div<{ score: number }>`
-  flex: 0 0 150px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  background-color: ${({ score, theme }) => {
-    if (score >= 80) return theme.colors.success.main;
-    if (score >= 60) return theme.colors.warning.main;
-    return theme.colors.error.main;
-  }};
-  color: white;
-`;
-
-const ScoreValue = styled.div`
+const Score = styled.div<{ score: number }>`
   font-size: 3rem;
   font-weight: bold;
+  color: ${({ score, theme }) => {
+    if (score >= 80) return theme.colors.success;
+    if (score >= 60) return theme.colors.warning;
+    return theme.colors.error;
+  }};
+  margin-bottom: ${({ theme }) => theme.spacing.sm};
 `;
 
 const ScoreLabel = styled.div`
-  font-size: 1rem;
-  margin-top: 5px;
-`;
-
-const FeedbackSection = styled.div`
-  flex: 1;
-  padding: 20px;
-  background-color: white;
+  font-size: 1.2rem;
+  color: ${({ theme }) => theme.colors.text.secondary};
 `;
 
 const FeedbackTitle = styled.h3`
-  margin-top: 0;
-  margin-bottom: 15px;
+  margin-bottom: ${({ theme }) => theme.spacing.md};
   color: ${({ theme }) => theme.colors.text.primary};
 `;
 
 const FeedbackList = styled.ul`
-  margin: 0;
-  padding-left: 20px;
+  margin-bottom: ${({ theme }) => theme.spacing.lg};
+  padding-left: ${({ theme }) => theme.spacing.lg};
 `;
 
 const FeedbackItem = styled.li`
-  margin-bottom: 10px;
+  margin-bottom: ${({ theme }) => theme.spacing.sm};
   color: ${({ theme }) => theme.colors.text.primary};
-  
-  &:last-child {
-    margin-bottom: 0;
-  }
 `;
 
-const VideoTitle = styled.h3`
-  margin-top: 0;
-  color: ${({ theme }) => theme.colors.text.primary};
-  margin-bottom: 15px;
-`;
-
-const VideoPlayer = styled.video`
+const VideoContainer = styled.div`
+  margin-bottom: ${({ theme }) => theme.spacing.lg};
   width: 100%;
-  border-radius: 8px;
+  border-radius: ${({ theme }) => theme.borderRadius.md};
+  overflow: hidden;
 `;
 
-const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ score, feedback, videoUrl }) => {
-  const getScoreLabel = (score: number) => {
-    if (score >= 80) return 'Excellent';
-    if (score >= 60) return 'Good';
-    if (score >= 40) return 'Fair';
-    return 'Needs Improvement';
-  };
+const Video = styled.video`
+  width: 100%;
+  height: auto;
+`;
 
-  return (
-    <Container>
-      <Title>Form Analysis Results</Title>
-      
-      <ResultCard>
-        <ScoreSection score={score}>
-          <ScoreValue>{score}</ScoreValue>
-          <ScoreLabel>{getScoreLabel(score)}</ScoreLabel>
-        </ScoreSection>
-        
-        <FeedbackSection>
-          <FeedbackTitle>Feedback</FeedbackTitle>
-          <FeedbackList>
-            {feedback.map((item, index) => (
-              <FeedbackItem key={index}>{item}</FeedbackItem>
-            ))}
-          </FeedbackList>
-        </FeedbackSection>
-      </ResultCard>
-      
-      <VideoTitle>Your Form Video</VideoTitle>
-      <VideoPlayer src={videoUrl} controls />
-    </Container>
-  );
+const Button = styled(motion.button)`
+  background-color: ${({ theme }) => theme.colors.primary};
+  color: white;
+  border: none;
+  border-radius: ${({ theme }) => theme.borderRadius.md};
+  padding: ${({ theme }) => theme.spacing.md};
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  width: 100%;
+  max-width: 300px;
+  margin: 0 auto;
+  display: block;
+`;
+
+const containerVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.5,
+      staggerChildren: 0.1
+    }
+  }
 };
 
-export default ResultsDisplay; 
+const itemVariants = {
+  hidden: { opacity: 0, y: 10 },
+  visible: { opacity: 1, y: 0 }
+};
+
+export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ results, onNewCheck }) => {
+  if (!results) return null;
+
+  return (
+    <Container
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+    >
+      <ScoreContainer>
+        <Score score={results.score}>{results.score}</Score>
+        <ScoreLabel>Your Form Score</ScoreLabel>
+      </ScoreContainer>
+
+      {results.feedback.length > 0 && (
+        <motion.div variants={itemVariants}>
+          <FeedbackTitle>Feedback</FeedbackTitle>
+          <FeedbackList>
+            {results.feedback.map((item, index) => (
+              <FeedbackItem key={index} data-testid="feedback-item">
+                {item}
+              </FeedbackItem>
+            ))}
+          </FeedbackList>
+        </motion.div>
+      )}
+
+      {results.videoUrl && (
+        <motion.div variants={itemVariants}>
+          <VideoContainer>
+            <Video src={results.videoUrl} controls />
+          </VideoContainer>
+        </motion.div>
+      )}
+
+      <Button
+        onClick={onNewCheck}
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        data-testid="new-check-btn"
+      >
+        New Check
+      </Button>
+    </Container>
+  );
+}; 

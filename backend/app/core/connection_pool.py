@@ -7,7 +7,7 @@ from typing import List, Dict, Any, Optional
 import time
 import threading
 import asyncio
-from app.core.logging import logger
+from app.core.logging import get_logger
 from app.core.database import get_db_stats
 from app.core.config import settings
 from sqlalchemy.engine import Engine
@@ -27,6 +27,8 @@ _pool_stats = {
 
 # Lock for thread-safe operations
 _stats_lock = threading.Lock()
+
+logger = get_logger(__name__)
 
 def update_pool_stats(stats: Dict[str, Any]) -> None:
     """

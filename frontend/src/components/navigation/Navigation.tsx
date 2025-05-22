@@ -51,6 +51,9 @@ export const Navigation: React.FC = () => {
         <NavLink to={ROUTES.FORM_ANALYSIS} $isActive={location.pathname.startsWith(ROUTES.FORM_ANALYSIS)}>
           Form Analysis
         </NavLink>
+        <NavLink to={ROUTES.VIDEOS} $isActive={location.pathname.startsWith(ROUTES.VIDEOS)}>
+          Videos
+        </NavLink>
         <NavLink to={ROUTES.PROGRESS} $isActive={location.pathname.startsWith(ROUTES.PROGRESS)}>
           Progress
         </NavLink>

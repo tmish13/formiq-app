@@ -2,38 +2,74 @@ version: '3.8'
 
 services:
   app:
-    build: .
+    build:
+      context: ..
+      dockerfile: Dockerfile
     ports:
       - "8000:8000"
     volumes:
-      - .:/app
+      - ..:/app
+      - ../../.env:/app/.env:ro
       - uploads:/app/uploads
+      - formiq_shared:/var/formiq_celery_shared
     environment:
       - POSTGRES_SERVER=db
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=formiq
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-formiq}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - CELERY_SHARED_DATA_PATH=/var/formiq_celery_shared
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - DEBUG=${DEBUG:-true}
+      - SECRET_KEY=${SECRET_KEY:-your-very-secure-secret-key}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_DB=0
       - REDIS_PASSWORD=
-      - SECRET_KEY=your-secret-key-here
       - UPLOAD_DIR=uploads/videos
       - UPLOAD_URL=http://localhost:8000/uploads/videos
     depends_on:
       - db
       - redis
 
+  worker:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    command: celery -A app.core.celery_app.celery_app worker -l info -P gevent
+    volumes:
+      - ..:/app
+      - ../../.env:/app/.env:ro
+      - formiq_shared:/var/formiq_celery_shared
+    environment:
+      - POSTGRES_SERVER=db
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-formiq}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - CELERY_SHARED_DATA_PATH=/var/formiq_celery_shared
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - DEBUG=${DEBUG:-true}
+      - SECRET_KEY=${SECRET_KEY:-your-very-secure-secret-key}
+    depends_on:
+      - db
+      - redis
+
   db:
-    image: postgres:13
+    image: postgres:15
+    container_name: formiq_db
     volumes:
       - postgres_data:/var/lib/postgresql/data
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=formiq
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-formiq_db}
     ports:
       - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-formiq_db}"]
 
   redis:
     image: redis:6
@@ -45,4 +81,5 @@ services:
 volumes:
   postgres_data:
   redis_data:
-  uploads: 
+  uploads:
+  formiq_shared: 

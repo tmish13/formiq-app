@@ -152,3 +152,45 @@ jobs:
 
         # Update frontend service
         aws ecs update-service --cluster formiq-cluster --service frontend-service --force-new-deployment 
+
+  test-frontend:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: 'frontend/package-lock.json'
+      
+      - name: Install dependencies
+        working-directory: ./frontend
+        run: npm ci
+      
+      - name: Lint
+        working-directory: ./frontend
+        run: npm run lint
+      
+      - name: Type check
+        working-directory: ./frontend
+        run: npm run typecheck
+      
+      - name: Run tests
+        working-directory: ./frontend
+        run: npm test
+      
+      - name: Check test coverage
+        working-directory: ./frontend
+        run: |
+          npx jest --coverage --coverageReporters=json-summary
+          npx check-coverage || (echo "Failed to meet coverage thresholds" && exit 1)
+      
+      - name: Archive coverage results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-report
+          path: frontend/coverage/ 
