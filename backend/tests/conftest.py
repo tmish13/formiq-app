@@ -2,6 +2,9 @@ import sys
 import os
 import pytest
 import importlib
+from unittest.mock import AsyncMock, MagicMock, patch
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.services.video_processing_service import VideoProcessingService
 
 @pytest.fixture(autouse=True, scope="session")
 def manipulate_sys_path_for_tests():
@@ -64,7 +67,7 @@ def manipulate_sys_path_for_tests():
 
     print(f"[CONFLOG] Final sys.path for test session: {sys.path}")
     yield
-
+    
     sys.path = original_sys_path
     sys.modules = original_modules
     print("[CONFLOG] Restored sys.path and sys.modules")
@@ -86,3 +89,77 @@ def manipulate_sys_path_for_tests():
     if backend_root_for_imports not in sys.path:
         sys.path.insert(0, backend_root_for_imports)
     # Now, `import app` should resolve to `backend/app`. 
+
+@pytest.fixture
+def mock_db_session():
+    session = AsyncMock(spec=AsyncSession)
+
+    # Define the mock for the object that .first() will return
+    mock_first_return = None # Default, tests can override by drilling down
+
+    # Define the .first() method mock on the ScalarResult mock
+    mock_first_method = MagicMock(return_value=mock_first_return)
+
+    # Define the mock for the ScalarResult object
+    mock_scalar_result = MagicMock() # This object will have a .first() method
+    mock_scalar_result.first = mock_first_method
+
+    # Define the .scalars() method mock on the Result mock
+    mock_scalars_method = MagicMock(return_value=mock_scalar_result)
+
+    # Define the mock for the Result object
+    mock_result = MagicMock() # This object will have a .scalars() method
+    mock_result.scalars = mock_scalars_method
+
+    # session.execute is an async method. When awaited, it returns mock_result.
+    session.execute = AsyncMock(return_value=mock_result)
+    
+    # Example for test configuration:
+    # new_return_value_for_first = Video(...)
+    # mock_db_session.execute.return_value.scalars.return_value.first.return_value = new_return_value_for_first
+
+    session.commit = AsyncMock()
+    session.refresh = AsyncMock()
+    session.add = MagicMock()
+    session.close = AsyncMock()
+    return session
+
+@pytest.fixture
+def mock_settings():
+    settings = MagicMock()
+    settings.MAX_VIDEO_DURATION = 300  # seconds
+    settings.MIN_VIDEO_DURATION = 1    # seconds
+    settings.MIN_VIDEO_FPS = 10
+    settings.MIN_VIDEO_FRAMES = 50
+    settings.TARGET_FPS = 30
+    settings.TARGET_WIDTH = 640
+    settings.TARGET_HEIGHT = 480
+    settings.FFMPEG_PATH = "ffmpeg"
+    settings.FFPROBE_PATH = "ffprobe"
+    settings.FFMPEG_TIMEOUT = 60
+    settings.AI_TARGET_FRAME_WIDTH = 256
+    settings.AI_TARGET_FRAME_HEIGHT = 256
+    settings.TMP_FILE_STORAGE_PATH = "/tmp/formiq_tests"
+    return settings
+
+@pytest.fixture
+def video_processing_service(mock_settings: MagicMock) -> VideoProcessingService:
+    # Ensure VideoProcessingService is imported here if not already globally for the conftest
+    service = VideoProcessingService(app_settings=mock_settings)
+    return service
+
+@pytest.fixture
+def mock_celery_task_module(monkeypatch):
+    mock_module = MagicMock()
+    mock_module.process_video_celery_task = MagicMock()
+    mock_module.process_video_celery_task.delay = MagicMock() 
+    
+    monkeypatch.setitem(
+        sys.modules, "app.tasks.video_tasks", mock_module
+    )
+    return mock_module
+
+# You might want to add other common fixtures here, for example:
+# - mock_app_settings
+# - mock_storage_service
+# - A fixture for a generic Video object instance 

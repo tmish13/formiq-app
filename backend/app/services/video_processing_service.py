@@ -7,6 +7,7 @@ import tempfile
 import os
 import subprocess # Added for FFmpeg integration
 import asyncio # Add asyncio import
+import logging # Add logging import
 
 from app.core.monitoring import track_model_inference
 from app.models.enums import ExerciseType
@@ -19,6 +20,7 @@ class VideoProcessingService:
     def __init__(self, app_settings: Settings):
         """Initialize video processing service."""
         self.settings = app_settings
+        self.logger = logging.getLogger(__name__) # Initialize logger
         self.frame_rate = self.settings.VIDEO_FRAME_RATE # This will be the target_fps for FFmpeg
         self.max_frames = self.settings.MAX_VIDEO_FRAMES
         # Use new settings for target_size
@@ -297,44 +299,50 @@ class VideoProcessingService:
         output_path: str,
         target_fps: int
     ) -> bool:
-        """
-        Normalizes video resolution and FPS using FFmpeg. Runs synchronously.
-        Returns True on success, False on failure.
-        Logs errors internally.
-        """
-        # Ensure target_fps is a positive integer
-        if not isinstance(target_fps, int) or target_fps <= 0:
-            # Log this misconfiguration, but perhaps don't fail the whole process,
-            # or raise a specific configuration error. For now, just skip normalization.
-            # Consider adding logging here: e.g., self.logger.warning("Invalid target_fps...")
-            return True # Or False, depending on desired behavior for invalid FPS config
+        """Normalize video using FFmpeg: set FPS, scale, and pad to target dimensions."""
+        if not os.path.exists(input_path):
+            self.logger.error(f"Input video file not found for FFmpeg: {input_path}")
+            return False
 
-        ffmpeg_cmd = [
-            "ffmpeg",
-            "-i", input_path,
-            "-vf", f"fps={target_fps}",
-            "-c:v", "libx264",       # Example codec, might need adjustment
-            "-preset", "ultrafast",   # Prioritize speed for processing
-            "-an",                   # No audio
-            "-y",                    # Overwrite output file without asking
+        # Target width and height from self.target_size
+        target_w, target_h = self.target_size
+
+        # FFmpeg command with scaling and padding
+        # Scale to fit within target_w x target_h, maintaining aspect ratio (force_original_aspect_ratio=decrease)
+        # Then pad to target_w x target_h with black bars
+        vf_filter = (
+            f"fps={target_fps},"
+            f"scale={target_w}:{target_h}:force_original_aspect_ratio=decrease,"
+            f"pad={target_w}:{target_h}:(ow-iw)/2:(oh-ih)/2"
+        )
+
+        command = [
+            self.settings.FFMPEG_PATH, "-y", "-i", input_path,
+            "-vf", vf_filter,
+            "-an",  # No audio
+            "-vcodec", "libx264",  # Specify video codec
+            "-crf", "23",           # Constant Rate Factor (quality, 0-51, lower is better)
+            "-preset", "ultrafast", # Encoding speed vs. compression
+            # '-vsync', 'cfr', # Consider if constant frame rate issues arise
             output_path
         ]
+        self.logger.debug(f"Executing FFmpeg command: {' '.join(command)}")
         try:
             # Using subprocess.run for simplicity. For long operations in async code,
             # consider asyncio.create_subprocess_exec or running in a thread pool.
-            process = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, check=False, timeout=self.settings.FFMPEG_TIMEOUT) # Added timeout
+            process = subprocess.run(command, capture_output=True, text=True, check=False, timeout=self.settings.FFMPEG_TIMEOUT) # Added timeout
 
             if process.returncode != 0:
-                # Log detailed FFmpeg error
-                # Consider adding logging here: 
-                # self.logger.error(f"FFmpeg failed for {input_path} to {output_path}. FPS: {target_fps}")
-                # self.logger.error(f"FFmpeg stdout: {process.stdout}")
-                # self.logger.error(f"FFmpeg stderr: {process.stderr}")
+                self.logger.error(f"FFmpeg failed for {input_path}. Return code: {process.returncode}. Stderr: {process.stderr}")
                 return False
             return True
+        except subprocess.CalledProcessError as e:
+            self.logger.error(f"Subprocess error during FFmpeg execution: {e}")
+            # Re-raise as VideoProcessingError to be handled by the main process_video method
+            raise VideoProcessingError(f"Subprocess error during FFmpeg execution: {e}") from e
         except FileNotFoundError:
             # FFmpeg command not found
-            # Consider adding logging here: self.logger.error("FFmpeg command not found. Ensure FFmpeg is installed and in PATH.")
+            self.logger.error(f"FFmpeg command not found at {self.settings.FFMPEG_PATH}. Please ensure FFmpeg is installed and in PATH.")
             # This is a system configuration issue.
             raise VideoProcessingError("FFmpeg command not found. Ensure FFmpeg is installed and in PATH.")
         except subprocess.TimeoutExpired:
@@ -391,25 +399,35 @@ class VideoProcessingService:
         frames: List[np.ndarray],
         exercise_type: ExerciseType
     ) -> List[np.ndarray]:
-        """Select key frames for exercise analysis."""
-        if not frames:
-            return []
-            
+        """Select key frames based on exercise type configuration."""
         config = self.frame_selection_configs.get(exercise_type)
+
         if not config:
+            self.logger.info(f"No frame selection config for {exercise_type}, returning all frames.")
             return frames
-            
-        frame_count = config["frame_count"]
+
+        frame_count = config.get("frame_count", 0)
+
+        if not frames or frame_count == 0:
+            return []
+
+        # Handle case where only one frame needs to be selected
+        if frame_count == 1:
+            return [frames[0]] # Return the first frame if any frames exist
+
+        # If the number of available frames is less than or equal to the desired count,
+        # return all available frames.
         if len(frames) <= frame_count:
             return frames
-            
-        # Calculate indices for key frames
-        indices = [
-            int(i * (len(frames) - 1) / (frame_count - 1))
-            for i in range(frame_count)
-        ]
+
+        selected_frames: List[np.ndarray] = []
+        for i in range(frame_count):
+            # Distribute the selection across the available frames
+            # The index is calculated to pick frames as evenly spaced as possible
+            index = int(i * (len(frames) - 1) / (frame_count - 1))
+            selected_frames.append(frames[index])
         
-        return [frames[i] for i in indices]
+        return selected_frames
     
     def _preprocess_frames(self, frames: List[np.ndarray]) -> List[np.ndarray]:
         """Preprocess frames for ML model input."""
