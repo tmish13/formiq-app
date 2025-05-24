@@ -10,9 +10,9 @@ celery_app = Celery(
     broker=settings.CELERY_BROKER_URL, 
     # backend=settings.CELERY_RESULT_BACKEND, # Optional: if you need to store task results
     include=[
-        'app.tasks.example_task',
         'app.tasks.video_tasks',
-        'app.tasks.ai_tasks' # Add the new AI tasks module
+        'app.tasks.ai_tasks', # Add the new AI tasks module
+        'app.tasks.analysis_tasks', # ADD THIS LINE
         # 'app.tasks.pose_detection_tasks', # Example for future tasks
         # 'app.tasks.form_analysis_tasks',  # Example for future tasks
     ]
@@ -42,7 +42,7 @@ celery_app.conf.update(
 #         return super().__call__(*args, **kwargs)
 # celery_app.Task = BaseTaskWithAppContext
 
-# NOTE: If you use async def tasks, you must run Celery with an async worker pool (e.g., -P eventlet or -P gevent).\n# Example: celery -A app.core.celery_app.celery_app worker -l info -P eventlet
+# NOTE: If you use async def tasks, you must run Celery with an async worker pool (e.g., -P eventlet or -P gevent).\n# Example: celery -A app.core.celery_app.celery_app worker -l info
 
 if __name__ == '__main__':
     # This is for running the worker directly from this module, e.g., for development:

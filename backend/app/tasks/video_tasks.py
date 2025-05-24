@@ -1,17 +1,17 @@
-import logging
+import asyncio
+from celery import Task, states
+from celery.exceptions import Ignore, Reject, Retry
 import os
-from uuid import UUID
-import shutil
-
-from backend.app.core.celery_app import celery_app as app # Ensure this is the actual Celery app import
-
-from backend.app.services.video_processing_service import VideoProcessingService
-from backend.app.services.video_service import VideoService # For updating Video model
-from backend.app.services.storage_service import StorageService # For S3 and VideoService constructor
-from backend.app.models.enums import ExerciseType, VideoStatus, MimeType
-from backend.app.core.config import Settings
-from backend.app.core.db_deps import get_async_db as get_celery_db_session_context # MODIFIED IMPORT
-from backend.app.tasks.ai_tasks import detect_pose_celery_task # Import the new AI task
+from app.core.celery_app import celery_app as app # Ensure this is the actual Celery app import
+from app.services.video_processing_service import VideoProcessingService
+from app.services.video_service import VideoService # For updating Video model
+from app.services.storage_service import StorageService # For S3 and VideoService constructor
+from app.models.enums import ExerciseType, VideoStatus, MimeType
+from app.core.config import Settings
+from app.core.db_deps import get_async_db as get_celery_db_session_context # MODIFIED IMPORT
+from app.tasks.ai_tasks import detect_pose_celery_task # Import the new AI task
+import logging
+from pathlib import Path
 
 
 def get_app_settings() -> Settings:

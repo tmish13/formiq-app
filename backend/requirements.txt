@@ -60,6 +60,8 @@ tenacity==8.2.3
 stripe==7.11.0
 # Celery
 flower==2.0.1
+celery==5.5.2
+gevent==23.9.1
 
 # pymultifracs @ git+https://github.com/FormFusion/PyMultifracs.git@v0.1.1-alpha # Custom multifractal analysis
 
@@ -68,5 +70,4 @@ flower==2.0.1
 
 python-magic>=0.4.27 # Added for file type detection
 uuid6==2024.7.10
-celery==5.5.2
 fastapi-mail==1.4.2

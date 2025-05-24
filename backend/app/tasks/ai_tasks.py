@@ -1,25 +1,27 @@
 """Celery tasks for AI processing."""
 
-import logging
-from typing import List, Dict, Any
-from uuid import UUID
 import asyncio
-import tempfile
+import json
+import logging
 import os
-import cv2 # For reading images from memory
-import numpy as np
+from pathlib import Path
+from typing import Any, Dict, Optional
+import tempfile
 
-from backend.app.core.celery_app import celery_app as app
-from backend.app.core.config import Settings
-from backend.app.core.db_deps import get_async_db as get_celery_db_session_context
-from backend.app.services.storage_service import StorageService
-from backend.app.services.video_service import VideoService
-from backend.app.services.ai_service import AIService # Assuming AIService will have the core logic
-from backend.app.models.enums import VideoStatus
-from backend.app.services.exercise_config_service import ExerciseConfigService
-from backend.app.services.dynamic_form_analysis_service import DynamicFormAnalysisService
-from backend.app.db.session import SessionLocal, get_settings_override
-from backend.app.services.form_check_service import FormCheckService
+from celery import Task, states
+from celery.exceptions import Ignore, Reject, Retry
+
+from app.core.celery_app import celery_app as app
+from app.core.config import Settings
+from app.core.db_deps import get_async_db as get_celery_db_session_context
+from app.services.storage_service import StorageService
+from app.services.video_service import VideoService
+from app.services.ai_service import AIService # Assuming AIService will have the core logic
+from app.models.enums import VideoStatus
+from app.services.exercise_config_service import ExerciseConfigService
+from app.services.dynamic_form_analysis_service import DynamicFormAnalysisService
+from app.db.session import SessionLocal, get_settings_override
+from app.services.form_check_service import FormCheckService
 
 logger = logging.getLogger(__name__)
 

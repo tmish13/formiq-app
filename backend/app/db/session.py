@@ -10,7 +10,7 @@ from sqlalchemy.pool import NullPool
 from typing import AsyncGenerator, Generator
 from contextlib import contextmanager
 
-from backend.app.core.database import (
+from app.core.database import (
     async_engine, 
     async_session_factory, 
     get_async_db,
@@ -18,8 +18,8 @@ from backend.app.core.database import (
     SessionLocal,
     Base
 )
-from backend.app.core.config import Settings, get_settings
-from backend.app.core.logging import get_logger
+from app.core.config import Settings, get_settings
+from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 

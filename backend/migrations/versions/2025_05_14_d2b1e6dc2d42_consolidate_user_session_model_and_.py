@@ -28,7 +28,7 @@ def upgrade() -> None:
         op.execute("CREATE TYPE subscriptiontier AS ENUM ('FREE', 'BASIC', 'PRO', 'ENTERPRISE', 'PREMIUM')")
         op.execute("CREATE TYPE feedbacktype AS ENUM ('SUCCESS', 'WARNING', 'ERROR', 'FORM', 'TECHNIQUE', 'POSTURE', 'RANGE', 'SPEED', 'BALANCE')")
         op.execute("CREATE TYPE feedbackseverity AS ENUM ('LOW', 'MEDIUM', 'HIGH', 'CRITICAL')")
-        op.execute("CREATE TYPE videostatus AS ENUM ('PENDING_UPLOAD', 'UPLOADED', 'PROCESSING', 'PROCESSED', 'PROCESSING_FAILED', 'PENDING_ANALYSIS', 'ANALYZING', 'ANALYSIS_COMPLETE', 'ANALYSIS_FAILED', 'PUBLISHED', 'ARCHIVED', 'ERROR', 'VIDEO_PROCESSING_FAILED', 'POSE_DETECTION_PENDING', 'POSE_DETECTION_IN_PROGRESS', 'POSE_DETECTED', 'POSE_DETECTION_FAILED')")
+        # op.execute("CREATE TYPE videostatus AS ENUM ('PENDING_UPLOAD', 'UPLOADED', 'PROCESSING', 'PROCESSED', 'PROCESSING_FAILED', 'PENDING_ANALYSIS', 'ANALYZING', 'ANALYSIS_COMPLETE', 'ANALYSIS_FAILED', 'PUBLISHED', 'ARCHIVED', 'ERROR', 'VIDEO_PROCESSING_FAILED', 'POSE_DETECTION_PENDING', 'POSE_DETECTION_IN_PROGRESS', 'POSE_DETECTED', 'POSE_DETECTION_FAILED')")
 
     op.create_table('exercise_templates',
     sa.Column('id', SQLiteUUID(), nullable=False),
@@ -114,15 +114,15 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_feedback_items_id'), 'feedback_items', ['id'], unique=False)
     
-    op.drop_index('ix_workout_plan_workouts_day_of_week', table_name='workout_plan_workouts')
-    op.drop_index('ix_workout_plan_workouts_week_number', table_name='workout_plan_workouts')
-    op.drop_index('ix_workout_plan_workouts_workout_id', table_name='workout_plan_workouts')
-    op.drop_index('ix_workout_plan_workouts_workout_plan_id', table_name='workout_plan_workouts')
+    op.execute("DROP INDEX IF EXISTS ix_workout_plan_workouts_day_of_week")
+    op.execute("DROP INDEX IF EXISTS ix_workout_plan_workouts_week_number")
+    op.execute("DROP INDEX IF EXISTS ix_workout_plan_workouts_workout_id")
+    op.execute("DROP INDEX IF EXISTS ix_workout_plan_workouts_workout_plan_id")
     op.drop_table('workout_plan_workouts')
     
-    op.drop_index('ix_workout_exercises_exercise_id', table_name='workout_exercises')
-    op.drop_index('ix_workout_exercises_order', table_name='workout_exercises')
-    op.drop_index('ix_workout_exercises_workout_id', table_name='workout_exercises')
+    op.execute("DROP INDEX IF EXISTS ix_workout_exercises_exercise_id")
+    op.execute("DROP INDEX IF EXISTS ix_workout_exercises_order")
+    op.execute("DROP INDEX IF EXISTS ix_workout_exercises_workout_id")
     op.drop_table('workout_exercises')
     
     if is_postgresql:
@@ -166,9 +166,9 @@ def upgrade() -> None:
 
     # Index drops are now dialect-specific if needed, or handled by batch recreate for SQLite
     if is_postgresql:
-        op.drop_index(op.f('ix_exercises_difficulty'), table_name='exercises')
-        op.drop_index(op.f('ix_exercises_muscle_group'), table_name='exercises')
-        op.drop_index(op.f('ix_exercises_name'), table_name='exercises')
+        op.execute("DROP INDEX IF EXISTS ix_exercises_difficulty")
+        op.execute("DROP INDEX IF EXISTS ix_exercises_muscle_group")
+        op.execute("DROP INDEX IF EXISTS ix_exercises_name")
 
     # This create_index is general, seems fine. It's on 'id'.
     op.create_index(op.f('ix_exercises_id'), 'exercises', ['id'], unique=False)

@@ -21,6 +21,7 @@ from app.models.exercise import ExerciseTemplate
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import NotFoundException
 from app.services.dynamic_form_analysis_service import DynamicFormAnalysisService
+from app.services.video_service import VideoService
 
 logger = logging.getLogger(__name__)
 
@@ -80,8 +81,12 @@ async def get_services_for_task(db_session: AsyncSession, settings_obj: Settings
     return form_check_service, storage_service_instance, ai_service_instance
 
 
-@celery_app.task(name="tasks.process_form_check_task", bind=True, max_retries=3, default_retry_delay=60)
-async def process_form_check_task(self, form_check_id_str: str):
+# Explicitly name the task to ensure consistent registration
+@celery_app.task(name="app.tasks.analysis_tasks.process_form_check", bind=True, max_retries=3, default_retry_delay=300)
+async def process_form_check_task(self, video_id_str: str, form_check_id_str: str):
+    """
+    Celery task to process a form check analysis for a given video and form_check ID.
+    """
     form_check_id = UUID(form_check_id_str)
     logger.info(f"[CeleryTask] Starting analysis for FormCheck ID: {form_check_id}")
 

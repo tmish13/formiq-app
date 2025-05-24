@@ -32,6 +32,7 @@ RUN groupadd -g ${APP_GROUP_ID} appgroup && \
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
     ffmpeg \
+    libmagic1 \
     # Add other runtime-specific system dependencies if needed
     && rm -rf /var/lib/apt/lists/*
 
