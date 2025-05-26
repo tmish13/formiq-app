@@ -5,12 +5,15 @@ import logging
 import aiofiles
 import tempfile
 import shutil
-from typing import Optional
+from typing import Optional, BinaryIO
 from fastapi import UploadFile
 from app.core.storage.base import StorageProvider, StorageError
 from app.core.storage.s3 import S3StorageProvider, verify_s3_connection
 from app.core.logging import get_logger
 from app.core.config import settings
+from datetime import datetime
+from urllib.parse import urlparse
+import mimetypes
 
 logger = get_logger(__name__)
 
@@ -23,6 +26,73 @@ class LocalStorageProvider(StorageProvider):
         """Initialize the local storage provider."""
         self.base_dir = base_dir or settings.UPLOAD_DIR
         self.base_url = base_url or settings.UPLOAD_URL
+        # Ensure base_dir exists
+        if not os.path.exists(self.base_dir):
+            os.makedirs(self.base_dir, exist_ok=True)
+            logger.info(f"Created local storage base directory: {self.base_dir}")
+
+    async def get_file(self, key: str) -> tuple[bytes, dict]:
+        """Retrieve a file from the local file system."""
+        file_path = os.path.join(self.base_dir, key)
+        if not os.path.exists(file_path):
+            logger.warning(f"Local file not found: {file_path}")
+            raise FileNotFoundError(f"File not found at {file_path}")
+        try:
+            async with aiofiles.open(file_path, 'rb') as f:
+                data = await f.read()
+            # Basic metadata, can be expanded if needed by other services
+            metadata = {
+                "content_length": os.path.getsize(file_path),
+                "content_type": mimetypes.guess_type(file_path)[0] or "application/octet-stream",
+                "last_modified": datetime.fromtimestamp(os.path.getmtime(file_path)).isoformat(),
+                "file_key": key
+            }
+            logger.info(f"Successfully read local file: {file_path}")
+            return data, metadata
+        except Exception as e:
+            logger.error(f"Error reading local file {file_path}: {e}", exc_info=True)
+            raise StorageError(f"Failed to read file {key}: {e}")
+
+    async def upload_file(self, file_obj: BinaryIO, key: str, content_type: Optional[str] = None, metadata: Optional[dict] = None, public: bool = True) -> str:
+        """Upload a file to the local file system."""
+        file_path = os.path.join(self.base_dir, key)
+        os.makedirs(os.path.dirname(file_path), exist_ok=True) # Ensure directory exists
+        try:
+            # Assuming file_obj is already a BytesIO or similar in-memory binary stream
+            # If it's an UploadFile, its .read() method should be awaitable if coming from FastAPI
+            # For simplicity here, assuming it has a read() method that returns bytes.
+            content = file_obj.read() # If file_obj is from UploadFile, this might need await file_obj.read()
+                                      # However, StorageService.upload_file_from_path uses open(..., 'rb')
+                                      # and StorageService.upload_file does await file.read() then BytesIO
+
+            async with aiofiles.open(file_path, 'wb') as f:
+                await f.write(content)
+            
+            # For local storage, the "URL" is often just a relative path or a file:// URI
+            # Using a simple relative path for now, consistent with get_video_url logic for local
+            # The S3 provider returns a full S3 URL.
+            # This service method is expected to return the URL of the uploaded file.
+            # For local, let's construct something based on base_url
+            url = f"{self.base_url.rstrip('/')}/{key.lstrip('/')}"
+            logger.info(f"Successfully uploaded to local file: {file_path}, URL: {url}")
+            return url
+        except Exception as e:
+            logger.error(f"Error uploading local file {file_path}: {e}", exc_info=True)
+            raise StorageError(f"Failed to upload file {key}: {e}")
+
+    # Add other required methods from StorageProvider if they are called by services
+    # For now, get_key_from_url is used by StorageService.delete_file
+    def get_key_from_url(self, url: str) -> str:
+        """Extracts the file key from a local URL."""
+        if not url.startswith(self.base_url):
+            # This might be an S3 URL or an unexpected format
+            # Try to get the last part of the path, assuming it's the key
+            # This is a simplistic fallback
+            parsed_url = urlparse(url)
+            return os.path.basename(parsed_url.path)
+
+        relative_path = url[len(self.base_url):]
+        return relative_path.lstrip('/')
 
 storage_provider = LocalStorageProvider()
 

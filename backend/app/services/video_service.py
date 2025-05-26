@@ -9,6 +9,7 @@ from typing import List, Optional, Dict, Any
 import os
 import time
 from datetime import datetime
+import json
 
 from app.models.video import Video # MODIFIED
 from app.models.enums import VideoStatus # ADDED: Import from central enums
@@ -456,159 +457,159 @@ class VideoService(BaseService[Video, VideoCreate, VideoUpdate]):
         current_user_id: UUID,
         is_superuser: bool,
     ) -> VideoResponse:
-        """Requests processing (or reprocessing) for a video."""
-        video = await super().get_async(id=video_id)
-        if not video:
-            raise NotFoundException("Video not found for processing request")
+        """Requests reprocessing for a video that may have failed or needs re-analysis."""
+        video = await self.get_by_id_or_fail(video_id)
 
-        # Check ownership
         if video.user_id != current_user_id and not is_superuser:
-            logger.warning(f"User {current_user_id} attempted to process video {video_id} owned by {video.user_id}.")
-            raise PermissionDeniedException("Not authorized to process this video")
+            raise PermissionDeniedException("Not authorized to retry processing for this video.")
 
-        # Check if processing can be triggered based on current status
-        allowed_statuses = [
-            VideoStatus.UPLOADED.value, # This is the expected state to start processing
-            VideoStatus.ANALYSIS_FAILED.value, # Assuming ANALYSIS_FAILED is the status after processing fails
-            # Might also allow reprocessing from COMPLETED? Depends on requirements.
-            # VideoStatus.ANALYSIS_COMPLETE.value 
-        ]
-        # If confirm_upload moves directly to PROCESSING, maybe allow re-trigger from PROCESSING or FAILED?
-        if video.status not in allowed_statuses:
-             logger.warning(f"Video processing requested for video {video_id} with disallowed status: {video.status}")
-             raise HTTPException(
+        # Allow retry for states that indicate a failure or a point where processing can restart.
+        # For example, if it failed at POSE_DETECTION_FAILED, it should re-trigger from video processing if necessary
+        # or directly to pose detection if frames are available.
+        # This simplified version re-triggers the initial video processing task.
+        # A more sophisticated retry would inspect current state and re-trigger the appropriate task.
+
+        if video.status not in [
+            VideoStatus.UPLOADED, 
+            VideoStatus.PROCESSING_FAILED, 
+            VideoStatus.VIDEO_PROCESSING_FAILED,
+            VideoStatus.POSE_DETECTION_FAILED, 
+            VideoStatus.ANGLE_CALCULATION_FAILED,
+            VideoStatus.FORM_ANALYSIS_FAILED,
+            VideoStatus.ERROR,
+            VideoStatus.PROCESSED, # Allow re-analysis from processed state
+            VideoStatus.POSE_DETECTED, # Allow re-calculation of angles/analysis
+            VideoStatus.ANGLES_CALCULATED # Allow re-analysis
+        ]:
+            raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Video cannot be processed with current status: {video.status}"
-             )
+                detail=f"Video is in status '{video.status}' and cannot be reprocessed at this stage using this endpoint."
+            )
 
         if not video.object_key:
-             logger.error(f"Video {video_id} is missing object_key, cannot process.")
-             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Video is missing storage key, cannot process.")
-
-        # Update status to PROCESSING (if not already)
-        update_data = VideoUpdate(status=VideoStatus.PROCESSING, error_message=None) # Use Enum member
-        updated_video = await super().update_async(db_obj=video, obj_in=update_data.model_dump(exclude_unset=True))
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Video has no object_key, cannot initiate reprocessing."
+            )
         
-        # Dispatch Celery task for video processing
-        try:
-            from app.tasks.video_processing import process_uploaded_video
-            process_uploaded_video.delay(video_id=str(updated_video.id))
-            logger.info(f"Video processing task dispatched for video {updated_video.id}.")
-        except Exception as e_task:
-            logger.error(f"Failed to dispatch processing task for video {updated_video.id}: {e_task}", exc_info=True)
-            # Status is PROCESSING, but task failed. Manual intervention needed.
-            # Consider raising an error or changing status back?
-            # For now, raise 500 as the request failed.
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to dispatch processing task.")
+        logger.info(f"Retrying video processing for video {video_id}, current status: {video.status}")
 
-        return self.response_schema.from_orm(updated_video)
-
-    async def request_video_processing_retry( # Renamed for clarity
-        self,
-        video_id: UUID,
-        current_user_id: UUID,
-        is_superuser: bool,
-    ) -> VideoResponse:
-        video = await super().get_async(id=video_id)
-        if not video:
-            raise NotFoundException("Video not found for processing request")
-
-        if video.user_id != current_user_id and not is_superuser:
-            raise PermissionDeniedException("Not authorized to request processing for this video")
-
-        # Check if video is in a state suitable for reprocessing
-        if video.status not in [
-            VideoStatus.UPLOAD_FAILED.value, 
-            VideoStatus.FAILED.value, 
-            VideoStatus.PROCESSING_QUEUED_ERROR.value,
-            # VideoStatus.PENDING_UPLOAD.value, # Maybe if upload was confirmed but task failed to queue
-            VideoStatus.COMPLETED.value # Allow re-processing of completed videos if needed
-        ]:
-            logger.warning(f"Video {video_id} is in status {video.status}, not ideal for reprocessing.")
-            # Depending on policy, could raise error or proceed
-            # For now, let's allow it but log.
+        # Reset relevant fields before re-processing
+        # This ensures that if it failed midway, it can restart cleanly.
+        update_fields = {
+            "status": VideoStatus.PENDING_UPLOAD, # This will be updated to PROCESSING by the task
+            "processing_errors": None, # Clear previous errors
+            "celery_task_id": None,
+            # Depending on where it failed, might also clear: 
+            # "processed_object_key": None, "frame_s3_keys": None, "processed_frame_count": None,
+            # "raw_pose_data": None, "calculated_angles": None
+        }
+        # For a simple re-trigger of initial processing:
+        video.status = VideoStatus.PROCESSING # Set to processing to indicate intent
+        video.processing_errors = None
+        video.celery_task_id = None
+        # Potentially clear other fields if starting from scratch
+        video.processed_url = None
+        video.processed_object_key = None
+        video.frame_s3_keys = None
+        video.processed_frame_count = None
+        video.raw_pose_data = None
+        video.calculated_angles = None
         
-        # Update status to PROCESSING (or PROCESSING_QUEUED)
-        updated_video = await super().update_async(id=video.id, obj_in=VideoUpdate(status=VideoStatus.PROCESSING.value, error_message=None))
-        if not updated_video:
-             raise ServerErrorException("Failed to update video status for reprocessing.")
+        video = await self.update_async(db_obj=video, obj_in=VideoUpdate(**update_fields))
+        if not video: # Should not happen if get_by_id_or_fail worked
+             raise ServerErrorException("Failed to update video for retry.")
 
+        from app.tasks.video_tasks import process_video_celery_task
+        task_result = process_video_celery_task.delay(
+            video_id_str=str(video.id),
+            original_video_path=video.object_key,
+            exercise_type_value=video.exercise_type
+        )
+        
+        task_id = task_result.id if hasattr(task_result, 'id') else "unknown_retry_task"
+        video.celery_task_id = task_id # Save new task ID
+        video.status = VideoStatus.PROCESSING # Explicitly set to PROCESSING as task is dispatched
+        video = await self.update_async(db_obj=video, obj_in=VideoUpdate(celery_task_id=task_id, status=VideoStatus.PROCESSING))
 
-        # Trigger background processing
-        try:
-            from app.tasks.video_processing import process_uploaded_video
-            process_uploaded_video.delay(video_id=str(updated_video.id))
-            logger.info(f"Video processing re-requested: id={updated_video.id}, task dispatched.")
-        except ImportError:
-            logger.error(f"Celery task 'process_uploaded_video' not found. Video {updated_video.id} reprocessing will not start.")
-            await super().update_async(id=updated_video.id, obj_in=VideoUpdate(status=VideoStatus.PROCESSING_QUEUED_ERROR.value, error_message="Task dispatch failed: Import Error on retry"))
-
-        except Exception as e_task:
-            logger.error(f"Failed to dispatch reprocessing task for video {updated_video.id}: {e_task}", exc_info=True)
-            await super().update_async(id=updated_video.id, obj_in=VideoUpdate(status=VideoStatus.PROCESSING_QUEUED_ERROR.value, error_message=f"Task dispatch failed on retry: {e_task}"))
-            
-        return self.response_schema.from_orm(updated_video)
+        logger.info(f"Video processing retry requested: id={video.id}, new task_id={task_id}.")
+        return self.response_schema.from_orm(video)
 
     async def update_video_pose_data_and_status(
         self,
         video_id: UUID,
-        pose_data: Optional[List[Optional[Dict[str, Any]]]], # Matches output of AIService.process_frames_for_pose
+        pose_data: Optional[List[Optional[List[Optional[Dict[str, Any]]]]]], # CORRECTED TYPE HINT
         status: VideoStatus,
-        error_message: Optional[str] = None
+        error_message: Optional[str] = None # Can be a simple string or JSON string
     ) -> Optional[Video]:
         """
-        Updates the video record with raw pose data and a new status.
-        Also updates the processing_errors field if an error_message is provided.
+        Updates the raw_pose_data and status of a video, typically after pose detection.
+        Args:
+            video_id: The ID of the video to update.
+            pose_data: The raw pose data (list of frames, each frame a list of landmarks or None).
+            status: The new VideoStatus.
+            error_message: Optional error message (can be simple string or JSON string).
         """
-        video = await super().get_async(id=video_id)
-        if not video:
-            logger.error(f"Video with id {video_id} not found for updating pose data.")
-            return None
-
-        values_to_update = {
+        video = await self.get_by_id_or_fail(video_id)
+        
+        update_data = {
+            "raw_pose_data": pose_data,
             "status": status,
-            "pose_data": pose_data # Changed from raw_pose_data
+            "processing_errors": None # Clear previous errors if successful, or set new one
         }
         if error_message:
-            # Append to existing errors or set if new
-            existing_errors = video.processing_errors or []
-            if isinstance(existing_errors, list): # Ensure it's a list
-                new_error_entry = {"timestamp": datetime.utcnow().isoformat(), "source": "pose_detection", "error": error_message}
-                existing_errors.append(new_error_entry)
-                values_to_update["processing_errors"] = existing_errors
-            else:
-                logger.warning(f"processing_errors for video {video_id} was not a list, re-initializing.")
-                values_to_update["processing_errors"] = [{"timestamp": datetime.utcnow().isoformat(), "source": "pose_detection", "error": error_message}]
+            # Attempt to parse if it's a JSON string, otherwise store as is.
+            try:
+                parsed_error = json.loads(error_message)
+                update_data["processing_errors"] = parsed_error
+            except (json.JSONDecodeError, TypeError):
+                update_data["processing_errors"] = {"task_error": error_message} # Wrap simple string
         
-        updated_video = await super().update_async(id=video_id, obj_in=VideoUpdate(**values_to_update))
-        logger.info(f"Updated video {video_id} with pose data and status: {status}")
+        if status == VideoStatus.POSE_DETECTED:
+            update_data["processing_errors"] = None # Explicitly clear errors on success
+
+        updated_video = await self.update_async(db_obj=video, obj_in=VideoUpdate(**update_data))
+        if updated_video:
+            logger.info(f"Updated video {video_id} with pose data, status to {status}.")
+        else:
+            logger.error(f"Failed to update video {video_id} with pose data and status.")
         return updated_video
 
     async def update_video_calculated_angles_and_status(
         self,
         video_id: UUID,
-        calculated_angles: Optional[List[Optional[AngleDataItem]]], # MODIFIED type hint
-        status: VideoStatus, # Expected to be ANGLES_CALCULATED or ANGLE_CALCULATION_FAILED
-        error_message: Optional[str] = None
+        calculated_angles: Optional[List[Optional[Dict[str, float]]]], # MODIFIED: AngleDataItem -> Dict[str, float]
+        status: VideoStatus, 
+        error_message: Optional[str] = None # Can be a simple string or JSON string
     ) -> Optional[Video]:
         """
-        Updates the video record with calculated joint angles and a new status.
+        Updates the calculated_angles and status of a video, typically after angle calculation.
+        Args:
+            video_id: The ID of the video to update.
+            calculated_angles: The calculated angle data (list of frames, each frame a dict of angle_name: value).
+            status: The new VideoStatus (expected: ANGLES_CALCULATED or ANGLE_CALCULATION_FAILED).
+            error_message: Optional error message (can be simple string or JSON string).
         """
-        video = await super().get_async(id=video_id) # MODIFIED: Use super().get_async
-        if not video:
-            logger.warning(f"Video {video_id} not found for updating calculated angles.")
-            return None
+        video = await self.get_by_id_or_fail(video_id)
+        
+        update_data = {
+            "calculated_angles": calculated_angles,
+            "status": status,
+            "processing_errors": None # Clear or set
+        }
+        if error_message:
+            try:
+                parsed_error = json.loads(error_message)
+                update_data["processing_errors"] = parsed_error
+            except (json.JSONDecodeError, TypeError):
+                update_data["processing_errors"] = {"task_error": error_message}
 
-        update_data = VideoUpdate(
-            calculated_angles=calculated_angles,
-            status=status,
-            error_message=error_message
-        )
-        
-        updated_video = await super().update_async(id=video_id, obj_in=update_data)
-        if not updated_video:
-            logger.error(f"Failed to update video {video_id} with calculated_angles and status {status}. Video might have been deleted.")
-            return None
-        
-        logger.info(f"Video {video_id} updated with calculated_angles. New status: {status}")
+        if status == VideoStatus.ANGLES_CALCULATED:
+            update_data["processing_errors"] = None # Explicitly clear errors on success
+
+        updated_video = await self.update_async(db_obj=video, obj_in=VideoUpdate(**update_data))
+        if updated_video:
+            logger.info(f"Updated video {video_id} with calculated angles, status to {status}.")
+        else:
+            logger.error(f"Failed to update video {video_id} with calculated angles and status.")
         return updated_video

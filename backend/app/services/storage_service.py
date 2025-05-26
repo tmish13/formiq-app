@@ -16,14 +16,18 @@ logger = get_logger(__name__)
 class StorageService:
     """Service for handling file storage operations."""
     
-    def __init__(self, provider: Optional[StorageProvider] = None):
+    def __init__(self, provider: Optional[StorageProvider] = None, app_settings: Optional[Any] = None):
         """Initialize storage service with the storage provider.
         
         Args:
             provider: Storage provider to use (defaults to the global provider)
+            app_settings: Application settings (currently unused but added for consistency with AIService)
         """
         self.provider = provider or storage_provider
-        self.max_upload_size = settings.MAX_CONTENT_LENGTH
+        # Use app_settings if provided, otherwise fallback to global settings
+        current_settings = app_settings if app_settings else settings
+        self.max_upload_size = current_settings.MAX_CONTENT_LENGTH
+        self.app_settings = current_settings # Store for potential future use
         logger.info(f"Initialized storage service with provider: {self.provider.__class__.__name__}")
 
     async def upload_file(self, file: UploadFile, folder: str = "", user_id: str = None) -> str:
@@ -164,11 +168,11 @@ class StorageService:
             logger.error(f"Failed to get file info: {str(e)}")
             raise StorageError(f"Failed to get file info: {str(e)}")
 
-    async def download_file(self, file_url: str) -> bytes:
-        """Download a file and return its contents as bytes.
+    async def download_file(self, file_key: str) -> bytes:
+        """Download a file using its key and return its contents as bytes.
         
         Args:
-            file_url: URL of the file
+            file_key: Storage key of the file to download.
             
         Returns:
             bytes: File contents
@@ -177,21 +181,20 @@ class StorageService:
             StorageError: If download fails
         """
         try:
-            # Extract key from URL
-            file_key = self.provider.get_key_from_url(file_url)
+            # The argument is already the file_key, no need to extract from URL
+            # file_key = self.provider.get_key_from_url(file_url) # REMOVED
             
-            # Get file data
             data, _ = await self.provider.get_file(file_key)
             
             logger.info(f"Successfully downloaded file {file_key}")
             return data
             
         except FileNotFoundError:
-            logger.warning(f"File not found: {file_url}")
-            raise StorageError(f"File not found: {file_url}")
+            logger.warning(f"File not found with key: {file_key}") # MODIFIED log message
+            raise StorageError(f"File not found with key: {file_key}") # MODIFIED exception message
         except Exception as e:
-            logger.error(f"Failed to download file: {str(e)}")
-            raise StorageError(f"Failed to download file: {str(e)}")
+            logger.error(f"Failed to download file with key {file_key}: {str(e)}", exc_info=True) # Added exc_info, MODIFIED log
+            raise StorageError(f"Failed to download file with key {file_key}: {str(e)}") # MODIFIED exception message
 
     async def get_file_size(self, file_url: str) -> int:
         """Get file size in bytes.

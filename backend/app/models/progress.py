@@ -2,6 +2,8 @@
 from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Text
 from sqlalchemy.orm import relationship
 from app.db.base_class import Base
+from app.models.base import SQLiteUUID
+from sqlalchemy.dialects.postgresql import UUID
 
 print(f"PROGRESS_MODEL: id(Base.metadata) before ExerciseProgress class def: {id(Base.metadata)}, tables: {list(Base.metadata.tables.keys())}")
 class ExerciseProgress(Base):
@@ -9,7 +11,7 @@ class ExerciseProgress(Base):
     __tablename__ = "exercise_progress"
     
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_id = Column(SQLiteUUID(), ForeignKey("users.id"), nullable=False)
     exercise_type = Column(String(50), nullable=False)
     form_score = Column(Float, nullable=False, default=0.0)
     consistency_score = Column(Float, nullable=False, default=0.0)

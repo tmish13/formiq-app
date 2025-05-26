@@ -1,5 +1,9 @@
 ---
-description:
-globs:
+description: 
+globs: 
 alwaysApply: false
 ---
+At any point if you run into issues while making edits make sure they are specific and you never delete code from files, and ensure that changes when trying to resolve tests do not cause regressions.
+Make sure to break up large edits into smaller pieces if needed so, determine if the file is too big to edit and if it has to be broken up into smaller pieces.
+When running into unexpected probes, think about a few possible scenarios or solutions to this problem. Present the one you think is best suited to solve this issue and provide rationale for why you think it's the best one.
+Remember this and use it as the framework for the rest of the edits to this file and while running tests for this file.

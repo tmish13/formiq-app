@@ -10,9 +10,9 @@ import time
 import hashlib
 import os
 
-from app.core.config import settings
+from app.core.config import settings as global_settings, Settings # IMPORTED Settings
 from app.core.logging import get_logger
-from app.models.enums import ExerciseType
+from app.models.enums import ExerciseType, FeedbackType, FeedbackSeverity # IMPORTED Feedback Enums
 
 logger = get_logger(__name__)
 
@@ -20,14 +20,16 @@ logger = get_logger(__name__)
 class AIService:
     NUM_EXPECTED_LANDMARKS = 33 # MediaPipe Pose model typically has 33 landmarks
 
-    def __init__(self):
+    def __init__(self, app_settings: Optional[Settings] = None): # MODIFIED constructor
         """Initialize the AI model service."""
         logger.info("Initializing AIService...")
+        self.settings = app_settings or global_settings # Use provided or global settings
+
         self.pose = mp.solutions.pose.Pose(
             static_image_mode=False,
-            model_complexity=settings.AI_MODEL_COMPLEXITY, # Use setting
-            min_detection_confidence=settings.AI_MIN_DETECTION_CONFIDENCE,
-            min_tracking_confidence=settings.AI_MIN_TRACKING_CONFIDENCE
+            model_complexity=self.settings.AI_MODEL_COMPLEXITY, # Use self.settings
+            min_detection_confidence=self.settings.AI_MIN_DETECTION_CONFIDENCE, # Use self.settings
+            min_tracking_confidence=self.settings.AI_MIN_TRACKING_CONFIDENCE # Use self.settings
         )
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         logger.info(f"AI Service using device: {self.device}")
@@ -39,7 +41,7 @@ class AIService:
         """Load the form analysis model."""
         try:
             # Consistent path from settings
-            model_path = Path(settings.AI_MODEL_PATH) / "form_analysis_model.pt" 
+            model_path = Path(self.settings.AI_MODEL_PATH) / "form_analysis_model.pt" # Use self.settings
             if model_path.exists():
                 logger.info(f"Loading form analysis model from: {model_path}")
                 model = torch.load(model_path, map_location=self.device)
@@ -198,22 +200,32 @@ class AIService:
                 "feedback_structured": []
             }
             
-    def _get_landmark_coords(self, landmarks: List[Dict[str, float]], index: int) -> Optional[np.ndarray]:
-        """Safely get landmark coordinates as a numpy array."""
-        if 0 <= index < len(landmarks):
-            lm = landmarks[index]
-            # Check visibility? For angle calculation, maybe use even if low visibility?
-            # if lm['visibility'] > settings.AI_MIN_VISIBILITY_THRESHOLD:
-            return np.array([lm["x"], lm["y"], lm.get("z", 0)]) # Use z if available, else 0
+    def _get_landmark_coords(self, landmarks_list: List[Optional[Dict[str, float]]], index: int) -> Optional[np.ndarray]:
+        """Safely get landmark coordinates as a numpy array from a list that may contain Nones."""
+        if 0 <= index < len(landmarks_list):
+            landmark_data = landmarks_list[index] # This could be a Dict or None
+            if landmark_data is not None:
+                # Ensure 'x' and 'y' are present. 'z' is optional but good to handle.
+                x = landmark_data.get("x")
+                y = landmark_data.get("y")
+                
+                if x is not None and y is not None: # Essential coordinates must exist
+                    z = landmark_data.get("z", 0.0) # Default z to 0.0 if not present
+                    return np.array([x, y, z])
+                else:
+                    # logger.debug(f"Landmark at index {index} missing x or y: {landmark_data}") # Optional logging
+                    return None # Essential coordinates missing
+            # else: landmark_data is None, so fall through to return None
         return None
 
-    def _calculate_angle(self, landmarks: List[Dict[str, float]], p1_idx: int, p2_idx: int, p3_idx: int) -> Optional[float]:
+    def _calculate_angle(self, landmarks_list: List[Optional[Dict[str, float]]], p1_idx: int, p2_idx: int, p3_idx: int) -> Optional[float]:
         """Calculate the angle formed by three landmarks."""
-        p1 = self._get_landmark_coords(landmarks, p1_idx)
-        p2 = self._get_landmark_coords(landmarks, p2_idx) # Vertex
-        p3 = self._get_landmark_coords(landmarks, p3_idx)
+        p1 = self._get_landmark_coords(landmarks_list, p1_idx)
+        p2 = self._get_landmark_coords(landmarks_list, p2_idx) # Vertex
+        p3 = self._get_landmark_coords(landmarks_list, p3_idx)
 
         if p1 is None or p2 is None or p3 is None:
+            # logger.debug(f"Cannot calculate angle: one or more points ({p1_idx}, {p2_idx}, {p3_idx}) missing from landmarks.") # Optional logging
             return None
 
         try:
@@ -456,16 +468,16 @@ class AIService:
 
     async def process_frames_for_pose(
         self,
-        frame_paths: List[str],
+        frames_data_np: List[np.ndarray], # MODIFIED: from frame_paths to frames_data_np
         min_pose_confidence_threshold: Optional[float] = None
     ) -> List[Optional[List[Optional[Dict[str, float]]]]]:
         """
-        Processes a list of frame image paths to detect pose landmarks.
+        Processes a list of frame image numpy arrays to detect pose landmarks.
         Ensures each frame's result is a list of NUM_EXPECTED_LANDMARKS items (Optional[Dict])
         or None if the frame is unusable.
 
         Args:
-            frame_paths: A list of file paths to individual frame images.
+            frames_data_np: A list of frame images as NumPy arrays.
             min_pose_confidence_threshold: The minimum confidence for overall pose detection per frame
                                            and for individual landmark visibility.
 
@@ -478,28 +490,28 @@ class AIService:
               Each inner list element is either a landmark Dict (if detected and visible)
               or None (if not detected or below visibility threshold).
         """
-        logger.info(f"AIService: Starting pose processing for {len(frame_paths)} frames with threshold {min_pose_confidence_threshold}.")
+        logger.info(f"AIService: Starting pose processing for {len(frames_data_np)} frames with threshold {min_pose_confidence_threshold}.")
         
         if min_pose_confidence_threshold is None:
             logger.warning("min_pose_confidence_threshold not provided to process_frames_for_pose, using AI_MIN_DETECTION_CONFIDENCE as fallback.")
-            min_pose_confidence_threshold = settings.AI_MIN_DETECTION_CONFIDENCE 
+            min_pose_confidence_threshold = self.settings.AI_MIN_DETECTION_CONFIDENCE # Use self.settings
 
         all_frame_results: List[Optional[List[Optional[Dict[str, float]]]]] = []
 
-        for i, frame_path in enumerate(frame_paths):
+        for i, frame_np in enumerate(frames_data_np): # MODIFIED: iterate over frames_data_np
             try:
-                frame = await asyncio.to_thread(cv2.imread, frame_path)
-                if frame is None:
-                    logger.warning(f"AIService: Could not read frame {i+1}/{len(frame_paths)}: {frame_path}")
+                # frame = await asyncio.to_thread(cv2.imread, frame_path) # REMOVED
+                if frame_np is None: # ADDED: Check if the numpy array itself is None
+                    logger.warning(f"AIService: Received None for frame {i+1}/{len(frames_data_np)}")
                     all_frame_results.append(None)
                     continue
 
                 # raw_landmarks_from_mp is List[Dict[str, float]] (guaranteed 33 if pose detected)
                 # overall_frame_confidence is float
-                raw_landmarks_from_mp, overall_frame_confidence = await asyncio.to_thread(self.detect_pose, frame)
+                raw_landmarks_from_mp, overall_frame_confidence = await asyncio.to_thread(self.detect_pose, frame_np) # Pass frame_np
 
                 if overall_frame_confidence < min_pose_confidence_threshold or not raw_landmarks_from_mp:
-                    log_msg = f"AIService: Frame {i+1}/{len(frame_paths)} ({frame_path}) unusable. "
+                    log_msg = f"AIService: Frame {i+1}/{len(frames_data_np)} unusable. " # MODIFIED: Removed frame_path
                     if overall_frame_confidence < min_pose_confidence_threshold:
                         log_msg += f"Overall confidence ({overall_frame_confidence:.2f}) < threshold ({min_pose_confidence_threshold:.2f}). "
                     if not raw_landmarks_from_mp:
@@ -523,18 +535,18 @@ class AIService:
                     # else: lm_idx >= num_detected_raw, means MediaPipe returned fewer than expected, remains None
 
                 logger.debug(
-                    f"AIService: Frame {i+1}/{len(frame_paths)} ({frame_path}): Processed. "
+                    f"AIService: Frame {i+1}/{len(frames_data_np)} ({frame_np}): Processed. "
                     f"Overall confidence: {overall_frame_confidence:.2f}. "
                     f"MediaPipe detected: {num_detected_raw}. Visible (>= threshold): {visible_count}/{self.NUM_EXPECTED_LANDMARKS}."
                 )
                 all_frame_results.append(output_landmarks_for_frame)
 
             except Exception as e:
-                logger.error(f"AIService: Error processing frame {i+1}/{len(frame_paths)} ({frame_path}) for pose: {e}", exc_info=True)
+                logger.error(f"AIService: Error processing frame {i+1}/{len(frames_data_np)} ({frame_np}) for pose: {e}", exc_info=True)
                 all_frame_results.append(None)
         
         processed_count = sum(1 for lm_list in all_frame_results if lm_list is not None)
-        logger.info(f"AIService: Finished pose processing. Successfully processed {processed_count}/{len(frame_paths)} frames outputting structured landmark lists.")
+        logger.info(f"AIService: Finished pose processing. Successfully processed {processed_count}/{len(frames_data_np)} frames outputting structured landmark lists.")
         return all_frame_results
 
     # Helper function for linear interpolation of landmark data
@@ -853,64 +865,109 @@ class AIService:
         return all_frame_pose_data 
 
     STANDARD_ANGLE_DEFINITIONS = {
-        "left_knee": (23, 25, 27),    # LHip, LKnee, LAnkle
-        "right_knee": (24, 26, 28),   # RHip, RKnee, RAnkle
-        "left_hip": (11, 23, 25),     # LShoulder, LHip, LKnee
-        "right_hip": (12, 24, 26),    # RShoulder, RHip, RKnee
-        "left_elbow": (11, 13, 15),   # LShoulder, LElbow, LWrist
-        "right_elbow": (12, 14, 16),  # RShoulder, RElbow, RWrist
-        "left_shoulder": (13, 11, 23), # LElbow, LShoulder, LHip
-        "right_shoulder": (14, 12, 24) # RElbow, RShoulder, RHip
+        ExerciseType.SQUAT: [
+            {"name": "left_knee", "p1_idx": 23, "p2_idx": 25, "p3_idx": 27, "plane": "sagittal"}, # LHip, LKnee, LAnkle
+            {"name": "right_knee", "p1_idx": 24, "p2_idx": 26, "p3_idx": 28, "plane": "sagittal"}, # RHip, RKnee, RAnkle
+            {"name": "left_hip", "p1_idx": 11, "p2_idx": 23, "p3_idx": 25, "plane": "sagittal"},   # LShoulder, LHip, LKnee
+            {"name": "right_hip", "p1_idx": 12, "p2_idx": 24, "p3_idx": 26, "plane": "sagittal"},  # RShoulder, RHip, RKnee
+            {"name": "left_ankle", "p1_idx": 25, "p2_idx": 27, "p3_idx": 31, "plane": "sagittal"}, # LKnee, LAnkle, LHeel (or LFootIndex 29)
+            {"name": "right_ankle", "p1_idx": 26, "p2_idx": 28, "p3_idx": 32, "plane": "sagittal"},# RKnee, RAnkle, RHeel (or RFootIndex 30)
+            # Add torso angle (e.g., relative to vertical or shins)
+            # Example: Angle between vector LHip-LShoulder and LAnkle-LKnee (shin) - more complex calculation
+        ],
+        # TODO: Add other exercises like deadlift, pushup, etc.
     }
 
     async def calculate_angles_for_pose_sequence(
         self,
-        pose_sequence: List[Optional[Dict[str, Any]]]
+        pose_sequence: List[Optional[List[Optional[Dict[str, Any]]]]],
+        exercise_type_str: Optional[str] = None
     ) -> List[Optional[Dict[str, float]]]:
         """
-        Calculates a standard set of joint angles for each pose in a sequence.
+        Calculates a defined set of joint angles for each frame in a pose sequence.
+        The specific angles calculated depend on the exercise_type.
 
         Args:
-            pose_sequence: A list of pose data dictionaries, where each dictionary 
-                           is expected to have a "landmarks" key containing a list of 
-                           landmark dicts (e.g., output from process_np_frames_for_pose).
+            pose_sequence: A list of pose landmark data per frame.
+                           Each element is a list of landmarks for a frame, or None.
+                           Each landmark is a dict with 'x', 'y', 'z', 'visibility'.
+            exercise_type_str: The string value of the exercise type to determine which angles to calculate.
 
         Returns:
-            A list of dictionaries, where each dictionary contains the calculated angles 
-            for the corresponding frame's pose, or None if no valid pose/landmarks.
+            A list where each element corresponds to a frame and is a dictionary
+            mapping angle names to their calculated values (in degrees), or None if angles
+            could not be calculated for that frame (e.g., missing keypoints).
         """
         if not pose_sequence:
             return []
 
+        # Determine the exercise type enum member
+        exercise_type_enum: Optional[ExerciseType] = None
+        if exercise_type_str:
+            try:
+                exercise_type_enum = ExerciseType(exercise_type_str.lower())
+            except ValueError:
+                logger.warning(f"AIService: Invalid exercise_type_str '{exercise_type_str}' for angle calculation. No specific angles will be calculated.")
+        
+        angle_definitions = []
+        if exercise_type_enum and exercise_type_enum in self.STANDARD_ANGLE_DEFINITIONS:
+            angle_definitions = self.STANDARD_ANGLE_DEFINITIONS[exercise_type_enum]
+        else:
+            logger.info(f"AIService: No standard angle definitions found for exercise '{exercise_type_str}'. Returning empty angle data.")
+            return [None] * len(pose_sequence) # Return list of Nones matching frame count
+
         all_frames_angles: List[Optional[Dict[str, float]]] = []
 
-        for frame_pose_data in pose_sequence:
-            if frame_pose_data is None or "landmarks" not in frame_pose_data:
-                all_frames_angles.append(None)
+        for frame_idx, frame_landmarks_list in enumerate(pose_sequence):
+            if not frame_landmarks_list:
+                all_frames_angles.append(None) # No landmarks for this frame
                 continue
+            
+            # Ensure frame_landmarks_list is List[Dict], not List[Optional[Dict]] for _calculate_angle
+            # The _calculate_angle helper expects a list of actual landmark dicts.
+            # Here, frame_landmarks_list is already List[Optional[Dict[str, Any]]].
+            # We need to be careful. _calculate_angle uses _get_landmark_coords which handles Optional.
+            # However, it iterates through raw_landmarks_from_mp in process_frames_for_pose which are dicts.
+            # Let's assume frame_landmarks_list here contains actual dicts where landmarks were visible,
+            # and Nones where they were not. The _calculate_angle needs to be robust to this structure
+            # or we need to filter Nones before passing to _calculate_angle, but that changes indices.
 
-            landmarks = frame_pose_data["landmarks"]
-            if not isinstance(landmarks, list): # Ensure landmarks is a list
-                all_frames_angles.append(None)
-                continue
+            # The current `_get_landmark_coords` in `_calculate_angle` takes `List[Dict[str, float]]`.
+            # `frame_landmarks_list` here is `List[Optional[Dict[str, Any]]]`. This is a mismatch.
+            # `_get_landmark_coords` needs to handle a list that might contain Nones at certain indices.
+            
+            # For now, let's assume `_calculate_angle` can deal with indices into `frame_landmarks_list`
+            # where elements might be None. The `_get_landmark_coords` should return None if `landmarks[index]` is None.
+
+            current_frame_angles: Dict[str, float] = {}
+            has_any_angle = False
+            for angle_def in angle_definitions:
+                p1_idx, p2_idx, p3_idx = angle_def["p1_idx"], angle_def["p2_idx"], angle_def["p3_idx"]
                 
-            # This part is CPU-bound but likely very fast for a few angle calculations.
-            # If performance becomes an issue for many angles/frames, can wrap this inner loop.
-            # For now, direct call is fine as _calculate_angle is efficient.
-            
-            def _calculate_all_angles_for_frame():
-                calculated_angles_for_frame: Dict[str, float] = {}
-                for angle_name, (p1_idx, p2_idx, p3_idx) in self.STANDARD_ANGLE_DEFINITIONS.items():
-                    angle_value = self._calculate_angle(landmarks, p1_idx, p2_idx, p3_idx)
-                    if angle_value is not None:
-                        calculated_angles_for_frame[angle_name] = angle_value
-                return calculated_angles_for_frame if calculated_angles_for_frame else None
-
-            # Running the synchronous helper in a thread
-            frame_angles = await asyncio.to_thread(_calculate_all_angles_for_frame)
-            all_frames_angles.append(frame_angles)
-            
+                # _calculate_angle expects List[Dict], but frame_landmarks_list is List[Optional[Dict]]
+                # We need to adapt _calculate_angle or how we pass data.
+                # Let's modify _get_landmark_coords to handle List[Optional[Dict]]
+                angle_val = self._calculate_angle(frame_landmarks_list, p1_idx, p2_idx, p3_idx) 
+                
+                if angle_val is not None:
+                    current_frame_angles[angle_def["name"]] = angle_val
+                    has_any_angle = True
+           
+            if has_any_angle:
+                all_frames_angles.append(current_frame_angles)
+            else:
+                all_frames_angles.append(None) # No angles could be calculated for this frame
+        
+        logger.info(f"AIService: Angle calculation completed for {len(pose_sequence)} frames for exercise '{exercise_type_str}'.")
         return all_frames_angles
+
+    # TODO (Future for Task 1.3): 
+    # If smoothing/interpolation is to be done on angles, it would happen after 
+    # `calculate_angles_for_pose_sequence` produces `all_frames_angles` (List[Optional[Dict[str, float]]]).
+    # A new method like `smooth_angle_trajectories(all_frames_angles, smoothing_window, max_gap)` would be needed.
+    # This method would iterate through each angle type (e.g., 'left_knee') across frames,
+    # extract its trajectory (a List[Optional[float]]), and then apply 1D smoothing/interpolation to that list.
+    # The existing `smooth_and_interpolate_poses` is designed for landmark dicts (x,y,z,vis) and would need adaptation.
 
 # END OF AIService class
 # Ensure this class definition ends correctly if more methods are outside or this is the true end.
