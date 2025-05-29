@@ -47,6 +47,41 @@ class TestAIService: # Keep the class structure
         """A simple test to confirm the test file and pytest are working."""
         assert True
 
+    @patch('app.services.ai_service.logger.error')
+    def test_detect_pose_invalid_frame_input(
+        self,
+        mock_logger_error: MagicMock,
+        ai_service: AIService # Uses the fixture
+    ):
+        """Test detect_pose with invalid frame inputs that might cause cv2.cvtColor to fail."""
+        invalid_frames = [
+            np.array([]),  # Empty array
+            np.array([1, 2, 3]), # 1D array
+            np.array([[[1, 2]]], dtype=np.float32), # Wrong dtype / channel structure
+            "not_an_array" # Completely wrong type
+        ]
+
+        for invalid_frame_np in invalid_frames:
+            mock_logger_error.reset_mock() # Reset for each iteration
+            try:
+                # Provide a default value for frame if it's not a numpy array
+                # to prevent AttributeError when accessing frame.shape or frame.dtype
+                # This is a pragmatic approach as cvtColor itself will error out.
+                # Alternatively, the test could specifically mock cvtColor for these inputs.
+                if not isinstance(invalid_frame_np, np.ndarray):
+                     # cvtColor will fail. detect_pose should catch this.
+                     pass
+
+                landmarks, confidence = ai_service.detect_pose(invalid_frame_np)
+                assert landmarks == []
+                assert confidence == 0.0
+                mock_logger_error.assert_called_once() # Check that an error was logged
+            except Exception as e:
+                # This case might occur if the error happens before cvtColor, 
+                # or if the broad except in detect_pose is not hit as expected.
+                # For this test, we expect detect_pose to catch and handle internally.
+                pytest.fail(f"detect_pose raised an unexpected exception for input {invalid_frame_np}: {e}")
+
 # We will now begin adding tests for AIService as per the plan.
 # First, tests for `process_frames_for_pose` method.
 

@@ -14,6 +14,10 @@ import redis # For sync redis client
 from app.core.config import settings, Settings, get_settings
 from app.core.database import SessionLocal
 from app.core.db_deps import get_async_db as get_async_db_session, get_db as get_db_session
+
+# Re-export for convenience if other modules expect get_db directly from app.core.deps
+get_db = get_db_session
+
 from app.core.auth_utils import get_current_user_payload
 from app.core.auth_scheme import oauth2_scheme
 
@@ -353,7 +357,7 @@ async def get_async_analytics_service(
 __all__ = [
     "get_settings",
     "get_async_db",
-    "get_db_session",
+    "get_db",
     "oauth2_scheme",
     "get_current_user",
     "get_current_active_user",

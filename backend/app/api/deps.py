@@ -1,6 +1,6 @@
 """API dependencies."""
 # Import dependencies from core.deps
-from app.core.deps import get_db, get_async_db, get_settings, get_current_user, get_current_active_user, get_current_active_superuser, check_subscription_tier, validate_form_check_access, validate_feedback_access
+from app.core.deps import get_db, get_async_db, get_settings, get_current_user, get_current_active_user, get_current_active_superuser, check_subscription_tier, validate_form_check_access, validate_feedback_access, get_redis_client
 
 from fastapi import Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,8 +11,18 @@ from fastapi.security import OAuth2PasswordBearer
 from app.repositories.user_repository import UserRepository
 from app.services.user_service import UserService
 from app.core.security import oauth2_scheme
-from app.core.config import settings
-from app.core.security import verify_session_token
+from app.core.config import settings, Settings
+from app.core.db_deps import get_db, get_async_db
+from app.core.database import SessionLocal
+from app.core.security import (
+    create_access_token, 
+    verify_session_token_and_get_payload,
+    get_password_hash,
+    verify_password,
+    create_email_verification_token,
+    create_password_reset_token,
+    verify_password_reset_token_and_get_email,
+)
 from app.models.user import User
 from app.services.session_service import SessionService, get_async_session_service
 from app.repositories.session_repository import SessionRepository
@@ -21,7 +31,6 @@ from app.services.auth_service import AuthService
 from app.services.video_service import VideoService
 from app.services.storage_service import StorageService
 from app.services.email_service import EmailService
-from app.core.config import Settings
 from app.services.exercise_service import get_async_exercise_service
 from app.services.progress_service import get_async_progress_service
 from app.services.video_processing_service import get_async_video_processing_service
@@ -144,6 +153,9 @@ async def get_async_form_check_service(
         ai_service=ai_service, 
         cache_service=cache_service
     )
+
+# Alias for convenience if modules directly access deps.get_form_check_service
+get_form_check_service = get_async_form_check_service
 
 # Service dependencies dictionary
 # ... existing code ... 

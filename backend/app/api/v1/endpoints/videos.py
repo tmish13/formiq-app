@@ -14,6 +14,7 @@ import os
 import time
 from app.tasks.video_processing import process_uploaded_video
 from app.services.video_service import VideoService
+from app.core.exceptions import NotFoundException, PermissionDeniedException
 
 # Initialize logger
 logger = get_logger(__name__)
@@ -114,6 +115,18 @@ async def confirm_upload(
         return updated_video_schema
     except HTTPException as e:
         raise e
+    except NotFoundException as e:
+        logger.warning(f"NotFoundException in confirm_upload: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except PermissionDeniedException as e:
+        logger.warning(f"PermissionDeniedException in confirm_upload: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(e)
+        )
     except Exception as e:
         logger.error(f"Error confirming video upload: {str(e)}", exc_info=True)
         raise HTTPException(

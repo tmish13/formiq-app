@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
 import structlog
+from logging.config import dictConfig
 
 from app.core.config import settings
 
@@ -151,7 +152,7 @@ def setup_logging(
         except Exception as e:
             logging.error(f"Failed to initialize Sentry: {e}", exc_info=True)
 
-    logging.config.dictConfig(config)
+    dictConfig(config)
     
     # Initial log message using structlog logger
     init_logger = get_logger("app.core.logging.setup") # get_logger now returns structlog logger

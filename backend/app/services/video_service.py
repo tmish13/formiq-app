@@ -8,7 +8,7 @@ import logging
 from typing import List, Optional, Dict, Any
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 
 from app.models.video import Video # MODIFIED
@@ -252,43 +252,41 @@ class VideoService(BaseService[Video, VideoCreate, VideoUpdate]):
     async def update_video_metadata_and_status(
         self, 
         video_id: UUID, 
+        metadata: Optional[Dict[str, Any]] = None,
         status: Optional[VideoStatus] = None, 
-        error_message: Optional[str] = None,
-        processed_frame_paths: Optional[List[str]] = None,
-        processed_frame_count: Optional[int] = None,
-        celery_task_id: Optional[str] = None,
-        # Add other fields from VideoUpdate as needed
-        **kwargs: Any
-    ) -> VideoResponse:
-        update_data = {**kwargs}
-        if status is not None:
-            update_data["status"] = status
-        if error_message is not None: # Allow clearing error by passing empty string if desired by explicit logic
+        error_message: Optional[str] = None, # Parameter
+    ):
+        video = await self.get_async(id=video_id) 
+        if not video:
+            logger.error(f"Video not found with ID {video_id} in update_video_metadata_and_status.")
+            raise ValueError(f"Video not found with ID {video_id} for update.")
+
+        update_data = {}
+        if metadata is not None:
+            update_data["metadata"] = metadata
+        
+        # Simplified error message handling
+        if error_message is not None:
             update_data["error_message"] = error_message
-        if processed_frame_paths is not None:
-            update_data["processed_frame_paths"] = processed_frame_paths
-        if processed_frame_count is not None:
-            update_data["processed_frame_count"] = processed_frame_count
-        if celery_task_id is not None:
-            update_data["celery_task_id"] = celery_task_id
+        else:
+            if hasattr(video, 'error_message'):
+                 update_data["error_message"] = None
+
+        if status:
+            update_data["status"] = status
+            update_data["status_updated_at"] = datetime.now(timezone.utc)
+            if status.value.endswith("_FAILED") and update_data.get("error_message") is None:
+                 default_error_detail = f"{video.__class__.__name__} status set to {status.value} with no specific error message."
+                 update_data["error_message"] = json.dumps({"error_type": "DefaultProcessingError", "details": default_error_detail})
         
         if not update_data:
-            video = await super().get_async(id=video_id)
-            if not video: raise NotFoundException("Video not found for status update.")
-            return self.response_schema.from_orm(video)
+            logger.warning(f"No actual data provided to update_video_metadata_and_status for video {video_id}")
+            return
 
-        # Fetch the video object first to pass as db_obj
-        video_to_update = await super().get_async(id=video_id)
-        if not video_to_update:
-            # This case implies the video was deleted between a get and update, or ID is wrong.
-            raise NotFoundException(f"Video with id {video_id} not found for update (prior to super().update_async).")
-
-        updated_video = await super().update_async(db_obj=video_to_update, obj_in=VideoUpdate(**update_data))
-        if not updated_video:
-            # This case implies the video was deleted between a get and update, or ID is wrong.
-            raise NotFoundException(f"Video with id {video_id} not found for update.")
-        logger.info(f"Video {video_id} metadata/status updated. New status: {updated_video.status}")
-        return self.response_schema.from_orm(updated_video)
+        updated_video_db_model = await self.update_async(db_obj=video, obj_in=update_data)
+        logger.info(
+            f"Updated video {video_id} metadata, status to {status}. Error: {update_data.get('error_message')}. BaseService handled commit."
+        )
 
     async def update_video_after_initial_processing(
         self,
@@ -308,14 +306,12 @@ class VideoService(BaseService[Video, VideoCreate, VideoUpdate]):
         video = await super().get_async(id=video_id)
         if not video:
             logger.error(f"Video {video_id} not found for update_after_initial_processing.")
-            # Depending on desired behavior, could raise NotFoundException or handle differently.
-            # For a Celery task, letting it fail might be appropriate for retry or logging.
             raise NotFoundException(f"Video {video_id} not found during post-processing update.")
 
         update_data: Dict[str, Any] = {
             "status": status,
             "processed_object_key": processed_object_key,
-            "frame_s3_keys": frame_s3_keys, # Use the correct model field name
+            "frame_s3_keys": frame_s3_keys,
         }
         if duration is not None:
             update_data["duration"] = duration
@@ -326,7 +322,6 @@ class VideoService(BaseService[Video, VideoCreate, VideoUpdate]):
         if processed_frame_count is not None:
             update_data["processed_frame_count"] = processed_frame_count
         
-        # Set processed_url to the public URL of the processed_object_key
         try:
             if processed_object_key:
                 public_url = await self.storage_service.get_public_url(processed_object_key)
@@ -337,15 +332,16 @@ class VideoService(BaseService[Video, VideoCreate, VideoUpdate]):
         except Exception as e_storage_url:
             logger.warning(f"Failed to get public URL for processed_object_key {processed_object_key} for video {video_id}: {e_storage_url}")
 
-
-        # The 'video' object fetched at the beginning of the method is the correct db_obj
         updated_video = await super().update_async(db_obj=video, obj_in=VideoUpdate(**update_data))
         if not updated_video:
-            # This is highly unlikely if the get_async above succeeded.
-            logger.error(f"Failed to update video {video_id} after initial processing, record vanished or update failed.")
-            raise ServerErrorException(f"Failed to update video {video_id} after processing completion.")
+            logger.error(f"Failed to update video {video_id} after initial processing (super().update_async returned None or raised).")
+            # BaseService.update_async should raise ServiceError on failure and rollback.
+            # If we reach here and updated_video is None, it implies a scenario not covered by BaseService's current error handling (e.g., it returned None).
+            raise ServerErrorException(f"Failed to update video {video_id} after processing completion; update_async did not return an object.")
         
-        logger.info(f"Video {video_id} updated after initial processing. Status: {status}, Processed Key: {processed_object_key}")
+        # Commit is handled by super().update_async
+        logger.info(f"Video {video_id} updated after initial processing. Status: {updated_video.status}, Processed Key: {updated_video.processed_object_key}. BaseService handled commit.")
+            
         return self.response_schema.from_orm(updated_video)
 
     async def set_video_status_from_task(
@@ -357,17 +353,25 @@ class VideoService(BaseService[Video, VideoCreate, VideoUpdate]):
         video = await super().get_async(id=video_id)
         if not video:
             logger.error(f"Video {video_id} not found in set_video_status_from_task. Cannot update status.")
+            # If video not found, trying to commit will achieve nothing and might hide the error.
+            # The task should handle the case where the video disappears.
             return
         
         update_payload = {"status": new_status}
-        if error_msg is not None:
+        if error_msg:
             update_payload["error_message"] = error_msg
         elif new_status != VideoStatus.PROCESSING_FAILED and new_status != VideoStatus.ANALYSIS_FAILED: # Clear error if status is not a failure one
             update_payload["error_message"] = None
 
-        # The 'video' object fetched at the beginning of the method is the correct db_obj
-        await super().update_async(db_obj=video, obj_in=VideoUpdate(**update_payload))
-        logger.info(f"Celery task updated video {video_id} status to {new_status}")
+        updated_video = await super().update_async(db_obj=video, obj_in=VideoUpdate(**update_payload))
+        if updated_video:
+            # Commits are handled by super().update_async (BaseService)
+            log_extra = f" | error_msg: '{error_msg}'" if error_msg is not None else " | error_msg: None (cleared or not set)"
+            logger.info(f"Celery task updated video {video_id} status to {new_status}{log_extra}. BaseService handled commit.")
+        else:
+            # super().update_async would raise ServiceError on failure and rollback.
+            logger.error(f"super().update_async returned None for video {video_id} in set_video_status_from_task. Status was to be {new_status}.")
+            # No explicit rollback here as BaseService should have handled it.
 
     async def set_video_processed_frames_info_from_task(
         self, 
@@ -458,7 +462,7 @@ class VideoService(BaseService[Video, VideoCreate, VideoUpdate]):
         is_superuser: bool,
     ) -> VideoResponse:
         """Requests reprocessing for a video that may have failed or needs re-analysis."""
-        video = await self.get_by_id_or_fail(video_id)
+        video = await self.get_async(id=video_id)
 
         if video.user_id != current_user_id and not is_superuser:
             raise PermissionDeniedException("Not authorized to retry processing for this video.")
@@ -517,7 +521,7 @@ class VideoService(BaseService[Video, VideoCreate, VideoUpdate]):
         video.calculated_angles = None
         
         video = await self.update_async(db_obj=video, obj_in=VideoUpdate(**update_fields))
-        if not video: # Should not happen if get_by_id_or_fail worked
+        if not video: # Should not happen if get_async worked
              raise ServerErrorException("Failed to update video for retry.")
 
         from app.tasks.video_tasks import process_video_celery_task
@@ -538,78 +542,148 @@ class VideoService(BaseService[Video, VideoCreate, VideoUpdate]):
     async def update_video_pose_data_and_status(
         self,
         video_id: UUID,
-        pose_data: Optional[List[Optional[List[Optional[Dict[str, Any]]]]]], # CORRECTED TYPE HINT
-        status: VideoStatus,
-        error_message: Optional[str] = None # Can be a simple string or JSON string
-    ) -> Optional[Video]:
-        """
-        Updates the raw_pose_data and status of a video, typically after pose detection.
-        Args:
-            video_id: The ID of the video to update.
-            pose_data: The raw pose data (list of frames, each frame a list of landmarks or None).
-            status: The new VideoStatus.
-            error_message: Optional error message (can be simple string or JSON string).
-        """
-        video = await self.get_by_id_or_fail(video_id)
+        pose_data: Optional[list] = None,
+        status: Optional[VideoStatus] = None,
+        error_message: Optional[str] = None, # This is the parameter passed to the function
+    ):
+        video = await self.get_async(id=video_id) 
+        if not video:
+            logger.error(f"Video not found with ID {video_id} in update_video_pose_data_and_status.")
+            raise ValueError(f"Video not found with ID {video_id} for update.") 
         
-        update_data = {
-            "raw_pose_data": pose_data,
-            "status": status,
-            "processing_errors": None # Clear previous errors if successful, or set new one
-        }
-        if error_message:
-            # Attempt to parse if it's a JSON string, otherwise store as is.
-            try:
-                parsed_error = json.loads(error_message)
-                update_data["processing_errors"] = parsed_error
-            except (json.JSONDecodeError, TypeError):
-                update_data["processing_errors"] = {"task_error": error_message} # Wrap simple string
-        
-        if status == VideoStatus.POSE_DETECTED:
-            update_data["processing_errors"] = None # Explicitly clear errors on success
+        update_data = {}
+        if pose_data is not None:
+            update_data["pose_data"] = pose_data
+            update_data["processed_pose_data_at"] = datetime.now(timezone.utc)
+        elif pose_data is None and hasattr(video, 'pose_data'): # Explicitly clear if passed as None
+            update_data["pose_data"] = None
+            update_data["processed_pose_data_at"] = None
 
-        updated_video = await self.update_async(db_obj=video, obj_in=VideoUpdate(**update_data))
-        if updated_video:
-            logger.info(f"Updated video {video_id} with pose data, status to {status}.")
+        # Simplified error message handling
+        if error_message is not None:
+            update_data["error_message"] = error_message
         else:
-            logger.error(f"Failed to update video {video_id} with pose data and status.")
-        return updated_video
+            # If error_message param is None, ensure we clear it in the DB
+            # but only if the field exists on the model (which it does for Video)
+            if hasattr(video, 'error_message'):
+                 update_data["error_message"] = None
+
+        if status:
+            update_data["status"] = status
+            update_data["status_updated_at"] = datetime.now(timezone.utc)
+            # If status is FAILED and error_message in update_data is still None (because param was None)
+            # set a generic error.
+            if status.value.endswith("_FAILED") and update_data.get("error_message") is None:
+                 default_error_detail = f"{video.__class__.__name__} status set to {status.value} with no specific error message."
+                 update_data["error_message"] = json.dumps({"error_type": "DefaultProcessingError", "details": default_error_detail})
+        
+        if not update_data:
+            logger.warning(f"No actual data provided to update_video_pose_data_and_status for video {video_id}")
+            return
+
+        updated_video_db_model = await self.update_async(db_obj=video, obj_in=update_data)
+        
+        logger.info(
+            f"Updated video {video_id} with pose data, status to {status}. Error: {update_data.get('error_message')}. BaseService handled commit."
+        )
 
     async def update_video_calculated_angles_and_status(
         self,
         video_id: UUID,
-        calculated_angles: Optional[List[Optional[Dict[str, float]]]], # MODIFIED: AngleDataItem -> Dict[str, float]
-        status: VideoStatus, 
-        error_message: Optional[str] = None # Can be a simple string or JSON string
-    ) -> Optional[Video]:
-        """
-        Updates the calculated_angles and status of a video, typically after angle calculation.
-        Args:
-            video_id: The ID of the video to update.
-            calculated_angles: The calculated angle data (list of frames, each frame a dict of angle_name: value).
-            status: The new VideoStatus (expected: ANGLES_CALCULATED or ANGLE_CALCULATION_FAILED).
-            error_message: Optional error message (can be simple string or JSON string).
-        """
-        video = await self.get_by_id_or_fail(video_id)
-        
-        update_data = {
-            "calculated_angles": calculated_angles,
-            "status": status,
-            "processing_errors": None # Clear or set
-        }
-        if error_message:
-            try:
-                parsed_error = json.loads(error_message)
-                update_data["processing_errors"] = parsed_error
-            except (json.JSONDecodeError, TypeError):
-                update_data["processing_errors"] = {"task_error": error_message}
+        calculated_angles: Optional[list] = None,
+        status: Optional[VideoStatus] = None,
+        error_message: Optional[str] = None, # Parameter
+    ):
+        video = await self.get_async(id=video_id)
+        if not video:
+            logger.error(f"Video not found with ID {video_id} in update_video_calculated_angles_and_status.")
+            raise ValueError(f"Video not found with ID {video_id} for update.")
 
-        if status == VideoStatus.ANGLES_CALCULATED:
-            update_data["processing_errors"] = None # Explicitly clear errors on success
-
-        updated_video = await self.update_async(db_obj=video, obj_in=VideoUpdate(**update_data))
-        if updated_video:
-            logger.info(f"Updated video {video_id} with calculated angles, status to {status}.")
+        update_data = {}
+        if calculated_angles is not None:
+            update_data["calculated_angles"] = calculated_angles
+            update_data["processed_angles_at"] = datetime.now(timezone.utc)
+        elif calculated_angles is None and hasattr(video, 'calculated_angles'): # Explicitly clear
+            update_data["calculated_angles"] = None
+            update_data["processed_angles_at"] = None
+            
+        # Simplified error message handling
+        if error_message is not None:
+            update_data["error_message"] = error_message
         else:
-            logger.error(f"Failed to update video {video_id} with calculated angles and status.")
-        return updated_video
+            if hasattr(video, 'error_message'):
+                 update_data["error_message"] = None
+
+        if status:
+            update_data["status"] = status
+            update_data["status_updated_at"] = datetime.now(timezone.utc)
+            if status.value.endswith("_FAILED") and update_data.get("error_message") is None:
+                 default_error_detail = f"{video.__class__.__name__} status set to {status.value} with no specific error message."
+                 update_data["error_message"] = json.dumps({"error_type": "DefaultProcessingError", "details": default_error_detail})
+        
+        if not update_data:
+            logger.warning(f"No actual data provided to update_video_calculated_angles_and_status for video {video_id}")
+            return
+            
+        updated_video_db_model = await self.update_async(db_obj=video, obj_in=update_data)
+        logger.info(
+            f"Updated video {video_id} calculated_angles, status to {status}. Error: {update_data.get('error_message')}. BaseService handled commit."
+        )
+
+    async def update_video_raw_pose_data_and_status(
+        self,
+        video_id: UUID,
+        raw_pose_data: Optional[list] = None,
+        status: Optional[VideoStatus] = None,
+        error_message: Optional[str] = None,
+    ):
+        """Updates the raw pose data, status, and error message for a video."""
+        video = await self.get_async(id=video_id) 
+        if not video:
+            logger.error(f"Video not found with ID {video_id} in update_video_raw_pose_data_and_status.")
+            raise ValueError(f"Video not found with ID {video_id} for update.") 
+
+        update_data = {}
+        if raw_pose_data is not None:
+            update_data["raw_pose_data"] = raw_pose_data
+            # No specific 'processed_raw_pose_data_at' timestamp for this one, 
+            # as it's considered more 'raw' than 'pose_data' generally.
+        elif raw_pose_data is None and hasattr(video, 'raw_pose_data'): # Explicitly clear if passed as None
+            update_data["raw_pose_data"] = None
+
+        if status is not None:
+            update_data["status"] = status
+
+        # Handle error_message: always update if provided, clear if explicitly None and field exists
+        if error_message is not None:
+            update_data["error_message"] = error_message
+        elif error_message is None and hasattr(video, 'error_message'):
+            update_data["error_message"] = None 
+            
+        if not update_data:
+            logger.info(f"No data provided to update for video {video_id} in update_video_raw_pose_data_and_status.")
+            return video # Or raise error if an update was expected
+
+        video = await self.update_async(db_obj=video, **update_data)
+        # No explicit commit here, BaseService.update_async handles it.
+        await self.db.refresh(video) # Refresh to get the latest state after update
+        logger.info(f"Updated video {video_id} with raw_pose_data, status to {status}. Error: {error_message}. BaseService handled commit.")
+        return video
+
+    async def update_video_smoothed_pose_data(
+        self,
+        video_id: UUID,
+        smoothed_pose_data: List[Optional[List[Optional[Dict[str, float]]]]]
+    ):
+        """Updates the smoothed pose data (Video.pose_data) for a video."""
+        video = await self.get_async(id=video_id)
+        if not video:
+            logger.error(f"Video not found with ID {video_id} in update_video_smoothed_pose_data.")
+            # Depending on desired behavior, could raise error or log and return
+            raise ValueError(f"Video not found with ID {video_id} for smoothed pose data update.")
+        
+        await self.update_async(db_obj=video, pose_data=smoothed_pose_data)
+        # BaseService.update_async handles commit.
+        # No explicit refresh needed here unless the updated object is immediately used in a way that requires it.
+        logger.info(f"Updated video {video_id} with smoothed pose data.")
+        return video # Return updated video object

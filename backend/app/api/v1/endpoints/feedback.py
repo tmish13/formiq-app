@@ -3,7 +3,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core import deps
+from app.api import deps
 from app.core.deps import get_db, get_current_user, validate_feedback_access
 from app.services.form_check_service import FormCheckService
 from app.core.logging import logger

@@ -3,13 +3,16 @@ from typing import List, Optional
 from uuid import UUID
 from sqlalchemy.orm import Session
 from fastapi import Depends
+from sqlalchemy import select, update, delete
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.exercise import ExerciseTemplate
-from app.repositories.base import BaseRepository
+from app.repositories.base_repository import BaseRepository
 from app.core.deps import get_db
+from app.schemas.exercise import ExerciseCreate, ExerciseUpdate
 
 
-class ExerciseRepository(BaseRepository):
+class ExerciseRepository(BaseRepository[ExerciseTemplate]):
     """Repository for managing exercises."""
 
     def __init__(self, db: Session):

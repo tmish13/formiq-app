@@ -40,6 +40,8 @@ class VideoUpdate(BaseModel):
     size: Optional[int] = None
     url: Optional[constr(max_length=2048)] = None
     status: Optional[VideoStatus] = None
+    processed_object_key: Optional[str] = None
+    frame_s3_keys: Optional[List[str]] = None
     processed_url: Optional[constr(max_length=2048)] = None
     exercise_type: Optional[constr(max_length=100)] = None
     duration: Optional[float] = None
@@ -50,6 +52,8 @@ class VideoUpdate(BaseModel):
     rep_count: Optional[int] = None
     pose_data: Optional[List[Optional[Dict[str, Any]]]] = None
     calculated_angles: Optional[List[Optional[AngleDataItem]]] = None
+    celery_task_id: Optional[str] = None
+    processed_frame_count: Optional[int] = None
 
     @validator("mime_type", check_fields=False)
     def validate_update_mime_type(cls, v):
@@ -61,6 +65,7 @@ class VideoResponse(VideoBase):
     """Schema for returning video information."""
     id: UUID
     user_id: UUID
+    object_key: Optional[str] = None
     status: str
     created_at: datetime
     updated_at: datetime
@@ -73,6 +78,7 @@ class VideoResponse(VideoBase):
     error_message: Optional[str] = None
     score: Optional[float] = None
     rep_count: Optional[int] = None
+    processed_frame_count: Optional[int] = None
 
     class Config:
         orm_mode = True

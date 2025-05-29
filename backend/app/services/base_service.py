@@ -6,11 +6,16 @@ from sqlalchemy.orm.decl_api import DeclarativeBase
 from app.core.config import Settings
 from app.models.base import BaseModel
 from app.core.exceptions import ServiceError
+from sqlalchemy.exc import IntegrityError
+from fastapi import status
+import logging
 
 # Define TypeVars for Model, Create Schema, and Update Schema
 ModelType = TypeVar("ModelType", bound=BaseModel)
 CreateSchemaType = TypeVar("CreateSchemaType")
 UpdateSchemaType = TypeVar("UpdateSchemaType")
+
+logger = logging.getLogger(__name__)
 
 class BaseService(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
     """Base service with repository pattern and error handling for both sync and async sessions."""
@@ -73,16 +78,25 @@ class BaseService(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         except Exception as e:
             raise ServiceError(f"Failed to get {self.model.__name__} list: {str(e)}")
 
-    async def create_async(self, *, obj_in: dict) -> ModelType:
+    async def create_async(self, obj_in: CreateSchemaType) -> ModelType:
         """Create a new record asynchronously."""
         try:
-            db_obj = self.model(**obj_in)
+            # For Pydantic V1, use .dict(). For V2, use .model_dump().
+            # Assuming Pydantic V1 based on other logs (e.g., validator warnings).
+            obj_in_data = obj_in.dict()
+            db_obj = self.model(**obj_in_data)
             self.db.add(db_obj)
             await self.db.commit()
             await self.db.refresh(db_obj)
             return db_obj
+        except IntegrityError as e:  # Catch specific DB errors like unique constraints
+            await self.db.rollback()
+            logger.error(f"Database integrity error creating {self.model.__name__}: {str(e)}")
+            # You might want to map this to a more specific HTTP error, e.g., 409 Conflict
+            raise ServiceError(f"Database error: {str(e)}", status_code=status.HTTP_409_CONFLICT)
         except Exception as e:
             await self.db.rollback()
+            logger.error(f"Error creating {self.model.__name__}: {str(e)}")
             raise ServiceError(f"Failed to create {self.model.__name__}: {str(e)}")
 
     def create(self, *, obj_in: dict) -> ModelType:
@@ -110,11 +124,15 @@ class BaseService(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             for field, value in update_data.items():
                 setattr(db_obj, field, value)
             self.db.add(db_obj)
+            logger.info(f"BaseService: Attempting commit for {self.model.__name__} ID {db_obj.id}, session {id(self.db)}")
             await self.db.commit()
+            logger.info(f"BaseService: Commit successful for {self.model.__name__} ID {db_obj.id}, session {id(self.db)}")
             await self.db.refresh(db_obj)
             return db_obj
         except Exception as e:
+            logger.error(f"BaseService: Error during update/commit for {self.model.__name__} (ID might be {db_obj.id if 'db_obj' in locals() else 'unknown'}), session {id(self.db)}. Error: {e}", exc_info=True)
             await self.db.rollback()
+            logger.info(f"BaseService: Rolled back session {id(self.db)} after error.")
             raise ServiceError(f"Failed to update {self.model.__name__}: {str(e)}")
 
     def update(self, *, db_obj: ModelType, obj_in: Union[UpdateSchemaType, dict]) -> ModelType:

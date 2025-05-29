@@ -55,7 +55,7 @@ async def detect_pose_celery_task(self, video_id_str: str, frame_s3_keys: list[s
         )
         current_video = None
         try:
-            current_video = await video_service_instance.get_video_by_id(video_id)
+            current_video = await video_service_instance.get_async(id=video_id)
             if not current_video:
                 logger.error(f"Video {video_id} not found. Aborting pose detection task.")
                 self.update_state(state=states.FAILURE, meta={'exc_type': 'VideoNotFound', 'exc_message': f'Video {video_id} not found.'})
@@ -116,9 +116,9 @@ async def detect_pose_celery_task(self, video_id_str: str, frame_s3_keys: list[s
             if not raw_pose_results_per_frame or all(result is None for result in raw_pose_results_per_frame):
                 logger.error(f"All frames failed pose detection for video {video_id}.")
                 error_msg_all_fail = "All frames failed pose detection after AI processing."
-                await video_service_instance.update_video_pose_data_and_status(
+                await video_service_instance.update_video_raw_pose_data_and_status(
                     video_id=video_id,
-                    pose_data=None, # Explicitly None
+                    raw_pose_data=None,
                     status=VideoStatus.POSE_DETECTION_FAILED,
                     error_message=json.dumps({"error_type": "PoseDetectionError", "details": error_msg_all_fail})
                 )
@@ -129,13 +129,16 @@ async def detect_pose_celery_task(self, video_id_str: str, frame_s3_keys: list[s
                     "error": "All frames failed AI pose detection."
                 }
             
-            await video_service_instance.update_video_pose_data_and_status(
-                video_id=video_id,
-                pose_data=raw_pose_results_per_frame,
-                status=VideoStatus.POSE_DETECTED 
+            filtered_pose_results = [result for result in raw_pose_results_per_frame if result is not None]
+
+            # Successfully processed, update video record with pose data and new status
+            logger.info(f"Pose detection successful for video {video_id}. Stored {len(filtered_pose_results)} raw pose results.")
+            await video_service_instance.update_video_raw_pose_data_and_status(
+                video_id=current_video.id,
+                raw_pose_data=filtered_pose_results,
+                status=VideoStatus.POSE_DETECTED,
+                error_message=None
             )
-            
-            logger.info(f"Pose detection successful for video {video_id}. Stored {len(raw_pose_results_per_frame) if raw_pose_results_per_frame else 0} raw pose results.")
             
             await video_service_instance.set_video_status_from_task(video_id, new_status=VideoStatus.ANGLE_CALCULATION_PENDING)
             calculate_angles_celery_task.apply_async(args=[str(video_id)], countdown=10)
@@ -145,7 +148,7 @@ async def detect_pose_celery_task(self, video_id_str: str, frame_s3_keys: list[s
                 "status": "success", 
                 "video_id": str(video_id), 
                 "message": f"Pose detection successful. Stored raw pose data. Enqueued angle calculation.",
-                "pose_results_count": len(raw_pose_results_per_frame) if raw_pose_results_per_frame else 0
+                "pose_results_count": len(filtered_pose_results) if filtered_pose_results else 0
             }
 
         except Retry as r_exc:
@@ -159,9 +162,9 @@ async def detect_pose_celery_task(self, video_id_str: str, frame_s3_keys: list[s
             error_details = {"error_type": e.__class__.__name__, "details": str(e)}
             if current_video:
                 try:
-                    await video_service_instance.update_video_pose_data_and_status(
-                        video_id, 
-                        pose_data=None,
+                    await video_service_instance.update_video_raw_pose_data_and_status(
+                        video_id=video_id,
+                        raw_pose_data=None,
                         status=VideoStatus.POSE_DETECTION_FAILED, 
                         error_message=json.dumps(error_details)
                     )
@@ -191,7 +194,7 @@ async def calculate_angles_celery_task(self, video_id_str: str):
         )
         current_video = None
         try:
-            current_video = await video_service_instance.get_video_by_id(video_id)
+            current_video = await video_service_instance.get_async(id=video_id)
             if not current_video:
                 logger.error(f"Video {video_id} not found for angle calculation. Aborting task.")
                 self.update_state(state=states.FAILURE, meta={'exc_type': 'VideoNotFound', 'exc_message': f'Video {video_id} not found.'})
@@ -209,25 +212,101 @@ async def calculate_angles_celery_task(self, video_id_str: str):
 
             await video_service_instance.set_video_status_from_task(video_id, new_status=VideoStatus.ANGLE_CALCULATION_IN_PROGRESS)
 
+            # --- BEGIN SMOOTHING STEP ---
+            logger.info(f"Calling AIService.smooth_and_interpolate_poses for video {video_id}.")
+            smoothed_pose_sequence = await ai_service_instance.smooth_and_interpolate_poses(
+                pose_sequence=current_video.raw_pose_data,
+                # num_expected_landmarks can be taken from AIService or settings if configurable
+                # smoothing_window_size and max_interpolation_gap can also be from settings
+            )
+            if not smoothed_pose_sequence:
+                logger.warning(f"Smoothing/interpolation resulted in empty pose sequence for video {video_id}. Using raw_pose_data for angles.")
+                # Fallback to raw_pose_data if smoothing fails to produce anything, or handle as error
+                pose_data_for_angles = current_video.raw_pose_data 
+            else:
+                logger.info(f"Successfully smoothed/interpolated pose data for video {video_id}. Storing in Video.pose_data.")
+                # Update the video record with the smoothed pose data
+                current_video = await video_service_instance.update_video_smoothed_pose_data(
+                    video_id=video_id,
+                    smoothed_pose_data=smoothed_pose_sequence
+                )
+                # Refresh is important if current_video object is used later and needs to reflect this change
+                await db.refresh(current_video) 
+                pose_data_for_angles = current_video.pose_data
+            
+            if not pose_data_for_angles:
+                 logger.error(f"No pose data available (raw or smoothed) for angle calculation for video {video_id}. Marking as FAILED.")
+                 await video_service_instance.update_video_calculated_angles_and_status(
+                    video_id,
+                    calculated_angles=None,
+                    status=VideoStatus.ANGLE_CALCULATION_FAILED,
+                    error_message="No pose data available (raw or smoothed) for angle calculation."
+                )
+                 return {"status": "failed", "video_id": str(video_id), "error": "No pose data available for angle calculation"}
+            # --- END SMOOTHING STEP ---
+
             logger.info(f"Calling AIService.calculate_angles_for_pose_sequence for video {video_id}.")
-            calculated_angles_per_frame = await ai_service_instance.calculate_angles_for_pose_sequence(
-                pose_sequence=current_video.raw_pose_data, 
-                exercise_type_str=current_video.exercise_type
+            # The pose_data_for_angles is List[Optional[List[Optional[Dict[str, Any]]]]]
+            # calculate_angles_for_pose_sequence expects this type.
+            raw_angles_per_frame = await ai_service_instance.calculate_angles_for_pose_sequence(
+                pose_sequence=pose_data_for_angles
             )
 
+            if not raw_angles_per_frame or all(frame_angles is None for frame_angles in raw_angles_per_frame):
+                logger.error(f"Angle calculation resulted in no angles for video {video_id}. Marking as ANGLE_CALCULATION_FAILED.")
+                await video_service_instance.update_video_calculated_angles_and_status(
+                    video_id,
+                    calculated_angles=None,
+                    status=VideoStatus.ANGLE_CALCULATION_FAILED,
+                    error_message="Angle calculation resulted in no angles or all frames failed."
+                )
+                return {"status": "failed", "video_id": str(video_id), "error": "No angles calculated"}
+
+            logger.info(f"Successfully calculated raw angles for {len(raw_angles_per_frame)} frames for video {video_id}. Now smoothing angles.")
+
+            # --- BEGIN ANGLE SMOOTHING STEP ---
+            # raw_angles_per_frame is List[Optional[Dict[str, float]]]
+            # smooth_angle_trajectories expects this type.
+            smoothed_angles_per_frame = ai_service_instance.smooth_angle_trajectories(
+                raw_angles_per_frame=raw_angles_per_frame,
+                # smoothing_window and max_gap_to_interpolate can be from settings if needed
+            )
+            # --- END ANGLE SMOOTHING STEP ---
+
+            if not smoothed_angles_per_frame or all(frame_angles is None for frame_angles in smoothed_angles_per_frame):
+                logger.warning(f"Angle smoothing resulted in no angles for video {video_id}. Using raw angles if available, or marking as FAILED.")
+                # Decide on fallback: use raw_angles or fail? For now, let's try to use raw if smoothing empties it but raw was not empty.
+                final_angles_to_store = raw_angles_per_frame # Fallback to raw if smoothing failed
+                if not final_angles_to_store or all(fa is None for fa in final_angles_to_store):
+                    logger.error(f"Both raw and smoothed angles are empty for video {video_id}. Marking as ANGLE_CALCULATION_FAILED.")
+                    await video_service_instance.update_video_calculated_angles_and_status(
+                        video_id,
+                        calculated_angles=None,
+                        status=VideoStatus.ANGLE_CALCULATION_FAILED,
+                        error_message="Angle calculation and smoothing resulted in no valid angle data."
+                    )
+                    return {"status": "failed", "video_id": str(video_id), "error": "No angles after calculation and smoothing"}
+            else:
+                final_angles_to_store = smoothed_angles_per_frame
+
+            logger.info(f"Angle calculation and smoothing successful for video {video_id}. Storing {len(final_angles_to_store)} sets of frame angles.")
             await video_service_instance.update_video_calculated_angles_and_status(
                 video_id=video_id,
-                calculated_angles=calculated_angles_per_frame,
-                status=VideoStatus.ANGLES_CALCULATED 
+                calculated_angles=final_angles_to_store, # Store the smoothed (or fallback raw) angles
+                status=VideoStatus.ANGLES_CALCULATED,
+                error_message=None
             )
             
-            logger.info(f"Angle calculation successful for video {video_id}. Stored {len(calculated_angles_per_frame) if calculated_angles_per_frame else 0} angle sets.")
-            
-            await video_service_instance.set_video_status_from_task(video_id, new_status=VideoStatus.FORM_ANALYSIS_PENDING)
-            process_form_check_task.apply_async(args=[str(video_id)], countdown=10)
-            logger.info(f"Enqueued form analysis task for video {video_id}.")
+            # TODO: Trigger next step in pipeline, e.g., form analysis task
+            # Example: process_form_check_task.apply_async(args=[str(video_id)], countdown=5)
+            logger.info(f"Angle calculation complete for video {video_id}. Next step (e.g. form analysis) should be triggered.")
 
-            return {"status": "success", "video_id": str(video_id), "angle_sets_count": len(calculated_angles_per_frame) if calculated_angles_per_frame else 0}
+            return {
+                "status": "success", 
+                "video_id": str(video_id), 
+                "message": "Angle calculation and smoothing successful. Stored calculated angles.",
+                "num_angle_frames": len(final_angles_to_store)
+            }
 
         except Retry as r_exc:
             logger.warning(f"Angle calculation task for video {video_id} is being retried: {r_exc}")
@@ -277,7 +356,7 @@ async def perform_form_analysis_celery_task(self, video_id_str: str):
                 ai_service=AIService(app_settings=settings)
             )
 
-            current_video_obj = await video_service.get_video_by_id(video_id)
+            current_video_obj = await video_service.get_async(id=video_id)
             if not current_video_obj:
                 logger.error(f"Video with ID {video_id} not found. Cannot perform analysis.")
                 self.update_state(state=states.FAILURE, meta={'exc_type': 'VideoNotFound', 'exc_message': f'Video {video_id} not found.'})

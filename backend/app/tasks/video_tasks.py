@@ -2,20 +2,19 @@ import asyncio
 from celery import Task, states
 from celery.exceptions import Ignore, Reject, Retry
 import os
+import shutil
 from app.core.celery_app import celery_app as app # Ensure this is the actual Celery app import
 from app.services.video_processing_service import VideoProcessingService
 from app.services.video_service import VideoService # For updating Video model
 from app.services.storage_service import StorageService # For S3 and VideoService constructor
 from app.models.enums import ExerciseType, VideoStatus, MimeType
-from app.core.config import Settings
-from app.core.db_deps import get_async_db as get_celery_db_session_context # MODIFIED IMPORT
+from app.core.config import Settings, get_settings
+from app.core.database import async_session_factory # CORRECT IMPORT
 from app.tasks.ai_tasks import detect_pose_celery_task # Import the new AI task
 import logging
 from pathlib import Path
+from uuid import UUID
 
-
-def get_app_settings() -> Settings:
-    return Settings()
 
 logger = logging.getLogger(__name__)
 
@@ -31,14 +30,13 @@ async def process_video_celery_task(self, video_id_str: str, original_video_path
     video_id = UUID(video_id_str)
     logger.info(f"Starting video processing Celery task for video_id: {video_id}")
     
-    settings_instance = get_app_settings()
-    storage_service_instance = StorageService(settings=settings_instance) 
-    
-    async with get_celery_db_session_context() as db:
+    settings: Settings = get_settings()
+    async with async_session_factory() as db_session_instance:
+        storage_service_instance = StorageService(settings=settings)
         video_service_instance = VideoService(
-            db=db, 
+            db=db_session_instance, 
             storage_service=storage_service_instance, 
-            app_settings=settings_instance
+            app_settings=settings
         )
         
         try:
@@ -56,15 +54,15 @@ async def process_video_celery_task(self, video_id_str: str, original_video_path
             
             exercise_type = ExerciseType(exercise_type_value)
 
-            if not hasattr(settings_instance, 'CELERY_SHARED_DATA_PATH') or not settings_instance.CELERY_SHARED_DATA_PATH:
+            if not hasattr(settings, 'CELERY_SHARED_DATA_PATH') or not settings.CELERY_SHARED_DATA_PATH:
                  logger.error("CELERY_SHARED_DATA_PATH is not configured in settings.")
                  raise ValueError("CELERY_SHARED_DATA_PATH not configured.")
 
-            processed_frames_output_dir = os.path.join(settings_instance.CELERY_SHARED_DATA_PATH, "processed_frames", str(video_id))
+            processed_frames_output_dir = os.path.join(settings.CELERY_SHARED_DATA_PATH, "processed_frames", str(video_id))
             if not os.path.exists(processed_frames_output_dir):
                 os.makedirs(processed_frames_output_dir, exist_ok=True)
             
-            video_processor = VideoProcessingService(app_settings=settings_instance)
+            video_processor = VideoProcessingService(app_settings=settings)
             result = await video_processor.process_video(
                 video_data=video_data,
                 exercise_type=exercise_type,
@@ -152,15 +150,18 @@ async def process_video_celery_task(self, video_id_str: str, original_video_path
             except Exception as cleanup_err:
                 logger.warning(f"Failed to clean up temp directory {processed_frames_output_dir} for video {video_id}: {cleanup_err}")
 
+            await db_session_instance.commit()
             return {"status": "success", "video_id": str(video_id), "processed_video_s3_key": normalized_video_s3_key, "processed_frames_s3_keys": uploaded_frame_s3_keys}
 
         except FileNotFoundError as fnf_error:
             logger.error(f"FileNotFoundError processing video_id {video_id}: {fnf_error}", exc_info=True)
             await video_service_instance.set_video_status_from_task(video_id, new_status=VideoStatus.PROCESSING_FAILED, error_msg=str(fnf_error))
+            await db_session_instance.commit()
             return {"status": "failed", "video_id": str(video_id), "error": str(fnf_error)}
         except ValueError as ve: # Handle configuration errors specifically to avoid retries
             logger.error(f"Configuration ValueError processing video_id {video_id}: {ve}", exc_info=True)
             await video_service_instance.set_video_status_from_task(video_id, new_status=VideoStatus.PROCESSING_FAILED, error_msg=f"Configuration error: {ve}")
+            await db_session_instance.commit()
             # Do not retry configuration errors
             return {"status": "failed", "video_id": str(video_id), "error": f"Configuration error: {ve}"}
         except Exception as e:

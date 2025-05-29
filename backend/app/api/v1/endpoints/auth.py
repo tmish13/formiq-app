@@ -11,7 +11,7 @@ from pydantic import BaseModel, EmailStr
 from app.api import deps
 from app.core.config import settings
 from app.core.security import (
-    verify_refresh_token
+    verify_token_payload
 )
 from app.core.exceptions import AuthenticationException, ValidationException, RateLimitExceededException, EmailError, NotFoundException
 from app.models.user import User
@@ -34,6 +34,7 @@ from app.core.monitoring import (
     track_session_start,
     track_rate_limit_hit
 )
+from app.core.redis import Redis
 
 router = APIRouter()
 
@@ -308,25 +309,35 @@ async def refresh_token(
     response: Response,
     refresh_token_body: Optional[RefreshToken] = Body(None),
     refresh_token_cookie: Optional[str] = Cookie(None, alias="refresh_token"),
-    auth_service: AuthService = Depends(deps.get_auth_service)
+    auth_service: AuthService = Depends(deps.get_auth_service),
+    redis_client: Redis = Depends(deps.get_redis_client)
 ) -> Any:
     """
-    Refresh access token using a refresh token.
-    Accepts a refresh token either in the request body or as a httpOnly cookie.
-    Prioritizes token from the cookie if both are provided.
+    Refresh an access token using a refresh token.
+    
+    The refresh token can be provided in the request body or as a cookie.
     """
-    token_to_refresh = refresh_token_cookie
-    if not token_to_refresh and refresh_token_body:
-        token_to_refresh = refresh_token_body.refresh_token
+    token_to_verify = None
+    if refresh_token_body and refresh_token_body.refresh_token:
+        token_to_verify = refresh_token_body.refresh_token
+    elif refresh_token_cookie:
+        token_to_verify = refresh_token_cookie
+    
+    if not token_to_verify:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Refresh token not provided in body or cookie."
+        )
 
-    if not token_to_refresh:
+    payload = verify_token_payload(token_to_verify, redis_client, expected_token_type="refresh")
+    if not payload:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, 
-            detail="Refresh token not provided"
+            detail="Invalid refresh token"
         )
 
     try:
-        new_tokens = await auth_service.refresh_access_token(refresh_token_str=token_to_refresh)
+        new_tokens = await auth_service.refresh_access_token(refresh_token_str=token_to_verify)
         
         response.set_cookie(
             key="refresh_token",

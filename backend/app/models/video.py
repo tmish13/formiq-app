@@ -28,6 +28,7 @@ class Video(BaseModel):
     fps = Column(Float, nullable=True)  # Frames per second
     status = Column(SQLAEnum(VideoStatus), default=VideoStatus.UPLOADED, nullable=False)
     processing_errors = Column(JSON, nullable=True) # Store detailed error information, potentially structured
+    error_message = Column(Text, nullable=True) # For simple, top-level error messages
     processed_object_key = Column(String, nullable=True) # S3 key for the processed/normalized video
     frame_s3_keys = Column(JSON, nullable=True) # S3 keys for processed frames
     processed_frame_count = Column(Integer, nullable=True)

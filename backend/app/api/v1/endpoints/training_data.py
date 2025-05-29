@@ -6,7 +6,7 @@ import json
 # Potential: from app.api import deps # If get_api_key and get_db are moved to deps
 from app.core import deps # Add
 from app.core.auth import get_api_key # Assuming this is still valid or placeholder
-from app.core.database import AsyncSessionLocal # Add, or the correct path to it
+from app.core.database import async_session_factory # NEW
 from app.services.video_processing_service import VideoProcessingService, get_async_video_processing_service # Import service and its provider
 from app.models.enums import ExerciseType
 from app.schemas.training_data import TrainingDataSubmission, TrainingDataResponse
@@ -111,7 +111,7 @@ async def process_training_data(
     submission: TrainingDataSubmission,
 ):
     """Background task to process submitted training data."""
-    async with AsyncSessionLocal() as db:
+    async with async_session_factory() as db:
         try:
             logger.info(f"Processing training data for {submission.exercise_type} using async session")
             
@@ -131,7 +131,7 @@ async def process_training_video(
     video_processing_service: VideoProcessingService
 ):
     """Process training video in the background."""
-    async with AsyncSessionLocal() as db: # Add async session context manager
+    async with async_session_factory() as db:
         try:
             exercise_type_str = metadata.get("exercise_type")
             if not exercise_type_str:

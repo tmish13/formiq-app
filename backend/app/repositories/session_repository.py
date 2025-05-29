@@ -4,9 +4,13 @@ from datetime import datetime
 from uuid import UUID
 from sqlalchemy import select, and_
 from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from redis import Redis
 
 from app.models.user_session import UserSession
-from app.repositories.base import BaseRepository
+from app.repositories.base_repository import BaseRepository
+from app.core.config import settings
+from app.core.logging import get_logger
 
 class SessionRepository(BaseRepository[UserSession]):
     """Repository for managing user sessions."""

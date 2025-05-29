@@ -5,7 +5,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Query, Path, status
 from datetime import datetime as dt
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, selectinload
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from app.api import deps # Assuming this is still needed for DB session if not through service
 # from app.core.security import get_current_active_user # Removed
@@ -228,8 +229,10 @@ async def delete_form_check(
 @router.get("/{video_id}", response_model=FormCheckDetailedResponse)
 async def get_form_check_by_video_id(
     video_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    # db: AsyncSession = Depends(get_db), # OLD - Incorrect for async, and missing deps prefix
+    db: AsyncSession = Depends(deps.get_async_db), # NEW - Correct for async and uses deps prefix
+    # current_user: User = Depends(get_current_active_user) # OLD - Missing deps prefix
+    current_user: User = Depends(deps.get_current_active_user) # NEW - Corrected to use deps prefix
 ):
     """
     Retrieve a specific FormCheck and its feedback items by Video ID.

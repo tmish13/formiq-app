@@ -19,7 +19,7 @@ from urllib.parse import quote_plus
 import asyncio
 import inspect
 
-from app.core.config import settings
+from app.core.config import settings, get_settings, Settings
 from app.core.logging import get_logger
 from app.core.exceptions import DatabaseError
 from app.core.monitoring import track_db_operation, db_connections
@@ -45,6 +45,9 @@ connection_stats = {
     "last_error_time": None,
     "last_error_message": None
 }
+
+# Correctly get settings for engine creation
+s_for_engine = get_settings()
 
 def get_database_url() -> str:
     """
@@ -115,8 +118,8 @@ def get_engine_settings(url: str) -> Dict[str, Any]:
 
 # Create async engine
 async_engine = create_async_engine(
-    get_async_database_url(),
-    **get_engine_settings(get_async_database_url())
+    s_for_engine.ASYNC_DATABASE_URL,
+    **get_engine_settings(s_for_engine.ASYNC_DATABASE_URL)
 )
 
 # Create async session factory

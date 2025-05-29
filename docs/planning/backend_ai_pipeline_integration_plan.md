@@ -93,15 +93,53 @@ The "Backend Goals" are reasonably addressed in principle by the service-oriente
 
 This section outlines the steps to enhance existing services and potentially introduce new components to meet all requirements from `formiq_ai_pipeline_description.md`. The approach emphasizes iterative enhancements to maintain stability.
 
-### Phase 1: Strengthening Core Processing and Asynchronicity
+### Phase 1.0: Initial Video Upload and Service Validation
+
+**Goal:** Ensure the initial video upload mechanism is robust, correctly interacts with storage, updates database state, and has comprehensive passing tests. This forms the entry point of the AI pipeline.
+
+**Relevant Analysis from Part 1:**
+*   **Pipeline Step 1: Video Upload:** "User uploads video via presigned S3 URL. Optional exercise metadata. Tools: FastAPI, AWS S3. Relevant Existing Service(s): `video_service.py`, `storage_service.py`. Coverage & Notes: Likely Covered. `video_service.py` likely handles metadata and orchestrates with `storage_service.py` which should manage S3 interactions (presigned URLs)."
+
+**Objective:** Validate and confirm the functionality of `VideoService` and `StorageService` in handling video uploads, including presigned URL generation, metadata handling, and initial `Video` model persistence.
+
+**Tasks:**
+1.  **Review `VideoService` and `StorageService`:**
+    *   Confirm `StorageService` correctly generates presigned S3 URLs for uploads.
+    *   Verify `VideoService` handles requests for upload URLs, potentially creates an initial `Video` record in the database with a status like `PENDING_UPLOAD` or `AWAITING_UPLOAD`.
+    *   Ensure `VideoService` correctly processes confirmation of upload completion (e.g., via a separate callback endpoint or S3 event notification), updates the `Video` model status (e.g., to `UPLOADED` or `PENDING_PROCESSING`), and stores any provided metadata (like `exercise_id`, `user_id`).
+    *   Confirm error handling for issues like invalid metadata or failures in communicating with `StorageService`.
+2.  **Confirm Unit Test Coverage and Success: ✅**
+    *   Locate and execute unit tests for `VideoService` (e.g., in `backend/tests/unit/services/test_video_service.py`).
+    *   Ensure tests cover:
+        *   Presigned URL generation logic (possibly by mocking `StorageService`).
+        *   `Video` model creation and initial status setting.
+        *   Upload completion handling and status updates.
+        *   Metadata association.
+        *   Error handling scenarios.
+    *   Address any failing unit tests.
+3.  **Confirm API Test Coverage and Success: ✅**
+    *   Locate and execute API tests related to video uploading (e.g., in `backend/tests/api/test_video_endpoints.py` or similar, covering endpoints like `/videos/upload-url` and `/videos/upload-complete`).
+    *   Ensure tests cover:
+        *   Successful generation of upload URLs.
+        *   Successful video upload (mocked S3 interaction) and subsequent confirmation.
+        *   Correct HTTP status codes and response payloads.
+        *   Validation of `Video` record state in the database after API calls.
+        *   Authentication and authorization if applicable.
+        *   Handling of invalid requests or error conditions.
+    *   Address any failing API tests.
+
+**Impacted Services:** `video_service.py`, `storage_service.py`, API endpoint modules for video.
+**Validation:** All unit and API tests related to video upload pass. The system reliably handles video uploads, creating `Video` records with correct initial status and metadata. The video object is ready for the next step in the pipeline (processing).
+
+### Phase 1.1: Strengthening Core Processing and Asynchronicity
 
 **Goal:** Ensure video processing, pose detection, and basic analysis are robustly handled asynchronously.
 
-**Step 1.1: Solidify `video_processing_service.py` & Celery Integration**
+**Step 1.1.1: Solidify `video_processing_service.py` & Celery Integration**
     *   **Status:** Foundational work largely complete. `VideoProcessingService` refactored for Celery-friendly output. Conceptual Celery task (`process_video_celery_task` in `app.tasks.video_tasks.py`) defined. `VideoService` updated to enqueue this task. Celery app (`app.core.celery_app.py`) initialized. `Video` model and `VideoStatus` enum updated. Helper for Celery DB session created. Outstanding tasks involve full Celery app wiring, implementation of DB session/settings helpers in task, `VideoService` method implementations for task callbacks, Alembic migrations for `Video` model, and testing.
     *   **Objective:** Ensure `video_processing_service.py` reliably extracts frames, normalizes, and compresses using ffmpeg/OpenCV via Celery.
     *   **Tasks:**
-        1.  **Review `video_processing_service.py`:**
+        1.  **Review `video_processing_service.py`: ✅ (Unit tests passed with 88% coverage for the service file)**
             *   Confirm `ffmpeg` and `OpenCV` are used for frame extraction (target 30fps), normalization, and compression as per pipeline spec.
             *   Ensure robust error handling for video file issues (corrupt, wrong format).
             *   Verify that output (e.g., path to processed frames, frame metadata) is clearly defined and stored/passed appropriately.
@@ -110,29 +148,29 @@ This section outlines the steps to enhance existing services and potentially int
             *   Implement retry mechanisms (e.g., `max_retries`, `default_retry_delay`) for transient issues.
             *   Add detailed logging for task status (started, progress, success, failure with reasons).
             *   Ensure the task updates the `Video` model status (e.g., `processing`, `processed`, `failed`).
-        3.  **Triggering:** Confirm that `video_service.py` (after upload completion) correctly enqueues this Celery task.
+        3.  **Triggering:** Confirm that `video_service.py` (after upload completion and `Video.status` is appropriate, e.g. `UPLOADED`) correctly enqueues this Celery task.
     *   **Impacted Services:** `video_processing_service.py`, `tasks.py`, `video_service.py`.
-    *   **Validation:** Successful, logged, and retriable processing of various video formats; status updates in DB.
+    *   **Validation:** Successful, logged, and retriable processing of various video formats; status updates in DB. ✅ (Integration tests for `test_video_tasks.py` passed)
 
-**Step 1.2: Enhance `ai_service.py` for Pose Detection & Celery Integration**
+**Step 1.1.2: Enhance `ai_service.py` for Pose Detection & Celery Integration**
     *   **Objective:** Integrate MediaPipe/MoveNet for 33+ keypoint detection as a Celery task.
     *   **Tasks:**
-        1.  **Core Pose Detection Logic in `ai_service.py`:**
-            *   Implement/verify method(s) using MediaPipe or MoveNet to process input frames (from Step 1.1 output) and extract 33+ keypoints per frame.
+        1.  **Core Pose Detection Logic in `ai_service.py`: ✅ (Relevant unit tests pass, core logic for `detect_pose` and `process_frames_for_pose` confirmed. Overall `ai_service.py` coverage is 21% - further general testing deferred.)**
+            *   Implement/verify method(s) using MediaPipe or MoveNet to process input frames (from Step 1.1.1 output) and extract 33+ keypoints per frame.
             *   Incorporate keypoint confidence threshold (0.70 from pipeline validation).
-            *   Implement logic for pose consistency checks and frame interpolation for drops if feasible at this stage, or flag for later.
+            *   Implement logic for pose consistency checks and frame interpolation for drops if feasible at this stage, or flag for later. (Smoothing/interpolation methods exist but are not yet called by `detect_pose_celery_task`)
             *   Define a clear output format for keypoints (e.g., structured list/dict per frame, including confidence).
-        2.  **Celery Task in `tasks.py` (e.g., `detect_pose_task`):**
+        2.  **Celery Task in `tasks.py` (e.g., `detect_pose_task`): ✅ (`detect_pose_celery_task` in `ai_tasks.py` correctly calls `AIService.process_frames_for_pose` and handles necessary orchestration.)**
             *   This task should take processed video/frame data as input.
             *   Call the pose detection logic in `ai_service.py`.
             *   Implement retries and detailed logging.
             *   Store raw keypoint data (e.g., in a temporary location or dedicated DB table if voluminous, or associate with `FormAnalysis` / `FormCheck` record). Consider storage implications for raw keypoints.
             *   Update `Video` or `FormAnalysis` status.
-        3.  **Triggering:** The `process_video_task` (on success) should enqueue `detect_pose_task`.
+        3.  **Triggering: ✅ (`process_video_celery_task` in `video_tasks.py` correctly enqueues `detect_pose_celery_task` on success.)** The `process_video_task` (on success, from Step 1.1.1) should enqueue `detect_pose_task`.
     *   **Impacted Services:** `ai_service.py`, `tasks.py`.
-    *   **Validation:** Accurate keypoint extraction for various exercises; data stored correctly; Celery task reliable.
+    *   **Validation:** Accurate keypoint extraction for various exercises; data stored correctly; Celery task reliable. ✅ (Integration tests for `test_ai_tasks.py` passed)
 
-**Step 1.3: Initial Angle Calculation in `ai_service.py` or `biomechanics_service.py`**
+**Step 1.1.3: Initial Angle Calculation in `ai_service.py` or `biomechanics_service.py`**
     *   **Objective:** Compute essential joint angles from detected keypoints.
     *   **Tasks:**
         1.  **Angle Calculation Logic:**
@@ -144,11 +182,11 @@ This section outlines the steps to enhance existing services and potentially int
     *   **Impacted Services:** `ai_service.py`, `biomechanics_service.py`.
     *   **Validation:** Correct angle calculations for known poses/movements.
 
-### Phase 2: Implementing Core Analysis and Feedback Logic
+### Phase 1.2: Implementing Core Analysis and Feedback Logic
 
 **Goal:** Enable rule-based validation and prepare for advanced feedback.
 
-**Step 2.1: Mature Rule-Based Validation (`dynamic_form_analysis_service.py`)**
+**Step 1.2.1: Mature Rule-Based Validation (`dynamic_form_analysis_service.py`)**
     *   **Objective:** Ensure comprehensive rule-based form evaluation using `ExerciseConfiguration`.
     *   **Tasks:**
         1.  **Review/Enhance `dynamic_form_analysis_service.py`:**
@@ -164,7 +202,7 @@ This section outlines the steps to enhance existing services and potentially int
     *   **Impacted Services:** `dynamic_form_analysis_service.py`, `exercise_config_service.py`, `form_check_service.py`, `ai_service.py`.
     *   **Validation:** Correct identification of form faults based on defined rules for various exercises.
 
-**Step 2.2: Database Schema Review and Enhancement for Analysis Results**
+**Step 1.2.2: Database Schema Review and Enhancement for Analysis Results**
     *   **Objective:** Ensure DB schema robustly stores all analysis outputs.
     *   **Tasks:**
         1.  **Review `FormAnalysis`, `FormCheck`, `FeedbackItem` models (and potentially `Video`):**
@@ -180,11 +218,11 @@ This section outlines the steps to enhance existing services and potentially int
     *   **Impacted Services:** All services interacting with these models.
     *   **Validation:** DB schema can hold all data points generated by the pipeline up to this phase.
 
-### Phase 3: Advanced AI Features - Classification and LLM Feedback
+### Phase 1.3: Advanced AI Features - Classification and LLM Feedback
 
 **Goal:** Implement exercise classification and Langflow-based feedback.
 
-**Step 3.1: Implement Exercise Classification (`ai_service.py`)**
+**Step 1.3.1: Implement Exercise Classification (`ai_service.py`)**
     *   **Objective:** Develop/Integrate a time-series model (LSTM+CNN or Transformer) for exercise classification.
     *   **Tasks (Significant ML Effort):**
         1.  **Model Development/Selection:**
@@ -202,7 +240,7 @@ This section outlines the steps to enhance existing services and potentially int
     *   **Impacted Services:** `ai_service.py`, `tasks.py` (if Celery used).
     *   **Validation:** Accurate classification for top-N exercises when user metadata is missing.
 
-**Step 3.2: Integrate Langflow/OpenAI for Feedback Generation**
+**Step 1.3.2: Integrate Langflow/OpenAI for Feedback Generation**
     *   **Objective:** Generate natural language feedback using Langflow.
     *   **Tasks:**
         1.  **Identify/Create Langflow Service/Client:**
@@ -220,11 +258,11 @@ This section outlines the steps to enhance existing services and potentially int
     *   **Impacted Services:** `personalized_feedback_service.py` (preferred), `ai_service.py`, potentially a new `langflow_client_service.py`.
     *   **Validation:** Meaningful, contextually relevant feedback generated for various analysis outcomes.
 
-### Phase 4: Enhancing User Experience and Delivery
+### Phase 1.4: Enhancing User Experience and Delivery
 
 **Goal:** Implement visual comparison aids and ensure robust delivery.
 
-**Step 4.1: Backend Support for Visual Comparison**
+**Step 1.4.1: Backend Support for Visual Comparison**
     *   **Objective:** Provide data or processed images for frontend visual comparison.
     *   **Tasks:**
         1.  **Define Backend Role:** Decide if backend only provides:
@@ -239,7 +277,7 @@ This section outlines the steps to enhance existing services and potentially int
     *   **Impacted Services:** `ai_service.py`, potentially a new `visual_analysis_service.py`.
     *   **Validation:** Frontend can receive necessary data/images to display visual comparisons.
 
-**Step 4.2: Robust Results Delivery (API & WebSockets)**
+**Step 1.4.2: Robust Results Delivery (API & WebSockets)**
     *   **Objective:** Ensure results are delivered effectively.
     *   **Tasks:**
         1.  **Review API Endpoints:**
@@ -250,11 +288,11 @@ This section outlines the steps to enhance existing services and potentially int
     *   **Impacted Services:** API endpoint files, `feedback_service.py`.
     *   **Validation:** All required feedback components are accessible to the frontend.
 
-### Phase 5: General Backend Goals and Polish
+### Phase 1.5: General Backend Goals and Polish
 
 **Goal:** Address overarching backend goals and refine the system.
 
-**Step 5.1: Comprehensive Celery Retry and Error Handling**
+**Step 1.5.1: Comprehensive Celery Retry and Error Handling**
     *   **Objective:** Ensure all pipeline Celery tasks have robust retry logic and failure management.
     *   **Tasks:**
         1.  **Review All Pipeline Celery Tasks (`tasks.py`):**
@@ -265,20 +303,20 @@ This section outlines the steps to enhance existing services and potentially int
     *   **Impacted Services:** `tasks.py`, all services called by tasks.
     *   **Validation:** Pipeline is resilient to transient errors.
 
-**Step 5.2: Validation and Data Integrity Checks**
+**Step 1.5.2: Validation and Data Integrity Checks**
     *   **Objective:** Implement pipeline validation points.
     *   **Tasks:**
-        1.  **Keypoint Confidence (already in 1.2):** Ensure enforced.
+        1.  **Keypoint Confidence (already in 1.1.2):** Ensure enforced.
         2.  **Outlier Detection:** In `ai_service.py` or `biomechanics_service.py`, implement outlier detection for keypoints/angles.
-        3.  **Pose Consistency Check (already in 1.2):** Ensure enforced.
-        4.  **Frame Interpolation for Drops (already in 1.2):** Ensure enforced.
+        3.  **Pose Consistency Check (already in 1.1.2):** Ensure enforced.
+        4.  **Frame Interpolation for Drops (already in 1.1.2):** Ensure enforced.
         5.  **Validate all frame data before saving:** In `ai_service.py` or Celery task, discard noisy/low-confidence frames.
     *   **Impacted Services:** `ai_service.py`, `biomechanics_service.py`.
     *   **Validation:** Data quality improved through validation steps.
 
-**Step 5.3: Configuration & Notes**
-    *   **Ensure `postgresql.UUID(as_uuid=True)` is used.** (Covered in 2.2)
-    *   **Ensure Langflow prompt template dynamically adjusts.** (Covered in 3.2)
+**Step 1.5.3: Configuration & Notes**
+    *   **Ensure `postgresql.UUID(as_uuid=True)` is used.** (Covered in 1.2.2)
+    *   **Ensure Langflow prompt template dynamically adjusts.** (Covered in 1.3.2)
 
 **Ongoing Considerations (Throughout all Phases):**
 

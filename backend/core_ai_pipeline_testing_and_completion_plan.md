@@ -70,6 +70,7 @@ This phase focuses on completing and testing Steps 1.1, 1.2, and 1.3 from the `b
         *   The task handles errors gracefully.
         *   `Video.status` is updated to `POSE_DETECTION_FAILED`.
         *   Errors are logged.
+    *   **Status:** [COMPLETED - 9/9 tests passing in `backend/tests/integration/tasks/test_ai_tasks.py`]
 
 ### Task 1.3: Complete and Test Angle Calculation (Integrated with or following Pose Detection)
 

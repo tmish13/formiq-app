@@ -13,6 +13,7 @@ import os
 from app.core.config import settings as global_settings, Settings # IMPORTED Settings
 from app.core.logging import get_logger
 from app.models.enums import ExerciseType, FeedbackType, FeedbackSeverity # IMPORTED Feedback Enums
+from app.constants.angles import UNIVERSAL_ANGLE_DEFINITIONS # ADDED
 
 logger = get_logger(__name__)
 
@@ -722,6 +723,139 @@ class AIService:
         logger.info(f"AIService: Pose sequence smoothing and interpolation completed for {num_frames} frames.")
         return final_pose_sequence 
 
+    def smooth_angle_trajectories(
+        self,
+        raw_angles_per_frame: List[Optional[Dict[str, float]]],
+        smoothing_window: int = 5,
+        max_gap_to_interpolate: int = 3 # Max frames to interpolate angles over
+    ) -> List[Optional[Dict[str, float]]]:
+        """
+        Smooths angle trajectories for each joint using a moving average and interpolates small gaps.
+
+        Args:
+            raw_angles_per_frame: List of dictionaries, where each dict contains {angle_name: value}
+                                  for a frame. Frames can be None if no angles were calculated.
+            smoothing_window: The size of the moving average window (should be odd).
+            max_gap_to_interpolate: Maximum number of consecutive None frames for an angle to interpolate.
+
+        Returns:
+            A list of dictionaries of the same shape, with smoothed angle values.
+        """
+        if not raw_angles_per_frame:
+            return []
+
+        num_frames = len(raw_angles_per_frame)
+        if num_frames == 0:
+            return []
+
+        # Ensure smoothing_window is odd
+        if smoothing_window % 2 == 0:
+            smoothing_window += 1
+        half_window = smoothing_window // 2
+
+        # Get all unique angle names from the first valid frame
+        all_angle_names = set()
+        for frame_angles in raw_angles_per_frame:
+            if frame_angles:
+                all_angle_names.update(frame_angles.keys())
+        
+        if not all_angle_names: # No angles found in any frame
+            return [None] * num_frames
+
+
+        # Restructure data: angle_trajectories[angle_name][frame_idx] = Optional[float]
+        angle_trajectories: Dict[str, List[Optional[float]]] = {
+            name: [None] * num_frames for name in all_angle_names
+        }
+
+        for frame_idx, frame_angles_dict in enumerate(raw_angles_per_frame):
+            if frame_angles_dict:
+                for angle_name in all_angle_names:
+                    angle_trajectories[angle_name][frame_idx] = frame_angles_dict.get(angle_name)
+        
+        smoothed_angle_trajectories: Dict[str, List[Optional[float]]] = {
+            name: [None] * num_frames for name in all_angle_names
+        }
+
+        for angle_name, trajectory in angle_trajectories.items():
+            # 1. Interpolation pass
+            interpolated_trajectory = list(trajectory) # Work on a copy
+            for i in range(num_frames):
+                if interpolated_trajectory[i] is None:
+                    # Look for previous and next valid points within max_gap
+                    prev_val, next_val = None, None
+                    prev_idx, next_idx = -1, -1
+
+                    # Search backward
+                    for k in range(1, max_gap_to_interpolate + 1):
+                        if i - k >= 0 and interpolated_trajectory[i - k] is not None:
+                            prev_val = interpolated_trajectory[i - k]
+                            prev_idx = i - k
+                            break
+                    
+                    # Search forward
+                    for k in range(1, max_gap_to_interpolate + 1):
+                        if i + k < num_frames and interpolated_trajectory[i + k] is not None:
+                            next_val = interpolated_trajectory[i + k]
+                            next_idx = i + k
+                            break
+                    
+                    if prev_val is not None and next_val is not None and (next_idx - prev_idx <= max_gap_to_interpolate +1) : # Ensure the gap is not too large overall
+                        # Linear interpolation
+                        ratio = (i - prev_idx) / (next_idx - prev_idx)
+                        interpolated_trajectory[i] = prev_val + ratio * (next_val - prev_val)
+
+            # 2. Smoothing pass (Moving Average on interpolated_trajectory)
+            current_smoothed_trajectory = list(interpolated_trajectory) # Start with interpolated
+            for i in range(num_frames):
+                if interpolated_trajectory[i] is None: # Cannot smooth if no data point
+                    continue
+
+                window_values = []
+                for k_offset in range(-half_window, half_window + 1):
+                    win_idx = i + k_offset
+                    if 0 <= win_idx < num_frames and interpolated_trajectory[win_idx] is not None:
+                        window_values.append(interpolated_trajectory[win_idx])
+                
+                if window_values:
+                    current_smoothed_trajectory[i] = sum(window_values) / len(window_values)
+                # If window_values is empty but interpolated_trajectory[i] was not None,
+                # it implies a very sparse region; keep the single interpolated point.
+                # This is generally handled as current_smoothed_trajectory starts as a copy.
+
+            smoothed_angle_trajectories[angle_name] = current_smoothed_trajectory
+
+        # Reconstruct the output: List[Optional[Dict[str, float]]]
+        final_smoothed_angles_per_frame: List[Optional[Dict[str, float]]] = [None] * num_frames
+        for frame_idx in range(num_frames):
+            # Only create a dict if there's at least one non-None angle for the frame
+            # or if the original raw_angles_per_frame[frame_idx] was not None (to preserve structure for empty dicts)
+            
+            # Check if the original frame had angles (even if all were None after some processing)
+            # or if any angle has a value after smoothing.
+            # If raw_angles_per_frame[frame_idx] was None, it means no angles could be calculated at all for this frame.
+            if raw_angles_per_frame[frame_idx] is None:
+                final_smoothed_angles_per_frame[frame_idx] = None
+                continue
+
+            current_frame_angles: Dict[str, float] = {}
+            has_any_angle_value = False
+            for angle_name in all_angle_names:
+                val = smoothed_angle_trajectories[angle_name][frame_idx]
+                if val is not None:
+                    current_frame_angles[angle_name] = val
+                    has_any_angle_value = True
+            
+            if has_any_angle_value:
+                final_smoothed_angles_per_frame[frame_idx] = current_frame_angles
+            elif raw_angles_per_frame[frame_idx] is not None: # Original frame was not None, but all angles became None
+                final_smoothed_angles_per_frame[frame_idx] = {} # Return empty dict to signify processing occurred but yielded no values
+            else: # Original frame was None, and still no values
+                final_smoothed_angles_per_frame[frame_idx] = None
+
+
+        return final_smoothed_angles_per_frame
+
     async def analyze_video_file_for_form_check(
         self,
         video_file_path: str,
@@ -864,101 +998,77 @@ class AIService:
         
         return all_frame_pose_data 
 
-    STANDARD_ANGLE_DEFINITIONS = {
-        ExerciseType.SQUAT: [
-            {"name": "left_knee", "p1_idx": 23, "p2_idx": 25, "p3_idx": 27, "plane": "sagittal"}, # LHip, LKnee, LAnkle
-            {"name": "right_knee", "p1_idx": 24, "p2_idx": 26, "p3_idx": 28, "plane": "sagittal"}, # RHip, RKnee, RAnkle
-            {"name": "left_hip", "p1_idx": 11, "p2_idx": 23, "p3_idx": 25, "plane": "sagittal"},   # LShoulder, LHip, LKnee
-            {"name": "right_hip", "p1_idx": 12, "p2_idx": 24, "p3_idx": 26, "plane": "sagittal"},  # RShoulder, RHip, RKnee
-            {"name": "left_ankle", "p1_idx": 25, "p2_idx": 27, "p3_idx": 31, "plane": "sagittal"}, # LKnee, LAnkle, LHeel (or LFootIndex 29)
-            {"name": "right_ankle", "p1_idx": 26, "p2_idx": 28, "p3_idx": 32, "plane": "sagittal"},# RKnee, RAnkle, RHeel (or RFootIndex 30)
-            # Add torso angle (e.g., relative to vertical or shins)
-            # Example: Angle between vector LHip-LShoulder and LAnkle-LKnee (shin) - more complex calculation
-        ],
-        # TODO: Add other exercises like deadlift, pushup, etc.
-    }
-
     async def calculate_angles_for_pose_sequence(
         self,
         pose_sequence: List[Optional[List[Optional[Dict[str, Any]]]]],
-        exercise_type_str: Optional[str] = None
+        # exercise_type_str: Optional[str] = None # Removed, as per generalization requirement
     ) -> List[Optional[Dict[str, float]]]:
         """
-        Calculates a defined set of joint angles for each frame in a pose sequence.
-        The specific angles calculated depend on the exercise_type.
+        Calculates all defined joint angles for each frame in a pose sequence.
+        Uses UNIVERSAL_ANGLE_DEFINITIONS for angle computation.
 
         Args:
-            pose_sequence: A list of pose landmark data per frame.
-                           Each element is a list of landmarks for a frame, or None.
-                           Each landmark is a dict with 'x', 'y', 'z', 'visibility'.
-            exercise_type_str: The string value of the exercise type to determine which angles to calculate.
+            pose_sequence: A list where each item is a frame. Each frame is either:
+                           - None (if the frame was unusable or pose not detected confidently)
+                           - A list of landmarks for that frame. Each landmark is either:
+                             - A dict with {'x', 'y', 'z', 'visibility'}
+                             - None (if that specific landmark was not visible/detected)
 
         Returns:
-            A list where each element corresponds to a frame and is a dictionary
-            mapping angle names to their calculated values (in degrees), or None if angles
-            could not be calculated for that frame (e.g., missing keypoints).
+            A list of dictionaries, one for each frame. Each dictionary contains {angle_name: value}
+            for all calculable angles in UNIVERSAL_ANGLE_DEFINITIONS.
+            If a frame was None in the input, or if no angles could be calculated for a frame (e.g., all landmarks missing),
+            the corresponding item in the output list will be None.
+            If a frame was valid but some specific angles couldn't be computed (due to missing specific landmarks for that angle),
+            those angles will be absent from the frame's dictionary.
         """
+        logger.debug(f"Starting angle calculation for a sequence of {len(pose_sequence)} frames.")
+        all_frames_angles: List[Optional[Dict[str, float]]] = []
+
         if not pose_sequence:
             return []
 
-        # Determine the exercise type enum member
-        exercise_type_enum: Optional[ExerciseType] = None
-        if exercise_type_str:
-            try:
-                exercise_type_enum = ExerciseType(exercise_type_str.lower())
-            except ValueError:
-                logger.warning(f"AIService: Invalid exercise_type_str '{exercise_type_str}' for angle calculation. No specific angles will be calculated.")
-        
-        angle_definitions = []
-        if exercise_type_enum and exercise_type_enum in self.STANDARD_ANGLE_DEFINITIONS:
-            angle_definitions = self.STANDARD_ANGLE_DEFINITIONS[exercise_type_enum]
-        else:
-            logger.info(f"AIService: No standard angle definitions found for exercise '{exercise_type_str}'. Returning empty angle data.")
-            return [None] * len(pose_sequence) # Return list of Nones matching frame count
-
-        all_frames_angles: List[Optional[Dict[str, float]]] = []
-
         for frame_idx, frame_landmarks_list in enumerate(pose_sequence):
-            if not frame_landmarks_list:
-                all_frames_angles.append(None) # No landmarks for this frame
+            # frame_landmarks_list is List[Optional[Dict[str, Any]]] or None
+            if frame_landmarks_list is None:
+                # This frame was marked as unusable (e.g. low confidence, no landmarks from MediaPipe)
+                logger.debug(f"Frame {frame_idx}: Skipping angle calculation, frame_landmarks_list is None.")
+                all_frames_angles.append(None)
+                continue
+
+            # Ensure frame_landmarks_list has the expected structure if not None
+            # It should be a list of landmarks (or None for individual missing landmarks)
+            if not isinstance(frame_landmarks_list, list):
+                logger.warning(f"Frame {frame_idx}: Expected list of landmarks, got {type(frame_landmarks_list)}. Skipping.")
+                all_frames_angles.append(None)
                 continue
             
-            # Ensure frame_landmarks_list is List[Dict], not List[Optional[Dict]] for _calculate_angle
-            # The _calculate_angle helper expects a list of actual landmark dicts.
-            # Here, frame_landmarks_list is already List[Optional[Dict[str, Any]]].
-            # We need to be careful. _calculate_angle uses _get_landmark_coords which handles Optional.
-            # However, it iterates through raw_landmarks_from_mp in process_frames_for_pose which are dicts.
-            # Let's assume frame_landmarks_list here contains actual dicts where landmarks were visible,
-            # and Nones where they were not. The _calculate_angle needs to be robust to this structure
-            # or we need to filter Nones before passing to _calculate_angle, but that changes indices.
+            # Check if the list of landmarks is empty (should not happen if not None, but defensive)
+            if not frame_landmarks_list: # an empty list
+                logger.debug(f"Frame {frame_idx}: Landmark list is empty. No angles to calculate.")
+                all_frames_angles.append({})
+                continue
 
-            # The current `_get_landmark_coords` in `_calculate_angle` takes `List[Dict[str, float]]`.
-            # `frame_landmarks_list` here is `List[Optional[Dict[str, Any]]]`. This is a mismatch.
-            # `_get_landmark_coords` needs to handle a list that might contain Nones at certain indices.
+
+            frame_angles: Dict[str, float] = {}
+            # Iterate through all angles defined in UNIVERSAL_ANGLE_DEFINITIONS
+            for angle_name, points in UNIVERSAL_ANGLE_DEFINITIONS.items():
+                p1_idx, p2_idx, p3_idx = points["p1_idx"], points["p2_idx"], points["p3_idx"]
+                
+                # _calculate_angle expects a list of landmark dicts or Nones
+                # frame_landmarks_list is List[Optional[Dict[str, float]]]
+                angle_value = self._calculate_angle(frame_landmarks_list, p1_idx, p2_idx, p3_idx)
+                
+                if angle_value is not None:
+                    frame_angles[angle_name] = angle_value
+                # else: angle could not be computed, so it's omitted from frame_angles
             
-            # For now, let's assume `_calculate_angle` can deal with indices into `frame_landmarks_list`
-            # where elements might be None. The `_get_landmark_coords` should return None if `landmarks[index]` is None.
+            # If no angles were calculated for this frame (e.g., all necessary landmarks missing),
+            # still append a dictionary, possibly empty, to maintain sequence length.
+            # If frame_angles is empty, it means no universal angles could be calculated.
+            all_frames_angles.append(frame_angles) 
+            logger.debug(f"Frame {frame_idx}: Calculated {len(frame_angles)} angles.")
 
-            current_frame_angles: Dict[str, float] = {}
-            has_any_angle = False
-            for angle_def in angle_definitions:
-                p1_idx, p2_idx, p3_idx = angle_def["p1_idx"], angle_def["p2_idx"], angle_def["p3_idx"]
-                
-                # _calculate_angle expects List[Dict], but frame_landmarks_list is List[Optional[Dict]]
-                # We need to adapt _calculate_angle or how we pass data.
-                # Let's modify _get_landmark_coords to handle List[Optional[Dict]]
-                angle_val = self._calculate_angle(frame_landmarks_list, p1_idx, p2_idx, p3_idx) 
-                
-                if angle_val is not None:
-                    current_frame_angles[angle_def["name"]] = angle_val
-                    has_any_angle = True
-           
-            if has_any_angle:
-                all_frames_angles.append(current_frame_angles)
-            else:
-                all_frames_angles.append(None) # No angles could be calculated for this frame
-        
-        logger.info(f"AIService: Angle calculation completed for {len(pose_sequence)} frames for exercise '{exercise_type_str}'.")
         return all_frames_angles
 
     # TODO (Future for Task 1.3): 
