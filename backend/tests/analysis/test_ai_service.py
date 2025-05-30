@@ -5,9 +5,11 @@ import cv2
 from app.services.ai_service import AIService
 # from app.models.enums import ExerciseType # Commented out as tests using it will be commented
 import torch
-# import json # Commented out as tests using it will be commented
+import json # ADDED for JSON serializability tests
 from app.core.config import Settings
 from app.core.config import settings as app_settings
+from app.constants.angles import UNIVERSAL_ANGLE_DEFINITIONS # ADDED
+from typing import Dict, List # ADDED
 
 # This is a placeholder for the actual AIService.
 # We will need to import the actual service.
@@ -981,3 +983,337 @@ async def test_process_frames_for_pose_varying_threshold(
 # KEEPING: tests for detect_pose
 # ... existing code ...
 # ... (rest of the existing tests remain unchanged) ... 
+
+# Helper to create a single mock landmark
+def _create_mock_landmark(x: float, y: float, z: float = 0.0, visibility: float = 1.0) -> Dict[str, float]:
+    return {"x": x, "y": y, "z": z, "visibility": visibility}
+
+# Helper to create a full set of 33 mock landmarks for a frame
+def _create_mock_pose(offset: float = 0.0) -> List[Dict[str, float]]:
+    return [_create_mock_landmark(0.5 + i*0.01 + offset, 0.5 - i*0.01 + offset) for i in range(33)]
+
+@pytest.mark.asyncio
+async def test_calculate_angles_for_pose_sequence_valid_single_frame(ai_service: AIService):
+    """
+    Tests that all angles in UNIVERSAL_ANGLE_DEFINITIONS are calculated for a single valid frame.
+    Corresponds to: UNIT TEST GOAL 1.1 (partial)
+    MVP Stability: Critical
+    """
+    pose_sequence = [_create_mock_pose()]
+    
+    result = await ai_service.calculate_angles_for_pose_sequence(pose_sequence)
+    
+    assert len(result) == 1
+    assert result[0] is not None
+    frame_angles = result[0]
+    
+    # Check that all defined angles are present
+    for angle_name in UNIVERSAL_ANGLE_DEFINITIONS.keys():
+        assert angle_name in frame_angles
+        assert isinstance(frame_angles[angle_name], float) # All angles should be floats
+
+    # Spot check a known angle if possible (e.g., straight leg for knee)
+    # This requires specific keypoint values in _create_mock_pose to yield a predictable angle
+    # For now, we mostly check presence and type.
+    # Example: A perfectly straight right knee (landmarks 24, 26, 28 in a line) should be ~180 degrees.
+    # _create_mock_pose with offset=0:
+    # p_hip_r (24): x=0.74, y=0.26
+    # p_knee_r (26): x=0.76, y=0.24
+    # p_ankle_r (28): x=0.78, y=0.22
+    # These are collinear, so right_knee angle should be close to 180.0
+    if "right_knee" in frame_angles: # Check if definition exists
+        assert frame_angles["right_knee"] == pytest.approx(180.0, abs=1e-3)
+
+
+@pytest.mark.asyncio
+async def test_calculate_angles_for_pose_sequence_multiple_frames_mixed_data(ai_service: AIService):
+    """
+    Tests correct angle calculation across multiple frames with a mix of complete and incomplete data.
+    Corresponds to: UNIT TEST GOAL 1.3
+    MVP Stability: Critical
+    """
+    frame_0_complete = _create_mock_pose(offset=0.0)
+    frame_1_none = None # Simulate a frame where pose detection failed
+    
+    frame_2_missing_some_for_left_knee = _create_mock_pose(offset=0.1)
+    # Invalidate left knee calculation by setting a required keypoint to None
+    # UNIVERSAL_ANGLE_DEFINITIONS["left_knee"] = {"p1_idx": 23, "p2_idx": 25, "p3_idx": 27}
+    frame_2_missing_some_for_left_knee[25] = None # Left Knee landmark
+
+    pose_sequence = [frame_0_complete, frame_1_none, frame_2_missing_some_for_left_knee]
+    
+    result = await ai_service.calculate_angles_for_pose_sequence(pose_sequence)
+    
+    assert len(result) == 3
+    
+    # Frame 0: All angles should be present
+    assert result[0] is not None
+    for angle_name in UNIVERSAL_ANGLE_DEFINITIONS.keys():
+        assert angle_name in result[0]
+        assert isinstance(result[0][angle_name], float)
+    
+    # Frame 1: Should be None as input frame was None
+    assert result[1] is None
+    
+    # Frame 2: Most angles present, left_knee should be None
+    assert result[2] is not None
+    for angle_name, definition in UNIVERSAL_ANGLE_DEFINITIONS.items():
+        if angle_name == "left_knee":
+            assert "left_knee" not in result[2] or result[2]["left_knee"] is None, "Left knee angle should be None due to missing keypoint"
+        else:
+            # Check if all necessary keypoints for *other* angles are present in frame_2
+            # This is a bit more involved, for now, assume they are if not left_knee
+            if all(frame_2_missing_some_for_left_knee[idx] is not None for idx in definition.values()):
+                 assert angle_name in result[2], f"{angle_name} should be present in frame 2"
+                 assert isinstance(result[2][angle_name], float), f"{angle_name} in frame 2 should be a float"
+            else:
+                # If other angles are also affected by the None landmark 25 (e.g. left hip, if it uses 25)
+                # then those should also be None. This check is a simplification.
+                pass 
+
+@pytest.mark.asyncio
+async def test_calculate_angles_for_pose_sequence_handles_missing_keypoints_gracefully(ai_service: AIService):
+    """
+    Tests that angles are set to None if essential keypoints are missing.
+    Corresponds to: UNIT TEST GOAL 1.2
+    MVP Stability: Critical
+    """
+    pose_with_missing = _create_mock_pose()
+    # Invalidate left_knee (needs 23, 25, 27) and right_shoulder (needs 24, 12, 14)
+    pose_with_missing[25] = None  # Left Knee
+    pose_with_missing[12] = None  # Right Shoulder (vertex for right_shoulder angle)
+
+    pose_sequence = [pose_with_missing]
+    result = await ai_service.calculate_angles_for_pose_sequence(pose_sequence)
+    
+    assert len(result) == 1
+    assert result[0] is not None
+    frame_angles = result[0]
+
+    assert "left_knee" not in frame_angles or frame_angles["left_knee"] is None
+    assert "right_shoulder" not in frame_angles or frame_angles["right_shoulder"] is None
+    
+    # Check a few other angles that should still be calculable
+    assert "right_knee" in frame_angles and isinstance(frame_angles["right_knee"], float)
+    assert "left_elbow" in frame_angles and isinstance(frame_angles["left_elbow"], float)
+
+@pytest.mark.asyncio
+async def test_calculate_angles_for_pose_sequence_empty_input(ai_service: AIService):
+    """
+    Tests behavior with an empty pose sequence.
+    Corresponds to: UNIT TEST GOAL 1.4 (Edge case)
+    MVP Stability: Important
+    """
+    pose_sequence = []
+    result = await ai_service.calculate_angles_for_pose_sequence(pose_sequence)
+    assert result == []
+
+@pytest.mark.asyncio
+async def test_calculate_angles_for_pose_sequence_all_none_frames(ai_service: AIService):
+    """
+    Tests behavior with a pose sequence where all frames are None.
+    Corresponds to: UNIT TEST GOAL 1.4 (Edge case)
+    MVP Stability: Important
+    """
+    pose_sequence = [None, None, None]
+    result = await ai_service.calculate_angles_for_pose_sequence(pose_sequence)
+    assert result == [None, None, None]
+
+@pytest.mark.asyncio
+async def test_calculate_angles_for_pose_sequence_json_serializable(ai_service: AIService):
+    """
+    Tests that the output is JSON serializable.
+    Corresponds to: STRUCTURAL GOAL (JSON serializability)
+    MVP Stability: Critical
+    """
+    pose_sequence = [_create_mock_pose(), None, _create_mock_pose(offset=0.1)]
+    result = await ai_service.calculate_angles_for_pose_sequence(pose_sequence)
+    
+    try:
+        json_output = json.dumps(result)
+        # Further check: deserialize and compare structure if needed
+        deserialized_result = json.loads(json_output)
+        assert len(deserialized_result) == len(result)
+        if result[0] and deserialized_result[0]:
+            assert len(deserialized_result[0]) == len(result[0]) 
+            for angle_name in result[0].keys():
+                assert angle_name in deserialized_result[0]
+                assert deserialized_result[0][angle_name] == pytest.approx(result[0][angle_name])
+        assert deserialized_result[1] is None
+        # ... similar check for deserialized_result[2]
+        
+    except (TypeError, OverflowError) as e:
+        pytest.fail(f"Angle calculation output is not JSON serializable: {e}\nOutput: {result}") 
+
+# --- Tests for smooth_angle_trajectories ---
+
+def test_smooth_angle_trajectories_basic_smoothing_and_interpolation(ai_service: AIService):
+    """
+    Tests basic smoothing and interpolation.
+    Corresponds to: UNIT TEST GOAL 2.1, 2.3
+    MVP Stability: Critical
+    """
+    raw_angles = [
+        {"left_knee": 90.0, "right_knee": 85.0},
+        {"left_knee": 95.0, "right_knee": None},  # Gap for right_knee
+        {"left_knee": 100.0, "right_knee": 95.0}, # right_knee should be interpolated
+        {"left_knee": 105.0, "right_knee": 100.0},
+        {"left_knee": 110.0, "right_knee": 105.0},
+    ]
+    # With window=3, max_gap=1:
+    # left_knee: 90, 95, 100, 105, 110
+    #   Smooth:  NaN, (90+95+100)/3=95, (95+100+105)/3=100, (100+105+110)/3=105, NaN
+    # right_knee: 85, None, 95, 100, 105
+    #   Interpolate: 85, (85+95)/2=90, 95, 100, 105
+    #   Smooth: NaN, (85+90+95)/3=90, (90+95+100)/3=95, (95+100+105)/3=100, NaN
+    
+    smoothed_angles = ai_service.smooth_angle_trajectories(raw_angles, smoothing_window=3, max_gap_to_interpolate=1)
+    
+    assert len(smoothed_angles) == len(raw_angles)
+    # assert smoothed_angles[0] is None # Smoothing window effect INCORRECT for min_periods=1
+    # assert smoothed_angles[-1] is None # Smoothing window effect INCORRECT for min_periods=1
+
+    # Corrected assertions for boundary conditions with min_periods=1
+    assert smoothed_angles[0]["left_knee"] == pytest.approx((90.0 + 95.0) / 2) 
+    assert smoothed_angles[0]["right_knee"] == pytest.approx((85.0 + ((85.0+95.0)/2)) / 2) # Interpolated value used
+
+    assert smoothed_angles[4]["left_knee"] == pytest.approx((105.0 + 110.0) / 2)
+    assert smoothed_angles[4]["right_knee"] == pytest.approx((100.0 + 105.0) / 2)
+
+    # Check frame 1 (index 1 after window effect)
+    assert smoothed_angles[1]["left_knee"] == pytest.approx((90.0 + 95.0 + 100.0) / 3)
+    assert smoothed_angles[1]["right_knee"] == pytest.approx((85.0 + ((85.0+95.0)/2) + 95.0) / 3) # Interpolated value used in smoothing
+
+    # Check frame 2 (index 2 after window effect)
+    assert smoothed_angles[2]["left_knee"] == pytest.approx((95.0 + 100.0 + 105.0) / 3)
+    assert smoothed_angles[2]["right_knee"] == pytest.approx((((85.0+95.0)/2) + 95.0 + 100.0) / 3)
+
+def test_smooth_angle_trajectories_preserves_none_frames_and_large_gaps(ai_service: AIService):
+    """
+    Tests that None frames are preserved and gaps larger than max_gap are not interpolated.
+    Corresponds to: UNIT TEST GOAL 2.2
+    MVP Stability: Critical
+    """
+    raw_angles = [
+        {"left_knee": 90.0},
+        None,  # Entire frame is None
+        {"left_knee": 100.0},
+        {"left_knee": None}, # Gap for left_knee (size 1)
+        {"left_knee": None}, # Gap for left_knee (size 2)
+        {"left_knee": 110.0}, # This should not interpolate the two Nones above with max_gap=1
+        {"left_knee": 115.0},
+    ]
+    smoothed_angles = ai_service.smooth_angle_trajectories(raw_angles, smoothing_window=3, max_gap_to_interpolate=1)
+
+    assert len(smoothed_angles) == len(raw_angles)
+    assert smoothed_angles[1] is None, "None frame should be preserved"
+    
+    # Check around the large gap for 'left_knee'
+    # raw_angles[4] is {"left_knee": None}. This is part of a 2-frame gap for 'left_knee' values.
+    # With max_gap_to_interpolate=1, the None value for 'left_knee' at frame 4 should not be interpolated.
+    # The frame itself (smoothed_angles[4]) should exist as a dictionary because raw_angles[4] was a dictionary.
+    # The 'left_knee' key within smoothed_angles[4] should have a value of None.
+
+    assert smoothed_angles[4] is not None, "Frame 4 itself should exist as it was a dict in raw_angles."
+    assert "left_knee" in smoothed_angles[4], "'left_knee' key should be present in frame 4."
+    assert smoothed_angles[4]['left_knee'] is None, "'left_knee' in frame 4 should remain None due to the large uninterpolated gap."
+
+    # Further detailed assertions based on pandas behavior for other frames can be added if needed,
+    # but the core of this test is about None frame preservation and large gap handling for angle values.
+
+def test_smooth_angle_trajectories_handles_all_none_input(ai_service: AIService):
+    """
+    Tests behavior with all-None angle data per frame (but not None frames).
+    Corresponds to: UNIT TEST GOAL 2.4 (Edge case)
+    MVP Stability: Important
+    """
+    raw_angles = [
+        {"left_knee": None, "right_knee": None},
+        {"left_knee": None, "right_knee": None},
+        {"left_knee": None, "right_knee": None},
+    ]
+    smoothed_angles = ai_service.smooth_angle_trajectories(raw_angles, smoothing_window=3, max_gap_to_interpolate=1)
+    
+    assert len(smoothed_angles) == len(raw_angles)
+    for frame_angles in smoothed_angles:
+        assert frame_angles is not None # Frames themselves are dicts
+        assert frame_angles["left_knee"] is None
+        assert frame_angles["right_knee"] is None
+
+def test_smooth_angle_trajectories_handles_all_none_frames_input(ai_service: AIService):
+    """
+    Tests behavior with a list entirely of None frames.
+    Corresponds to: UNIT TEST GOAL 2.4 (Edge case)
+    MVP Stability: Important
+    """
+    raw_angles = [None, None, None]
+    smoothed_angles = ai_service.smooth_angle_trajectories(raw_angles, smoothing_window=3, max_gap_to_interpolate=1)
+    assert smoothed_angles == [None, None, None]
+
+def test_smooth_angle_trajectories_empty_input(ai_service: AIService):
+    """
+    Tests behavior with an empty list.
+    Corresponds to: UNIT TEST GOAL 2.4 (Edge case)
+    MVP Stability: Important
+    """
+    raw_angles = []
+    smoothed_angles = ai_service.smooth_angle_trajectories(raw_angles, smoothing_window=3, max_gap_to_interpolate=1)
+    assert smoothed_angles == []
+
+def test_smooth_angle_trajectories_single_frame_input(ai_service: AIService):
+    """
+    Tests behavior with a single frame; smoothing might return None or original based on min_periods.
+    Corresponds to: UNIT TEST GOAL 2.4 (Edge case)
+    MVP Stability: Important
+    """
+    raw_angles = [{"left_knee": 90.0}]
+    # With min_periods=1, and center=True, it should return the value itself for window=3
+    smoothed_angles = ai_service.smooth_angle_trajectories(raw_angles, smoothing_window=3, max_gap_to_interpolate=1)
+    assert len(smoothed_angles) == 1
+    assert smoothed_angles[0]["left_knee"] == pytest.approx(90.0)
+
+def test_smooth_angle_trajectories_output_shape_and_keys(ai_service: AIService):
+    """
+    Ensures output has the same shape and keys as input (excluding None frames).
+    Corresponds to: STRUCTURAL GOAL (shape and key consistency)
+    MVP Stability: Critical
+    """
+    raw_angles = [
+        {"left_knee": 90.0, "right_hip": 120.0, "left_elbow": 150.0},
+        None,
+        {"left_knee": 95.0, "right_hip": None, "left_elbow": 155.0}, # right_hip is None
+    ]
+    smoothed_angles = ai_service.smooth_angle_trajectories(raw_angles, smoothing_window=1, max_gap_to_interpolate=0) # No smoothing, no interpolation beyond 0
+
+    assert len(smoothed_angles) == len(raw_angles)
+    assert smoothed_angles[1] is None # Preserves None frame
+
+    assert set(smoothed_angles[0].keys()) == set(raw_angles[0].keys())
+    assert set(smoothed_angles[2].keys()) == set(raw_angles[2].keys())
+    
+    # Check that original None values within a dict are preserved if not interpolated
+    assert smoothed_angles[2]["right_hip"] is None 
+
+def test_smooth_angle_trajectories_json_serializable(ai_service: AIService):
+    """
+    Tests that the output of smoothing is JSON serializable.
+    Corresponds to: STRUCTURAL GOAL (JSON serializability)
+    MVP Stability: Critical
+    """
+    raw_angles = [
+        {"left_knee": 90.0, "right_knee": 85.0},
+        None,
+        {"left_knee": 100.0, "right_knee": 95.0},
+    ]
+    smoothed_angles = ai_service.smooth_angle_trajectories(raw_angles, smoothing_window=1, max_gap_to_interpolate=1)
+    
+    try:
+        json_output = json.dumps(smoothed_angles)
+        deserialized_result = json.loads(json_output)
+        assert len(deserialized_result) == len(smoothed_angles)
+        # Add more specific checks if necessary, e.g., comparing values after deserialization
+        if smoothed_angles[0] and deserialized_result[0]:
+            assert deserialized_result[0]["left_knee"] == pytest.approx(smoothed_angles[0]["left_knee"])
+        assert deserialized_result[1] is None
+    except (TypeError, OverflowError) as e:
+        pytest.fail(f"Smoothed angle output is not JSON serializable: {e}\nOutput: {smoothed_angles}") 
