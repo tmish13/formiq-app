@@ -13,7 +13,7 @@ import os
 from app.core.config import settings as global_settings, Settings # IMPORTED Settings
 from app.core.logging import get_logger
 from app.models.enums import ExerciseType, FeedbackType, FeedbackSeverity # IMPORTED Feedback Enums
-from app.constants.angles import UNIVERSAL_ANGLE_DEFINITIONS # ADDED
+from app.constants.angles import UNIVERSAL_ANGLE_DEFINITIONS # ORIGINAL IMPORT
 
 logger = get_logger(__name__)
 

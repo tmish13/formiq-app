@@ -10,7 +10,7 @@ import json
 
 from app.models.video import Video
 from app.models.enums import VideoStatus, ExerciseType
-from app.tasks.ai_tasks import detect_pose_celery_task
+from app.tasks.ai_tasks import detect_pose_celery_task, calculate_angles_celery_task
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker # Added async_sessionmaker
 from app.core.config import Settings # For mocking settings
 from celery.exceptions import Ignore, Retry as CeleryTaskRetryException # Added Ignore
@@ -342,7 +342,7 @@ async def test_detect_pose_celery_task_retry_and_succeed(
         assert refreshed_video_after_retry is not None
         assert refreshed_video_after_retry.status == VideoStatus.ANGLE_CALCULATION_PENDING
         assert refreshed_video_after_retry.error_message is None # Error cleared on success path
-        assert refreshed_video_after_retry.pose_data == mock_raw_landmarks_retry_success
+        assert refreshed_video_after_retry.raw_pose_data == mock_raw_landmarks_retry_success # CORRECTED ASSERTION
 
 @pytest.mark.asyncio
 @patch('app.tasks.ai_tasks.get_settings_override')
@@ -647,7 +647,7 @@ async def test_detect_pose_celery_task_successful_flow(
         # The final status set by the task flow is ANGLE_CALCULATION_PENDING
         assert refreshed_video.status == VideoStatus.ANGLE_CALCULATION_PENDING
         assert refreshed_video.error_message is None
-        assert refreshed_video.pose_data == expected_saved_pose_data
+        assert refreshed_video.raw_pose_data == expected_saved_pose_data # CORRECTED ASSERTION
 
 @pytest.mark.asyncio
 @patch('app.tasks.ai_tasks.get_settings_override')

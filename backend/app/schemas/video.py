@@ -50,7 +50,8 @@ class VideoUpdate(BaseModel):
     error_message: Optional[str] = None
     score: Optional[float] = None
     rep_count: Optional[int] = None
-    pose_data: Optional[List[Optional[Dict[str, Any]]]] = None
+    raw_pose_data: Optional[List[Optional[List[Optional[Dict[str, Any]]]]]] = None
+    pose_data: Optional[List[Optional[List[Optional[Dict[str, Any]]]]]] = None
     calculated_angles: Optional[List[Optional[AngleDataItem]]] = None
     celery_task_id: Optional[str] = None
     processed_frame_count: Optional[int] = None

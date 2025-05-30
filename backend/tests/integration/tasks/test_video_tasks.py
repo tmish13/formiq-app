@@ -268,12 +268,12 @@ async def test_process_video_celery_task_vps_failure(
     # The side_effect re-raises the original error to halt processing for this test.
     with patch.object(process_video_celery_task, 'retry', side_effect=raise_exception_side_effect) as mock_actual_task_retry:
         # ACT
-    with pytest.raises(RuntimeError, match=simulated_error_message):
+        with pytest.raises(RuntimeError, match=simulated_error_message):
             await process_video_celery_task.run( # Use .run() for consistency
-            video_id_str=str(video_id),
-            original_video_path=original_s3_path, 
+                video_id_str=str(video_id),
+                original_video_path=original_s3_path, 
                 exercise_type_value=test_video_in_db.exercise_type
-        )
+            )
 
     # ASSERT
     MockStorageService.assert_called_once_with(settings=mock_settings)
@@ -349,14 +349,14 @@ async def test_process_video_celery_task_s3_download_failure(
 
     # mock_celery_task_self = MagicMock() # REMOVED - Unused
     with patch.object(process_video_celery_task, 'retry', side_effect=raise_exception_side_effect) as mock_actual_task_retry:
-    # ACT & ASSERT for exception from task
-    with pytest.raises(RuntimeError, match=simulated_error_message):
-        await process_video_celery_task(
+        # ACT & ASSERT for exception from task
+        with pytest.raises(RuntimeError, match=simulated_error_message):
+            await process_video_celery_task( # THIS IS THE ORIGINAL ERROR LOCATION, .run() was not used here previously
                 # mock_celery_task_self, # REMOVED
                 str(video_id),
                 original_s3_path,
                 test_video_in_db.exercise_type
-        )
+            )
 
     # ASSERT MOCKS & DB
     MockStorageService.assert_called_once_with(settings=mock_settings)

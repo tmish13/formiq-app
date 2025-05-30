@@ -250,43 +250,50 @@ class VideoService(BaseService[Video, VideoCreate, VideoUpdate]):
         return result.scalars().all()
 
     async def update_video_metadata_and_status(
-        self, 
-        video_id: UUID, 
+        self,
+        video_id: UUID,
         metadata: Optional[Dict[str, Any]] = None,
-        status: Optional[VideoStatus] = None, 
+        status: Optional[VideoStatus] = None,
         error_message: Optional[str] = None, # Parameter
+        celery_task_id: Optional[str] = None, # ADDED
+        processed_frame_count: Optional[int] = None, # ADDED
     ):
-        video = await self.get_async(id=video_id) 
+        video = await self.get_async(id=video_id)
         if not video:
             logger.error(f"Video not found with ID {video_id} in update_video_metadata_and_status.")
-            raise ValueError(f"Video not found with ID {video_id} for update.")
+            # raise ValueError(f"Video not found with ID {video_id} for update.") # CHANGED
+            raise NotFoundException(f"Video with id {video_id} not found for update (prior to super().update_async).") # TO NotFoundException and updated message to match test
 
-        update_data = {}
-        if metadata is not None:
-            update_data["metadata"] = metadata
-        
-        # Simplified error message handling
-        if error_message is not None:
-            update_data["error_message"] = error_message
-        else:
-            if hasattr(video, 'error_message'):
-                 update_data["error_message"] = None
+        update_data = {key: value for key, value in {
+            "metadata": metadata,
+            "status": status.value if status else None, # Ensure status is passed as its value if enum
+            "error_message": error_message,
+            "celery_task_id": celery_task_id, # ADDED
+            "processed_frame_count": processed_frame_count, # ADDED
+        }.items() if value is not None}
 
-        if status:
-            update_data["status"] = status
-            update_data["status_updated_at"] = datetime.now(timezone.utc)
-            if status.value.endswith("_FAILED") and update_data.get("error_message") is None:
-                 default_error_detail = f"{video.__class__.__name__} status set to {status.value} with no specific error message."
-                 update_data["error_message"] = json.dumps({"error_type": "DefaultProcessingError", "details": default_error_detail})
-        
         if not update_data:
-            logger.warning(f"No actual data provided to update_video_metadata_and_status for video {video_id}")
-            return
+            logger.info(f"No actual update parameters provided for video {video_id}. Returning current state.")
+            return self.response_schema.from_orm(video)
 
-        updated_video_db_model = await self.update_async(db_obj=video, obj_in=update_data)
-        logger.info(
-            f"Updated video {video_id} metadata, status to {status}. Error: {update_data.get('error_message')}. BaseService handled commit."
-        )
+        # Construct VideoUpdate schema for the update
+        try:
+            video_update_schema = VideoUpdate(**update_data)
+        except Exception as e: # Catch potential Pydantic validation errors early
+            logger.error(f"Pydantic validation error creating VideoUpdate schema for video {video_id}: {e}. Data: {update_data}", exc_info=True)
+            raise ServerErrorException(f"Invalid data provided for video update: {e}")
+
+        updated_video = await super().update_async(db_obj=video, obj_in=video_update_schema) # Pass schema instance
+        
+        if not updated_video:
+            # This case might be redundant if get_async already confirmed video existence
+            # and super().update_async raises its own errors for update failures.
+            # However, keeping it for robustness in case update_async returns None on failure.
+            logger.error(f"Failed to update video {video_id} using super().update_async.")
+            raise ServerErrorException(f"Failed to update video {video_id}.")
+
+        logger.info(f"Video {video_id} updated: status={status}, celery_id={celery_task_id}, error='{error_message if error_message else ''}'")
+        return self.response_schema.from_orm(updated_video)
 
     async def update_video_after_initial_processing(
         self,
@@ -664,7 +671,8 @@ class VideoService(BaseService[Video, VideoCreate, VideoUpdate]):
             logger.info(f"No data provided to update for video {video_id} in update_video_raw_pose_data_and_status.")
             return video # Or raise error if an update was expected
 
-        video = await self.update_async(db_obj=video, **update_data)
+        video_update_schema = VideoUpdate(**update_data) # Convert to schema
+        video = await self.update_async(db_obj=video, obj_in=video_update_schema) # CORRECTED CALL
         # No explicit commit here, BaseService.update_async handles it.
         await self.db.refresh(video) # Refresh to get the latest state after update
         logger.info(f"Updated video {video_id} with raw_pose_data, status to {status}. Error: {error_message}. BaseService handled commit.")
@@ -682,7 +690,8 @@ class VideoService(BaseService[Video, VideoCreate, VideoUpdate]):
             # Depending on desired behavior, could raise error or log and return
             raise ValueError(f"Video not found with ID {video_id} for smoothed pose data update.")
         
-        await self.update_async(db_obj=video, pose_data=smoothed_pose_data)
+        video_update_schema = VideoUpdate(pose_data=smoothed_pose_data) # Create schema instance
+        video = await self.update_async(db_obj=video, obj_in=video_update_schema) # CORRECTED CALL
         # BaseService.update_async handles commit.
         # No explicit refresh needed here unless the updated object is immediately used in a way that requires it.
         logger.info(f"Updated video {video_id} with smoothed pose data.")
