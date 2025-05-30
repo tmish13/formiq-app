@@ -200,7 +200,7 @@ async def calculate_angles_celery_task(self, video_id_str: str):
                 self.update_state(state=states.FAILURE, meta={'exc_type': 'VideoNotFound', 'exc_message': f'Video {video_id} not found.'})
                 raise Ignore()
 
-            if not current_video.raw_pose_data:
+            if current_video.raw_pose_data is None:
                 logger.warning(f"Video {video_id} has no raw_pose_data. Marking as ANGLE_CALCULATION_FAILED.")
                 await video_service_instance.update_video_calculated_angles_and_status(
                     video_id,
@@ -234,7 +234,7 @@ async def calculate_angles_celery_task(self, video_id_str: str):
                 await db.refresh(current_video) 
                 pose_data_for_angles = current_video.pose_data
             
-            if not pose_data_for_angles:
+            if pose_data_for_angles is None:
                  logger.error(f"No pose data available (raw or smoothed) for angle calculation for video {video_id}. Marking as FAILED.")
                  await video_service_instance.update_video_calculated_angles_and_status(
                     video_id,
@@ -252,7 +252,7 @@ async def calculate_angles_celery_task(self, video_id_str: str):
                 pose_sequence=pose_data_for_angles
             )
 
-            if not raw_angles_per_frame or all(frame_angles is None for frame_angles in raw_angles_per_frame):
+            if raw_angles_per_frame is None or (raw_angles_per_frame and all(frame_angles is None for frame_angles in raw_angles_per_frame)):
                 logger.error(f"Angle calculation resulted in no angles for video {video_id}. Marking as ANGLE_CALCULATION_FAILED.")
                 await video_service_instance.update_video_calculated_angles_and_status(
                     video_id,
@@ -275,10 +275,11 @@ async def calculate_angles_celery_task(self, video_id_str: str):
 
             if not smoothed_angles_per_frame or all(frame_angles is None for frame_angles in smoothed_angles_per_frame):
                 logger.warning(f"Angle smoothing resulted in no angles for video {video_id}. Using raw angles if available, or marking as FAILED.")
-                # Decide on fallback: use raw_angles or fail? For now, let's try to use raw if smoothing empties it but raw was not empty.
                 final_angles_to_store = raw_angles_per_frame # Fallback to raw if smoothing failed
-                if not final_angles_to_store or all(fa is None for fa in final_angles_to_store):
-                    logger.error(f"Both raw and smoothed angles are empty for video {video_id}. Marking as ANGLE_CALCULATION_FAILED.")
+                
+                # Check if the fallback (raw angles) is also unusable
+                if final_angles_to_store is None or (final_angles_to_store and all(fa is None for fa in final_angles_to_store)):
+                    logger.error(f"Both raw and smoothed angles are empty or invalid for video {video_id}. Marking as ANGLE_CALCULATION_FAILED.")
                     await video_service_instance.update_video_calculated_angles_and_status(
                         video_id,
                         calculated_angles=None,
@@ -286,8 +287,15 @@ async def calculate_angles_celery_task(self, video_id_str: str):
                         error_message="Angle calculation and smoothing resulted in no valid angle data."
                     )
                     return {"status": "failed", "video_id": str(video_id), "error": "No angles after calculation and smoothing"}
+                # If raw angles are valid (even if empty list), we use them.
             else:
                 final_angles_to_store = smoothed_angles_per_frame
+
+            # At this point, final_angles_to_store is determined. It can be an empty list [],
+            # a list of angle dicts, or a list with some None frames. All these are considered success for storage.
+            # The previous duplicated check for `final_angles_to_store is None or (final_angles_to_store and all(fa is None for fa in final_angles_to_store))`
+            # which led to failure for an empty list should be removed if it was added again by mistake.
+            # The critical part is that an empty list `[]` for `final_angles_to_store` IS a success scenario.
 
             logger.info(f"Angle calculation and smoothing successful for video {video_id}. Storing {len(final_angles_to_store)} sets of frame angles.")
             await video_service_instance.update_video_calculated_angles_and_status(
