@@ -161,9 +161,8 @@ async def test_detect_pose_celery_task_process_frames_failure(
         assert refreshed_video is not None
         
         assert refreshed_video.status == VideoStatus.POSE_DETECTION_FAILED
-    
-    expected_error_details_json_str = json.dumps({"error_type": simulated_error_type, "details": simulated_error_message})
-    assert refreshed_video.error_message == expected_error_details_json_str
+        expected_error_details_json_str = json.dumps({"error_type": simulated_error_type, "details": simulated_error_message})
+        assert refreshed_video.error_message == expected_error_details_json_str
 
 @pytest.mark.asyncio
 @patch('app.tasks.ai_tasks.get_settings_override')
@@ -779,3 +778,209 @@ async def test_calculate_angles_celery_task_no_raw_pose_data(
         assert refreshed_video.status == VideoStatus.ANGLE_CALCULATION_FAILED
         assert refreshed_video.error_message == "No raw_pose_data available for angle calculation."
         assert refreshed_video.calculated_angles is None
+
+@pytest.mark.asyncio
+@patch('app.tasks.ai_tasks.get_settings_override')
+@patch('app.tasks.ai_tasks.AIService.calculate_angles_for_pose_sequence') # Mocking the target method
+@patch('app.tasks.ai_tasks.calculate_angles_celery_task.retry') # ADDED PATCH
+async def test_calculate_angles_celery_task_unexpected_error_in_angle_calculation(
+    mock_task_retry: MagicMock, # ADDED MOCK
+    mock_calculate_angles_method: MagicMock,
+    mock_get_settings_override: MagicMock,
+    video_for_angle_calculation: Video, # Reusing existing fixture
+    test_async_session_factory: async_sessionmaker[AsyncSession]
+):
+    video_id = video_for_angle_calculation.id
+    simulated_error_message = "Simulated error in calculate_angles_for_pose_sequence"
+
+    # ARRANGE
+    mock_get_settings_override.return_value # Basic setup
+    mock_calculate_angles_method.side_effect = RuntimeError(simulated_error_message)
+    mock_task_retry.side_effect = Ignore() # ADDED BEHAVIOR
+
+    # ACT
+    # The task should catch the exception, update video status/error, and then Ignore will be raised
+    with pytest.raises(Ignore): # EXPECT Ignore now
+        await calculate_angles_celery_task.__wrapped__(
+            str(video_id)
+        )
+
+    # ASSERT TASK RESULT (optional, but good for completeness)
+    # The task result might not be directly available if Ignore is raised early.
+    # Focus on DB state.
+    # assert result["status"] == "failed" 
+    # assert "error" in result
+    # assert simulated_error_message in result["error"]
+
+
+    # ASSERT DATABASE STATE
+    async with test_async_session_factory() as session:
+        refreshed_video = await session.get(Video, video_id)
+        assert refreshed_video is not None
+        assert refreshed_video.status == VideoStatus.ANGLE_CALCULATION_FAILED
+        
+        # Check that error_message contains the simulated error
+        # The exact format might depend on how the task formats it (e.g., if it wraps it in JSON)
+        # For a simple string error:
+        assert simulated_error_message in refreshed_video.error_message 
+        # If it's JSON:
+        # error_data = json.loads(refreshed_video.error_message)
+        # assert error_data["details"] == simulated_error_message
+        # assert error_data["error_type"] == "RuntimeError"
+
+        assert refreshed_video.calculated_angles is None
+
+@pytest.mark.asyncio
+@patch('app.tasks.ai_tasks.get_settings_override')
+@patch('app.tasks.ai_tasks.AIService.calculate_angles_for_pose_sequence') # Mock raw angle calculation to return something valid
+@patch('app.tasks.ai_tasks.AIService.smooth_angle_trajectories') # Mock smoothing to raise error
+@patch('app.tasks.ai_tasks.calculate_angles_celery_task.retry') # ADDED PATCH
+async def test_calculate_angles_celery_task_unexpected_error_in_smoothing(
+    mock_task_retry: MagicMock, # ADDED MOCK
+    mock_smooth_angles_method: MagicMock,
+    mock_calculate_angles_method: MagicMock,
+    mock_get_settings_override: MagicMock,
+    video_for_angle_calculation: Video, 
+    test_async_session_factory: async_sessionmaker[AsyncSession]
+):
+    video_id = video_for_angle_calculation.id
+    simulated_error_message = "Simulated error in smooth_angle_trajectories"
+
+    # ARRANGE
+    mock_get_settings_override.return_value
+    # Simulate that raw angle calculation was successful
+    # The exact structure of this return value should match what smooth_angle_trajectories expects
+    # Based on `smooth_angle_trajectories` signature: List[Optional[Dict[str, float]]]
+    # Let's assume video_for_angle_calculation.raw_pose_data has 3 frames.
+    mock_calculate_angles_method.return_value = [
+        {"left_knee": 90.0}, 
+        None, 
+        {"left_knee": 100.0}
+    ] 
+    mock_smooth_angles_method.side_effect = RuntimeError(simulated_error_message)
+    mock_task_retry.side_effect = Ignore() # ADDED BEHAVIOR
+
+    # ACT
+    with pytest.raises(Ignore): # EXPECT Ignore now
+        await calculate_angles_celery_task.__wrapped__(
+            str(video_id)
+        )
+
+    # ASSERT TASK RESULT
+    # The task result might not be directly available if Ignore is raised early.
+    # Focus on DB state.
+    # assert result["status"] == "failed"
+    # assert "error" in result
+    # assert simulated_error_message in result["error"]
+
+    # ASSERT DATABASE STATE
+    async with test_async_session_factory() as session:
+        refreshed_video = await session.get(Video, video_id)
+        assert refreshed_video is not None
+        assert refreshed_video.status == VideoStatus.ANGLE_CALCULATION_FAILED
+        assert refreshed_video.calculated_angles is None # No angles should be stored
+        assert simulated_error_message in refreshed_video.error_message # THIS LINE WAS MISSING
+
+@pytest.mark.asyncio
+@patch('app.tasks.ai_tasks.get_settings_override')
+@patch('app.tasks.ai_tasks.process_form_check_task') # Mock the next task in the chain
+async def test_calculate_angles_celery_task_with_empty_raw_pose_data(
+    mock_process_form_check_task: MagicMock,
+    mock_get_settings_override: MagicMock,
+    video_for_angle_calculation: Video, # Reusing, but will modify raw_pose_data
+    test_async_session_factory: async_sessionmaker[AsyncSession]
+):
+    video_id = video_for_angle_calculation.id
+
+    # ARRANGE
+    mock_get_settings_override.return_value
+    # Modify the video to have empty raw_pose_data
+    async with test_async_session_factory() as session:
+        video = await session.get(Video, video_id)
+        video.raw_pose_data = [] # Set to empty list
+        video.status = VideoStatus.ANGLE_CALCULATION_PENDING # Ensure correct starting status
+        await session.commit()
+        await session.refresh(video)
+
+    # AIService and VideoService will be real for this integration test.
+    # calculate_angles_for_pose_sequence should return []
+    # smooth_angle_trajectories should also return [] if input is []
+
+    # ACT
+    result = await calculate_angles_celery_task.__wrapped__(
+        str(video_id)
+    )
+
+    # ASSERT MOCK CALLS
+    mock_get_settings_override.assert_called()
+    # Depending on if the next task is called with empty results, adjust this:
+    # mock_process_form_check_task.apply_async.assert_called_once_with(args=[str(video_id)], countdown=ANY)
+    mock_process_form_check_task.apply_async.assert_not_called() # Assuming it won't be called for empty angles
+
+    # ASSERT DATABASE STATE
+    async with test_async_session_factory() as session:
+        refreshed_video = await session.get(Video, video_id)
+        assert refreshed_video is not None
+        assert refreshed_video.status == VideoStatus.ANGLES_CALCULATED
+        assert refreshed_video.error_message is None
+        assert refreshed_video.calculated_angles == [] # Expect empty list
+
+    # ASSERT TASK RESULT
+    assert result["status"] == "success"
+    assert result["video_id"] == str(video_id)
+    assert result["num_angle_frames"] == 0 # Expect 0 frames processed
+
+@patch('app.tasks.ai_tasks.get_settings_override')
+@patch('app.tasks.ai_tasks.AIService.calculate_angles_for_pose_sequence') # ADDED
+@patch('app.tasks.ai_tasks.AIService.smooth_angle_trajectories') # ADDED
+@patch('app.tasks.ai_tasks.calculate_angles_celery_task.retry') # ADDED to mock self.retry
+@pytest.mark.asyncio
+async def test_calculate_angles_celery_task_angle_calculation_general_exception(
+    mock_task_retry: MagicMock, # ADDED
+    mock_smooth_angles: MagicMock, # RENAMED & ADDED
+    mock_calculate_angles: MagicMock, # RENAMED & ADDED
+    mock_get_settings_override: MagicMock,
+    video_for_angle_calculation: Video,
+    test_async_session_factory: async_sessionmaker[AsyncSession]
+):
+    video_id = video_for_angle_calculation.id
+    simulated_error_message = "Simulated general exception in angle calculation"
+    expected_error_details_json_str = json.dumps({"error_type": "Exception", "details": simulated_error_message}) # Updated error type to general Exception for this test
+
+    # ARRANGE
+    settings = mock_get_settings_override.return_value
+    # No specific settings needed for this test path usually, but good to have the mock
+
+    # Configure the patched AIService.calculate_angles_for_pose_sequence to raise an exception
+    mock_calculate_angles.side_effect = Exception(simulated_error_message)
+    # smooth_angle_trajectories might not be called if calculate_angles_for_pose_sequence fails first,
+    # but it's good practice to have it if it's part of the try block that might be reached.
+    # Let's assume it's not called for this specific failure scenario, or set a benign return if it were.
+    mock_smooth_angles.return_value = [] # Or another suitable benign return if it were to be called
+
+    mock_task_retry.side_effect = Ignore() # Task should call self.retry, which we mock to raise Ignore
+
+    # ACT & ASSERT
+    # The task should catch the Exception from calculate_angles_for_pose_sequence,
+    # log it, update DB, and then call self.retry(exc=e), which raises Ignore.
+    with pytest.raises(Ignore):
+        await calculate_angles_celery_task.__wrapped__(
+            str(video_id)
+        )
+
+    # ASSERT MOCK CALLS
+    mock_get_settings_override.assert_called()
+    mock_calculate_angles.assert_called_once() 
+    # mock_smooth_angles.assert_not_called() # Or called depending on exact flow if calculate_angles fails
+    mock_task_retry.assert_called_once() # self.retry should be called
+
+    # ASSERT DATABASE STATE
+    session_maker = test_async_session_factory
+    async with session_maker() as new_db_session:
+        refreshed_video = await new_db_session.get(Video, video_id)
+        assert refreshed_video is not None
+        assert refreshed_video.status == VideoStatus.ANGLE_CALCULATION_FAILED
+        assert refreshed_video.calculated_angles is None
+        # The error message in DB should now reflect the type from the caught exception
+        # which is a generic Exception in this case.
+        assert refreshed_video.error_message == expected_error_details_json_str

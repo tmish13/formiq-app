@@ -1,6 +1,6 @@
 """add additional_metadata to videos table
 
-Revision ID: 013_add_additional_metadata_to_videos
+Revision ID: 013_add_vid_add_meta
 Revises: 012_consolidate_object_key
 Create Date: YYYY-MM-DD HH:MM:SS.MS
 
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision = '013_add_additional_metadata_to_videos'
+revision = '013_add_vid_add_meta'
 down_revision = '012_consolidate_object_key'
 branch_labels = None
 depends_on = None

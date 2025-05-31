@@ -1,6 +1,21 @@
 """Alembic environment module."""
 import os
 import sys
+
+# Ensure the package directory ('backend' in this case, which contains 'app') is in sys.path
+# This allows 'from app...' imports to work correctly.
+# Assuming env.py is in backend/migrations/
+PACKAGE_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if PACKAGE_ROOT not in sys.path:
+    sys.path.insert(0, PACKAGE_ROOT)
+
+# If you also need the true project root ('formiq-app-3') for some reason,
+# e.g. if you had imports like 'from backend.app...', although 'from app...' is more common
+# when the 'backend' directory itself is the main source root for the backend package.
+# TRUE_PROJECT_ROOT = os.path.abspath(os.path.join(PACKAGE_ROOT, '..'))
+# if TRUE_PROJECT_ROOT not in sys.path:
+#     sys.path.insert(0, TRUE_PROJECT_ROOT)
+
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config
@@ -14,15 +29,30 @@ from dotenv import load_dotenv
 # This assumes that env.py is in a directory like 'backend/alembic' 
 # and 'app' is in 'backend/app'.
 # Adjust the number of 'os.path.join(..., "..")' if your structure is different.
-current_script_path = os.path.dirname(os.path.abspath(__file__))
-project_root_containing_app = os.path.abspath(os.path.join(current_script_path, "..")) 
-# If 'app' is directly inside the directory that 'alembic' is in (e.g. backend/app, backend/alembic)
-# then project_root_containing_app should be this directory.
-# If 'app' is one level above where 'alembic' script dir is (e.g. root/app, root/backend/alembic)
-# then it should be os.path.join(current_script_path, "..", "..")
+# current_script_path = os.path.dirname(os.path.abspath(__file__))
+# project_root_containing_app = os.path.abspath(os.path.join(current_script_path, "..")) 
+# # If 'app' is directly inside the directory that 'alembic' is in (e.g. backend/app, backend/alembic)
+# # then project_root_containing_app should be this directory.
+# # If 'app' is one level above where 'alembic' script dir is (e.g. root/app, root/backend/alembic)
+# # then it should be os.path.join(current_script_path, "..", "..")
 
-if project_root_containing_app not in sys.path:
-    sys.path.insert(0, project_root_containing_app)
+# if project_root_containing_app not in sys.path:
+# sys.path.insert(0, project_root_containing_app)
+
+# backend/migrations/env.py
+# Add the project root directory ('formiq-app-3') to sys.path
+# This allows imports like 'from backend.app...' or 'from app...' if 'backend' is the top-level package recognized
+current_dir = os.path.dirname(os.path.abspath(__file__)) # This is /Users/tarpanmishra/formiq-app-3/backend/migrations
+project_backend_root = os.path.abspath(os.path.join(current_dir, '..')) # This is /Users/tarpanmishra/formiq-app-3/backend
+project_true_root = os.path.abspath(os.path.join(project_backend_root, '..')) # This is /Users/tarpanmishra/formiq-app-3
+
+if project_backend_root not in sys.path:
+    sys.path.insert(0, project_backend_root) # Ensures 'app' can be found as 'app' if CWD is 'backend'
+
+# Sometimes, especially if running alembic from the true project root,
+# or if other modules expect to import 'backend.app', having the true root is also good.
+if project_true_root not in sys.path:
+    sys.path.insert(0, project_true_root)
 
 # --- BEGIN SIMPLIFIED URL AND ENV LOADING ---
 

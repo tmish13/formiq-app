@@ -170,8 +170,9 @@ This section outlines the steps to enhance existing services and potentially int
     *   **Impacted Services:** `ai_service.py`, `tasks.py`.
     *   **Validation:** Accurate keypoint extraction for various exercises; data stored correctly; Celery task reliable. ✅ (Integration tests for `test_ai_tasks.py` passed)
 
-**Step 1.1.3: Initial Angle Calculation in `ai_service.py` or `biomechanics_service.py`**
+**Step 1.1.3: Initial Angle Calculation in `ai_service.py` or `biomechanics_service.py`** ✅ **Completed**
     *   **Objective:** Compute essential joint angles from detected keypoints.
+    *   **Status & Validation Note:** Core logic for `ai_service.calculate_angles_for_pose_sequence` and `ai_service.smooth_angle_trajectories` implemented. `UNIVERSAL_ANGLE_DEFINITIONS` established in `constants/angles.py`. `calculate_angles_celery_task` in `ai_tasks.py` integrates these steps, stores results in `Video.calculated_angles`, and manages status transitions. Comprehensive unit tests for `AIService` methods and integration tests for `calculate_angles_celery_task` (including success, failure, and edge cases like empty `raw_pose_data` or internal errors) are in place and passing.
     *   **Tasks:**
         1.  **Angle Calculation Logic:**
             *   Within `ai_service.py` (if tightly coupled with pose detection output) or `biomechanics_service.py` (if more general biomechanical utils are centralized there):
@@ -180,7 +181,7 @@ This section outlines the steps to enhance existing services and potentially int
         2.  **Integration:** This logic can be called by `detect_pose_task` after keypoint extraction or be a subsequent synchronous step within an overarching analysis flow.
         3.  **Output:** Store calculated angle trajectories alongside keypoints or as part of the `FormAnalysis` data.
     *   **Impacted Services:** `ai_service.py`, `biomechanics_service.py`.
-    *   **Validation:** Correct angle calculations for known poses/movements.
+    *   **Validation:** Correct angle calculations for known poses/movements. ✅ (Covered by the "Status & Validation Note" above - all tests passing)
 
 ### Phase 1.2: Implementing Core Analysis and Feedback Logic
 

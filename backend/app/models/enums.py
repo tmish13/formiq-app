@@ -119,6 +119,13 @@ class FeedbackType(str, Enum):
         SUCCESS: Positive feedback on good form
         WARNING: Minor form issues identified
         ERROR: Major form issues identified
+        FORM: Form-specific feedback
+        TECHNIQUE: Feedback on technique
+        POSTURE: Feedback on posture
+        RANGE: Feedback on range of motion
+        SPEED: Feedback on speed
+        BALANCE: Feedback on balance
+        JOINT_ANGLE: Feedback on joint angle
     """
     SUCCESS = "success"
     WARNING = "warning"
@@ -129,6 +136,7 @@ class FeedbackType(str, Enum):
     RANGE = "range"
     SPEED = "speed"
     BALANCE = "balance"
+    JOINT_ANGLE = "joint_angle"
 
     @classmethod
     def get_color(cls, feedback_type: str) -> str:

@@ -158,3 +158,73 @@ The following issues have been addressed:
 2. **Async Test DB Setup**: Fixed the test database connection and initialization
 3. **Alembic Migrations**: Added proper migration setup before running tests
 4. **Fallback Mechanism**: Created a synchronous test setup for debugging 
+
+# AI Pipeline Test File Summary
+
+This document provides a quick reference to the test files associated with the different stages of the FormIQ AI pipeline.
+
+## Phase 1.0: Initial Video Upload and Service Validation
+
+*   **`VideoService` Unit Tests:**
+    *   File: `backend/tests/unit/services/test_video_service.py`
+    *   Description: Contains unit tests for the `VideoService`, covering presigned URL generation, `Video` model interactions, upload completion handling, metadata association, and error handling.
+*   **Video Upload API Tests:**
+    *   File: `backend/tests/api/test_video_endpoints.py`
+    *   Description: Contains API tests for video uploading endpoints (e.g., `/videos/upload-url`, `/videos/upload-complete`), covering successful uploads, error conditions, and database state validation.
+
+## Phase 1.1: Strengthening Core Processing and Asynchronicity
+
+### Step 1.1.1: Solidify `video_processing_service.py` & Celery Integration
+
+*   **`VideoProcessingService` Unit Tests:**
+    *   File: `backend/tests/unit/services/test_video_processing_service.py`
+    *   Description: Unit tests for `VideoProcessingService`, ensuring correct use of ffmpeg/OpenCV for frame extraction, normalization, compression, and error handling.
+*   **`video_tasks.py` Integration Tests:**
+    *   File: `backend/tests/integration/tasks/test_video_tasks.py`
+    *   Description: Integration tests for Celery tasks related to video processing defined in `app/tasks/video_tasks.py`, including `process_video_celery_task`. Tests cover task enqueuing, execution, retry mechanisms, logging, and database status updates.
+
+### Step 1.1.2: Enhance `ai_service.py` for Pose Detection & Celery Integration
+
+*   **`AIService` Unit Tests (Core Pose Detection Logic):**
+    *   File: `backend/tests/analysis/test_ai_service.py` (Note: Path mentioned in summary, may also be `backend/tests/unit/services/test_ai_service.py` or similar depending on project structure for service unit tests)
+    *   Description: Unit tests for the core pose detection logic within `AIService`, including MediaPipe/MoveNet integration, keypoint extraction, confidence thresholding, and output formatting.
+*   **`ai_tasks.py` Integration Tests (including `detect_pose_celery_task`):**
+    *   File: `backend/tests/integration/tasks/test_ai_tasks.py`
+    *   Description: Integration tests for Celery tasks related to AI processing defined in `app/tasks/ai_tasks.py`. This includes tests for `detect_pose_celery_task`, covering input handling, `AIService` method invocation, retries, logging, and results storage.
+
+### Step 1.1.3: Initial Angle Calculation in `ai_service.py` or `biomechanics_service.py`
+
+*   **`AIService` Unit Tests (Core Angle Calculation Logic):**
+    *   File: `backend/tests/analysis/test_ai_service.py` (Same as for pose detection, assuming angle calculation methods are part of `AIService`)
+    *   Description: Unit tests for angle calculation logic within `AIService`, covering computations from keypoints and trajectory smoothing.
+*   **`ai_tasks.py` Integration Tests (including `calculate_angles_celery_task`):**
+    *   File: `backend/tests/integration/tasks/test_ai_tasks.py`
+    *   Description: Integration tests for Celery tasks in `app/tasks/ai_tasks.py`. This includes tests for `calculate_angles_celery_task`, ensuring it correctly integrates angle calculation logic, stores results, and manages status transitions.
+
+## Phase 1.2: Implementing Core Analysis and Feedback Logic (Future Test Locations)
+
+*   **`DynamicFormAnalysisService` Unit Tests:**
+    *   Expected: `backend/tests/unit/services/test_dynamic_form_analysis_service.py`
+*   **`ExerciseConfigService` Unit Tests:**
+    *   Expected: `backend/tests/unit/services/test_exercise_config_service.py`
+*   **Integration Tests for Rule-Based Validation Flow:**
+    *   Expected: Potentially within `backend/tests/integration/tasks/test_ai_tasks.py` (if part of an orchestrating AI task) or a new integration test file focusing on the analysis pipeline.
+
+## Phase 1.3: Advanced AI Features - Classification and LLM Feedback (Future Test Locations)
+
+*   **`AIService` Unit Tests (Exercise Classification Logic):**
+    *   Expected: `backend/tests/analysis/test_ai_service.py` or specific model testing scripts.
+*   **`PersonalizedFeedbackService` / Langflow Client Unit Tests:**
+    *   Expected: `backend/tests/unit/services/test_personalized_feedback_service.py` or `backend/tests/unit/services/test_langflow_client_service.py`.
+*   **Integration Tests for Feedback Generation:**
+    *   Expected: Task-specific integration tests (e.g., in `test_ai_tasks.py` or `test_feedback_tasks.py`) and/or API-level tests.
+
+## Phase 1.4: Enhancing User Experience and Delivery (Future Test Locations)
+
+*   **Backend Visual Comparison Logic Unit/Integration Tests:**
+    *   Expected: Within `test_ai_service.py` or a new `test_visual_analysis_service.py` (unit) and relevant API/integration tests.
+*   **`FeedbackService` (WebSockets) Tests:**
+    *   Expected: `backend/tests/unit/services/test_feedback_service.py` and API/integration tests for WebSocket functionality.
+
+---
+*This document should be updated as new tests are added or existing ones are restructured.* 

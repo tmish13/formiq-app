@@ -1,7 +1,7 @@
 """add pose_data to videos table
 
 Revision ID: 014_add_pose_data_to_videos
-Revises: 013_add_additional_metadata_to_videos
+Revises: 013_add_vid_add_meta
 Create Date: YYYY-MM-DD HH:MM:SS.MS
 
 """
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '014_add_pose_data_to_videos'
-down_revision = '013_add_additional_metadata_to_videos'
+down_revision = '013_add_vid_add_meta'
 branch_labels = None
 depends_on = None
 

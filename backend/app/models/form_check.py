@@ -196,7 +196,7 @@ class FeedbackItem(BaseModel):
     """
     __tablename__ = "feedback_items"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     form_check_id = Column(
         SQLiteUUID(),
         ForeignKey("form_checks.id", ondelete="CASCADE"),
@@ -208,6 +208,13 @@ class FeedbackItem(BaseModel):
     severity = Column(Enum(FeedbackSeverity), nullable=False)
     joint_angles = Column(JSON, nullable=True)
     suggestions = Column(JSON, nullable=True)
+
+    # New fields for richer, structured feedback details
+    details_payload = Column(JSON, nullable=True) # To store the full StructuredIssue or other rich data
+    issue_specific_timestamp = Column(Float, nullable=True) # RENAMED to avoid any possible conflict
+    rep_index = Column(Integer, nullable=True) # 0-indexed repetition number
+    movement_phase = Column(String, nullable=True) # e.g., 'descent', 'ascent'
+    joint_name = Column(String, nullable=True) # Specific joint related to the feedback, if applicable
 
     form_check = relationship(
         "FormCheck",

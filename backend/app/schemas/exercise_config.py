@@ -2,7 +2,7 @@
 Exercise Configuration Schemas for API request/response validation.
 """
 from pydantic import BaseModel, Field, ConfigDict
-from typing import Dict, List, Optional, Any, Union
+from typing import Dict, List, Optional, Any, Union, Tuple
 from uuid import UUID
 from datetime import datetime
 
@@ -174,6 +174,87 @@ class ClassificationMetadata(BaseModel):
         }
     )
 
+# --- New Rule Schemas ---
+class RangeOfMotionRule(BaseModel):
+    """
+    Schema for Range of Motion (ROM) rules for a specific joint across a full rep.
+    """
+    joint_name: str = Field(..., description="Name of the joint to check ROM for")
+    min_angle_overall: float = Field(..., description="Minimum angle expected for the joint throughout the repetition")
+    max_angle_overall: float = Field(..., description="Maximum angle expected for the joint throughout the repetition")
+    target_rom: Optional[float] = Field(None, description="Optional target ROM value in degrees (max_angle - min_angle)")
+    tolerance_degrees: float = Field(default=10.0, description="Tolerance for ROM deviation in degrees")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "joint_name": "leftKnee",
+                "min_angle_overall": 70.0,
+                "max_angle_overall": 175.0,
+                "target_rom": 105.0,
+                "tolerance_degrees": 10.0
+            }
+        }
+    )
+
+class PostureAlignmentCondition(BaseModel):
+    """
+    Defines a specific condition for a posture rule, e.g., relative alignment of keypoints.
+    """
+    keypoints_involved: List[str] = Field(..., description="List of keypoints defining the posture element (e.g., ['ShoulderLeft', 'HipLeft', 'KneeLeft'] for body line)")
+    # Example: check if ShoulderLeft, HipLeft, KneeLeft are collinear within a threshold
+    # More complex conditions can be added, like relative angles between vectors formed by keypoints.
+    # For initial implementation, focus on simpler checks like overall tilt or deviation from vertical/horizontal.
+    expected_orientation: Optional[str] = Field(None, description="E.g., 'vertical', 'horizontal', or specific angle range for a line formed by keypoints")
+    max_deviation_degrees: float = Field(default=10.0, description="Maximum allowed deviation in degrees from expected orientation or alignment")
+    reference_plane: Optional[str] = Field("sagittal", description="Plane of reference if applicable (e.g., sagittal, frontal)")
+
+class PostureRule(BaseModel):
+    """
+    Schema for posture rules.
+    """
+    rule_name: str = Field(..., description="Descriptive name for the posture rule (e.g., 'neutral_spine', 'head_up')")
+    description: Optional[str] = Field(None, description="Detailed description of what this rule checks.")
+    conditions: List[PostureAlignmentCondition] = Field(..., description="List of specific alignment conditions to check for this posture rule.")
+    applicable_phases: Optional[List[str]] = Field(None, description="List of movement phases where this rule applies. If None, applies to all phases.")
+    severity: str = Field(default="medium", description="Default severity if this posture rule is violated.")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "rule_name": "straight_back_during_squat_descent",
+                "description": "Ensures the back remains relatively straight (neutral spine) during the descent phase of a squat.",
+                "conditions": [
+                    {
+                        "keypoints_involved": ["Neck", "MidHip", "AverageShoulders"], # Assumes AverageShoulders is a derived point
+                        "expected_orientation": "maintain_relative_angle", # This would require more specific parameters
+                        "max_deviation_degrees": 15.0 
+                    }
+                ],
+                "applicable_phases": ["descent"],
+                "severity": "medium"
+            }
+        }
+    )
+
+class SymmetryRule(BaseModel):
+    """
+    Schema for symmetry rules between bilateral joints.
+    """
+    joint_pair: Tuple[str, str] = Field(..., description="Tuple of joint names to compare for symmetry (e.g., ('leftKnee', 'rightKnee'))")
+    max_difference_degrees: float = Field(default=15.0, description="Maximum acceptable absolute difference in angles between the joint pair in degrees")
+    applicable_phases: Optional[List[str]] = Field(None, description="List of movement phases where this rule applies. If None, applies to all phases.")
+    
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "joint_pair": ["leftKnee", "rightKnee"],
+                "max_difference_degrees": 20.0,
+                "applicable_phases": ["descent", "ascent"]
+            }
+        }
+    )
+
 # API schemas for exercise configurations
 
 class ExerciseConfigBase(BaseModel):
@@ -187,6 +268,10 @@ class ExerciseConfigBase(BaseModel):
     movement_phases: Dict[str, MovementPhase] = Field(..., description="Movement phases")
     feedback_templates: Dict[str, FeedbackTemplate] = Field(..., description="Feedback templates")
     classification_metadata: Optional[ClassificationMetadata] = Field(None, description="Metadata for classification")
+    # Add new rule types
+    rom_rules: Optional[List[RangeOfMotionRule]] = Field(None, description="Range of Motion rules for key joints")
+    posture_rules: Optional[List[PostureRule]] = Field(None, description="Posture and alignment rules")
+    symmetry_rules: Optional[List[SymmetryRule]] = Field(None, description="Symmetry rules for bilateral joints")
 
 class ExerciseConfigCreate(ExerciseConfigBase):
     """
@@ -205,6 +290,10 @@ class ExerciseConfigUpdate(BaseModel):
     movement_phases: Optional[Dict[str, MovementPhase]] = Field(None, description="Movement phases")
     feedback_templates: Optional[Dict[str, FeedbackTemplate]] = Field(None, description="Feedback templates")
     classification_metadata: Optional[ClassificationMetadata] = Field(None, description="Metadata for classification")
+    # Add new rule types for update
+    rom_rules: Optional[List[RangeOfMotionRule]] = Field(None, description="Range of Motion rules for key joints")
+    posture_rules: Optional[List[PostureRule]] = Field(None, description="Posture and alignment rules")
+    symmetry_rules: Optional[List[SymmetryRule]] = Field(None, description="Symmetry rules for bilateral joints")
 
 class ExerciseConfigInDB(ExerciseConfigBase):
     """

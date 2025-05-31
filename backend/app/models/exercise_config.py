@@ -32,6 +32,9 @@ class ExerciseConfig(BaseModel):
         movement_phases (JSON): Definition of movement phases
         feedback_templates (JSON): Templates for feedback based on rule violations
         classification_metadata (JSON): Data for ML classification
+        rom_rules (JSON): List of RangeOfMotionRule
+        posture_rules (JSON): List of PostureRule
+        symmetry_rules (JSON): List of SymmetryRule
         created_at (DateTime): Creation timestamp
         updated_at (DateTime): Last update timestamp
     """
@@ -46,6 +49,9 @@ class ExerciseConfig(BaseModel):
     movement_phases = Column(JSON, nullable=False)
     feedback_templates = Column(JSON, nullable=False)
     classification_metadata = Column(JSON, nullable=True)
+    rom_rules = Column(JSON, nullable=True)
+    posture_rules = Column(JSON, nullable=True)
+    symmetry_rules = Column(JSON, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
@@ -91,7 +97,10 @@ class ExerciseConfig(BaseModel):
         Raises:
             ValidationError: If JSON is invalid
         """
-        if value is None:
+        if key in ['rom_rules', 'posture_rules', 'symmetry_rules', 'classification_metadata'] and value is None:
+            return value
+
+        if value is None and key not in ['classification_metadata', 'rom_rules', 'posture_rules', 'symmetry_rules']:
             raise ValidationError(f"{key} is required")
         
         # Schema validation would happen here based on the field
@@ -193,4 +202,98 @@ class ExerciseConfigSchema:
             if template_data['type'] not in ['form', 'alignment', 'range', 'tempo', 'safety']:
                 raise ValidationError(f"Invalid type for template {template_key}")
         
-        return True 
+        return True
+
+# Pydantic models for structured JSON fields within ExerciseConfig
+# These help with validation and type hinting in services using these configs.
+
+from pydantic import BaseModel as PydanticBaseModel, validator, Field
+
+class Condition(PydanticBaseModel):
+    joint: str
+    condition: str # e.g., "angle", "velocity"
+    value: float
+    comparator: str # e.g., "<", ">=", "=="
+    # Optional: add more specific validation, e.g., comparator must be one of ["<", "<=", ...]
+
+class MovementPhaseTrigger(PydanticBaseModel):
+    target_phase: str
+    conditions: List[Condition]
+    # Optional: Add a field like 'trigger_type' if needed e.g. 'next_phase', 'end_rep' etc.
+    # For now, the key in the parent dict (e.g., "next", "next_rep_starts_phase") defines this.
+
+class MovementPhaseDefinition(PydanticBaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    triggers: Dict[str, MovementPhaseTrigger]
+
+class JointSpecificAngleRule(PydanticBaseModel):
+    min_angle: Optional[float] = None
+    max_angle: Optional[float] = None
+    ideal_angle: Optional[float] = None
+    tolerance: Optional[float] = None
+    # Could add feedback_ref: Optional[str] = None to link to a specific feedback template
+
+class PhaseAngleRules(PydanticBaseModel):
+    angles: Dict[str, JointSpecificAngleRule]
+
+class JointAngleRulesStructure(PydanticBaseModel):
+    phases: Dict[str, PhaseAngleRules] # Phase name (e.g., "start", "descent") or "default"
+    joints: List[str] # List of relevant joint names for these rules
+
+class ROMRule(PydanticBaseModel):
+    joint_name: str
+    min_angle_overall: Optional[float] = None
+    max_angle_overall: Optional[float] = None
+    target_rom: Optional[float] = None
+    tolerance_degrees: Optional[float] = Field(default=5.0) # Default tolerance if not specified
+    applicable_phases: Optional[List[str]] = None
+    severity: Optional[str] = None # e.g., low, medium, high - for overriding calculated
+
+class PostureCondition(PydanticBaseModel):
+    condition_type: str # e.g., "vector_angle_from_vertical", "point_distance"
+    # For vector_angle_from_vertical:
+    keypoints_for_vector: Optional[List[str]] = None
+    expected_angle_degrees: Optional[float] = None
+    max_deviation_degrees: Optional[float] = None
+    # Add other fields for other condition_types as needed
+
+class PostureRule(PydanticBaseModel):
+    rule_name: str
+    applicable_phases: Optional[List[str]] = None
+    conditions: List[PostureCondition]
+    severity: Optional[str] = None # Overall severity for this rule if all conditions met
+    # feedback_ref: Optional[str] = None
+
+class SymmetryRule(PydanticBaseModel):
+    joint_pair: List[str] # Expects two joint names, e.g., ["LEFT_KNEE", "RIGHT_KNEE"]
+    max_difference_degrees: float
+    applicable_phases: Optional[List[str]] = None
+    severity: Optional[str] = None
+    # feedback_ref: Optional[str] = None
+
+    @validator('joint_pair')
+    def check_joint_pair_length(cls, v):
+        if len(v) != 2:
+            raise ValueError('joint_pair must contain exactly two joint names')
+        return v
+
+class FeedbackTemplateDefinition(PydanticBaseModel):
+    message: str
+    severity: str # 'low', 'medium', 'high'
+    type: str # 'form', 'alignment', 'range', 'tempo', 'safety'
+
+class ClassificationFeatures(PydanticBaseModel):
+    # Define structure based on expected features, e.g.:
+    joint_angle_ranges: Optional[Dict[str, List[float]]] = None # { "leftKnee": [min, max], ... }
+    # Add other features like velocity profiles, keypoint positions, etc.
+
+class ClassificationMetadataStructure(PydanticBaseModel):
+    keypoints: List[str]
+    frame_count: Optional[int] = None # Approximate typical frame count for the exercise/rep
+    features: Optional[ClassificationFeatures] = None
+    # model_version: Optional[str] = None # If using versioned classification models
+
+# It might be beneficial to have a Pydantic version of ExerciseConfig for validation
+# before DB insertion or when returning from service layer, but that's a larger refactor.
+# For now, these smaller models help with the JSON fields. 

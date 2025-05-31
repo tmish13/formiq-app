@@ -231,6 +231,9 @@ class BaseModel(Base):
         column = cls.__table__.columns.get(field)
         if column is not None:
             # Check if the field is required and value is None
+            if column.primary_key and value is None:
+                return # Allow None for PKs pre-persist, DB will handle it
+            
             if not column.nullable and value is None:
                 raise ValidationError(f"Field '{field}' cannot be null")
             

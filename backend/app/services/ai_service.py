@@ -9,6 +9,7 @@ import asyncio # Added for asyncio.to_thread
 import time
 import hashlib
 import os
+import pandas as pd
 
 from app.core.config import settings as global_settings, Settings # IMPORTED Settings
 from app.core.logging import get_logger
@@ -728,7 +729,7 @@ class AIService:
         raw_angles_per_frame: List[Optional[Dict[str, float]]],
         smoothing_window: int = 5,
         max_gap_to_interpolate: int = 3 # Max frames to interpolate angles over
-    ) -> List[Optional[Dict[str, float]]]:
+    ) -> List[Optional[Dict[str, Optional[float]]]]:
         """
         Smooths angle trajectories for each joint using a moving average and interpolates small gaps.
 
@@ -825,35 +826,27 @@ class AIService:
 
             smoothed_angle_trajectories[angle_name] = current_smoothed_trajectory
 
-        # Reconstruct the output: List[Optional[Dict[str, float]]]
-        final_smoothed_angles_per_frame: List[Optional[Dict[str, float]]] = [None] * num_frames
+        # Reconstruct the output: List[Optional[Dict[str, Optional[float]]]]
+        final_smoothed_angles_per_frame: List[Optional[Dict[str, Optional[float]]]] = [None] * num_frames
         for frame_idx in range(num_frames):
-            # Only create a dict if there's at least one non-None angle for the frame
-            # or if the original raw_angles_per_frame[frame_idx] was not None (to preserve structure for empty dicts)
-            
-            # Check if the original frame had angles (even if all were None after some processing)
-            # or if any angle has a value after smoothing.
-            # If raw_angles_per_frame[frame_idx] was None, it means no angles could be calculated at all for this frame.
-            if raw_angles_per_frame[frame_idx] is None:
+            if raw_angles_per_frame[frame_idx] is None: # Original frame was entirely None
                 final_smoothed_angles_per_frame[frame_idx] = None
                 continue
 
-            current_frame_angles: Dict[str, float] = {}
-            has_any_angle_value = False
+            # Initialize current_frame_angles_dict with all known angle names, defaulting to None.
+            # This ensures that even if all smoothed values are None, the keys are preserved.
+            current_frame_angles_dict: Dict[str, Optional[float]] = {
+                name: None for name in all_angle_names
+            }
+
+            # Populate with actual smoothed values if they exist
             for angle_name in all_angle_names:
-                val = smoothed_angle_trajectories[angle_name][frame_idx]
-                if val is not None:
-                    current_frame_angles[angle_name] = val
-                    has_any_angle_value = True
+                smoothed_value = smoothed_angle_trajectories[angle_name][frame_idx]
+                if smoothed_value is not None:
+                    current_frame_angles_dict[angle_name] = smoothed_value
             
-            if has_any_angle_value:
-                final_smoothed_angles_per_frame[frame_idx] = current_frame_angles
-            elif raw_angles_per_frame[frame_idx] is not None: # Original frame was not None, but all angles became None
-                final_smoothed_angles_per_frame[frame_idx] = {} # Return empty dict to signify processing occurred but yielded no values
-            else: # Original frame was None, and still no values
-                final_smoothed_angles_per_frame[frame_idx] = None
-
-
+            final_smoothed_angles_per_frame[frame_idx] = current_frame_angles_dict
+        
         return final_smoothed_angles_per_frame
 
     async def analyze_video_file_for_form_check(
