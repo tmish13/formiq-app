@@ -246,13 +246,13 @@ class FeedbackItem(BaseModel):
         return message
 
     @validates('timestamp')
-    def validate_timestamp(self, key: str, timestamp: float) -> float:
+    def validate_timestamp(self, key: str, timestamp: Optional[float]) -> float:
         """
-        Validate video timestamp.
+        Validate feedback timestamp.
         
         Args:
             key (str): Field name
-            timestamp (float): Timestamp to validate
+            timestamp (Optional[float]): Timestamp to validate
             
         Returns:
             float: Validated timestamp
@@ -260,10 +260,42 @@ class FeedbackItem(BaseModel):
         Raises:
             ValidationError: If timestamp is invalid
         """
+        if timestamp is None:
+            # This case should ideally be handled before validation, e.g., by Pydantic model default or service logic.
+            # If it reaches here as None, default to 0.0 for robustness.
+            # Consider if a different default or error is more appropriate based on business rules.
+            # For now, to prevent TypeError and align with typical "not set" meaning 0.0.
+            # logger.warning(f"FeedbackItem.timestamp for key '{key}' received as None during validation. Defaulting to 0.0.")
+            return 0.0 # Default if None to prevent TypeError
+
+        if not isinstance(timestamp, (int, float)):
+            raise ValidationError(f"Timestamp must be a number, got {type(timestamp)}")
+        
         if timestamp < 0:
             raise ValidationError("Timestamp cannot be negative")
         
         return timestamp
+
+    @validates('issue_specific_timestamp') # Add validator for the new timestamp field if it has same rules
+    def validate_issue_specific_timestamp(self, key: str, timestamp: Optional[float]) -> Optional[float]:
+        """
+        Validate issue_specific_timestamp. Can be None.
+        """
+        if timestamp is None:
+            return None # Allow None for this field
+        
+        if not isinstance(timestamp, (int, float)):
+            raise ValidationError(f"issue_specific_timestamp must be a number, got {type(timestamp)}")
+
+        if timestamp < 0:
+            raise ValidationError("issue_specific_timestamp cannot be negative if provided")
+        
+        return timestamp
+        
+    # Adding created_at and updated_at to ensure they are present before validation
+    # These are typically handled by BaseModel or Base, but explicit definition can resolve validation order issues.
+    # created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    # updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     def validate(self) -> None:
         """

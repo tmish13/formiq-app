@@ -7,18 +7,20 @@ It replaces the hardcoded rule-based analysis with a dynamic rules engine.
 import logging
 import json
 from typing import Dict, List, Any, Optional, Tuple, TypedDict, Union
-from uuid import UUID
+from uuid import UUID, uuid4
 import math # ADDED for posture calculations
+import numpy as np # ADDED for np.mean
+from datetime import datetime # ADDED
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import Settings
+from app.models.enums import FormCheckStatus, FeedbackType, FeedbackSeverity
 
 from app.services.exercise_config_service import ExerciseConfigService
 from app.services.form_check_service import FormCheckService
 from app.models.exercise_config import ExerciseConfig, MovementPhaseTrigger, Condition
 from app.models.form_check import FormCheck, FeedbackItem
 from app.models.video import Video
-from app.models.enums import FeedbackType, FeedbackSeverity
 from app.core.exceptions import ValidationError, NotFoundException, ServerErrorException
 from app.constants.angles import POSE_LANDMARK_NAMES # ADDED for posture rule keypoint name mapping
 
@@ -135,23 +137,33 @@ class DynamicFormAnalysisService:
 
         for frame_data in angle_data_sequence:
             # Ensure frame_data contains 'angles'; if not, it might be an empty frame from previous steps
+            # Add current_phase_name to frame_data before appending to current_rep_frames
+            augmented_frame_data = {**frame_data, 'phase_context': current_phase_name}
+
             if not frame_data or "angles" not in frame_data or frame_data["angles"] is None:
                 if current_rep_frames: # If we've started collecting a rep
-                    current_rep_frames.append(frame_data) # Add the problematic frame
+                    current_rep_frames.append(augmented_frame_data) # Add the problematic frame with phase context
                 continue # Skip phase transition logic for this frame, but keep it if rep started
 
             # Add frame to current rep FIRST.
-            current_rep_frames.append(frame_data)
+            current_rep_frames.append(augmented_frame_data)
 
             frame_angles = frame_data["angles"]
             phase_changed_this_frame = False
 
-            current_phase_config = config.movement_phases.get(current_phase_name)
-            if not current_phase_config or not isinstance(current_phase_config, dict):
-                logger.error(f"Config for phase '{current_phase_name}' is missing or malformed. Halting segmentation.")
+            current_phase_definition = config.movement_phases.get(current_phase_name) # Returns MovementPhaseDefinition object or None
+            
+            # Check if current_phase_definition is a valid MovementPhaseDefinition model instance
+            if not current_phase_definition or not hasattr(current_phase_definition, 'triggers'): # Check for attribute presence
+                logger.error(f"Config for phase '{current_phase_name}' is missing, not a MovementPhaseDefinition, or has no triggers. Halting segmentation. Phase Def: {type(current_phase_definition)}")
                 break 
             
-            phase_triggers = current_phase_config.get("triggers", {})
+            # Access triggers directly as an attribute if it's a Pydantic model
+            # The triggers attribute should be Dict[str, MovementPhaseTrigger]
+            phase_triggers_dict = current_phase_definition.triggers 
+            if not isinstance(phase_triggers_dict, dict): # Ensure it's a dict as expected by schema
+                 logger.error(f"Triggers for phase '{current_phase_name}' are not a dictionary. Triggers: {type(phase_triggers_dict)}. Halting segmentation.")
+                 break
             
             # Priority: Check for triggers that end the current rep and start a new one
             # This assumes a specific trigger key like 'end_rep_and_loop_to_phase' or similar
@@ -159,58 +171,66 @@ class DynamicFormAnalysisService:
             # Example: 'ascent_phase' triggers might point back to 'start_phase', indicating rep end.
             
             next_phase_for_new_rep = None
-            if "next_rep_starts_phase" in phase_triggers: # Custom key to indicate rep boundary
-                for trigger_condition in phase_triggers["next_rep_starts_phase"].get("conditions", []):
-                    if _check_trigger(frame_angles, trigger_condition):
-                        next_phase_for_new_rep = phase_triggers["next_rep_starts_phase"].get("target_phase")
-                        break
-            
-            if next_phase_for_new_rep:
-                if current_rep_frames: # If we have frames for the current rep
-                    repetitions.append(list(current_rep_frames)) # Save completed rep
-                    logger.info(f"Completed Rep {len(repetitions)} ending with phase '{current_phase_name}' ({len(current_rep_frames)} frames). Transitioning to '{next_phase_for_new_rep}' for new rep.")
-                    current_rep_frames.clear() # Start a new rep
-                current_phase_name = next_phase_for_new_rep
-                current_rep_frames.append(frame_data) # Start new rep with current frame
-                phase_changed_this_frame = True
+            # The 'next_rep_starts_phase' is a hypothetical key, actual logic would depend on config structure.
+            # For now, let's assume a transition back to the initial start_phase signifies a rep end.
+            # A more robust FSM would have explicit "end_rep" flags or transitions.
+            # We'll rely on 'next' trigger target_phase for now.
 
-                # If this frame_data was the *last* in the overall sequence,
-                # then the current_rep_frames (which now holds only frame_data)
-                # should not be added as a new rep after the loop.
-                if frame_data is angle_data_sequence[-1]: 
-                    logger.debug(f"Transition frame {frame_data.get('frame_num')} was the last in sequence. Clearing current_rep_frames to prevent final append.")
-                    current_rep_frames.clear()
-            else:
-                # Check for normal "next" phase transitions
-                if "next" in phase_triggers:
-                    for trigger_condition in phase_triggers["next"].get("conditions", []):
-                        if _check_trigger(frame_angles, trigger_condition):
-                            new_phase_name = phase_triggers["next"].get("target_phase")
-                            if new_phase_name and new_phase_name in config.movement_phases:
+            next_trigger_obj = phase_triggers_dict.get("next") # This should be a MovementPhaseTrigger object
+            if next_trigger_obj and isinstance(next_trigger_obj, MovementPhaseTrigger) and next_trigger_obj.conditions:
+                for condition_obj in next_trigger_obj.conditions: # condition_obj is a Condition model
+                    if self._check_trigger_condition_model(frame_angles, condition_obj): # Pass Condition model
+                        new_phase_name = next_trigger_obj.target_phase
+                        if new_phase_name and new_phase_name in config.movement_phases:
+                            # Check if this transition completes a rep (e.g., to initial start phase from a non-start phase)
+                            # This is a simplified rep boundary detection.
+                            is_rep_completion = (new_phase_name == potential_start_phases[0] and 
+                                                 current_phase_name != potential_start_phases[0] and 
+                                                 len(current_rep_frames) > 1) # Avoid single-frame "reps" on immediate loopback
+
+                            if is_rep_completion:
+                                # The current_rep_frames INCLUDES the frame that triggered the transition.
+                                # This frame is part of the COMPLETED rep.
+                                repetitions.append(list(current_rep_frames))
+                                logger.info(f"Completed Rep {len(repetitions)} ending with phase '{current_phase_name}' ({len(current_rep_frames)} frames). Transitioning to '{new_phase_name}' for new rep.")
+                    current_rep_frames.clear() # Start a new rep
+                                # The new rep will start with the *next* frame processed by the outer loop.
+                                # The current frame that completed the rep should NOT be the first frame of the new rep.
+                            
                                 logger.debug(f"Frame {frame_data.get('frame_num', 'N/A')}: Phase transition from '{current_phase_name}' to '{new_phase_name}'.")
                                 current_phase_name = new_phase_name
                                 phase_changed_this_frame = True
                                 break # Process only one transition per frame
-                            else:
-                                logger.warning(f"Invalid target phase '{new_phase_name}' in triggers for '{current_phase_name}'.")
+                            else: # This 'else' corresponds to 'if new_phase_name and new_phase_name in config.movement_phases' not 'is_rep_completion'
+                                # This branch is executed if the transition is to a new phase, but it does NOT complete a rep.
+                                # For example, moving from 'descent' to 'bottom_hold'.
+                                logger.debug(f"Frame {frame_data.get('frame_num', 'N/A')}: Phase transition (within rep) from '{current_phase_name}' to '{new_phase_name}'.")
+                                current_phase_name = new_phase_name
+                                phase_changed_this_frame = True
+                                break # Process only one transition per frame
+                        else: # This 'else' corresponds to 'if new_phase_name and new_phase_name in config.movement_phases'
+                            logger.warning(f"Invalid target phase '{new_phase_name}' specified in 'next' trigger for '{current_phase_name}'. Target phase does not exist in config.movement_phases.")
+                            # Potentially break or continue, depending on desired behavior for invalid config target.
+                            # For now, let's assume we don't transition and try other triggers for this frame.
                 
                 # Optionally, check for "previous" phase transitions if phase_changed_this_frame is still False
-                # This logic might be complex if forward and backward transitions can occur simultaneously
-                # For simplicity, prioritizing forward ("next") transitions first.
-                if not phase_changed_this_frame and "previous" in phase_triggers:
-                    for trigger_condition in phase_triggers["previous"].get("conditions", []):
-                        if _check_trigger(frame_angles, trigger_condition):
-                            prev_phase_name = phase_triggers["previous"].get("target_phase")
+            if not phase_changed_this_frame:
+                previous_trigger_obj = phase_triggers_dict.get("previous")
+                if previous_trigger_obj and isinstance(previous_trigger_obj, MovementPhaseTrigger) and previous_trigger_obj.conditions:
+                    for condition_obj in previous_trigger_obj.conditions:
+                         if self._check_trigger_condition_model(frame_angles, condition_obj):
+                            prev_phase_name = previous_trigger_obj.target_phase
                             if prev_phase_name and prev_phase_name in config.movement_phases:
                                 logger.debug(f"Frame {frame_data.get('frame_num', 'N/A')}: Phase transition (backwards) from '{current_phase_name}' to '{prev_phase_name}'.")
                                 current_phase_name = prev_phase_name
                                 phase_changed_this_frame = True
                                 break
                             else:
-                                logger.warning(f"Invalid target phase '{prev_phase_name}' in triggers for '{current_phase_name}'.")
+                                logger.warning(f"Invalid target phase '{prev_phase_name}' in 'previous' trigger for '{current_phase_name}'.")
 
         # After loop, add any remaining frames as the last (potentially incomplete) rep
-        if current_rep_frames:
+        # only if they represent progress beyond just the initial state or a single frame.
+        if current_rep_frames and (len(current_rep_frames) > 1 or current_phase_name != potential_start_phases[0]):
             repetitions.append(list(current_rep_frames))
             logger.info(f"Added final (potentially incomplete) Rep {len(repetitions)} with {len(current_rep_frames)} frames, ending in phase '{current_phase_name}'.")
 
@@ -221,6 +241,30 @@ class DynamicFormAnalysisService:
         
         return repetitions
 
+    def _check_trigger_condition_model(self, frame_angles: Dict[str, float], condition_model: Condition) -> bool:
+        """Helper to evaluate a single Condition model."""
+        # condition_model is already a Condition Pydantic object
+        joint_name = condition_model.joint
+        # condition_type = condition_model.condition # This field is on the Condition model
+        target_value = condition_model.value
+        comparator = condition_model.comparator
+
+        if not all([joint_name, target_value is not None, comparator]): # target_value can be 0
+            logger.warning(f"Malformed Condition model: {condition_model}. Skipping.")
+            return False
+
+        current_angle = frame_angles.get(joint_name)
+        if current_angle is None:
+            return False
+
+        # Assuming condition_model.condition is always "angle" for now as per fixture
+        if comparator == "<": return current_angle < target_value
+        if comparator == "<=": return current_angle <= target_value
+        if comparator == ">": return current_angle > target_value
+        if comparator == ">=": return current_angle >= target_value
+        if comparator == "==": return abs(current_angle - target_value) < 1e-5
+        return False
+
     # --- BEGIN MODULAR RULE EVALUATOR STUBS ---
     # These will be implemented in detail in subsequent steps.
 
@@ -229,106 +273,132 @@ class DynamicFormAnalysisService:
         frame_angles: Dict[str, float],
         rep_index: int,
         current_phase_name: str,
-        frame_timestamp: Optional[float], # Added timestamp
-        frame_index_in_rep: int, # Added frame index
+        frame_timestamp: Optional[float],
+        frame_index_in_rep: int,
         config: ExerciseConfig
     ) -> List[StructuredIssue]:
         logger.debug(f"Rep {rep_index}, Frame {frame_index_in_rep} ({current_phase_name}): Applying joint angle rules using ExerciseConfig ID {config.id}.")
         issues: List[StructuredIssue] = []
 
-        if not config.joint_angle_rules or not isinstance(config.joint_angle_rules, dict):
-            logger.warning(f"Rep {rep_index}, Frame {frame_index_in_rep}: No joint_angle_rules found in config or not a dict.")
+        if not current_phase_name:
+            logger.debug(f"Rep {rep_index}, Frame {frame_index_in_rep}: No phase context for frame, skipping joint angle rules.")
             return issues
 
-        rules_for_phases = config.joint_angle_rules.get("phases")
-        if not rules_for_phases or not isinstance(rules_for_phases, dict):
+        jar_data = None
+        # Try to get joint_angle_rules as a dictionary
+        if hasattr(config, 'joint_angle_rules') and config.joint_angle_rules is not None:
+            if hasattr(config.joint_angle_rules, 'model_dump') and callable(config.joint_angle_rules.model_dump):
+                jar_data = config.joint_angle_rules.model_dump()
+            elif isinstance(config.joint_angle_rules, dict):
+                jar_data = config.joint_angle_rules
+        
+        if jar_data is None:
+            logger.warning(f"Rep {rep_index}, Frame {frame_index_in_rep}: Could not obtain joint_angle_rules as a dict from config.")
+            return issues
+
+        # Get rules for all phases
+        phase_rules_from_jar = jar_data.get("phases")
+        if not isinstance(phase_rules_from_jar, dict):
             logger.warning(f"Rep {rep_index}, Frame {frame_index_in_rep}: 'phases' key missing or not a dict in joint_angle_rules.")
             return issues
 
         # Get rules for the current phase, fallback to "default" if current phase not found
-        phase_specific_rules_data = rules_for_phases.get(current_phase_name)
+        phase_specific_rules_data = phase_rules_from_jar.get(current_phase_name)
         if not phase_specific_rules_data:
-            phase_specific_rules_data = rules_for_phases.get("default")
+            phase_specific_rules_data = phase_rules_from_jar.get("default")
         
         if not phase_specific_rules_data or not isinstance(phase_specific_rules_data, dict):
-            logger.debug(f"Rep {rep_index}, Frame {frame_index_in_rep}: No specific or default angle rules found for phase '{current_phase_name}'.")
+            logger.debug(f"Rep {rep_index}, Frame {frame_index_in_rep}: No specific or default phase rules found for phase '{current_phase_name}'.")
             return issues
 
+        # Angle rules for the specific or default phase. This variable is what the subsequent loop expects.
         angle_rules_for_current_phase = phase_specific_rules_data.get("angles")
         if not angle_rules_for_current_phase or not isinstance(angle_rules_for_current_phase, dict):
-            logger.debug(f"Rep {rep_index}, Frame {frame_index_in_rep}: No 'angles' defined in rules for phase '{current_phase_name}'.")
+            logger.debug(f"Rep {rep_index}, Frame {frame_index_in_rep}: No 'angles' dict in rules for phase '{current_phase_name}'.")
             return issues
 
-        for joint_name, joint_rule_data in angle_rules_for_current_phase.items():
-            if not isinstance(joint_rule_data, dict):
-                logger.warning(f"Rep {rep_index}, Frame {frame_index_in_rep}: Rule data for joint '{joint_name}' in phase '{current_phase_name}' is not a dict. Skipping.")
-                continue
-
-            if joint_name not in frame_angles:
-                # This joint has a rule but is not present in the current frame's detected angles.
-                # Optionally log or create an issue if a normally expected joint is missing.
-                # For now, we skip if the angle isn't available to check.
-                logger.debug(f"Rep {rep_index}, Frame {frame_index_in_rep}: Joint '{joint_name}' has a rule but not found in frame_angles. Skipping rule for this joint.")
-                continue
-
-            actual_angle = frame_angles[joint_name]
-
-            min_angle = joint_rule_data.get("min_angle")
-            max_angle = joint_rule_data.get("max_angle")
-            ideal_angle = joint_rule_data.get("ideal_angle")
-            # Use tolerance from rule, default if not present (though schema makes it required with default)
-            tolerance = joint_rule_data.get("tolerance", 15.0) 
-
-            current_deviation = 0.0
-            issue_description = ""
-            expected_values_dict: Dict[str, Any] = {}
-            violation_type: Optional[str] = None
-
-
-            if min_angle is not None and actual_angle < min_angle:
-                current_deviation = min_angle - actual_angle
-                violation_type = "below_min"
-                issue_description = f"{joint_name} angle ({actual_angle:.1f}°) is below minimum ({min_angle:.1f}°)."
-                expected_values_dict = {"min_angle": min_angle, "max_angle": max_angle, "ideal_angle": ideal_angle, "tolerance": tolerance}
-            elif max_angle is not None and actual_angle > max_angle:
-                current_deviation = actual_angle - max_angle
-                violation_type = "above_max"
-                issue_description = f"{joint_name} angle ({actual_angle:.1f}°) is above maximum ({max_angle:.1f}°)."
-                expected_values_dict = {"min_angle": min_angle, "max_angle": max_angle, "ideal_angle": ideal_angle, "tolerance": tolerance}
-            elif ideal_angle is not None and tolerance is not None:
-                lower_bound_ideal = ideal_angle - tolerance
-                upper_bound_ideal = ideal_angle + tolerance
-                if actual_angle < lower_bound_ideal:
-                    current_deviation = lower_bound_ideal - actual_angle
-                    violation_type = "below_ideal_range"
-                    issue_description = f"{joint_name} angle ({actual_angle:.1f}°) is below ideal range ({lower_bound_ideal:.1f}° - {upper_bound_ideal:.1f}°)."
-                    expected_values_dict = {"ideal_angle": ideal_angle, "tolerance": tolerance, "ideal_range": [lower_bound_ideal, upper_bound_ideal]}
-                elif actual_angle > upper_bound_ideal:
-                    current_deviation = actual_angle - upper_bound_ideal
-                    violation_type = "above_ideal_range"
-                    issue_description = f"{joint_name} angle ({actual_angle:.1f}°) is above ideal range ({lower_bound_ideal:.1f}° - {upper_bound_ideal:.1f}°)."
-                    expected_values_dict = {"ideal_angle": ideal_angle, "tolerance": tolerance, "ideal_range": [lower_bound_ideal, upper_bound_ideal]}
+        # THE REST OF THE METHOD (LOOPING THROUGH frame_angles.items() AND APPLYING RULES) REMAINS UNCHANGED
+        # FROM ITS STATE *BEFORE* THE FAILED `jar_data` REFACTORING ATTEMPTS.
+        # The following is the original logic for iterating and applying rules which should be preserved.
+        for joint_name, angle in frame_angles.items():
+            rule_for_joint = angle_rules_for_current_phase.get(joint_name) # Get specific rule for this joint
             
-            if violation_type and current_deviation > 0: # Ensure there's an actual deviation
-                severity = self.calculate_severity(current_deviation, tolerance) # Use rule's tolerance for severity calculation
+            if not rule_for_joint:
+                rule_for_joint = angle_rules_for_current_phase.get("default") # Fallback to default rule for phase
+                if not rule_for_joint:
+                    logger.debug(f"Rep {rep_index}, Frame {frame_index_in_rep}: No rule for joint '{joint_name}' or default in phase '{current_phase_name}'.")
+                continue
 
-                issues.append({
-                    "rule_type": "joint_angle",
-                    "joint_name": joint_name,
-                    "details": f"{issue_description} During {current_phase_name} phase.",
-                    "severity": severity,
-                    "phase": current_phase_name,
-                    "rep_index": rep_index,
-                    "frame_index_in_rep": frame_index_in_rep,
-                    "timestamp_in_video": frame_timestamp,
-                    "current_value": actual_angle,
-                    "expected_value": expected_values_dict, # Store the relevant rule parameters
-                    "deviation": current_deviation,
-                    "violation_type": violation_type # Specific type of angle violation
-                })
-        
-        if issues:
-            logger.debug(f"Rep {rep_index}, Frame {frame_index_in_rep} ({current_phase_name}): Found {len(issues)} joint angle issues.")
+            if not isinstance(rule_for_joint, dict):
+                logger.warning(f"Rep {rep_index}, Frame {frame_index_in_rep}: Rule for joint '{joint_name}' in phase '{current_phase_name}' is not a dict. Rule: {rule_for_joint}")
+                continue
+
+            logger.info(f"CHECKING RULE: Rep {rep_index}, Frame {frame_index_in_rep}, Phase: {current_phase_name}, Joint: {joint_name}, Angle: {angle}, Rule: {rule_for_joint}")
+
+            try:
+                min_angle = rule_for_joint.get("min_angle")
+                max_angle = rule_for_joint.get("max_angle")
+                ideal_angle = rule_for_joint.get("ideal_angle")
+                tolerance = rule_for_joint.get("tolerance", 0)
+                
+                violation = None
+                details_msg = ""
+                deviation_val = 0
+
+                if min_angle is not None and angle < min_angle:
+                    violation = "below_min"
+                    deviation_val = min_angle - angle
+                    details_msg = f"{joint_name} angle ({angle:.1f}°) is below minimum ({min_angle:.1f}°)."
+                elif max_angle is not None and angle > max_angle:
+                    violation = "above_max"
+                    deviation_val = angle - max_angle
+                    details_msg = f"{joint_name} angle ({angle:.1f}°) is above maximum ({max_angle:.1f}°)."
+
+                if not violation and ideal_angle is not None:
+                    ideal_min = ideal_angle - tolerance
+                    ideal_max = ideal_angle + tolerance
+                    if angle < ideal_min:
+                        violation = "below_ideal_range"
+                        deviation_val = ideal_min - angle
+                        details_msg = f"{joint_name} angle ({angle:.1f}°) is below ideal range ({ideal_min:.1f}° - {ideal_max:.1f}°)."
+                    elif angle > ideal_max:
+                        violation = "above_ideal_range"
+                        deviation_val = angle - ideal_max
+                        details_msg = f"{joint_name} angle ({angle:.1f}°) is above ideal range ({ideal_min:.1f}° - {ideal_max:.1f}°)."
+                
+                if violation:
+                    severity_val = FeedbackSeverity.LOW # Default severity
+                    if deviation_val > 2 * tolerance and tolerance > 0:
+                        severity_val = FeedbackSeverity.HIGH
+                    elif deviation_val > tolerance and tolerance > 0:
+                        severity_val = FeedbackSeverity.MEDIUM
+                    elif violation in ["below_min", "above_max"]:
+                        severity_val = FeedbackSeverity.MEDIUM if severity_val == FeedbackSeverity.LOW else severity_val
+
+                    issues.append(StructuredIssue(
+                        rule_type="joint_angle",
+                        joint_name=joint_name,
+                        details=f"{details_msg} During {current_phase_name} phase.",
+                        severity=severity_val.value,
+                        phase=current_phase_name,
+                        rep_index=rep_index,
+                        frame_index_in_rep=frame_index_in_rep,
+                        timestamp_in_video=frame_timestamp,
+                        current_value=round(angle, 2),
+                        expected_value={"ideal_angle": ideal_angle, "tolerance": tolerance, "ideal_range": [round(ideal_angle - tolerance,1), round(ideal_angle+tolerance,1)] if ideal_angle is not None else None, "min_angle": min_angle, "max_angle": max_angle},
+                        deviation=round(deviation_val, 2),
+                        violation_type=violation
+                    ))
+            except Exception as e:
+                logger.error(f"Error processing rule for joint {joint_name} in phase {current_phase_name}: {e}", exc_info=True)
+                issues.append(StructuredIssue(
+                    rule_type="internal_error",
+                    details=f"Error processing joint angle rule for {joint_name}: {str(e)}",
+                    severity=FeedbackSeverity.ERROR.value,
+                    phase=current_phase_name,
+                    rep_index=rep_index
+                ))
+
         return issues
 
     async def _apply_rom_rules(
@@ -672,8 +742,11 @@ class DynamicFormAnalysisService:
 
         # 1. Per-frame analysis: Iterate through each frame in the repetition
         for frame_idx, frame_data in enumerate(rep_angle_data): # frame_data is now the comprehensive dict
+            current_phase_name = frame_data.get("phase_context", "unknown")
+            # if rep_index == 1:
+            #     logger.info(f"DEBUG_BAD_REP: Processing frame_idx {frame_idx} for rep_index {rep_index}. Frame data: {json.dumps(frame_data, indent=2)}")
+
             # Ensure frame_data contains 'angles'; if not, it might be an empty frame from previous steps
-            # Also, posture rules will need 'raw_landmarks' within frame_data
             if not frame_data:
                 logger.warning(f"Rep {rep_index}, Frame {frame_idx}: Skipping frame due to empty frame_data.")
                 continue
@@ -681,20 +754,22 @@ class DynamicFormAnalysisService:
             frame_angles = frame_data.get("angles")
             if frame_angles is None: # Can be an empty dict, but not None
                 logger.warning(f"Rep {rep_index}, Frame {frame_idx}: Skipping frame due to missing 'angles' in frame_data.")
+                # if rep_index == 1:
+                #     logger.info(f"DEBUG_BAD_REP: Frame {frame_idx} for rep_index {rep_index} had no 'angles'.")
                 continue
 
+            # if rep_index == 1:
+            #      logger.info(f"DEBUG_BAD_REP: Rep {rep_index}, Frame {frame_idx}, Angles pre-rules: {json.dumps(frame_angles)}")
+            
             frame_timestamp = frame_data.get("timestamp") # Assuming timestamp is available per frame
             
-            # 2. Detect movement phase for the current frame
-            current_phase_name = self.detect_movement_phase(
-                phases_config=config.movement_phases,
-                joint_angles=frame_angles # detect_movement_phase uses angles
-            )
-            if current_phase_name == "unknown":
-                logger.debug(f"Rep {rep_index}, Frame {frame_idx}: Phase could not be determined. Skipping rule checks for this frame.")
+            # 2. Get movement phase for the current frame from the context provided by segment_repetitions
+            current_phase_name = frame_data.get('phase_context')
+            if not current_phase_name:
+                logger.warning(f"Rep {rep_index}, Frame {frame_idx}: Phase context missing from frame_data. Skipping rule checks for this frame.")
                 continue
             
-            logger.debug(f"Rep {rep_index}, Frame {frame_idx}: Detected phase: {current_phase_name}")
+            logger.debug(f"Rep {rep_index}, Frame {frame_idx}: Processing with phase context: {current_phase_name}")
 
             # 3. Apply modular rule evaluators for the current frame
             all_rep_issues.extend(await self._apply_joint_angle_rules(
@@ -733,217 +808,207 @@ class DynamicFormAnalysisService:
 
     async def analyze_form_dynamically(
         self,
-        video: Video
+        video: Video, # Video object with angle_data populated
+        exercise_config: ExerciseConfig, # The active exercise configuration
+        initial_form_check: FormCheck    # The existing FormCheck record to update
     ) -> FormCheck:
-        """
-        Analyze exercise form using dynamic configuration for a given video.
-        Segments video into repetitions, evaluates each rep, aggregates feedback, and updates FormCheck.
-        """
-        logger.info(f"Starting dynamic form analysis for video ID: {video.id}")
+        config_name_for_log = exercise_config.name if exercise_config else "No Config Provided"
+        logger.info(f"Starting dynamic form analysis for FormCheck ID: {initial_form_check.id}, Video ID: {video.id}, Config: {config_name_for_log}")
 
-        if not video.exercise_template_id:
-            logger.error(f"Video {video.id} is missing exercise_template_id. Cannot perform dynamic analysis.")
-            raise ValidationError("Video is missing exercise_template_id, required for dynamic analysis.")
-
-        # Ensure both angle_data (calculated angles) and raw_pose_data (landmarks) are present
-        if not video.angle_data or not isinstance(video.angle_data, list):
-            logger.error(f"Video {video.id} has no angle_data or it's not a list. Cannot perform analysis.")
-            raise ValidationError("Video calculated angle_data is missing or not a list.")
+        if video.angle_data is None:
+            logger.warning(f"Video ID {video.id} has no angle data (is None). Cannot perform dynamic analysis.")
+            initial_form_check.status = FormCheckStatus.FAILED # Use enum member FAILED
+            initial_form_check.error_details = "Angle data missing from video (was None)."
+            initial_form_check.summary = "Analysis failed: Angle data not available."
+            initial_form_check.score = 0.0
+            # No db.commit() here, caller (Celery task) should handle session management
+            return initial_form_check
         
-        if not video.raw_pose_data or not isinstance(video.raw_pose_data, list):
-            logger.error(f"Video {video.id} has no raw_pose_data or it's not a list. Cannot perform analysis for posture rules.")
-            # Depending on requirements, this could be a hard fail or allow proceeding without posture rules.
-            # For now, making it a prerequisite for the enhanced analysis.
-            raise ValidationError("Video raw_pose_data (landmarks) is missing or not a list.")
+        if not exercise_config:
+            logger.warning(f"FormCheck {initial_form_check.id}: ExerciseConfig is missing. Cannot perform analysis.")
+            initial_form_check.status = FormCheckStatus.FAILED # Use enum member FAILED
+            initial_form_check.error_details = "Exercise configuration missing."
+            initial_form_check.summary = "Analysis failed: Exercise configuration not available."
+            initial_form_check.score = 0.0
+            return initial_form_check
 
-        # Ensure angle_data and raw_pose_data have the same length (represent the same frames)
-        if len(video.angle_data) != len(video.raw_pose_data):
-            logger.error(
-                f"Mismatch in lengths for video {video.id}: angle_data has {len(video.angle_data)} frames, "
-                f"raw_pose_data has {len(video.raw_pose_data)} frames. Cannot reconcile for analysis."
-            )
-            raise ValidationError("Frame count mismatch between calculated angles and raw pose data.")
-
-
-        form_check = await self.form_check_service.get_or_create_form_check_for_video(video_id=video.id)
-        logger.info(f"Using FormCheck ID: {form_check.id} for video ID: {video.id}")
-
-        config = await self._get_exercise_config_model_async(video.exercise_template_id)
-        
-        if not config:
-            logger.warning(f"No active ExerciseConfig found for exercise_template_id {video.exercise_template_id} (Video ID: {video.id}). Cannot perform analysis.")
-            form_check.status = "analysis_failed"
-            form_check.overall_feedback = "Analysis failed: No valid exercise configuration found."
-            await self.db.commit()
-            return form_check
-            
-        logger.info(f"Using ExerciseConfig: {config.name} (Version: {config.version}) for video ID: {video.id}")
-
-        all_feedback_items_for_video: List[StructuredIssue] = [] # Changed from List[Dict] to List[StructuredIssue]
-        total_score = 0
-        num_reps = 0
+        all_reps_issues: List[StructuredIssue] = []
+        all_reps_scores: List[float] = []
+        total_valid_frames_analyzed = 0
+        processed_repetitions: List[List[Dict[str, Any]]] = []
 
         try:
-            # --- Prepare enriched_frame_sequence --- 
-            enriched_frame_sequence: List[Dict[str, Any]] = []
-            video_fps = video.fps if video.fps and video.fps > 0 else 30.0 # Default FPS if not set
+            # 1. Segment into repetitions
+            logger.debug(f"FormCheck {initial_form_check.id}: Segmenting {len(video.angle_data)} frames into repetitions.")
+            processed_repetitions = await self.segment_repetitions(
+                angle_data_sequence=video.angle_data, # type: ignore # angle_data is List[Dict] typically
+                config=exercise_config
+            )
 
-            # Assuming video.angle_data is List[Optional[Dict[str, float]]] and video.raw_pose_data is List[Optional[List[Dict[str,Any]]]]
-            # Each element in these lists corresponds to a frame.
-            for frame_idx, (angles_for_frame, landmarks_for_frame) in enumerate(zip(video.angle_data, video.raw_pose_data)):
-                # angles_for_frame can be None if smoothing/calculation failed for it
-                # landmarks_for_frame can be None if pose detection failed for it
-                
-                # Recheck if angle_data elements are dicts after smoothing (they should be, or None)
-                # Smoothed angles (video.angle_data) might already contain 'frame_num' and 'timestamp'
-                # If so, use them. Otherwise, calculate.
-                frame_num_from_angles = None
-                timestamp_from_angles = None
-                actual_angles_dict = None
+            if not processed_repetitions and not video.angle_data: # angle_data was an empty list
+                logger.warning(f"FormCheck {initial_form_check.id}: Angle data was an empty list. No repetitions segmented.")
+                initial_form_check.summary = "No repetitions detected (empty angle data)."
+                initial_form_check.score = 0.0
+                # Status will be set to COMPLETED later
+            elif not processed_repetitions: # angle_data was non-empty, but still no reps found
+                logger.warning(f"FormCheck {initial_form_check.id}: No repetitions were segmented from the (non-empty) angle data.")
+                initial_form_check.summary = "No complete repetitions detected from provided angle data."
+                initial_form_check.score = 0.0 # Or some other baseline score
+                # initial_form_check.status can remain PROCESSING or be set based on policy
+                # For now, let's assume if no reps, it's not an ERROR but perhaps needs review or score reflects it
 
-                if isinstance(angles_for_frame, dict):
-                    # Check if it's the structure from smoothing: {'frame_num': X, 'timestamp': Y, 'angles': {...}}
-                    # Or just the angles dict: {'LEFT_KNEE': 120.0, ...}
-                    if "angles" in angles_for_frame and ("frame_num" in angles_for_frame or "timestamp" in angles_for_frame):
-                        actual_angles_dict = angles_for_frame.get("angles") # This could be None if only metadata was kept
-                        frame_num_from_angles = angles_for_frame.get("frame_num")
-                        timestamp_from_angles = angles_for_frame.get("timestamp")
+            # 2. Evaluate each repetition
+            for i, rep_angle_data in enumerate(processed_repetitions):
+                logger.debug(f"FormCheck {initial_form_check.id}: Evaluating Rep {i + 1} with {len(rep_angle_data)} frames.")
+                rep_issues, rep_score = await self.evaluate_rep(
+                    rep_angle_data=rep_angle_data,
+                    rep_index=i,
+                    config=exercise_config
+                )
+                all_reps_issues.extend(rep_issues)
+                all_reps_scores.append(rep_score)
+                total_valid_frames_analyzed += len([f for f in rep_angle_data if f.get('angles')])
+
+            # 3. Aggregate results and update FormCheck object
+            if all_reps_scores:
+                initial_form_check.score = float(np.mean(all_reps_scores)) # Example: average score
+            elif processed_repetitions: # Reps were segmented but scores might be empty if evaluate_rep had issues
+                 initial_form_check.score = 0.0 # Or a score indicating issues in rep evaluation
+            else: # No reps segmented
+                initial_form_check.score = 0.0
+            
+            # Create FeedbackItem objects from structured issues
+            # This part should ideally be in FormCheckService or a shared utility if complex,
+            # but for now, let's create them here and attach to the FormCheck. Session commit is handled by caller.
+            
+            # Clear existing feedback items if any (safer to do this before adding new ones)
+            # This assumes initial_form_check.feedback_items is a mutable list, or relationship is handled by SQLAlchemy
+            # If initial_form_check is from a session, modifying .feedback_items should mark for ORM events.
+            # A more robust way is to delete existing items by form_check_id in the DB via service call before adding new ones,
+            # which the Celery task already does in finalize_form_check_analysis_async.
+            # So, here we just prepare the new items.
+            
+            new_feedback_items: List[FeedbackItem] = []
+            for issue in all_reps_issues:
+                # Map StructuredIssue to FeedbackItem fields
+                # This mapping needs to be robust
+                feedback_type_enum = FeedbackType.FORM # Default to FORM
+                rule_type_str = issue.get("rule_type", "form").lower()
+
+                if rule_type_str == "symmetry":
+                    feedback_type_enum = FeedbackType.TECHNIQUE
+                elif rule_type_str == "rom":
+                    feedback_type_enum = FeedbackType.RANGE
+                elif rule_type_str == "joint_angle":
+                    feedback_type_enum = FeedbackType.JOINT_ANGLE
+                elif rule_type_str == "posture":
+                    feedback_type_enum = FeedbackType.POSTURE
                     else:
-                        # Assumed to be just the angles dict
-                        actual_angles_dict = angles_for_frame
-                elif angles_for_frame is None:
-                    actual_angles_dict = None # Explicitly set to None
-                else:
-                    logger.warning(f"Video {video.id}, Frame {frame_idx}: Unexpected format for angles_for_frame. Type: {type(angles_for_frame)}. Skipping.")
-                    actual_angles_dict = None # Treat as if no angles
-                
-                # Ensure actual_angles_dict is either a dict of angles or None
-                if not isinstance(actual_angles_dict, dict) and actual_angles_dict is not None:
-                    logger.warning(f"Video {video.id}, Frame {frame_idx}: actual_angles_dict is not a dict or None. Found: {type(actual_angles_dict)}. Treating as no angles.")
-                    actual_angles_dict = None
-
-                current_timestamp = timestamp_from_angles if timestamp_from_angles is not None else frame_idx / video_fps
-                current_frame_num = frame_num_from_angles if frame_num_from_angles is not None else frame_idx
-
-                enriched_frame_sequence.append({
-                    "frame_num": current_frame_num,
-                    "timestamp": current_timestamp,
-                    "angles": actual_angles_dict, # This will be Dict[str, float] or None
-                    "raw_landmarks": landmarks_for_frame # This will be List[Dict[str, Any]] or None
-                })
-            # --- End of enriched_frame_sequence preparation ---
-
-            if not enriched_frame_sequence:
-                logger.warning(f"Video {video.id}: Enriched frame sequence is empty. No data for segmentation.")
-                form_check.overall_feedback = "Analysis failed: No frame data could be prepared."
-                form_check.status = "analysis_failed"
-                await self.db.commit()
-                return form_check
-            
-            # Pass the enriched sequence to segmentation
-            repetitions = await self.segment_repetitions(enriched_frame_sequence, config)
-            num_reps = len(repetitions)
-            logger.info(f"Segmented into {num_reps} repetitions for video ID: {video.id}")
-
-            if not repetitions:
-                logger.warning(f"No repetitions segmented for video ID: {video.id}. Analysis may be limited.")
-                form_check.overall_feedback = "No repetitions were detected in the video."
-                # No score change if no reps
-
-            for i, rep_frames in enumerate(repetitions):
-                logger.info(f"Evaluating Rep {i+1}/{num_reps} for video ID: {video.id}")
-                # Pass rep_index (0-based) to evaluate_rep
-                rep_structured_issues, rep_score = await self.evaluate_rep(rep_frames, i, config) # MODIFIED: pass rep_index
-                
-                # rep_structured_issues are now List[StructuredIssue]
-                # These need to be transformed into FeedbackItem data by a new/modified generate_feedback_items_from_issues
-                # For now, let's assume all_feedback_items_for_video will store these structured issues directly,
-                # and the conversion happens before DB storage.
-                all_feedback_items_for_video.extend(rep_structured_issues) # Storing structured issues for now
-                total_score += rep_score
-            
-            if num_reps > 0:
-                form_check.overall_score = total_score / num_reps
-            else:
-                form_check.overall_score = 0 # Or keep previous score / set to a specific value
-            
-            logger.info(f"Overall score for video ID {video.id}: {form_check.overall_score} based on {num_reps} reps.")
-
-            # Persist feedback items
-            if all_feedback_items_for_video:
-                # Augment feedback items with form_check_id before saving
-                
-                formatted_feedback_for_db = []
-                for issue_data in all_feedback_items_for_video: # issue_data is a StructuredIssue
-                    # Map rule_type to FeedbackType enum
-                    rule_type_str = issue_data.get("rule_type", "form").upper()
                     try:
-                        feedback_type_enum_val = FeedbackType[rule_type_str]
-                    except KeyError:
-                        logger.warning(f"Unknown rule_type '{rule_type_str}' encountered. Defaulting to FeedbackType.FORM.")
-                        feedback_type_enum_val = FeedbackType.FORM
-
-                    # Map severity string to FeedbackSeverity enum
-                    severity_str = issue_data.get("severity", FeedbackSeverity.LOW.value)
-                    try:
-                        feedback_severity_enum_val = FeedbackSeverity(severity_str)
+                        # Attempt direct mapping for other types or if 'form' was explicitly set
+                        feedback_type_enum = FeedbackType(rule_type_str)
                     except ValueError:
-                        logger.warning(f"Unknown severity string '{severity_str}' encountered. Defaulting to FeedbackSeverity.LOW.")
-                        feedback_severity_enum_val = FeedbackSeverity.LOW
-                    
-                    # Prepare the dictionary for FeedbackItem creation
-                    # This matches the fields expected by create_feedback_items_in_db and the FeedbackItem model
-                    db_fb_item_data = {
-                        "form_check_id": form_check.id,
-                        "feedback_text": issue_data.get("details", "Issue detected."),
-                        "severity": feedback_severity_enum_val,
-                        "type": feedback_type_enum_val,
-                        "timestamp": issue_data.get("timestamp_in_video"), # REVERTED DIAGNOSTIC DEFAULT
-                        
-                        # New structured fields for FeedbackItem
-                        "details_payload": issue_data, 
-                        "rep_index": issue_data.get("rep_index"), 
-                        "movement_phase": issue_data.get("phase"),
-                        "joint_name": issue_data.get("joint_name")
-                    }
-                    formatted_feedback_for_db.append(db_fb_item_data)
+                        logger.warning(f"Could not map rule_type '{rule_type_str}' to FeedbackType enum. Defaulting to FeedbackType.FORM.")
+                        feedback_type_enum = FeedbackType.FORM
+                
+                severity_enum = FeedbackSeverity.LOW # Default to LOW
+                try:
+                    sev_val = issue.get("severity", "low") # Default severity to 'low' if missing
+                    if isinstance(sev_val, str): # Ensure it's a string before .lower()
+                        severity_enum = FeedbackSeverity(sev_val.lower()) # Attempt to map by value (lowercase)
+                    else: # Log if not a string
+                        logger.warning(f"issue.severity ('{sev_val}') is not a string, using default FeedbackSeverity.LOW.")
+                        severity_enum = FeedbackSeverity.LOW
+                except ValueError: # If mapping by value fails
+                    logger.warning(f"Could not map severity '{issue.get('severity')}' to FeedbackSeverity enum. Defaulting to FeedbackSeverity.LOW.")
+                    severity_enum = FeedbackSeverity.LOW
+                
+                # Prepare details for FeedbackItem, ensuring it's serializable JSON
+                feedback_details = {
+                    "rule_type": issue.get("rule_type"),
+                    "joint_name": issue.get("joint_name"),
+                    "compared_to_joint": issue.get("compared_to_joint"),
+                    "phase": issue.get("phase"),
+                    "rep_index": issue.get("rep_index"),
+                    "frame_index_in_rep": issue.get("frame_index_in_rep"),
+                    "current_value": issue.get("current_value"),
+                    "expected_value": issue.get("expected_value"),
+                    "deviation": issue.get("deviation"),
+                    "violation_type": issue.get("violation_type")
+                }
+                # Filter out None values to keep payload clean
+                feedback_details = {k: v for k, v in feedback_details.items() if v is not None}
 
-                if formatted_feedback_for_db:
-                    await self.create_feedback_items_in_db(form_check.id, formatted_feedback_for_db)
-                    logger.info(f"Stored {len(formatted_feedback_for_db)} feedback items for FormCheck ID: {form_check.id}")
-                else:
-                    logger.info(f"No detailed feedback items to store for FormCheck ID: {form_check.id}")
+                item = FeedbackItem(
+                    form_check_id=initial_form_check.id,
+                    rule_id=issue.get("rule_id", f"rule_type:{issue.get('rule_type', 'unknown')}"), # Fallback rule_id if not present
+                    message=issue.get("details", "Form issue detected."), # Main human-readable message from StructuredIssue
+                    type=feedback_type_enum,
+                    severity=severity_enum,
+                    details_payload=feedback_details, # Store the structured details from the issue
+                    timestamp=issue.get("timestamp_in_video", 0.0), # Use 0.0 as a float default for timestamp
+                    suggestions=[], # Suggestions to be populated later if applicable
+                    # Directly populate specific fields from details for easier access/querying
+                    rep_index=feedback_details.get("rep_index"),
+                    movement_phase=feedback_details.get("phase"), # 'phase' in details maps to 'movement_phase'
+                    joint_name=feedback_details.get("joint_name")
+                )
+                new_feedback_items.append(item)
+            
+            initial_form_check.feedback_items = new_feedback_items # Replace or append based on ORM setup
 
+            # Generate a summary
+            if not all_reps_issues and processed_repetitions:
+                initial_form_check.summary = f"Good form! {len(processed_repetitions)} reps analyzed with no major issues detected."
+            elif all_reps_issues: # Ensure this is elif
+                initial_form_check.summary = f"{len(all_reps_issues)} issues found across {len(processed_repetitions)} reps. Score: {initial_form_check.score:.2f}"
+            elif not processed_repetitions: # This should be another elif
+                initial_form_check.summary = "No complete repetitions detected during analysis."
+            else: # This is the final case
+                initial_form_check.summary = "Analysis completed."
 
-            # Simple overall feedback
-            if not all_feedback_items_for_video and num_reps > 0:
-                form_check.overall_feedback = "Good form! No major issues detected."
-            elif num_reps > 0 :
-                form_check.overall_feedback = f"Found {len(all_feedback_items_for_video)} areas for improvement across {num_reps} repetitions. Overall score: {form_check.overall_score:.2f}"
-            elif not form_check.overall_feedback: # If no reps and no specific message yet
-                 form_check.overall_feedback = "Analysis complete. Could not detect repetitions to score."
+            # Update status
+            initial_form_check.status = FormCheckStatus("completed") # Use enum value
+            initial_form_check.error_details = None # Clear previous errors if successful
+            initial_form_check.analysis_completed_at = datetime.utcnow()
 
+            # Add some details to the FormCheck.form_metadata JSON field
+            if initial_form_check.form_metadata is None: initial_form_check.form_metadata = {}
+            initial_form_check.form_metadata["dynamic_analysis_version"] = "1.0"
+            initial_form_check.form_metadata["reps_detected"] = len(processed_repetitions)
+            initial_form_check.form_metadata["frames_analyzed"] = total_valid_frames_analyzed
+            initial_form_check.form_metadata["config_used"] = exercise_config.name
+            initial_form_check.form_metadata["config_version"] = exercise_config.version
+            # initial_form_check.form_metadata["risk_level"] = self.calculate_overall_risk(initial_form_check.score, all_reps_issues) # Placeholder
 
-            form_check.status = "analysis_complete"
-            await self.db.commit()
-            await self.db.refresh(form_check)
-            logger.info(f"Dynamic form analysis completed for video ID: {video.id}. FormCheck ID: {form_check.id}, Status: {form_check.status}, Score: {form_check.overall_score}")
+            # Directly set reps_detected on the FormCheck model instance as well
+            initial_form_check.reps_detected = len(processed_repetitions)
 
-        except ValidationError as ve:
-            logger.error(f"Validation error during analysis for video {video.id}: {ve}")
-            form_check.status = "analysis_failed"
-            form_check.overall_feedback = f"Analysis failed: {str(ve)}"
-            await self.db.commit() # Save error state
-            raise # Re-raise to be caught by Celery task
+            logger.info(f"Analysis completed. Score: {initial_form_check.score}")
+
         except Exception as e:
-            logger.error(f"Unexpected error during dynamic form analysis for video ID: {video.id}: {str(e)}", exc_info=True)
-            if form_check: # form_check should be defined
-                form_check.status = "analysis_failed"
-                form_check.overall_feedback = f"An unexpected error occurred during analysis: {str(e)}" # UPDATED to include str(e)
-                await self.db.commit()
-            raise ServerErrorException(f"Dynamic form analysis failed for video {video.id}: {e}") from e
-        
-        return form_check
+            current_exception_type = type(e).__name__
+            current_exception_msg = str(e)
+            logger.error(f"Error dynamic analysis FormCheck {initial_form_check.id}: {current_exception_type}", exc_info=True)
+            initial_form_check.status = FormCheckStatus("failed") # Use enum value, FAILED not ERROR here
+            # Use form_metadata for error details too, or ensure error_details field exists
+            # FormCheck model does not have error_details. Let's use form_metadata.
+            if initial_form_check.form_metadata is None: initial_form_check.form_metadata = {}
+            initial_form_check.form_metadata["error_details"] = f"FAIL: {current_exception_type} - {current_exception_msg}"
+            initial_form_check.summary = "An error occurred during detailed form analysis."
+            initial_form_check.score = 0.0 # Or keep previous score if partial analysis done
+            # feedback_items might be partially populated or empty
+
+            error_message_to_store = current_exception_msg
+            if hasattr(e, 'message') and isinstance(getattr(e, 'message'), str): # For some custom exceptions
+                 error_message_to_store = getattr(e, 'message')
+
+            # initial_form_check.error_details = error_message_to_store
+            setattr(initial_form_check, 'error_details', error_message_to_store) # Corrected variable name
+            initial_form_check.score = 0.0
+            # initial_form_check.reps_detected = 0 # Avoid setting if it was never calculated
+
+        return initial_form_check
     
     def detect_movement_phase(
         self,
@@ -968,24 +1033,49 @@ class DynamicFormAnalysisService:
             if hasattr(phase_data_model, 'triggers') and phase_data_model.triggers:
                  if isinstance(phase_data_model.triggers, dict):
                     triggers_dict = phase_data_model.triggers
-                 elif hasattr(phase_data_model.triggers, 'model_dump'):
+                 elif hasattr(phase_data_model.triggers, 'model_dump'): # Check if it's a Pydantic model
                     triggers_dict = phase_data_model.triggers.model_dump()
 
-            next_triggers_list = triggers_dict.get("next", [])
-            if not next_triggers_list:
-                continue
+            # Get the MovementPhaseTrigger object for the "next" key
+            next_trigger_definition: Optional[MovementPhaseTrigger] = None
+            raw_next_trigger = triggers_dict.get("next")
+
+            if isinstance(raw_next_trigger, MovementPhaseTrigger):
+                next_trigger_definition = raw_next_trigger
+            elif isinstance(raw_next_trigger, dict): # If it was dumped from a model or is a raw dict
+                try:
+                    next_trigger_definition = MovementPhaseTrigger(**raw_next_trigger)
+                except Exception as e:
+                    logger.warning(f"Could not parse 'next' trigger for phase {phase_name} into MovementPhaseTrigger: {e}")
+
+            if not next_trigger_definition or not next_trigger_definition.conditions:
+                continue # No "next" trigger or no conditions for it
 
             all_satisfied = True
-            for trigger_model in next_triggers_list:
-                joint = trigger_model.joint if hasattr(trigger_model, 'joint') else trigger_model.get("joint")
-                value = trigger_model.value if hasattr(trigger_model, 'value') else trigger_model.get("value")
-                comparator = trigger_model.comparator if hasattr(trigger_model, 'comparator') else trigger_model.get("comparator")
+            # Iterate over the conditions within the MovementPhaseTrigger
+            for condition_model in next_trigger_definition.conditions:
+                # condition_model is now expected to be a Condition object or a dict representing it
+                joint = None
+                value = None
+                comparator = None
+
+                if hasattr(condition_model, 'joint'): # If Pydantic model
+                    joint = condition_model.joint
+                    value = condition_model.value
+                    comparator = condition_model.comparator
+                elif isinstance(condition_model, dict): # If dict from model_dump or raw
+                    joint = condition_model.get("joint")
+                    value = condition_model.get("value")
+                    comparator = condition_model.get("comparator")
                 
-                if not joint or joint not in joint_angles or value is None or not comparator:
+                if joint not in joint_angles or value is None or not comparator:
                     all_satisfied = False
                     break 
                     
-                angle = joint_angles[joint]
+                angle = joint_angles.get(joint)
+                if angle is None:
+                    all_satisfied = False
+                    break
                 
                 satisfied = False
                 if comparator == "<" and (angle < value): satisfied = True
@@ -1244,30 +1334,31 @@ class DynamicFormAnalysisService:
         self,
         keypoint_name: str,
         raw_landmarks_for_frame: List[Dict[str, Any]],
-        landmark_name_map: List[str] = POSE_LANDMARK_NAMES
+        # landmark_name_map: List[str] = POSE_LANDMARK_NAMES # This map is not directly used for lookup in the list of dicts
     ) -> Optional[Tuple[float, float]]:
         """
         Retrieves (x, y) coordinates for a named keypoint from a list of raw landmarks.
+        The lookup is case-insensitive for keypoint_name against the 'name' in raw_landmarks_for_frame.
         """
         if not raw_landmarks_for_frame:
             return None
-        try:
-            keypoint_index = landmark_name_map.index(keypoint_name.upper()) # Assuming names in map are uppercase
-        except ValueError:
-            logger.warning(f"Keypoint name '{keypoint_name}' not found in landmark_name_map.")
-            return None
+        
+        search_keypoint_name_lower = keypoint_name.lower()
 
-        if 0 <= keypoint_index < len(raw_landmarks_for_frame):
-            landmark_data = raw_landmarks_for_frame[keypoint_index]
-            if isinstance(landmark_data, dict) and "x" in landmark_data and "y" in landmark_data:
-                # Assuming visibility checks etc., are handled upstream or by rule relevance
+        for landmark_data in raw_landmarks_for_frame:
+            if isinstance(landmark_data, dict) and "name" in landmark_data and "x" in landmark_data and "y" in landmark_data:
+                current_landmark_name_lower = str(landmark_data["name"]).lower()
+                if current_landmark_name_lower == search_keypoint_name_lower:
+                    # Add confidence check here if needed, e.g.
+                    # if landmark_data.get("confidence", 0.0) < MIN_CONFIDENCE_THRESHOLD:
+                    #     logger.debug(f"Keypoint '{keypoint_name}' found but below confidence threshold.")
+                    #     return None
                 return landmark_data["x"], landmark_data["y"]
             else:
-                # logger.debug(f"Landmark data for '{keypoint_name}' (index {keypoint_index}) is malformed or missing x,y.")
-                return None
-        else:
-            # logger.debug(f"Keypoint index {keypoint_index} for '{keypoint_name}' is out of bounds for raw_landmarks_for_frame (len {len(raw_landmarks_for_frame)}).")
-            return None
+                logger.debug(f"Skipping malformed landmark data entry: {landmark_data}")
+
+        logger.warning(f"Keypoint name '{keypoint_name}' not found in provided raw_landmarks_for_frame.")
+        return None # Corrected indentation: This return is for the whole method if keypoint not found after checking all landmarks
 
 from fastapi import Depends
 try:

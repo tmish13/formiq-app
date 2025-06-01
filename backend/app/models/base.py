@@ -232,7 +232,14 @@ class BaseModel(Base):
         if column is not None:
             # Check if the field is required and value is None
             if column.primary_key and value is None:
-                return # Allow None for PKs pre-persist, DB will handle it
+                # For PKs, if it's None, it means it's a new object and will be defaulted by DB or Python default.
+                # So, we don't raise a validation error here.
+                return 
+            
+            # If the column has a server_default or a Python-side default, and the current value is None,
+            # it's assumed the default will take effect. Skip nullability check for these during this pre-flush validation.
+            if value is None and (column.server_default is not None or column.default is not None):
+                return
             
             if not column.nullable and value is None:
                 raise ValidationError(f"Field '{field}' cannot be null")
