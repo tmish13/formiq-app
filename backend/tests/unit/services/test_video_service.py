@@ -348,7 +348,6 @@ class TestVideoService:
             "stats": sample_video_record.stats,
             "score": sample_video_record.score,
             "rep_count": sample_video_record.rep_count,
-            "feedback": sample_video_record.feedback,
             "raw_pose_data": sample_video_record.raw_pose_data,
             "calculated_angles": sample_video_record.calculated_angles,
             "celery_task_id": sample_video_record.celery_task_id
@@ -466,7 +465,6 @@ class TestVideoService:
             stats=sample_video_record.stats,
             score=sample_video_record.score,
             rep_count=sample_video_record.rep_count,
-            feedback=sample_video_record.feedback,
             raw_pose_data=sample_video_record.raw_pose_data,
             calculated_angles=sample_video_record.calculated_angles,
             celery_task_id = None # Explicitly None before Celery call in this test path
@@ -508,7 +506,6 @@ class TestVideoService:
                 "stats": mock_uploaded_video.stats,
                 "score": mock_uploaded_video.score,
                 "rep_count": mock_uploaded_video.rep_count,
-                "feedback": mock_uploaded_video.feedback,
                 "raw_pose_data": mock_uploaded_video.raw_pose_data,
                 "calculated_angles": mock_uploaded_video.calculated_angles,
                 "celery_task_id": None # Celery task dispatch failed
@@ -635,7 +632,6 @@ class TestVideoService:
             "stats": sample_video_record.stats,
             "score": sample_video_record.score,
             "rep_count": sample_video_record.rep_count,
-            "feedback": sample_video_record.feedback,
             "raw_pose_data": sample_video_record.raw_pose_data,
             "calculated_angles": sample_video_record.calculated_angles,
             "celery_task_id": None # No celery task should be dispatched
@@ -725,7 +721,6 @@ class TestVideoService:
             "stats": sample_video_record.stats,
             "score": sample_video_record.score,
             "rep_count": sample_video_record.rep_count,
-            "feedback": sample_video_record.feedback,
             "raw_pose_data": sample_video_record.raw_pose_data,
             "calculated_angles": sample_video_record.calculated_angles,
             "celery_task_id": None # sample_video_record likely has this as None initially

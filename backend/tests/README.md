@@ -201,14 +201,24 @@ This document provides a quick reference to the test files associated with the d
     *   File: `backend/tests/integration/tasks/test_ai_tasks.py`
     *   Description: Integration tests for Celery tasks in `app/tasks/ai_tasks.py`. This includes tests for `calculate_angles_celery_task`, ensuring it correctly integrates angle calculation logic, stores results, and manages status transitions.
 
-## Phase 1.2: Implementing Core Analysis and Feedback Logic (Future Test Locations)
+## Phase 1.2: Implementing Core Analysis and Feedback Logic
+
+### Step 1.2.1: Mature Rule-Based Validation (`dynamic_form_analysis_service.py`)
 
 *   **`DynamicFormAnalysisService` Unit Tests:**
-    *   Expected: `backend/tests/unit/services/test_dynamic_form_analysis_service.py`
-*   **`ExerciseConfigService` Unit Tests:**
-    *   Expected: `backend/tests/unit/services/test_exercise_config_service.py`
-*   **Integration Tests for Rule-Based Validation Flow:**
-    *   Expected: Potentially within `backend/tests/integration/tasks/test_ai_tasks.py` (if part of an orchestrating AI task) or a new integration test file focusing on the analysis pipeline.
+    *   File: `backend/tests/services/test_dynamic_form_analysis_service.py`
+    *   Description: Contains unit tests for the `DynamicFormAnalysisService`, focusing on methods like `segment_repetitions`, `evaluate_rep`, and the various private `_apply_*_rules` methods (`_apply_joint_angle_rules`, `_apply_rom_rules`, `_apply_posture_rules`, `_apply_symmetry_rules`).
+*   **`ExerciseConfigService` Unit Tests (Dependency for `DynamicFormAnalysisService`):**
+    *   File: `backend/tests/unit/services/test_exercise_config_service.py`
+    *   Description: Unit tests for `ExerciseConfigService` ensuring it can correctly store and retrieve exercise configurations used by the dynamic analysis service.
+*   **Integration and E2E Tests for Rule-Based Validation Flow (using `DynamicFormAnalysisService`):**
+    *   Directory: `backend/tests/analysis/tests_1_2_1_ai_pipeline/`
+    *   Files:
+        *   `test_analyze_form_dynamically_advanced_cases.py`: Tests `analyze_form_dynamically` with advanced/specific input scenarios.
+        *   `test_analyze_form_dynamically_e2e.py`: End-to-end tests for the `analyze_form_dynamically` flow, simulating realistic usage.
+        *   `test_analyze_form_dynamically_error_cases.py`: Tests `analyze_form_dynamically` with various error conditions and edge cases.
+        *   `test_evaluate_rep.py`: Focused tests for the `evaluate_rep` method, crucial for validating per-repetition rule application.
+    *   Description: These tests collectively ensure that `DynamicFormAnalysisService.analyze_form_dynamically` correctly processes video data, applies configured rules, and generates appropriate feedback and scores under various conditions.
 
 ## Phase 1.3: Advanced AI Features - Classification and LLM Feedback (Future Test Locations)
 

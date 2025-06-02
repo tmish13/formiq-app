@@ -71,7 +71,7 @@ async def get_task_db_session() -> AsyncSession:
 async def get_services_for_task(db_session: AsyncSession, settings_obj: Settings):
     """Provides necessary services for the task."""
     # Use globally initialized AI and Storage if available, otherwise fallback (with warning)
-        ai_service_instance = _shared_ai_service
+    ai_service_instance = _shared_ai_service
     if ai_service_instance is None:
         logger.warning("Shared AIService not initialized, creating a new instance for this task.")
         ai_service_instance = AIService(app_settings=settings_obj)

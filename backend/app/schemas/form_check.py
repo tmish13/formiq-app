@@ -21,7 +21,7 @@ class FormCheckBase(BaseModel):
     """
     video_url: str = Field(..., description="URL to the uploaded video file")
     exercise_id: UUID = Field(..., description="Reference to the exercise template")
-    feedback: Optional[str] = Field(None, description="Textual feedback on the form check")
+    feedback: Optional[str] = Field(None, description="DEPRECATED: Use overall_feedback for summary and FeedbackItem for specifics.")
     score: Optional[float] = Field(None, description="Score from 0-100 representing form quality")
     keypoints: Optional[List[Dict[str, float]]] = Field(None, description="List of keypoint data from pose detection")
     status: FormCheckStatus = Field(FormCheckStatus.PENDING, description="Current processing status")
@@ -98,6 +98,8 @@ class FormCheckUpdate(BaseModel):
     overall_feedback: Optional[str] = None
     score: Optional[float] = Field(None, ge=0, le=100, description="Score from 0-100")
     details: Optional[Dict[str, Any]] = Field(None, description="Additional details or metadata from analysis")
+    classified_exercise_slug: Optional[str] = Field(None, description="AI-classified exercise slug")
+    classification_confidence: Optional[float] = Field(None, ge=0, le=1, description="Confidence of AI exercise classification")
 
 
 class FormCheckResponse(BaseModel):
@@ -110,6 +112,11 @@ class FormCheckResponse(BaseModel):
     video_url: str = Field(..., description="URL to the uploaded video")
     status: str = Field(..., description="Processing status")
     created_at: datetime = Field(..., description="Creation timestamp")
+    classified_exercise_slug: Optional[str] = Field(None, description="AI-classified exercise slug")
+    classification_confidence: Optional[float] = Field(None, description="Confidence of AI exercise classification")
+    form_metadata: Optional[Dict[str, Any]] = Field(None, description="Aggregated scores, issues, and summary stats for UI.")
+    feedback: Optional[str] = Field(None, description="DEPRECATED: Use overall_feedback and FeedbackItem.details_payload")
+    issues: Optional[Any] = Field(None, description="DEPRECATED: Use FeedbackItem.details_payload")
     
     model_config = ConfigDict(
         from_attributes=True,
@@ -120,7 +127,22 @@ class FormCheckResponse(BaseModel):
                 "exercise_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
                 "video_url": "https://example.com/video.mp4",
                 "status": "pending",
-                "created_at": "2023-01-01T00:00:00Z"
+                "created_at": "2023-01-01T00:00:00Z",
+                "classified_exercise_slug": "squat",
+                "classification_confidence": 0.95,
+                "form_metadata": {
+                    "total_form_checks": 10,
+                    "pending_form_checks": 2,
+                    "completed_form_checks": 8,
+                    "average_score": 85.5,
+                    "best_exercise": "Squat",
+                    "worst_exercise": "Squat"
+                },
+                "feedback": "Your form is mostly good, with 2 minor issues to fine-tune.",
+                "issues": {
+                    "leftKnee": "Knees are going too far forward",
+                    "rightKnee": "Knees are going too far forward"
+                }
             }
         }
     )
@@ -141,6 +163,10 @@ class FormCheckListResponse(BaseModel):
     exercise_name: Optional[str] = Field(None, description="Name of the exercise")
     configuration_id: Optional[str] = Field(None, description="ID of the configuration used")
     configuration_name: Optional[str] = Field(None, description="Name of the configuration used")
+    classified_exercise_slug: Optional[str] = Field(None, description="AI-classified exercise slug")
+    classification_confidence: Optional[float] = Field(None, description="Confidence of AI exercise classification")
+    form_metadata: Optional[Dict[str, Any]] = Field(None, description="Aggregated scores, issues, and summary stats for UI.")
+    issues: Optional[Any] = Field(None, description="DEPRECATED: Use FeedbackItem.details_payload")
     
     model_config = ConfigDict(
         from_attributes=True,
@@ -156,7 +182,21 @@ class FormCheckListResponse(BaseModel):
                 "created_at": "2023-01-01T00:00:00Z",
                 "exercise_name": "Squat",
                 "configuration_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-                "configuration_name": "Squat Standard Configuration"
+                "configuration_name": "Squat Standard Configuration",
+                "classified_exercise_slug": "squat",
+                "classification_confidence": 0.95,
+                "form_metadata": {
+                    "total_form_checks": 10,
+                    "pending_form_checks": 2,
+                    "completed_form_checks": 8,
+                    "average_score": 85.5,
+                    "best_exercise": "Squat",
+                    "worst_exercise": "Squat"
+                },
+                "issues": {
+                    "leftKnee": "Knees are going too far forward",
+                    "rightKnee": "Knees are going too far forward"
+                }
             }
         }
     )
@@ -213,6 +253,20 @@ class FormCheckDetailedResponse(FormCheckListResponse):
                 "exercise_name": "Squat",
                 "configuration_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
                 "configuration_name": "Squat Standard Configuration",
+                "classified_exercise_slug": "squat",
+                "classification_confidence": 0.95,
+                "form_metadata": {
+                    "total_form_checks": 10,
+                    "pending_form_checks": 2,
+                    "completed_form_checks": 8,
+                    "average_score": 85.5,
+                    "best_exercise": "Squat",
+                    "worst_exercise": "Squat"
+                },
+                "issues": {
+                    "leftKnee": "Knees are going too far forward",
+                    "rightKnee": "Knees are going too far forward"
+                },
                 "feedback_items": [
                     {
                         "id": 1,

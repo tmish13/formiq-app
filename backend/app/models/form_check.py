@@ -47,6 +47,8 @@ class FormCheck(BaseModel):
         configuration_id (UUID): ID of the exercise configuration used for analysis
         reps_per_minute (float): Reps per minute
         reps_detected (int): Detected reps
+        classified_exercise_slug (str): AI-classified exercise slug
+        classification_confidence (float): AI-classified confidence
     """
     __tablename__ = "form_checks"
 
@@ -55,20 +57,25 @@ class FormCheck(BaseModel):
     exercise_id = Column(SQLiteUUID(), ForeignKey("exercise_templates.id"), nullable=False)
     user_id = Column(SQLiteUUID(), ForeignKey("users.id"), nullable=False)
     video_id = Column(SQLiteUUID(), ForeignKey("videos.id"), nullable=True)
-    feedback = Column(String)
+    feedback = Column(String)  # DEPRECATED: Use overall_feedback for summary and FeedbackItem for specifics.
     score = Column(Float)
     keypoints = Column(JSON)
     status = Column(Enum(FormCheckStatus), default=FormCheckStatus.PENDING, nullable=False)
     analysis_url = Column(String(1024), nullable=True)
     overall_feedback = Column(String(2048), nullable=True)
-    issues = Column(JSON, nullable=True)
+    issues = Column(JSON, nullable=True)  # DEPRECATED: Use FeedbackItem with details_payload for structured issues.
     processing_time = Column(Float, nullable=True)
     confidence_score = Column(Float, nullable=True)
-    form_metadata = Column(JSON, nullable=True)
+    form_metadata = Column(JSON, nullable=True)  # For aggregated scores_by_rep, issues_by_rep, and summary stats for UI.
     results = Column(JSON, nullable=True)
     configuration_id = Column(SQLiteUUID(), ForeignKey("exercise_configs.id", ondelete="SET NULL"), nullable=True, index=True)
     reps_per_minute = Column(Float, nullable=True)
     reps_detected = Column(Integer, nullable=True)
+    
+    # New fields for Step 1.3.1: AI-classified exercise
+    classified_exercise_slug = Column(String, nullable=True)
+    classification_confidence = Column(Float, nullable=True)
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     

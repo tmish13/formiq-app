@@ -193,10 +193,9 @@ class DynamicFormAnalysisService:
                                 # This frame is part of the COMPLETED rep.
                                 repetitions.append(list(current_rep_frames))
                                 logger.info(f"Completed Rep {len(repetitions)} ending with phase '{current_phase_name}' ({len(current_rep_frames)} frames). Transitioning to '{new_phase_name}' for new rep.")
-                    current_rep_frames.clear() # Start a new rep
+                                current_rep_frames.clear() # Start a new rep
                                 # The new rep will start with the *next* frame processed by the outer loop.
                                 # The current frame that completed the rep should NOT be the first frame of the new rep.
-                            
                                 logger.debug(f"Frame {frame_data.get('frame_num', 'N/A')}: Phase transition from '{current_phase_name}' to '{new_phase_name}'.")
                                 current_phase_name = new_phase_name
                                 phase_changed_this_frame = True
@@ -367,13 +366,21 @@ class DynamicFormAnalysisService:
                         details_msg = f"{joint_name} angle ({angle:.1f}°) is above ideal range ({ideal_min:.1f}° - {ideal_max:.1f}°)."
                 
                 if violation:
-                    severity_val = FeedbackSeverity.LOW # Default severity
-                    if deviation_val > 2 * tolerance and tolerance > 0:
+                    severity_val: FeedbackSeverity
+                    if tolerance > 0: # Avoid division by zero if tolerance is 0
+                        if deviation_val <= tolerance / 2:
+                            severity_val = FeedbackSeverity.LOW
+                        elif deviation_val <= tolerance:
+                            severity_val = FeedbackSeverity.MEDIUM
+                        else: # deviation_val > tolerance
+                            severity_val = FeedbackSeverity.HIGH
+                    elif deviation_val > 0: # If tolerance is zero or less, any deviation is high
                         severity_val = FeedbackSeverity.HIGH
-                    elif deviation_val > tolerance and tolerance > 0:
-                        severity_val = FeedbackSeverity.MEDIUM
-                    elif violation in ["below_min", "above_max"]:
-                        severity_val = FeedbackSeverity.MEDIUM if severity_val == FeedbackSeverity.LOW else severity_val
+                    else: # No deviation and zero/negative tolerance (should not happen with valid config)
+                        severity_val = FeedbackSeverity.LOW # Default to LOW if no deviation
+
+                    # The original logic that bumped LOW to MEDIUM for min/max violations is removed
+                    # to align with typical deviation/tolerance based severity bands.
 
                     issues.append(StructuredIssue(
                         rule_type="joint_angle",
@@ -903,7 +910,7 @@ class DynamicFormAnalysisService:
                     feedback_type_enum = FeedbackType.JOINT_ANGLE
                 elif rule_type_str == "posture":
                     feedback_type_enum = FeedbackType.POSTURE
-                    else:
+                else:
                     try:
                         # Attempt direct mapping for other types or if 'form' was explicitly set
                         feedback_type_enum = FeedbackType(rule_type_str)
@@ -1353,12 +1360,12 @@ class DynamicFormAnalysisService:
                     # if landmark_data.get("confidence", 0.0) < MIN_CONFIDENCE_THRESHOLD:
                     #     logger.debug(f"Keypoint '{keypoint_name}' found but below confidence threshold.")
                     #     return None
-                return landmark_data["x"], landmark_data["y"]
+                    return landmark_data["x"], landmark_data["y"]
             else:
                 logger.debug(f"Skipping malformed landmark data entry: {landmark_data}")
 
         logger.warning(f"Keypoint name '{keypoint_name}' not found in provided raw_landmarks_for_frame.")
-        return None # Corrected indentation: This return is for the whole method if keypoint not found after checking all landmarks
+        return None
 
 from fastapi import Depends
 try:

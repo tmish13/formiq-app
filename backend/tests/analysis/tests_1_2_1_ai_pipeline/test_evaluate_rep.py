@@ -163,25 +163,56 @@ async def test_evaluate_rep_with_errors_fsm(
     assert feedback_items, "Expected feedback items for a rep with errors."
     assert score < 100.0, "Score should be less than 100 due to errors."
 
-    # Check for expected feedback types based on sample_squat_config_fsm and bad_rep_data
-    # This rep has back lean and knee symmetry issues
-    has_back_angle_feedback = any(
-        (item.get("rule_type") == "posture" and item.get("violation_type") == "Torso Upright (Vertical Check)_deviation")
-        for item in feedback_items
-    )
-    has_symmetry_feedback = any(
-        item.get("details", "").startswith("Symmetry issue: Difference between") and "Knee Angle Symmetry" in item.get("details","") # More specific detail check for symmetry
-        or item.get("violation_type", "").startswith("asymmetry_leftKnee_rightKnee") # Check new violation_type
-        or (item.get("rule_type") == "symmetry" and "asymmetry" in item.get("details", "").lower()) # Fallback to message content for symmetry
-        for item in feedback_items
-    )
-
-    # assert has_back_angle_feedback, "Expected feedback for back angle (torso lean)."
-    # assert has_symmetry_feedback, "Expected feedback for knee angle symmetry."
-    # More robust: Check messages if rule_id isn't populated or consistent
-    assert has_back_angle_feedback, "Expected feedback for torso lean (from posture rule)."
-    assert has_symmetry_feedback, "Expected knee angle symmetry feedback for this specific rep data."
-
+    # Enhanced assertions for posture violations
+    posture_violations = [item for item in feedback_items if item.get("rule_type") == "posture"]
+    assert posture_violations, "Expected at least one posture violation"
+    
+    torso_upright_violations = [
+        item for item in posture_violations 
+        if "Torso Upright" in item.get("violation_type", "")
+    ]
+    assert torso_upright_violations, "Expected torso upright violations"
+    
+    # Check specific posture violation details
+    for violation in torso_upright_violations:
+        assert "violation_type" in violation, "Posture violation should have violation_type"
+        assert violation["violation_type"] == "Torso Upright (Vertical Check)_deviation", "Expected specific violation_type"
+        assert "details" in violation, "Posture violation should have details"
+        assert "current_value" in violation, "Posture violation should include current_value"
+        assert "expected_value" in violation, "Posture violation should include expected_value"
+        assert isinstance(violation["expected_value"], dict), "expected_value should be a dictionary"
+        assert "phase" in violation, "Posture violation should include phase context"
+        assert violation["phase"] in phases, f"Phase should be one of {phases}"
+    
+    # Enhanced assertions for symmetry violations
+    symmetry_violations = [item for item in feedback_items if item.get("rule_type") == "symmetry"]
+    assert symmetry_violations, "Expected at least one symmetry violation"
+    
+    knee_symmetry_violations = [
+        item for item in symmetry_violations 
+        if "leftKnee_rightKnee" in item.get("violation_type", "")
+    ]
+    assert knee_symmetry_violations, "Expected knee symmetry violations"
+    
+    # Check specific symmetry violation details
+    for violation in knee_symmetry_violations:
+        assert "violation_type" in violation, "Symmetry violation should have violation_type"
+        assert violation["violation_type"] == "asymmetry_leftKnee_rightKnee", "Expected specific violation_type"
+        assert "details" in violation, "Symmetry violation should have details"
+        assert "current_value" in violation, "Symmetry violation should include current_value"
+        assert isinstance(violation["current_value"], dict), "current_value in symmetry violation should be a dict"
+        assert "joint_name" in violation, "Symmetry violation should include joint_name"
+        assert violation["joint_name"] == "leftKnee", "Expected leftKnee as joint_name"
+        assert "compared_to_joint" in violation, "Symmetry violation should include compared_to_joint"
+        assert violation["compared_to_joint"] == "rightKnee", "Expected rightKnee as compared_to_joint"
+        assert "difference" in violation["current_value"], "Symmetry violation current_value should include difference value"
+        assert isinstance(violation["current_value"]["difference"], (int, float)), "difference should be numeric"
+        assert "expected_value" in violation, "Symmetry violation should include expected_value"
+        assert isinstance(violation["expected_value"], dict), "expected_value in symmetry violation should be a dict"
+        assert "max_difference_degrees" in violation["expected_value"], "Symmetry violation expected_value should include max_difference_degrees as threshold"
+        assert isinstance(violation["expected_value"]["max_difference_degrees"], (int, float)), "max_difference_degrees threshold should be numeric"
+        assert "phase" in violation, "Symmetry violation should include phase context"
+        assert violation["phase"] in phases, f"Phase should be one of {phases}"
 
 @pytest.mark.asyncio
 async def test_evaluate_rep_knee_rom_violations(

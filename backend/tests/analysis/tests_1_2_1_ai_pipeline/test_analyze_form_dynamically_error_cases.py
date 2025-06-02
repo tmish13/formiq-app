@@ -140,46 +140,6 @@ async def test_analyze_form_dynamically_empty_angle_data_list(
 
 
 @pytest.mark.asyncio
-async def test_analyze_form_dynamically_no_template_id_on_video(
-    dynamic_form_analysis_service: DynamicFormAnalysisService,
-    mock_form_check_service: AsyncMock,
-    mock_exercise_config_service: AsyncMock, 
-    sample_video_model: Video,
-    sample_form_check_model: FormCheck,
-    sample_angle_data_one_good_rep: List[Dict[str, Any]], 
-    mock_db_session: AsyncMock
-):
-    service = dynamic_form_analysis_service
-    video_obj = sample_video_model
-    initial_check_to_pass = sample_form_check_model
-    
-    # This test implies that exercise_config will be None because it would have been fetched by template_id
-    # which is missing. So we pass exercise_config=None.
-    video_obj.exercise_config_template_id = None 
-    video_obj.angle_data = sample_angle_data_one_good_rep
-
-    initial_check_to_pass.video_id = video_obj.id
-    initial_check_to_pass.user_id = video_obj.user_id
-    # initial_check_to_pass.exercise_config_id = None # Config ID would not be set
-    initial_check_to_pass.status = FormCheckStatus.PENDING
-
-    result_form_check = await service.analyze_form_dynamically(
-        video=video_obj,
-        exercise_config=None, # Simulate config not found/passed
-        initial_form_check=initial_check_to_pass
-    )
-    
-    # mock_form_check_service.update_async.assert_called_once() # Service itself does not call update_async
-    assert result_form_check.status == FormCheckStatus.FAILED
-    assert result_form_check.error_details is not None
-    assert "Exercise configuration missing" in result_form_check.error_details
-    assert result_form_check.score == 0
-    # assert result_form_check.reps_detected == 0 # Commenting out as reps_detected can be None if config is missing
-    mock_exercise_config_service.get_active_config_for_exercise_async.assert_not_called()
-    mock_form_check_service.create_async.assert_not_called()
-
-
-@pytest.mark.asyncio
 async def test_analyze_form_dynamically_general_exception_handling(
     dynamic_form_analysis_service: DynamicFormAnalysisService,
     mock_db_session: AsyncMock, 

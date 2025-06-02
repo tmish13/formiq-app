@@ -166,25 +166,85 @@ async def test_analyze_form_dynamically_e2e_bad_rep(
 
     # Check that feedback items exist for the bad rep (rep_index 1)
     # It's acceptable for rep_index 0 (the good rep in this data) to have no feedback items if it's perfect.
-    feedback_for_rep1_exists = any(
-        fi.rep_index == 1 for fi in result_form_check.feedback_items
-    )
-    assert feedback_for_rep1_exists, "Expected feedback items associated with rep_index 1 (the bad rep)"
+    feedback_for_rep1 = [fi for fi in result_form_check.feedback_items if fi.rep_index == 1]
+    assert feedback_for_rep1, "Expected feedback items associated with rep_index 1 (the bad rep)"
 
-    # Check for specific feedback based on the 'bad' part of the data (rep_index 1)
-    has_symmetry_feedback_on_rep1 = False
-    has_posture_feedback_on_rep1 = False # Changed from has_back_rounding_feedback_on_rep1
-
-    for fi in result_form_check.feedback_items:
-        if fi.rep_index == 1: # Use direct attribute
-            if "Symmetry" in fi.message or "asymmetry" in fi.message:
-                has_symmetry_feedback_on_rep1 = True
-            # Check for the specific posture rule message
-            if "Posture issue" in fi.message and "Torso Upright (Vertical Check)" in fi.message:
-                has_posture_feedback_on_rep1 = True
+    # Check for FeedbackItem instances with specific violation_types in details_payload
+    symmetry_feedback_items = [
+        fi for fi in feedback_for_rep1 
+        if fi.type == FeedbackType.TECHNIQUE and 
+        fi.details_payload and 
+        fi.details_payload.get("violation_type") == "asymmetry_leftKnee_rightKnee"
+    ]
     
-    assert has_symmetry_feedback_on_rep1, "Expected symmetry feedback for rep_index 1"
-    assert has_posture_feedback_on_rep1, "Expected posture feedback (Torso Upright) for rep_index 1"
+    posture_feedback_items = [
+        fi for fi in feedback_for_rep1 
+        if fi.type == FeedbackType.POSTURE and 
+        fi.details_payload and 
+        fi.details_payload.get("violation_type") == "Torso Upright (Vertical Check)_deviation"
+    ]
+    
+    assert symmetry_feedback_items, "Expected at least one knee symmetry feedback item"
+    assert posture_feedback_items, "Expected at least one torso posture feedback item"
+    
+    # Verify detailed structure of symmetry feedback item
+    symmetry_item = symmetry_feedback_items[0]
+    assert symmetry_item.severity in [FeedbackSeverity.MEDIUM, FeedbackSeverity.HIGH], "Symmetry issue should have appropriate severity"
+    assert symmetry_item.message.startswith("Symmetry issue: Difference between leftKnee"), "Message should describe the symmetry issue"
+    
+    # Check details_payload fields for symmetry
+    assert "joint_name" in symmetry_item.details_payload, "details_payload should have joint_name"
+    assert symmetry_item.details_payload["joint_name"] == "leftKnee", "joint_name should be leftKnee"
+    assert "compared_to_joint" in symmetry_item.details_payload, "details_payload should have compared_to_joint"
+    assert symmetry_item.details_payload["compared_to_joint"] == "rightKnee", "compared_to_joint should be rightKnee"
+    
+    # Corrected assertion: 'difference' is a key within 'current_value' dict inside details_payload
+    assert "current_value" in symmetry_item.details_payload, "details_payload should have current_value for symmetry"
+    assert isinstance(symmetry_item.details_payload["current_value"], dict), "current_value in symmetry details_payload should be a dict"
+    assert "difference" in symmetry_item.details_payload["current_value"], "details_payload current_value should have difference"
+    assert isinstance(symmetry_item.details_payload["current_value"]["difference"], (int, float)), "difference in details_payload should be numeric"
+
+    # Check 'expected_value' for the threshold ('max_difference_degrees')
+    assert "expected_value" in symmetry_item.details_payload, "details_payload should have expected_value for symmetry"
+    assert isinstance(symmetry_item.details_payload["expected_value"], dict), "expected_value in symmetry details_payload should be a dict"
+    assert "max_difference_degrees" in symmetry_item.details_payload["expected_value"], "details_payload expected_value should have max_difference_degrees"
+    assert isinstance(symmetry_item.details_payload["expected_value"]["max_difference_degrees"], (int, float)), "max_difference_degrees in details_payload should be numeric"
+    
+    # Verify detailed structure of posture feedback item
+    posture_item = posture_feedback_items[0]
+    assert posture_item.severity in [FeedbackSeverity.MEDIUM, FeedbackSeverity.HIGH], "Posture issue should have appropriate severity"
+    assert posture_item.message.startswith("Posture issue: 'Torso Upright"), "Message should describe the posture issue"
+    
+    # Check details_payload fields for posture
+    assert "current_value" in posture_item.details_payload, "details_payload should have current_value"
+    # For 'Torso Upright (Vertical Check)_deviation', current_value is a dict
+    assert isinstance(posture_item.details_payload["current_value"], dict), "current_value for Torso Upright deviation should be a dict"
+    assert "observed_vector_angle_from_vertical_degrees" in posture_item.details_payload["current_value"], "current_value dict should have 'observed_vector_angle_from_vertical_degrees'"
+    assert isinstance(posture_item.details_payload["current_value"]["observed_vector_angle_from_vertical_degrees"], (int, float)), "observed_vector_angle_from_vertical_degrees should be numeric"
+    
+    assert "expected_value" in posture_item.details_payload, "details_payload should have expected_value"
+    assert isinstance(posture_item.details_payload["expected_value"], dict), "expected_value should be a dictionary"
+    if "min_value" in posture_item.details_payload["expected_value"]:
+        assert isinstance(posture_item.details_payload["expected_value"]["min_value"], (int, float)), "min_value should be numeric"
+    if "max_value" in posture_item.details_payload["expected_value"]:
+        assert isinstance(posture_item.details_payload["expected_value"]["max_value"], (int, float)), "max_value should be numeric"
+    
+    # Make sure key FeedbackItem fields are consistent with the internal details_payload
+    for fi in feedback_for_rep1:
+        # Verify FeedbackItem metadata is consistent
+        assert fi.timestamp is not None, "timestamp should be set"
+        assert isinstance(fi.timestamp, float), "timestamp should be a float"
+        assert fi.severity is not None, "severity should be set"
+        assert fi.type is not None, "type should be set"
+        assert fi.rep_index == 1, "rep_index should be 1 for the bad rep"
+        
+        # Verify movement_phase is consistent with details_payload
+        if "phase" in fi.details_payload:
+            assert fi.movement_phase == fi.details_payload["phase"], "movement_phase should match details_payload phase"
+        
+        # Verify joint_name is consistent
+        if "joint_name" in fi.details_payload and fi.details_payload["joint_name"]:
+            assert fi.joint_name == fi.details_payload["joint_name"], "joint_name should match details_payload joint_name"
 
     assert result_form_check.error_details is None # Changed from error_message
     # mock_exercise_config_service.get_active_config_by_template_id_async.assert_not_called()
