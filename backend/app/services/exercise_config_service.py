@@ -517,6 +517,24 @@ class ExerciseConfigService(BaseService[ExerciseConfig, ExerciseConfigCreate, Ex
             raise ServerErrorException(f"Unexpected error creating default config for exercise {exercise_id}.")
 
 
+    async def get_active_config_by_template_slug_async(self, slug: str) -> Optional[ExerciseConfig]:
+        """
+        Gets the active exercise configuration for a given exercise template slug.
+        First finds the ExerciseTemplate by slug, then gets its active ExerciseConfig.
+        Returns None if the slug is not found or no active config exists.
+        """
+        logger.debug(f"Attempting to get active config for template slug: {slug}")
+        stmt_template = select(ExerciseTemplate).filter(ExerciseTemplate.slug == slug)
+        result_template = await self.db.execute(stmt_template)
+        exercise_template: Optional[ExerciseTemplate] = result_template.scalars().first()
+
+        if not exercise_template:
+            logger.info(f"No ExerciseTemplate found for slug: {slug}")
+            return None
+        
+        logger.debug(f"Found ExerciseTemplate ID: {exercise_template.id} for slug: {slug}. Getting active config.")
+        return await self.get_active_config_for_exercise_async(exercise_template.id)
+
     async def get_active_config_for_exercise_async(self, exercise_id: UUID) -> Optional[ExerciseConfig]:
         """
         Gets the latest active configuration for a given exercise.
@@ -646,6 +664,39 @@ class ExerciseConfigService(BaseService[ExerciseConfig, ExerciseConfigCreate, Ex
     async def delete_config_async(self, *, id: UUID) -> Optional[ExerciseConfig]:
         """Deletes an exercise configuration by ID."""
         return await super().remove_async(id=id)
+
+    async def get_reference_pose_data_async(self, exercise_config_id: UUID) -> Optional[Dict[str, Any]]:
+        """
+        Retrieves the reference_pose_data for a given ExerciseConfig ID.
+
+        Args:
+            exercise_config_id: The UUID of the ExerciseConfig.
+
+        Returns:
+            A dictionary containing the reference pose data if found and not empty,
+            otherwise None.
+        """
+        logger.debug(f"Fetching reference_pose_data for ExerciseConfig ID: {exercise_config_id}")
+        exercise_config = await self.get_config_async(id=exercise_config_id)
+
+        if not exercise_config:
+            logger.warning(f"ExerciseConfig not found for ID: {exercise_config_id} when fetching reference_pose_data.")
+            return None
+
+        if not exercise_config.reference_pose_data:
+            logger.info(f"No reference_pose_data found or is empty for ExerciseConfig ID: {exercise_config_id}.")
+            return None
+        
+        # Ensure it's a dictionary before returning, though JSON type should handle this from DB
+        if not isinstance(exercise_config.reference_pose_data, dict):
+            logger.error(
+                f"reference_pose_data for ExerciseConfig ID: {exercise_config_id} is not a dict, type: "
+                f"{type(exercise_config.reference_pose_data)}. Returning None."
+            )
+            return None
+
+        logger.debug(f"Successfully fetched reference_pose_data for ExerciseConfig ID: {exercise_config_id}")
+        return exercise_config.reference_pose_data
 
 
 # Dependency Providers

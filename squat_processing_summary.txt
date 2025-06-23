@@ -1,0 +1,46 @@
+# Squat Video Processing Summary
+
+## Processing Results
+- Total videos processed: 230
+- All videos successfully processed into keypoints and frames
+
+## Data Structure
+- All processed data saved to: ~/Desktop/squat_processed/
+- Extracted frames saved in: ~/Desktop/squat_processed/frames/{video_id}/
+- MediaPipe pose keypoints saved in: ~/Desktop/squat_processed/keypoints/{video_id}_keypoints.json
+- Processing summary saved in: ~/Desktop/squat_processed/processing_summary.json
+
+## Keypoint Data Format
+Each keypoint JSON file contains an array of frames with 33 landmarks per frame:
+```json
+[
+  {
+    "frame_index": 0,
+    "landmarks": [
+      {
+        "x": 0.5073054432868958,
+        "y": 0.15492580831050873,
+        "z": -0.13957475125789642,
+        "visibility": 0.9999688863754272
+      },
+      // ... more landmarks (33 total)
+    ]
+  },
+  // ... more frames
+]
+```
+
+## Processing Configuration
+- Target frame rate: 30 FPS
+- MediaPipe pose model complexity: 1 (balanced)
+- Detection confidence: 0.5
+- Tracking confidence: 0.5
+
+## Next Steps
+The processed data can now be used for:
+1. Training ML models for exercise classification
+2. Extracting angle trajectories for biomechanical analysis
+3. Developing scoring algorithms for form assessment
+4. Creating visualizations of pose data for feedback
+
+The keypoint data follows the structure needed for the FormIQ AI pipeline as described in backend_ai_pipeline_integration_plan.md. 

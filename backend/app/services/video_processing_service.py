@@ -17,6 +17,10 @@ from app.core.exceptions import VideoProcessingError, VideoValidationError, Vide
 class VideoProcessingService:
     """Service for processing exercise videos."""
     
+    MIN_DURATION = 1.0  # seconds
+    MAX_DURATION = 300.0  # seconds. Increased from 60.
+    MIN_RESOLUTION = (240, 320)  # (height, width)
+    
     def __init__(self, app_settings: Settings):
         """Initialize video processing service."""
         self.settings = app_settings
@@ -292,7 +296,6 @@ class VideoProcessingService:
                 # Wrap generic exceptions in VideoProcessingError for consistent error handling
                 raise VideoProcessingError(f"An unexpected error occurred during video processing: {e}")
     
-    # This method is now synchronous
     def _normalize_video_with_ffmpeg(
         self,
         input_path: str,
@@ -317,8 +320,12 @@ class VideoProcessingService:
         )
 
         command = [
-            self.settings.FFMPEG_PATH, "-y", "-i", input_path,
-            "-vf", vf_filter,
+            "ffmpeg",
+            "-y",
+            "-i",
+            input_path,
+            "-vf",
+            vf_filter,
             "-an",  # No audio
             "-vcodec", "libx264",  # Specify video codec
             "-crf", "23",           # Constant Rate Factor (quality, 0-51, lower is better)
@@ -342,7 +349,7 @@ class VideoProcessingService:
             raise VideoProcessingError(f"Subprocess error during FFmpeg execution: {e}") from e
         except FileNotFoundError:
             # FFmpeg command not found
-            self.logger.error(f"FFmpeg command not found at {self.settings.FFMPEG_PATH}. Please ensure FFmpeg is installed and in PATH.")
+            self.logger.error("FFmpeg command not found. Please ensure FFmpeg is installed and in the system's PATH.")
             # This is a system configuration issue.
             raise VideoProcessingError("FFmpeg command not found. Ensure FFmpeg is installed and in PATH.")
         except subprocess.TimeoutExpired:
@@ -437,13 +444,12 @@ class VideoProcessingService:
             # Resize frame
             resized = cv2.resize(frame, self.target_size)
             
-            # Convert to RGB
+            # Convert to RGB, which is what MediaPipe expects
             rgb = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB)
             
-            # Normalize pixel values
-            normalized = rgb.astype(np.float32) / 255.0
-            
-            processed_frames.append(normalized)
+            # The frame should be uint8, not normalized to float32
+            # The AI service downstream is responsible for any further normalization
+            processed_frames.append(rgb)
         
         return processed_frames
     
@@ -451,14 +457,15 @@ class VideoProcessingService:
         """Validate video file format and properties. Returns (is_valid, message, video_metadata)."""
         video_metadata: Optional[Dict[str, Any]] = None
         try:
-            cap = cv2.VideoCapture(video_path)
+            width, height = self._get_video_dimensions(video_path)
+            if width == 0 or height == 0:
+                return False, "Could not determine video dimensions (validation step)", None
             
+            cap = cv2.VideoCapture(video_path)
             if not cap.isOpened():
                 return False, "Could not open video file (validation step)", None
             
             # Check video properties
-            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
             fps = cap.get(cv2.CAP_PROP_FPS) # Keep as float for precision
             actual_frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
             
@@ -475,17 +482,19 @@ class VideoProcessingService:
                 "duration": duration
             }
             
-            # Validate dimensions
-            if width < 320 or height < 240:
-                return False, "Video resolution too low", video_metadata
+            # Validate dimensions - allow for vertical videos
+            if min(width, height) < 240:
+                return False, "Video resolution too low (minimum dimension < 240px)", video_metadata
             
             # Validate frame rate
             if fps < 10: # Lowered slightly from 15 as some phone videos might be lower
                 return False, "Frame rate too low (less than 10 FPS)", video_metadata
             
-            # Validate duration
-            if duration > self.settings.MAX_VIDEO_DURATION:
-                return False, f"Video duration exceeds {self.settings.MAX_VIDEO_DURATION} seconds", video_metadata
+            # Duration validation
+            if not (self.MIN_DURATION <= duration <= self.MAX_DURATION):
+                error_msg = f"Video duration {duration:.2f}s is outside the acceptable range of {self.MIN_DURATION}-{self.MAX_DURATION}s."
+                self.logger.warning(error_msg)
+                raise VideoValidationError(error_msg)
             
             return True, None, video_metadata
             
@@ -495,6 +504,86 @@ class VideoProcessingService:
         finally:
             if 'cap' in locals() and cap.isOpened(): # Check if cap is opened before releasing
                 cap.release()
+
+    def _get_video_dimensions(self, video_path: str) -> Tuple[int, int]:
+        """Gets the width and height of a video using ffprobe."""
+        cmd = [
+            "ffprobe",
+            "-v", "error",
+            "-select_streams", "v:0",
+            "-show_entries", "stream=width,height",
+            "-of", "csv=s=x:p=0",
+            video_path
+        ]
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=self.settings.FFMPEG_TIMEOUT)
+            width, height = map(int, result.stdout.strip().split('x'))
+            return width, height
+        except (subprocess.CalledProcessError, FileNotFoundError, ValueError) as e:
+            self.logger.error(f"Error getting video dimensions for {video_path}: {e}")
+            return 0, 0
+            
+    def _get_video_duration_and_fps(self, video_path: str) -> Tuple[float, float]:
+        """Gets the duration and FPS of a video using ffprobe."""
+        cmd = [
+            "ffprobe",
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration,bit_rate",
+            "-of",
+            "default=noprint_wrappers=1:nokey=1",
+            video_path
+        ]
+        self.logger.info(f"Normalizing video {video_path} to {video_path}")
+        try:
+            # Use ffmpeg from PATH instead of a hardcoded setting
+            result = subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=self.settings.FFMPEG_TIMEOUT) # Added timeout
+
+            if result.returncode != 0:
+                self.logger.error(f"ffprobe failed for {video_path}. Return code: {result.returncode}. Stderr: {result.stderr}")
+                return 0.0, 0.0
+
+            # Parse the output
+            output_lines = result.stdout.splitlines()
+            if len(output_lines) < 2:
+                self.logger.error(f"Unexpected output format from ffprobe for {video_path}")
+                return 0.0, 0.0
+
+            duration = float(output_lines[0])
+            bit_rate = float(output_lines[1])
+
+            width, height = self._get_video_dimensions(video_path)
+            if width == 0 or height == 0:
+                self.logger.error(f"Could not get dimensions for video {video_path}")
+                return 0.0, 0.0
+
+            # Calculate FPS from bitrate if available
+            # Note: This is an estimation and might not be perfectly accurate.
+            # A more reliable way is to get FPS directly if the format provides it.
+            if bit_rate > 0 and width > 0 and height > 0:
+                 # Assuming 24 bits per pixel (8 bits per channel for R, G, B)
+                fps = bit_rate / (width * height * 24)
+            else:
+                fps = 0.0 # Cannot determine FPS
+
+            return duration, fps
+        except subprocess.CalledProcessError as e:
+            self.logger.error(f"Subprocess error during ffprobe execution: {e}")
+            # Re-raise as VideoProcessingError to be handled by the main process_video method
+            raise VideoProcessingError(f"Subprocess error during ffprobe execution: {e}") from e
+        except FileNotFoundError:
+            # ffprobe command not found
+            self.logger.error("ffprobe command not found. Please ensure ffprobe is installed and in the system's PATH.")
+            # This is a system configuration issue.
+            raise VideoProcessingError("ffprobe command not found. Ensure ffprobe is installed and in PATH.")
+        except subprocess.TimeoutExpired:
+            # Consider adding logging here: self.logger.error(f"ffprobe command timed out for {video_path}")
+            raise VideoProcessingError(f"ffprobe command timed out after {self.settings.FFMPEG_TIMEOUT} seconds for {video_path}")
+        except Exception as e:
+            # Catch any other subprocess-related errors
+            # Consider adding logging here: self.logger.error(f"Subprocess error during ffprobe execution: {e}")
+            raise VideoProcessingError(f"Subprocess error during ffprobe execution: {e}")
 
 # Dependency Injector
 from fastapi import Depends

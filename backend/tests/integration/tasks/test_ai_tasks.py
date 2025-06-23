@@ -161,8 +161,8 @@ async def test_detect_pose_celery_task_process_frames_failure(
         assert refreshed_video is not None
         
         assert refreshed_video.status == VideoStatus.POSE_DETECTION_FAILED
-        expected_error_details_json_str = json.dumps({"error_type": simulated_error_type, "details": simulated_error_message})
-        assert refreshed_video.error_message == expected_error_details_json_str
+    expected_error_details_json_str = json.dumps({"error_type": simulated_error_type, "details": simulated_error_message})
+    assert refreshed_video.error_message == expected_error_details_json_str
 
 @pytest.mark.asyncio
 @patch('app.tasks.ai_tasks.get_settings_override')

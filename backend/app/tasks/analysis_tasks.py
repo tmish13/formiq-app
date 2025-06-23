@@ -4,7 +4,7 @@ import logging
 import os
 from uuid import UUID
 from tempfile import NamedTemporaryFile
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 from celery.signals import worker_process_init
 from app.core.celery_app import celery_app
@@ -19,11 +19,13 @@ from app.services.exercise_config_service import ExerciseConfigService # ADDED
 from app.services.video_service import VideoService # ADDED
 from app.core.cache import cache_service # Global instance, already initialized
 from app.models.enums import FormCheckStatus, ExerciseType
-from app.models.exercise import ExerciseTemplate
+from app.models.exercise import ExerciseTemplate # MODIFIED
+from app.models.exercise_config import ExerciseConfig
 from app.models.video import Video as VideoModel # ADDED for type hint
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select # ADDED for querying ExerciseTemplate by slug
 from app.core.exceptions import NotFoundException
-from app.services.dynamic_form_analysis_service import DynamicFormAnalysisService
+from sqlalchemy.ext.asyncio import AsyncSession # ADDED FOR TYPE HINT
+from app.services.dynamic_form_analysis_service import DynamicFormAnalysisService # RE-ADDED
 from app.services.video_service import VideoService
 
 logger = logging.getLogger(__name__)
@@ -167,88 +169,182 @@ async def process_form_check_task(self, video_id_str: str, form_check_id_str: st
             analysis_output_for_finalize = {"error_message": "Associated Video not found for analysis."}
             raise ValueError("Video not found for analysis.")
 
-        if not video_model.angle_data: # Or calculated_angles_url if angles are stored separately
-            logger.error(f"[CeleryTask] Angle data not found for Video ID {video_id} (FormCheck {form_check_id})")
-            analysis_output_for_finalize = {"error_message": "Angle data missing for Video. Ensure prior pipeline steps completed."}
-            raise ValueError("Angle data missing in Video model.")
-
-        # Fetch the ExerciseConfig
-        exercise_config = await exercise_config_service.get_active_config_for_exercise_async(exercise_id=form_check.exercise_id)
-        if not exercise_config:
-            logger.error(f"[CeleryTask] Active ExerciseConfig not found for exercise ID {form_check.exercise_id} (FormCheck {form_check_id})")
-            analysis_output_for_finalize = {"error_message": "Active ExerciseConfiguration not found."}
-            raise ValueError("ExerciseConfiguration not found.")
-
-        logger.info(f"[CeleryTask] Performing dynamic form analysis for FormCheck {form_check_id} using DynamicFormAnalysisService.")
+        # Prioritize smoothed pose_data, then raw_pose_data for classification
+        keypoint_sequence_for_classification: Optional[List[List[Optional[Dict[str, float]]]]] = None
+        if video_model.pose_data and isinstance(video_model.pose_data, list):
+            # Assuming video_model.pose_data is List[Optional[List[Optional[Dict[str, Any]]]]]
+            # which is compatible with List[List[Optional[Dict[str, float]]]]
+            keypoint_sequence_for_classification = video_model.pose_data
+            logger.info(f"[CeleryTask] Using video_model.pose_data (smoothed) for exercise classification. Frames: {len(keypoint_sequence_for_classification) if keypoint_sequence_for_classification else 0}")
+        elif video_model.raw_pose_data and isinstance(video_model.raw_pose_data, list):
+            keypoint_sequence_for_classification = video_model.raw_pose_data
+            logger.info(f"[CeleryTask] video_model.pose_data not available, using video_model.raw_pose_data for exercise classification. Frames: {len(keypoint_sequence_for_classification) if keypoint_sequence_for_classification else 0}")
+        else:
+            logger.warning(
+                f"[CeleryTask] Neither video_model.pose_data nor video_model.raw_pose_data are available or are not lists "
+                f"for Video ID {video_id}. Cannot perform exercise classification if needed. "
+                f"Pose_data type: {type(video_model.pose_data)}, Raw_pose_data type: {type(video_model.raw_pose_data)}"
+            )
+            # Continue, classification will fail if attempted without keypoints
         
-        # DynamicFormAnalysisService.analyze_form_dynamically is expected to return an updated FormCheck model
-        # It now also takes the initial form_check object to update.
-        # Let's assume analyze_form_dynamically can take the form_check_id or the object
-        # and updates it or returns a new one. For this refactor, assume it returns an updated FormCheck.
-        # The service method `analyze_form_dynamically` in `dynamic_form_analysis_service.py` needs to be
-        # adjusted if it's currently creating a NEW form_check rather than updating an existing one based on ID.
-        # For now, let's assume it's: analyze_form_dynamically(self, video: Video, exercise_config: ExerciseConfig, existing_form_check_id: UUID) -> FormCheck
-        # Or, if it creates a new one, we'd use its data.
-        # The current signature is: analyze_form_dynamically(self, video: Video) -> FormCheck
-        # This needs adjustment in DynamicFormAnalysisService to accept exercise_config and form_check_id/object.
-        # Let's proceed with the assumption that DynamicFormAnalysisService will be adapted or can work with this.
-        # A practical implementation might involve DFAS loading the FormCheck internally if given an ID,
-        # or taking a FormCheck object to update.
-        # For now, we will call it and then adapt its output.
-        # Let's assume the service is adapted to:
-        # async def analyze_form_dynamically(self, video: VideoModel, exercise_config: ExerciseConfig, base_form_check: FormCheck) -> FormCheck:
-        # This would be a change in dynamic_form_analysis_service.py
+        # Ensure the sequence is not empty if it was populated
+        if keypoint_sequence_for_classification and not any(frame_kps for frame_kps in keypoint_sequence_for_classification):
+            logger.warning(f"[CeleryTask] Keypoint sequence for Video ID {video_id} is empty or contains only empty frames. Classification might be unreliable.")
+            # keypoint_sequence_for_classification = None # Or let the classifier handle empty sequence if it can
 
-        # --- SIMPLIFIED APPROACH FOR NOW: Assume DFAS returns a FormCheck like object or dict ---
-        # This part requires careful thought on how DFAS integrates.
-        # If DFAS fully populates a FormCheck object including feedback items:
-        analyzed_form_check_model = await dynamic_form_analysis_service.analyze_form_dynamically(
-            video=video_model, 
-            exercise_config=exercise_config,
-            initial_form_check=form_check # Pass the existing form_check to be updated
-        )
-        # The above line assumes dynamic_form_analysis_service.analyze_form_dynamically is refactored
-        # to accept `initial_form_check` and update it or return an updated version.
+        # Prepare exercise_id and config for analysis (dynamic and new ML)
+        exercise_config_for_analysis: Optional[ExerciseConfig] = None
+        exercise_template_for_analysis: Optional[ExerciseTemplate] = None
+        final_exercise_id_for_ml: Optional[UUID] = None
 
-        if not analyzed_form_check_model:
-            logger.error(f"[CeleryTask] DynamicFormAnalysisService returned no result for FormCheck {form_check_id}.")
-            analysis_output_for_finalize = {"error_message": "Dynamic analysis yielded no results."}
-            raise ValueError("Dynamic analysis failed or returned no results.")
+        if form_check.exercise_id:
+            logger.info(f"[CeleryTask] User provided exercise_id: {form_check.exercise_id}. Fetching config directly.")
+            try:
+                exercise_config_for_analysis = await exercise_config_service.get_active_config_for_exercise_async(
+                    exercise_id=form_check.exercise_id
+                )
+                if exercise_config_for_analysis:
+                    exercise_template_for_analysis = await db_session.get(ExerciseTemplate, form_check.exercise_id)
+                    final_exercise_id_for_ml = form_check.exercise_id
+                else:
+                    logger.warning(f"[CeleryTask] No active ExerciseConfig found for user-provided exercise_id: {form_check.exercise_id}. Proceeding with generic analysis if possible.")
+            except NotFoundException:
+                logger.warning(f"[CeleryTask] ExerciseTemplate or active ExerciseConfig not found for user-provided exercise_id: {form_check.exercise_id}. Proceeding with generic analysis if possible.")
+        else:
+            logger.info("[CeleryTask] User did not provide exercise_id. Attempting classification.")
+            if keypoint_sequence_for_classification and any(frame_kps for frame_kps in keypoint_sequence_for_classification):
+                classified_slug, confidence = await _ai_service_instance.classify_exercise_from_keypoints(
+                    keypoint_sequence=keypoint_sequence_for_classification
+                )
+                form_check.classified_exercise_slug = classified_slug
+                form_check.classification_confidence = confidence
+                if classified_slug and confidence and confidence >= settings_obj.EXERCISE_CLASSIFICATION_THRESHOLD:
+                    logger.info(f"[CeleryTask] Classified as '{classified_slug}' with confidence {confidence:.2f}. Fetching config.")
+                    try:
+                        exercise_config_for_analysis = await exercise_config_service.get_active_config_by_template_slug_async(
+                            slug=classified_slug
+                        )
+                        if exercise_config_for_analysis and exercise_config_for_analysis.exercise_template:
+                            exercise_template_for_analysis = exercise_config_for_analysis.exercise_template # Already loaded by service
+                            final_exercise_id_for_ml = exercise_template_for_analysis.id
+                        else:
+                            logger.warning(f"[CeleryTask] No active ExerciseConfig found for classified slug: {classified_slug}. Proceeding with generic analysis.")
+                    except NotFoundException:
+                        logger.warning(f"[CeleryTask] ExerciseTemplate or active ExerciseConfig not found for classified slug: {classified_slug}. Proceeding with generic analysis.")
+                else:
+                    logger.info(f"[CeleryTask] Classification failed or below threshold (Slug: {classified_slug}, Conf: {confidence}). Proceeding with generic analysis.")
+            else:
+                logger.warning("[CeleryTask] No keypoints available for classification. Proceeding with generic analysis.")
 
-        final_status = analyzed_form_check_model.status
-        # Prepare analysis_results for finalize_form_check_analysis_async
-        # This assumes analyzed_form_check_model is an ORM object with eager loaded/set feedback_items
-        
-        feedback_messages_list = []
-        feedback_structured_list = []
-        if analyzed_form_check_model.feedback_items: # Ensure feedback_items is loaded
-            for item in analyzed_form_check_model.feedback_items:
-                feedback_messages_list.append(item.message if item.message else "N/A")
-                feedback_structured_list.append({
-                    "type": item.type.value if item.type else FeedbackType.GENERAL.value, # Use .value for enums
-                    "message": item.message if item.message else "N/A",
-                    "timestamp": item.timestamp if item.timestamp is not None else 0.0,
-                    "severity": item.severity.value if item.severity else FeedbackSeverity.INFO.value, # Use .value for enums
-                    "suggestions": item.suggestions if item.suggestions else [],
-                    "details": item.details if item.details else {} 
-                })
-        
-        analysis_output_for_finalize = {
-            "score": analyzed_form_check_model.score if analyzed_form_check_model.score is not None else 0.0,
-            "feedback": feedback_messages_list,
-            "risk_level": analyzed_form_check_model.details.get("risk_level", "low") if analyzed_form_check_model.details else "low",
-            "feedback_structured": feedback_structured_list,
-            "error_message": analyzed_form_check_model.error_details,
-            "summary": analyzed_form_check_model.summary # Make sure DFAS sets this
-        }
-        
-        if final_status != FormCheckStatus.COMPLETED: # If DFAS set it to ERROR
-             if not analysis_output_for_finalize.get("error_message") and analyzed_form_check_model.error_details:
-                 analysis_output_for_finalize["error_message"] = analyzed_form_check_model.error_details
-             elif not analysis_output_for_finalize.get("error_message"):
-                 analysis_output_for_finalize["error_message"] = "Analysis by DynamicFormAnalysisService resulted in non-COMPLETED status."
+        # *** New ML Model Analysis Step ***
+        if final_exercise_id_for_ml:
+            logger.info(f"[CeleryTask] Preparing inputs for comprehensive ML model. Exercise ID: {final_exercise_id_for_ml}")
+            
+            keypoints_for_ml: List[List[Dict[str, float]]] = []
+            if keypoint_sequence_for_classification:
+                keypoints_for_ml = [
+                    frame for frame in keypoint_sequence_for_classification if frame is not None
+                ]
 
-        logger.info(f"[CeleryTask] Dynamic form analysis successful for FormCheck ID {form_check_id}.")
+            angles_for_ml: List[Dict[str, float]] = []
+            if video_model.calculated_angles:
+                angles_for_ml = [
+                    frame for frame in video_model.calculated_angles if frame is not None
+                ]
+            
+            if not keypoints_for_ml and not angles_for_ml:
+                logger.warning(f"[CeleryTask] No keypoints or angles available for comprehensive ML analysis for FormCheck {form_check_id}. Skipping ML scoring.")
+            else:
+                try:
+                    logger.info(f"[CeleryTask] Calling AIService.analyze_exercise_form_ml for FormCheck {form_check_id}")
+                    ml_scores = await _ai_service_instance.analyze_exercise_form_ml(
+                        keypoint_data=keypoints_for_ml, 
+                        angle_data=angles_for_ml, 
+                        exercise_id=final_exercise_id_for_ml
+                    )
+                    form_check.posture_score = ml_scores.get("posture_score")
+                    form_check.hypertrophy_form_score = ml_scores.get("hypertrophy_form_score")
+                    form_check.stability_score = ml_scores.get("stability_score")
+                    logger.info(f"[CeleryTask] Successfully received and stored ML scores for FormCheck {form_check_id}: {ml_scores}")
+                    await db_session.merge(form_check) # Merge changes before potential commit by DFAS or finalize
+                    # No commit here, will be handled by finalize or DFAS if it also commits
+                except Exception as ml_exc:
+                    logger.error(f"[CeleryTask] Error during AIService.analyze_exercise_form_ml for FormCheck {form_check_id}: {ml_exc}", exc_info=True)
+                    # Optionally, store a specific error state for these scores or leave them None
+        else:
+            logger.info(f"[CeleryTask] No definitive exercise_id for ML analysis (FormCheck {form_check_id}). Skipping comprehensive ML scoring.")
+
+        # Existing Dynamic Form Analysis (Rule-Based)
+        logger.info(f"[CeleryTask] Proceeding with DynamicFormAnalysisService for FormCheck ID: {form_check_id}")
+        if video_model.calculated_angles and exercise_config_for_analysis:
+            # DynamicFormAnalysisService.analyze_form_dynamically is expected to return an updated FormCheck model
+            # It now also takes the initial form_check object to update.
+            # Let's assume analyze_form_dynamically can take the form_check_id or the object
+            # and updates it or returns a new one. For this refactor, assume it returns an updated FormCheck.
+            # The service method `analyze_form_dynamically` in `dynamic_form_analysis_service.py` needs to be
+            # adjusted if it's currently creating a NEW form_check rather than updating an existing one based on ID.
+            # For now, let's assume it's: analyze_form_dynamically(self, video: Video, exercise_config: ExerciseConfig, existing_form_check_id: UUID) -> FormCheck
+            # Or, if it creates a new one, we'd use its data.
+            # The current signature is: analyze_form_dynamically(self, video: Video) -> FormCheck
+            # This needs adjustment in DynamicFormAnalysisService to accept exercise_config and form_check_id/object.
+            # Let's proceed with the assumption that DynamicFormAnalysisService will be adapted or can work with this.
+            # A practical implementation might involve DFAS loading the FormCheck internally if given an ID,
+            # or taking a FormCheck object to update.
+            # For now, we will call it and then adapt its output.
+            # Let's assume the service is adapted to:
+            # async def analyze_form_dynamically(self, video: VideoModel, exercise_config: ExerciseConfig, base_form_check: FormCheck) -> FormCheck:
+            # This would be a change in dynamic_form_analysis_service.py
+
+            # --- SIMPLIFIED APPROACH FOR NOW: Assume DFAS returns a FormCheck like object or dict ---
+            # This part requires careful thought on how DFAS integrates.
+            # If DFAS fully populates a FormCheck object including feedback items:
+            analyzed_form_check_model = await dynamic_form_analysis_service.analyze_form_dynamically(
+                video=video_model, 
+                exercise_config=exercise_config_for_analysis,
+                initial_form_check=form_check # Pass the existing form_check to be updated
+            )
+            # The above line assumes dynamic_form_analysis_service.analyze_form_dynamically is refactored
+            # to accept `initial_form_check` and update it or return an updated version.
+
+            if not analyzed_form_check_model:
+                logger.error(f"[CeleryTask] DynamicFormAnalysisService returned no result for FormCheck {form_check_id}.")
+                analysis_output_for_finalize = {"error_message": "Dynamic analysis yielded no results."}
+                raise ValueError("Dynamic analysis failed or returned no results.")
+
+            final_status = analyzed_form_check_model.status
+            # Prepare analysis_results for finalize_form_check_analysis_async
+            # This assumes analyzed_form_check_model is an ORM object with eager loaded/set feedback_items
+            
+            feedback_messages_list = []
+            feedback_structured_list = []
+            if analyzed_form_check_model.feedback_items: # Ensure feedback_items is loaded
+                for item in analyzed_form_check_model.feedback_items:
+                    feedback_messages_list.append(item.message if item.message else "N/A")
+                    feedback_structured_list.append({
+                        "type": item.type.value if item.type else FeedbackType.GENERAL.value, # Use .value for enums
+                        "message": item.message if item.message else "N/A",
+                        "timestamp": item.timestamp if item.timestamp is not None else 0.0,
+                        "severity": item.severity.value if item.severity else FeedbackSeverity.INFO.value, # Use .value for enums
+                        "suggestions": item.suggestions if item.suggestions else [],
+                        "details": item.details if item.details else {} 
+                    })
+            
+            analysis_output_for_finalize = {
+                "score": analyzed_form_check_model.score if analyzed_form_check_model.score is not None else 0.0,
+                "feedback": feedback_messages_list,
+                "risk_level": analyzed_form_check_model.details.get("risk_level", "low") if analyzed_form_check_model.details else "low",
+                "feedback_structured": feedback_structured_list,
+                "error_message": analyzed_form_check_model.error_details,
+                "summary": analyzed_form_check_model.summary # Make sure DFAS sets this
+            }
+            
+            if final_status != FormCheckStatus.COMPLETED: # If DFAS set it to ERROR
+                 if not analysis_output_for_finalize.get("error_message") and analyzed_form_check_model.error_details:
+                     analysis_output_for_finalize["error_message"] = analyzed_form_check_model.error_details
+                 elif not analysis_output_for_finalize.get("error_message"):
+                     analysis_output_for_finalize["error_message"] = "Analysis by DynamicFormAnalysisService resulted in non-COMPLETED status."
+
+            logger.info(f"[CeleryTask] Dynamic form analysis successful for FormCheck ID {form_check_id}.")
 
     except ValueError as ve: # Catch specific value errors from our checks
         logger.error(f"[CeleryTask] ValueError during FormCheck {form_check_id} analysis: {ve}", exc_info=True)

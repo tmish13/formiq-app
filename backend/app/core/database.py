@@ -98,15 +98,15 @@ def get_engine_settings(url: str) -> Dict[str, Any]:
     
     engine_settings = {
         "echo": settings.DB_ECHO,
-        "poolclass": NullPool if is_test or is_sqlite else QueuePool,
+        "poolclass": NullPool if is_test or is_sqlite or "asyncpg" in url else QueuePool,
     }
     
     # Add connection arguments for SQLite
     if is_sqlite:
         engine_settings["connect_args"] = {"check_same_thread": False}
     
-    # Add pool settings for production PostgreSQL
-    if not is_sqlite and not is_test:
+    # Add pool settings for production PostgreSQL, only if not using NullPool
+    if not is_sqlite and not is_test and engine_settings.get("poolclass") is not NullPool:
         engine_settings.update({
             "pool_size": settings.DB_POOL_SIZE,
             "max_overflow": settings.DB_MAX_OVERFLOW,

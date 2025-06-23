@@ -35,6 +35,7 @@ class ExerciseConfig(BaseModel):
         rom_rules (JSON): List of RangeOfMotionRule
         posture_rules (JSON): List of PostureRule
         symmetry_rules (JSON): List of SymmetryRule
+        reference_pose_data (JSON): Data for visual overlays
         created_at (DateTime): Creation timestamp
         updated_at (DateTime): Last update timestamp
     """
@@ -52,6 +53,7 @@ class ExerciseConfig(BaseModel):
     rom_rules = Column(JSON, nullable=True)
     posture_rules = Column(JSON, nullable=True)
     symmetry_rules = Column(JSON, nullable=True)
+    reference_pose_data = Column(JSON, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
@@ -97,10 +99,10 @@ class ExerciseConfig(BaseModel):
         Raises:
             ValidationError: If JSON is invalid
         """
-        if key in ['rom_rules', 'posture_rules', 'symmetry_rules', 'classification_metadata'] and value is None:
+        if key in ['rom_rules', 'posture_rules', 'symmetry_rules', 'classification_metadata', 'reference_pose_data'] and value is None:
             return value
 
-        if value is None and key not in ['classification_metadata', 'rom_rules', 'posture_rules', 'symmetry_rules']:
+        if value is None and key not in ['classification_metadata', 'rom_rules', 'posture_rules', 'symmetry_rules', 'reference_pose_data']:
             raise ValidationError(f"{key} is required")
         
         # Schema validation would happen here based on the field

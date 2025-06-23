@@ -10,6 +10,7 @@ import time
 import hashlib
 import os
 import pandas as pd
+import uuid
 
 from app.core.config import settings as global_settings, Settings # IMPORTED Settings
 from app.core.logging import get_logger
@@ -36,6 +37,7 @@ class AIService:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         logger.info(f"AI Service using device: {self.device}")
         self.model = self._load_form_analysis_model()
+        self.exercise_classification_model = self._load_exercise_classification_model()
         # TODO: Integrate loading of other models (pose, comparison) from ml_model_service.py
         # TODO: Integrate loading of templates from ml_model_service.py
         
@@ -55,6 +57,59 @@ class AIService:
         except Exception as e:
             logger.error(f"Error loading form analysis model: {str(e)}", exc_info=True)
             return None
+
+    def _load_exercise_classification_model(self) -> Any:
+        """Load the exercise classification model (placeholder)."""
+        try:
+            # model_path = Path(self.settings.AI_MODEL_PATH) / "exercise_classification_model.pt"
+            # if model_path.exists():
+            #     logger.info(f"Loading exercise classification model from: {model_path}")
+            #     model = torch.load(model_path, map_location=self.device)
+            #     model.eval()
+            #     logger.info("Exercise classification model loaded successfully.")
+            #     return model
+            logger.warning(f"Exercise classification model not implemented yet. Returning None.")
+            return None
+        except Exception as e:
+            logger.error(f"Error loading exercise classification model: {str(e)}", exc_info=True)
+            return None
+
+    async def classify_exercise_from_keypoints(
+        self, 
+        keypoint_sequence: Optional[List[List[Optional[Dict[str, float]]]]]
+    ) -> Tuple[Optional[str], Optional[float]]:
+        """Classify exercise from a sequence of keypoints (placeholder)."""
+        if keypoint_sequence is None:
+            logger.warning("AIService.classify_exercise_from_keypoints: Received None for keypoint_sequence. Skipping classification.")
+            return None, 0.0 # Or raise an error if this should not happen
+        
+        if not isinstance(keypoint_sequence, list):
+            logger.error(f"AIService.classify_exercise_from_keypoints: keypoint_sequence is not a list, but type {type(keypoint_sequence)}. Skipping classification.")
+            return None, 0.0
+
+        if not keypoint_sequence: # Empty list
+            logger.warning("AIService.classify_exercise_from_keypoints: Received an empty list for keypoint_sequence. Skipping classification.")
+            return None, 0.0
+        
+        # Further check if the list contains only None or empty inner lists (if that's considered invalid)
+        # Example: if not any(frame_kps for frame_kps in keypoint_sequence if frame_kps):
+        # For now, the original check `any(frame_kps for frame_kps in keypoint_sequence)` is good for detecting list of Nones or list of empty lists.
+        if not any(frame_kps for frame_kps in keypoint_sequence):
+            logger.warning("AIService.classify_exercise_from_keypoints: keypoint_sequence contains only None frames or empty frame lists. Skipping classification.")
+            return None, 0.0
+
+        # Placeholder logic
+        logger.info(f"AIService.classify_exercise_from_keypoints: Placeholder: Simulating exercise classification for sequence of {len(keypoint_sequence)} frames.")
+        # In a real scenario, this would involve:
+        # 1. Preprocessing keypoint_sequence into a format suitable for the model (e.g., tensor).
+        # 2. Running inference: `output = self.exercise_classification_model(processed_input)`
+        # 3. Postprocessing output to get slug and confidence.
+        
+        # Simulate finding a squat with high confidence for demonstration
+        simulated_slug = "squat"
+        simulated_confidence = 0.95
+        logger.info(f"Placeholder: Classified exercise as '{simulated_slug}' with confidence {simulated_confidence:.2f}")
+        return simulated_slug, simulated_confidence
             
     def detect_pose(self, frame: np.ndarray) -> Tuple[List[Dict[str, float]], float]:
         """Detect pose landmarks in a frame."""
@@ -1071,6 +1126,55 @@ class AIService:
     # This method would iterate through each angle type (e.g., 'left_knee') across frames,
     # extract its trajectory (a List[Optional[float]]), and then apply 1D smoothing/interpolation to that list.
     # The existing `smooth_and_interpolate_poses` is designed for landmark dicts (x,y,z,vis) and would need adaptation.
+
+    async def analyze_exercise_form_ml(
+        self,
+        keypoint_data: List[List[Dict[str, float]]], # Or appropriate type for sequence
+        angle_data: List[Dict[str, float]],        # Or appropriate type for sequence
+        exercise_id: Union[str, uuid.UUID] # Can be str or UUID depending on how it's passed
+    ) -> Dict[str, float]:
+        """
+        Perform comprehensive ML-driven form analysis for a given exercise.
+
+        This method will eventually use a sophisticated ML model to analyze
+        keypoint and angle data in the context of a specific exercise_id to
+        output scores for posture, hypertrophy-related form, and stability.
+
+        Args:
+            keypoint_data: A sequence of keyframes, where each keyframe contains
+                           a list of detected landmarks with their coordinates.
+            angle_data: A sequence of calculated joint angles for each relevant frame.
+            exercise_id: The unique identifier of the exercise being performed.
+
+        Returns:
+            A dictionary containing the calculated scores:
+            {
+                "posture_score": float,
+                "hypertrophy_form_score": float,
+                "stability_score": float
+            }
+        """
+        logger.info(
+            f"AIService.analyze_exercise_form_ml called for exercise_id: {exercise_id} "
+            f"with {len(keypoint_data)} keypoint frames and {len(angle_data)} angle frames."
+        )
+
+        # Placeholder logic: Return dummy scores
+        # In a real implementation, this would involve:
+        # 1. Preprocessing keypoint_data and angle_data.
+        # 2. Loading/accessing the comprehensive ML model.
+        # 3. Running inference with the model, potentially using exercise_id to guide
+        #    exercise-specific aspects of the model.
+        # 4. Postprocessing model output to derive the three scores.
+
+        dummy_scores = {
+            "posture_score": 0.75,
+            "hypertrophy_form_score": 0.75,
+            "stability_score": 0.75
+        }
+        
+        logger.info(f"AIService.analyze_exercise_form_ml: Returning dummy scores: {dummy_scores}")
+        return dummy_scores
 
 # END OF AIService class
 # Ensure this class definition ends correctly if more methods are outside or this is the true end.

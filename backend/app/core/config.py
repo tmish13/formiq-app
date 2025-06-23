@@ -694,6 +694,10 @@ class Settings(BaseSettings):
         default=safe_int(os.getenv("AI_TARGET_FRAME_HEIGHT"), 256),
         description="Target height for frames processed by AI pipeline (e.g., for normalization)."
     )
+    EXERCISE_CLASSIFICATION_THRESHOLD: float = Field(
+        default=float(os.getenv("EXERCISE_CLASSIFICATION_THRESHOLD", "0.75")),
+        description="Minimum confidence score for an automatically classified exercise to be considered valid."
+    )
     
     # Logging
     LOG_LEVEL: str = Field(

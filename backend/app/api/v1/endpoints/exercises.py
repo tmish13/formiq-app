@@ -1,14 +1,17 @@
 """Exercises router module."""
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Dict
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
+from uuid import UUID
 
-from app.core.deps import get_current_active_user, get_db
+from app.core.deps import get_current_active_user, get_db, get_async_exercise_config_service
 from app.repositories.exercise_repository import ExerciseRepository
 from app.schemas.exercise import ExerciseResponse, ExerciseCreate, ExerciseUpdate
 from app.core.cache import cache_service
 from app.models.exercise import ExerciseTemplate
 from app.services.exercise_service import ExerciseService, get_exercise_service
+from app.services.exercise_config_service import ExerciseConfigService
+from app.core.exceptions import NotFoundException
 
 router = APIRouter()
 
@@ -146,4 +149,52 @@ async def search_exercises(
     # Cache the results
     await cache_service.set(cache_key, results, expires_in=1800)  # Cache for 30 minutes
     
-    return results 
+    return results
+
+
+@router.get(
+    "/{exercise_template_id}/reference-overlay", 
+    response_model=Optional[Dict[str, Any]],
+    summary="Get Reference Visual Overlay Data",
+    description="Retrieves the reference pose data (keypoints, ideal angles for key phases) for the active configuration of a given exercise template. Used for displaying 'green reference' visual overlays."
+)
+async def get_reference_overlay_data(
+    exercise_template_id: UUID,
+    exercise_config_service: ExerciseConfigService = Depends(get_async_exercise_config_service)
+):
+    """
+    Get reference visual overlay data for an exercise template.
+    
+    - Fetches the active ExerciseConfig for the given exercise_template_id.
+    - Retrieves the reference_pose_data from that configuration.
+    """
+    try:
+        active_config = await exercise_config_service.get_active_config_for_exercise_async(
+            exercise_id=exercise_template_id
+        )
+        if not active_config:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Active exercise configuration not found for exercise template ID: {exercise_template_id}"
+            )
+        
+        reference_data = await exercise_config_service.get_reference_pose_data_async(
+            exercise_config_id=active_config.id
+        )
+        
+        if not reference_data:
+            # It's okay if reference_data is None/empty, means it's not defined for this config
+            # Frontend should handle this gracefully (e.g., not show the overlay)
+            return None 
+            
+        return reference_data
+        
+    except NotFoundException as e: # Catch specific NotFound from services if they raise it
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        # Log the exception for debugging
+        # logger.error(f"Error fetching reference overlay data for {exercise_template_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred while fetching reference overlay data."
+        ) 

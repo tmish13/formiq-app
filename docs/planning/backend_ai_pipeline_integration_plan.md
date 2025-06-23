@@ -83,15 +83,18 @@ The following services are currently present in `backend/app/services/`:
 The existing backend services provide a foundational structure for many parts of the described AI pipeline. Services like `video_service.py`, `storage_service.py`, `video_processing_service.py`, `ai_service.py`, `dynamic_form_analysis_service.py`, and `form_check_service.py` cover significant ground.
 
 However, there are potentially critical gaps, especially in:
-*   Advanced exercise classification.
+*   Advanced exercise classification (though infrastructure is being built).
+*   A holistic ML model for detailed form scoring (posture, hypertrophy, stability).
 *   Direct Langflow/OpenAI integration for feedback.
-*   Specific backend image processing for visual comparison.
+*   Specific backend image processing for visual comparison and reference overlays.
 
 The "Backend Goals" are reasonably addressed in principle by the service-oriented architecture, but the *depth* of implementation for features like Celery-based ML steps and a truly "robust" schema needs ongoing validation against these detailed requirements.
 
+**Note on Strategic Shift (As of Current Review):** The plan below is being updated to reflect a strategic shift towards developing a more comprehensive Machine Learning model as the primary engine for form analysis. This model will aim to directly output scores for posture, hypertrophy-related form characteristics, and stability, guided by user-provided `exercise_id`. This supersedes the previous approach of relying heavily on `dynamic_form_analysis_service.py` for rule-based validation as the primary scoring mechanism and simplifies the exercise classification path by making it a clear fallback.
+
 ## Part 2: Detailed Step-by-Step Plan for Full AI Pipeline Integration
 
-This section outlines the steps to enhance existing services and potentially introduce new components to meet all requirements from `formiq_ai_pipeline_description.md`. The approach emphasizes iterative enhancements to maintain stability.
+This section outlines the steps to enhance existing services and potentially introduce new components to meet all requirements from `formiq_ai_pipeline_description.md`. The approach emphasizes iterative enhancements and a shift towards a more ML-centric analysis core.
 
 ### Phase 1.0: Initial Video Upload and Service Validation
 
@@ -183,100 +186,125 @@ This section outlines the steps to enhance existing services and potentially int
     *   **Impacted Services:** `ai_service.py`, `biomechanics_service.py`.
     *   **Validation:** Correct angle calculations for known poses/movements. ✅ (Covered by the "Status & Validation Note" above - all tests passing)
 
-### Phase 1.2: Implementing Core Analysis and Feedback Logic
+### Phase 1.2: Comprehensive ML-Driven Form Analysis
 
-**Goal:** Enable rule-based validation and prepare for advanced feedback.
+**Goal:** Develop and integrate a comprehensive Machine Learning model to analyze exercises, providing scores for posture, hypertrophy-conducive form, and stability, guided by `exercise_id`. This model becomes the core analysis engine, replacing the previous primary reliance on hard-coded rule-based validation for scoring.
 
-**Step 1.2.1: Mature Rule-Based Validation (`dynamic_form_analysis_service.py`)**
-    *   **Objective:** Ensure comprehensive rule-based form evaluation using `ExerciseConfiguration`.
+**Step 1.2.1: Design and Develop Comprehensive Form Analysis ML Model**
+    *   **Objective:** Create an ML model that takes processed video data (keypoints, angles from Phase 1.1) and an `exercise_id` (if provided by the user) to output scores for:
+        *   **Posture:** Alignment and correctness of body positioning throughout the exercise.
+        *   **Hypertrophy-Related Form:** Proxies for hypertrophy-inducing execution, such as achieving appropriate range of motion (depth), control, and adherence to exercise-specific movement patterns known to be effective.
+        *   **Stability:** Measures of balance and control during the exercise.
     *   **Tasks:**
-        1.  **Review/Enhance `dynamic_form_analysis_service.py`:**
-            *   Confirm its "Custom Rules Engine" can effectively use `ExerciseConfiguration` data (from `exercise_config_service.py`).
-            *   Ensure it covers checks: joint angle thresholds, range of motion, posture alignment, symmetry, rep detection (as per pipeline spec).
-            *   Refine `get_exercise_config` to use the async `exercise_config_service.py`.
-            *   Ensure all methods are async and use an `AsyncSession`.
-        2.  **Review/Enhance `exercise_config_service.py`:**
-            *   Ensure `ExerciseConfiguration` model and service methods can store and retrieve all necessary rule parameters (e.g., angle ranges, expected postures per phase).
-        3.  **Integration with `form_check_service.py` or `ai_service.py`:**
-            *   The main analysis orchestration (likely in `form_check_service.py` or `ai_service.py` as a Celery task) should call `dynamic_form_analysis_service.py` with keypoints and angle data.
-            *   Output from this service (identified faults, scores) should be stored (e.g., in `FormCheck` or `FormAnalysis` records).
-    *   **Impacted Services:** `dynamic_form_analysis_service.py`, `exercise_config_service.py`, `form_check_service.py`, `ai_service.py`.
-    *   **Validation:** Correct identification of form faults based on defined rules for various exercises.
+        1.  **Data Strategy & Collection (Iterative Exercise Coverage):**
+            *   Define an initial set of core exercises for MVP (e.g., squat, deadlift, lunge, bicep curl, push-up, overhead press).
+            *   Establish a data collection pipeline for these exercises, capturing diverse examples (varying skill levels, body types).
+            *   Develop a clear labeling strategy and guidelines for annotating videos with target scores (posture, hypertrophy-proxy, stability) and ideal form characteristics for each exercise. This may involve expert human review.
+        2.  **Feature Engineering (If Necessary):**
+            *   Determine if the model will consume raw/smoothed keypoint sequences, angle sequences, or derived biomechanical features.
+        3.  **Model Architecture Selection & Development:**
+            *   Research and select appropriate ML architectures (e.g., Graph Neural Networks (GNNs) for pose graphs, Transformers for sequence modeling, or hybrid approaches) capable of learning complex spatio-temporal patterns from pose data.
+            *   The model should be designed to be sensitive to the provided `exercise_id`, potentially using it to select exercise-specific layers, attention mechanisms, or by incorporating exercise embeddings.
+            *   Consider how the model will handle variations if `exercise_id` is *not* available (though this is a secondary concern to leveraging it when present).
+        4.  **Model Training and Evaluation:**
+            *   Train the model on the collected and labeled dataset.
+            *   Establish robust evaluation metrics for each output score category.
+            *   Iterate on model architecture, features, and training parameters to achieve desired performance.
+        5.  **Integration into `AIService`:**
+            *   Create new methods within `AIService` (e.g., `analyze_exercise_form_ml`) to load and run the trained model.
+            *   This service will take keypoint/angle data and `exercise_id` as input.
+            *   The output will be the structured scores for posture, hypertrophy-form, and stability.
+            *   The existing `dynamic_form_analysis_service.py` might be deprecated for scoring or repurposed for simpler, non-ML checks if still deemed necessary, but it will no longer be the primary analysis engine for these scores.
+    *   **Impacted Services:** `ai_service.py`, `exercise_config_service.py` (for exercise-specific parameters that might inform the model or labeling), potentially a new dedicated ML model management/serving component if the model becomes very large/complex.
+    *   **Validation:** The ML model demonstrates accurate and reliable scoring for the initial set of target exercises against a defined test set. Scores should correlate well with human expert evaluations.
 
-**Step 1.2.2: Database Schema Review and Enhancement for Analysis Results**
-    *   **Objective:** Ensure DB schema robustly stores all analysis outputs.
+**Step 1.2.2: Database Schema Enhancement for ML Model Scores**
+    *   **Objective:** Ensure the database schema can robustly store all outputs from the new comprehensive ML model.
     *   **Tasks:**
-        1.  **Review `FormAnalysis`, `FormCheck`, `FeedbackItem` models (and potentially `Video`):**
-            *   Ensure fields exist to store:
-                *   Raw/processed keypoints (or reference to their storage).
-                *   Joint angle trajectories.
-                *   Detected exercise (user-provided or classified).
-                *   Rule-based validation results (specific faults, scores per rep/segment).
-                *   Confidence scores at various stages.
-                *   Timestamps for events/faults.
-            *   Verify use of `postgresql.UUID(as_uuid=True)` as per notes.
-        2.  **Update Models & Migrations:** Make necessary changes and create Alembic migrations.
-    *   **Impacted Services:** All services interacting with these models.
-    *   **Validation:** DB schema can hold all data points generated by the pipeline up to this phase.
+        1.  **Review and Update `FormCheck` (or `FormAnalysis`) Model:**
+            *   Add new fields to store the ML-generated scores:
+                *   `posture_score: Optional[float]`
+                *   `hypertrophy_form_score: Optional[float]`
+                *   `stability_score: Optional[float]`
+                *   Consider fields for model version, and confidence of these scores if applicable.
+            *   Ensure existing fields for `exercise_id`, `classified_exercise_slug`, `keypoint_data_ref`, `angle_data_ref` are appropriately used.
+        2.  **Update Models & Create Alembic Migrations:** Implement changes in SQLAlchemy models and generate necessary Alembic database migrations.
+    *   **Impacted Services:** All services interacting with `FormCheck` or `FormAnalysis` models.
+    *   **Validation:** DB schema successfully accommodates all new scores and related metadata from the ML form analysis.
 
-### Phase 1.3: Advanced AI Features - Classification and LLM Feedback
+### Phase 1.3: Advanced Feedback - Visual and Textual
 
-**Goal:** Implement exercise classification and Langflow-based feedback.
+**Goal:** Implement fallback exercise classification if no user input is provided, generate data for reference visual overlays (green overlays), and generate LLM-based textual feedback using the comprehensive ML model's scores.
 
-**Step 1.3.1: Implement Exercise Classification (`ai_service.py`)**
-    *   **Objective:** Develop/Integrate a time-series model (LSTM+CNN or Transformer) for exercise classification.
-    *   **Tasks (Significant ML Effort):**
-        1.  **Model Development/Selection:**
-            *   Choose architecture (LSTM+CNN, Transformer).
-            *   Train model on sequence of keypoints (100+ frames/rep) for MVP exercises (squat, deadlift, etc.) to achieve 95% accuracy goal.
-            *   Implement data augmentation (camera shift, time warping, occlusion).
-        2.  **Integration into `ai_service.py`:**
-            *   Add method(s) to load the trained model (PyTorch/TensorFlow).
-            *   Add method(s) to preprocess keypoint sequences and run inference.
-            *   This service should be callable if `Video.exercise_metadata` is missing.
-        3.  **Celery Task (`classify_exercise_task` - Optional):**
-            *   If inference is slow, this could be a separate Celery task. Otherwise, can be part of the main analysis task.
-        4.  **Orchestration:** The main analysis flow (`form_check_service.py` or an overarching Celery task in `ai_service.py`) should call this if exercise type is not provided by the user.
-        5.  **Result Storage:** Store the classified exercise with confidence.
-    *   **Impacted Services:** `ai_service.py`, `tasks.py` (if Celery used).
-    *   **Validation:** Accurate classification for top-N exercises when user metadata is missing.
-
-**Step 1.3.2: Integrate Langflow/OpenAI for Feedback Generation**
-    *   **Objective:** Generate natural language feedback using Langflow.
+**Step 1.3.1: Solidify Fallback Exercise Classification Infrastructure (`ai_service.py`, `analysis_tasks.py`)**
+    *   **Objective:** Ensure the existing infrastructure for exercise classification can serve as a reliable fallback if `form_check.exercise_id` is missing. This classified exercise ID would then be fed into the comprehensive ML model from Phase 1.2.
     *   **Tasks:**
-        1.  **Identify/Create Langflow Service/Client:**
+        *   **Verify Existing Infrastructure (Largely Complete):**
+            *   Confirm placeholder methods (`_load_exercise_classification_model`, `classify_exercise_from_keypoints`) in `ai_service.py` are suitable for a simpler MVP classification model (e.g., rule-based or basic ML, as per Notion spec) if a quick classification is needed before invoking the main `analyze_exercise_form_ml` model.
+            *   Ensure `process_form_check_task` in `analysis_tasks.py` correctly calls `ai_service.classify_exercise_from_keypoints` when `exercise_id` is absent.
+            *   Confirm result storage logic (updating `FormCheck.classified_exercise_slug`, `classification_confidence`) is correct. The `classified_exercise_slug` would then be used to fetch an `ExerciseConfig` and its `id` passed to the main `analyze_exercise_form_ml` method.
+            *   Verify `EXERCISE_CLASSIFICATION_THRESHOLD` in `config.py` is appropriately used.
+            *   The `ExerciseConfigService.get_active_config_by_template_slug_async` method remains crucial.
+        *   **MVP Classifier Implementation (If a separate simple model is pursued for this fallback):**
+            *   Implement the rule-based/heuristic logic for `classify_exercise_from_keypoints` in `ai_service.py` based on the "ExerciseClassifier (MVP) Specification" Notion document.
+            *   This MVP classifier's role is to provide a *best guess* for `exercise_id` when the user provides none, allowing the more sophisticated model in 1.2.1 to still leverage exercise-specific knowledge.
+    *   **Impacted Services:** `ai_service.py`, `analysis_tasks.py`, `exercise_config_service.py`.
+    *   **Validation:** If `exercise_id` is not provided by the user, a plausible exercise slug is classified (meeting threshold) and subsequently used by the main ML form analysis model.
+
+**Step 1.3.2: Backend Support for Reference Visual Overlays**
+    *   **Objective:** Generate data required by the frontend to display "green reference" visual overlays, showing the ideal way to perform an exercise, including key angles and posture, regardless of user performance.
+    *   **Tasks:**
+        1.  **Define Overlay Data Structure:**
+            *   Specify what data the frontend needs. This could include:
+                *   Ideal keypoint coordinates for key phases of the movement (e.g., start, bottom, end of a squat).
+                *   Key angle values for these phases.
+                *   Paths/trajectories for specific body parts.
+        2.  **Source of Ideal Form Data:**
+            *   **`ExerciseConfig` Enhancement:** Store ideal pose data (keypoints, angles for critical phases) directly within the `ExerciseConfiguration` for each exercise. This makes it explicit and manageable.
+            *   **ML Model Output (Alternative/Advanced):** Potentially, the comprehensive ML model (from 1.2.1) could also output parameters for the ideal form overlay based on the `exercise_id`, though `ExerciseConfig` is simpler for MVP.
+        3.  **`AIService` or `ExerciseConfigService` Method:**
+            *   Create a method (e.g., in `AIService` or `ExerciseConfigService`) to retrieve or generate this ideal overlay data based on the `exercise_id` (either user-provided or classified).
+        4.  **API Endpoint:**
+            *   Expose an API endpoint that the frontend can call with an `exercise_id` to get the data needed to render the green reference overlay.
+    *   **Impacted Services:** `ai_service.py`, `exercise_config_service.py`, API endpoint modules.
+    *   **Validation:** The backend provides accurate and sufficient data for the frontend to render clear, helpful green reference overlays for target exercises.
+
+**Step 1.3.3: Integrate Langflow/OpenAI for Feedback Generation from ML Scores**
+    *   **Objective:** Generate natural language feedback using Langflow/OpenAI, now primarily based on the posture, hypertrophy-form, and stability scores from the comprehensive ML model.
+    *   **Tasks:**
+        1.  **Identify/Create Langflow Service/Client:** (Largely unchanged from previous plan)
             *   This might be a new thin client service (`langflow_client_service.py`) or integrated within `personalized_feedback_service.py` or `ai_service.py`.
-            *   This component will be responsible for making API calls to a deployed Langflow instance (or directly to OpenAI if Langflow is used as a templating/prompt management layer).
-        2.  **Develop Langflow Prompts/Flows:**
-            *   Design Langflow flows/prompts that take analysis results as input (user_exercise_type, joint_mistakes, temporal_faults, performance_summary).
-            *   Ensure dynamic adjustment based on user-provided vs. predicted exercise.
-            *   Implement feedback context safety (filters).
+            *   Responsible for API calls to Langflow/OpenAI.
+        2.  **Develop Langflow Prompts/Flows (Revised):**
+            *   Design Langflow flows/prompts that take the new ML scores (`posture_score`, `hypertrophy_form_score`, `stability_score`) and `exercise_id` (user-provided or classified) as primary inputs.
+            *   Prompts should be tailored to interpret these scores in the context of the specific exercise. For example, explaining what a low `hypertrophy_form_score` means for a squat (e.g., "you might not be reaching full depth, which is important for...") versus a bicep curl (e.g., "ensure you're getting a full squeeze at the top and a controlled negative...").
+            *   Incorporate any specific faults or patterns identified by the ML model if it provides more granular output beyond scores.
+            *   Maintain feedback context safety (filters).
         3.  **Service Logic in `personalized_feedback_service.py` (or `ai_service.py`):**
-            *   Method to gather context from `FormAnalysis`/`FormCheck` data.
+            *   Method to gather context: `exercise_id`, the new ML scores from `FormCheck`.
             *   Call the Langflow service/client.
-            *   Process and store the generated natural language feedback (e.g., in `FeedbackItem` or related table).
+            *   Process and store the generated natural language feedback.
         4.  **Celery Task (`generate_feedback_task` - Optional):** If Langflow calls are slow.
     *   **Impacted Services:** `personalized_feedback_service.py` (preferred), `ai_service.py`, potentially a new `langflow_client_service.py`.
-    *   **Validation:** Meaningful, contextually relevant feedback generated for various analysis outcomes.
+    *   **Validation:** Meaningful, contextually relevant, and actionable feedback is generated based on the ML scores and the specific exercise performed.
 
 ### Phase 1.4: Enhancing User Experience and Delivery
 
-**Goal:** Implement visual comparison aids and ensure robust delivery.
+**Goal:** Implement visual comparison aids (including reference overlays) and ensure robust delivery of all analysis results.
 
-**Step 1.4.1: Backend Support for Visual Comparison**
-    *   **Objective:** Provide data or processed images for frontend visual comparison.
+**Step 1.4.1: Backend Support for Visual Feedback (User Pose vs. Reference Overlay)**
+    *   **Objective:** Provide data necessary for the frontend to display both the user's actual pose/movement and a "green reference" visual overlay indicating ideal form.
     *   **Tasks:**
-        1.  **Define Backend Role:** Decide if backend only provides:
-            *   Raw keypoints + reference pose data for frontend to render.
-            *   Annotated frames (backend image processing).
-        2.  **If Backend Image Processing:**
-            *   In `ai_service.py` or a new `visual_analysis_service.py`:
-                *   Implement logic (e.g., using OpenCV, PIL) to take user pose frames, reference pose data, and identified faults.
-                *   Generate images with overlays (e.g., skeleton lines, highlighted error joints, reference pose).
-                *   Store these annotated frames or provide them on-demand.
-        3.  **API Endpoints:** Ensure API endpoints can deliver this data/images to the frontend.
-    *   **Impacted Services:** `ai_service.py`, potentially a new `visual_analysis_service.py`.
-    *   **Validation:** Frontend can receive necessary data/images to display visual comparisons.
+        1.  **Data for User's Pose:**
+            *   Ensure API endpoints can deliver the user's processed keypoints and angle trajectories (from Phase 1.1 outputs) for the frontend to render the user's performance.
+        2.  **Data for Green Reference Overlay (Consistent with Step 1.3.2):**
+            *   The backend, via an API endpoint (defined in 1.3.2), will provide data for the green reference overlay based on `exercise_id`.
+            *   This data (ideal keypoints, angles for key phases) will primarily be sourced from enhanced `ExerciseConfiguration` or potentially derived from the comprehensive ML model.
+        3.  **Synchronization & Fault Highlighting (Optional Advanced):**
+            *   Consider if the backend should provide data to help synchronize the user's video with the reference overlay, especially if the reference is dynamic.
+            *   If the comprehensive ML model identifies specific faults (beyond just scores), the backend could provide data to highlight these on the user's pose in conjunction with the reference overlay.
+    *   **Impacted Services:** `ai_service.py`, `exercise_config_service.py`, API endpoint modules.
+    *   **Validation:** Frontend can receive all necessary data to display the user's performance alongside a clear, green reference overlay, and optionally highlight specific deviations.
 
 **Step 1.4.2: Robust Results Delivery (API & WebSockets)**
     *   **Objective:** Ensure results are delivered effectively.
