@@ -16,6 +16,8 @@ from app.core.config import settings as global_settings, Settings # IMPORTED Set
 from app.core.logging import get_logger
 from app.models.enums import ExerciseType, FeedbackType, FeedbackSeverity # IMPORTED Feedback Enums
 from app.constants.angles import UNIVERSAL_ANGLE_DEFINITIONS # ORIGINAL IMPORT
+from app.services.ml_model_service import MLModelService
+from app.services.feature_extraction_service import SquatFeatureExtractor
 
 logger = get_logger(__name__)
 
@@ -38,6 +40,15 @@ class AIService:
         logger.info(f"AI Service using device: {self.device}")
         self.model = self._load_form_analysis_model()
         self.exercise_classification_model = self._load_exercise_classification_model()
+        
+        # Initialize ML model service and feature extraction
+        self.ml_model_service = MLModelService(self.settings)
+        self.squat_feature_extractor = SquatFeatureExtractor()
+        
+        # Feature flag for ML models
+        self.use_ml_models = getattr(self.settings, 'USE_ML_MODELS', True)
+        logger.info(f"AIService initialized with ML models: {self.use_ml_models}")
+        
         # TODO: Integrate loading of other models (pose, comparison) from ml_model_service.py
         # TODO: Integrate loading of templates from ml_model_service.py
         
@@ -145,12 +156,16 @@ class AIService:
             return [], 0.0
             
     async def analyze_form(self, landmarks: List[Dict[str, float]], exercise_type: str) -> Dict[str, Any]:
-        """Analyze exercise form based on pose landmarks. Now asynchronous."""
+        """
+        Analyze exercise form based on pose landmarks with ML model integration.
         
-        def _run_model_inference_and_rules():
-            # This internal synchronous function will be run in a thread
+        For squat exercises, uses trained XGBoost model with biomechanical features.
+        Falls back to rule-based analysis for other exercises or when ML models are disabled.
+        """
+        
+        def _run_ml_inference_and_rules():
             if not landmarks:
-                logger.warning("analyze_form (sync part) called with no landmarks.")
+                logger.warning("analyze_form called with no landmarks.")
                 return {
                     "score": 0.0,
                     "feedback": ["No pose detected."],
@@ -158,95 +173,125 @@ class AIService:
                     "feedback_structured": []
                 }
             
-            current_score = 1.0 # Default score for rule-based, or initial score from model
+            current_score = 1.0
             feedback_messages = []
-            risk = "low"
             feedback_structured_list = []
-
-            if self.model:
-                logger.debug(f"Analyzing form using loaded model for {exercise_type}. (Sync part)")
-                landmarks_input = [[l["x"], l["y"], l.get("z", 0)] for l in landmarks] # Use .get for z
-                landmarks_tensor = torch.tensor([landmarks_input], dtype=torch.float32).to(self.device)
+            analysis_method = "rule_based"
+            
+            # ML Model Analysis for Squats
+            if (self.use_ml_models and 
+                exercise_type.lower() == 'squat' and 
+                self.ml_model_service.get_squat_model().is_model_available()):
                 
-                with torch.no_grad():
-                    model_output = self.model(landmarks_tensor)
-                    inferred_score = float(model_output.mean().item()) 
-                    current_score = inferred_score # Use model score as base
-                    feedback_messages.append(f"Model analyzed {exercise_type} - Score: {inferred_score:.2f}")
-                    # Example: Add a structured feedback from model if available
+                try:
+                    logger.info("Using ML model for squat form analysis")
+                    analysis_method = "ml_model"
+                    
+                    # Convert single frame landmarks to pose sequence format for feature extraction
+                    # The feature extractor expects a sequence, so we create a single-frame sequence
+                    pose_sequence = [landmarks]  # Single frame in sequence format
+                    
+                    # Extract biomechanical features
+                    features = self.squat_feature_extractor.extract_features(pose_sequence)
+                    logger.debug(f"Extracted {len(features)} features for ML inference")
+                    
+                    # Get ML prediction
+                    squat_model = self.ml_model_service.get_squat_model()
+                    is_good_form, confidence, prediction_details = squat_model.predict_form_quality(features)
+                    
+                    # Convert ML prediction to score (0-100)
+                    ml_score = confidence * 100
+                    current_score = ml_score / 100  # Keep internal score as 0-1
+                    
+                    # Generate feedback based on ML prediction
+                    if is_good_form:
+                        feedback_messages.append(f"Good squat form detected (confidence: {confidence:.2f})")
+                        feedback_structured_list.append({
+                            "type": FeedbackType.TECHNIQUE,
+                            "message": f"Excellent squat form! Overall score: {ml_score:.1f}%",
+                            "timestamp": 0.0,
+                            "severity": FeedbackSeverity.LOW
+                        })
+                    else:
+                        feedback_messages.append(f"Form issues detected (confidence: {confidence:.2f})")
+                        
+                        # Generate specific feedback based on features
+                        feature_feedback = self._generate_squat_feedback_from_features(features)
+                        feedback_messages.extend(feature_feedback['messages'])
+                        feedback_structured_list.extend(feature_feedback['structured'])
+                    
+                    # Add model metadata
                     feedback_structured_list.append({
-                        "type": FeedbackType.TECHNIQUE, # Example
-                        "message": f"Model raw score: {inferred_score:.2f}",
-                        "timestamp": 0.0, # General feedback
+                        "type": FeedbackType.TECHNIQUE,
+                        "message": f"Analysis by FormIQ ML Model v{prediction_details.get('model_version', 'unknown')}",
+                        "timestamp": 0.0,
                         "severity": FeedbackSeverity.INFO
                     })
-            else:
-                logger.warning(f"Form analysis model not loaded. Using rule-based analysis for {exercise_type}. (Sync part)")
-                feedback_messages.append("Model not loaded, using basic rules.")
-
-            # Rule-based analysis (can augment or replace model feedback)
-            try:
-                # Example: Spine alignment (indices are examples, adjust to your landmark model)
-                # Assuming landmark indices: 11 (L_SHOULDER), 23 (L_HIP), 24 (R_HIP)
-                spine_angle = self._calculate_angle(landmarks, 11, 23, 24) 
-                if spine_angle is not None and (spine_angle < 160 or spine_angle > 200):
-                    msg = "Maintain a neutral spine."
-                    feedback_messages.append(msg)
-                    feedback_structured_list.append({
-                        "type": FeedbackType.ALIGNMENT,
-                        "message": msg,
-                        "timestamp": 0.0,
-                        "severity": FeedbackSeverity.MEDIUM,
-                        "suggestions": ["Engage core, keep chest up."]
-                    })
-                    current_score *= 0.8
-                
-                if exercise_type.lower() == 'squat':
-                    # LHip (23), LKnee (25), LAnkle (27)
-                    left_knee_angle = self._calculate_angle(landmarks, 23, 25, 27)
-                    # RHip (24), RKnee (26), RAnkle (28)
-                    right_knee_angle = self._calculate_angle(landmarks, 24, 26, 28)
-                    avg_knee_angles = [a for a in [left_knee_angle, right_knee_angle] if a is not None]
-                    avg_knee_angle = np.mean(avg_knee_angles) if avg_knee_angles else None
                     
-                    if avg_knee_angle is not None and avg_knee_angle < 80: 
-                        msg = "Ensure sufficient squat depth (knees bent more). Current avg angle: {avg_knee_angle:.1f}"
+                    logger.info(f"ML analysis complete: score={ml_score:.1f}, form={'good' if is_good_form else 'poor'}")
+                    
+                except Exception as e_ml:
+                    logger.error(f"ML model analysis failed, falling back to rules: {e_ml}", exc_info=True)
+                    analysis_method = "rule_based_fallback"
+                    feedback_messages.append("ML analysis failed, using rule-based analysis.")
+                    # Continue to rule-based analysis below
+            
+            # Rule-based analysis (fallback or augmentation)
+            if analysis_method in ["rule_based", "rule_based_fallback"]:
+                logger.info(f"Using rule-based analysis for {exercise_type}")
+                
+                try:
+                    # General spine alignment check
+                    spine_angle = self._calculate_angle(landmarks, 11, 23, 24)  # L_SHOULDER, L_HIP, R_HIP
+                    if spine_angle is not None and (spine_angle < 160 or spine_angle > 200):
+                        msg = "Maintain a neutral spine."
                         feedback_messages.append(msg)
                         feedback_structured_list.append({
-                            "type": FeedbackType.RANGE_OF_MOTION,
+                            "type": FeedbackType.ALIGNMENT,
                             "message": msg,
                             "timestamp": 0.0,
-                            "severity": FeedbackSeverity.LOW,
-                            "suggestions": ["Try to lower your hips further."]
+                            "severity": FeedbackSeverity.MEDIUM,
+                            "suggestions": ["Engage core, keep chest up."]
                         })
-                        current_score *= 0.9
+                        current_score *= 0.8
+                    
+                    # Exercise-specific rule-based analysis
+                    if exercise_type.lower() == 'squat':
+                        current_score = self._analyze_squat_rules(landmarks, feedback_messages, 
+                                                               feedback_structured_list, current_score)
+                    
+                    # Add default message if no specific feedback
+                    if len([msg for msg in feedback_messages if not msg.startswith("ML analysis")]) == 0:
+                        feedback_messages.append("Form looks generally good based on available rules.")
                 
-                if not feedback_messages:
-                    feedback_messages.append("Form looks generally good based on available rules.")
+                except Exception as e_rules:
+                    logger.error(f"Error during rule-based analysis: {e_rules}", exc_info=True)
+                    feedback_messages.append("Error during rule-based analysis.")
+                    current_score = 0.3  # Partial score if rules fail
             
-            except Exception as e_rules:
-                logger.error(f"Error during rule-based analysis (sync part): {e_rules}", exc_info=True)
-                feedback_messages.append("Error during rule-based analysis.")
-                current_score = 0.0 # Penalize heavily if rules crash
-
-            final_score = max(0.0, min(1.0, current_score)) # Clamp score if it's 0-1 scale
-            # If score is 0-100, adjust clamping or scaling as needed.
-            # Assuming score from model is 0-1, and rules adjust it. If model is 0-100, adapt.
-            # Let's assume the output score should be 0-100 for FormCheck.
+            # Calculate final score and risk level
+            final_score = max(0.0, min(1.0, current_score))
             final_score_100 = final_score * 100
-
-            risk_level = "low" if final_score > 0.7 else "medium" if final_score > 0.4 else "high"
-                
+            
+            # Determine risk level based on score
+            if final_score > 0.8:
+                risk_level = "low"
+            elif final_score > 0.6:
+                risk_level = "medium"
+            else:
+                risk_level = "high"
+            
             return {
-                "score": final_score_100, 
-                "feedback": feedback_messages, # List of strings
+                "score": final_score_100,
+                "feedback": feedback_messages,
                 "risk_level": risk_level,
-                "feedback_structured": feedback_structured_list # List of dicts for FeedbackItemCreate
+                "feedback_structured": feedback_structured_list,
+                "analysis_method": analysis_method
             }
 
         try:
-            # Run the synchronous parts (model inference, rules) in a thread
-            analysis_output = await asyncio.to_thread(_run_model_inference_and_rules)
+            # Run the analysis in a separate thread to avoid blocking
+            analysis_output = await asyncio.to_thread(_run_ml_inference_and_rules)
             return analysis_output
         except Exception as e_async_wrapper:
             logger.error(f"Async wrapper error in analyze_form: {e_async_wrapper}", exc_info=True)
@@ -254,8 +299,218 @@ class AIService:
                 "score": 0.0,
                 "feedback": ["Analysis failed due to an internal error."],
                 "risk_level": "high",
-                "feedback_structured": []
+                "feedback_structured": [],
+                "analysis_method": "error"
             }
+    
+    def _generate_squat_feedback_from_features(self, features: Dict[str, float]) -> Dict[str, List]:
+        """
+        Generate specific feedback messages based on extracted biomechanical features.
+        
+        Args:
+            features: Dictionary of extracted features
+            
+        Returns:
+            Dictionary with 'messages' and 'structured' feedback lists
+        """
+        messages = []
+        structured = []
+        
+        try:
+            # Depth feedback
+            if features.get('depth_flag', 0) == 0:
+                msg = "Increase squat depth - aim to get your hips below knee level"
+                messages.append(msg)
+                structured.append({
+                    "type": FeedbackType.RANGE_OF_MOTION,
+                    "message": msg,
+                    "timestamp": 0.0,
+                    "severity": FeedbackSeverity.MEDIUM,
+                    "suggestions": ["Focus on sitting back into the squat", "Improve ankle mobility"]
+                })
+            
+            # Posture feedback
+            if features.get('excessive_forward_lean', 0) == 1:
+                msg = "Reduce forward lean - keep your torso more upright"
+                messages.append(msg)
+                structured.append({
+                    "type": FeedbackType.ALIGNMENT,
+                    "message": msg,
+                    "timestamp": 0.0,
+                    "severity": FeedbackSeverity.MEDIUM,
+                    "suggestions": ["Engage your core", "Keep chest up", "Focus on sitting back rather than forward"]
+                })
+            
+            # Stability feedback
+            if features.get('knee_valgus_flag', 0) == 1:
+                msg = "Control knee position - avoid letting knees cave inward"
+                messages.append(msg)
+                structured.append({
+                    "type": FeedbackType.ALIGNMENT,
+                    "message": msg,
+                    "timestamp": 0.0,
+                    "severity": FeedbackSeverity.HIGH,
+                    "suggestions": ["Push knees out over toes", "Strengthen glutes", "Work on hip mobility"]
+                })
+            
+            # Asymmetry feedback
+            if features.get('asymmetry_flag', 0) == 1:
+                msg = "Balance your movement - one side appears different from the other"
+                messages.append(msg)
+                structured.append({
+                    "type": FeedbackType.ALIGNMENT,
+                    "message": msg,
+                    "timestamp": 0.0,
+                    "severity": FeedbackSeverity.MEDIUM,
+                    "suggestions": ["Focus on symmetrical movement", "Check for mobility imbalances"]
+                })
+            
+            # Tempo feedback
+            if features.get('controlled_descent_flag', 0) == 0:
+                msg = "Control your descent - take 2-3 seconds to lower down"
+                messages.append(msg)
+                structured.append({
+                    "type": FeedbackType.TECHNIQUE,
+                    "message": msg,
+                    "timestamp": 0.0,
+                    "severity": FeedbackSeverity.LOW,
+                    "suggestions": ["Count to 3 on the way down", "Focus on muscle control"]
+                })
+            
+            # Provide positive feedback for good aspects
+            good_aspects = []
+            if features.get('depth_flag', 0) == 1:
+                good_aspects.append("excellent depth")
+            if features.get('torso_control_flag', 0) == 1:
+                good_aspects.append("good torso control")
+            if features.get('smooth_ascent_flag', 0) == 1:
+                good_aspects.append("smooth movement")
+            
+            if good_aspects:
+                msg = f"Good work on: {', '.join(good_aspects)}"
+                messages.append(msg)
+                structured.append({
+                    "type": FeedbackType.TECHNIQUE,
+                    "message": msg,
+                    "timestamp": 0.0,
+                    "severity": FeedbackSeverity.LOW
+                })
+                
+        except Exception as e:
+            logger.error(f"Error generating feature-based feedback: {e}")
+            messages.append("Unable to generate detailed feedback")
+        
+        return {
+            "messages": messages,
+            "structured": structured
+        }
+    
+    def _analyze_squat_rules(self, landmarks: List[Dict[str, float]], 
+                           feedback_messages: List[str], 
+                           feedback_structured_list: List[Dict], 
+                           current_score: float) -> float:
+        """
+        Rule-based squat analysis for fallback when ML model is not available.
+        
+        Args:
+            landmarks: Pose landmarks
+            feedback_messages: List to append feedback messages
+            feedback_structured_list: List to append structured feedback
+            current_score: Current score to modify
+            
+        Returns:
+            Updated score after rule-based analysis
+        """
+        try:
+            # Left and right knee angles
+            left_knee_angle = self._calculate_angle(landmarks, 23, 25, 27)  # L_HIP, L_KNEE, L_ANKLE
+            right_knee_angle = self._calculate_angle(landmarks, 24, 26, 28)  # R_HIP, R_KNEE, R_ANKLE
+            
+            # Analyze knee angles for depth
+            valid_knee_angles = [a for a in [left_knee_angle, right_knee_angle] if a is not None]
+            if valid_knee_angles:
+                avg_knee_angle = np.mean(valid_knee_angles)
+                min_knee_angle = min(valid_knee_angles)
+                
+                # Depth analysis
+                if min_knee_angle > 110:  # Insufficient depth
+                    msg = f"Squat deeper - current knee angle: {avg_knee_angle:.1f}°"
+                    feedback_messages.append(msg)
+                    feedback_structured_list.append({
+                        "type": FeedbackType.RANGE_OF_MOTION,
+                        "message": msg,
+                        "timestamp": 0.0,
+                        "severity": FeedbackSeverity.MEDIUM,
+                        "suggestions": ["Aim for knee angle below 90°", "Work on ankle mobility"]
+                    })
+                    current_score *= 0.7
+                elif min_knee_angle > 90:  # Partial depth
+                    msg = f"Good depth, try to go slightly lower - current: {avg_knee_angle:.1f}°"
+                    feedback_messages.append(msg)
+                    feedback_structured_list.append({
+                        "type": FeedbackType.RANGE_OF_MOTION,
+                        "message": msg,
+                        "timestamp": 0.0,
+                        "severity": FeedbackSeverity.LOW
+                    })
+                    current_score *= 0.9
+                else:  # Good depth
+                    feedback_messages.append("Excellent squat depth!")
+                    feedback_structured_list.append({
+                        "type": FeedbackType.TECHNIQUE,
+                        "message": "Perfect squat depth achieved",
+                        "timestamp": 0.0,
+                        "severity": FeedbackSeverity.LOW
+                    })
+                
+                # Symmetry check
+                if len(valid_knee_angles) == 2:
+                    angle_diff = abs(left_knee_angle - right_knee_angle)
+                    if angle_diff > 15:  # Significant asymmetry
+                        msg = f"Balance your squat - {angle_diff:.1f}° difference between legs"
+                        feedback_messages.append(msg)
+                        feedback_structured_list.append({
+                            "type": FeedbackType.ALIGNMENT,
+                            "message": msg,
+                            "timestamp": 0.0,
+                            "severity": FeedbackSeverity.MEDIUM,
+                            "suggestions": ["Focus on even weight distribution", "Check for mobility imbalances"]
+                        })
+                        current_score *= 0.85
+            
+            # Torso angle analysis
+            torso_angle = self._calculate_angle(landmarks, 11, 23, 12)  # L_SHOULDER, L_HIP, R_SHOULDER
+            if torso_angle is not None:
+                # Convert to lean angle from vertical (approximate)
+                lean_angle = abs(90 - torso_angle) if torso_angle < 90 else abs(torso_angle - 90)
+                
+                if lean_angle > 30:  # Excessive forward lean
+                    msg = f"Reduce forward lean - keep torso more upright ({lean_angle:.1f}° lean)"
+                    feedback_messages.append(msg)
+                    feedback_structured_list.append({
+                        "type": FeedbackType.ALIGNMENT,
+                        "message": msg,
+                        "timestamp": 0.0,
+                        "severity": FeedbackSeverity.MEDIUM,
+                        "suggestions": ["Engage core muscles", "Focus on sitting back, not forward"]
+                    })
+                    current_score *= 0.8
+                elif lean_angle > 20:  # Moderate lean
+                    msg = f"Good posture, slight forward lean detected ({lean_angle:.1f}°)"
+                    feedback_messages.append(msg)
+                    feedback_structured_list.append({
+                        "type": FeedbackType.ALIGNMENT,
+                        "message": msg,
+                        "timestamp": 0.0,
+                        "severity": FeedbackSeverity.LOW
+                    })
+                    current_score *= 0.95
+            
+        except Exception as e:
+            logger.error(f"Error in rule-based squat analysis: {e}")
+            current_score *= 0.9  # Small penalty for analysis errors
+        
+        return current_score
             
     def _get_landmark_coords(self, landmarks_list: List[Optional[Dict[str, float]]], index: int) -> Optional[np.ndarray]:
         """Safely get landmark coordinates as a numpy array from a list that may contain Nones."""

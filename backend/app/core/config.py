@@ -698,6 +698,10 @@ class Settings(BaseSettings):
         default=float(os.getenv("EXERCISE_CLASSIFICATION_THRESHOLD", "0.75")),
         description="Minimum confidence score for an automatically classified exercise to be considered valid."
     )
+    USE_ML_MODELS: bool = Field(
+        default=os.getenv("USE_ML_MODELS", "true").lower() == "true",
+        description="Enable ML models for form analysis (squat XGBoost model). Falls back to rule-based analysis when disabled."
+    )
     
     # Logging
     LOG_LEVEL: str = Field(

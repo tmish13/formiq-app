@@ -1,0 +1,1 @@
+"""Squat form analysis models."""

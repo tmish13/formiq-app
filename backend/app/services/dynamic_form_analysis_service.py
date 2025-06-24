@@ -49,11 +49,12 @@ class DynamicFormAnalysisService:
     This service replaces hardcoded form analysis with dynamic database-backed rules.
     """
     
-    def __init__(self, db: AsyncSession, settings: Settings, exercise_config_service: ExerciseConfigService, form_check_service: FormCheckService):
+    def __init__(self, db: AsyncSession, settings: Settings, exercise_config_service: ExerciseConfigService, form_check_service: FormCheckService, ai_service=None):
         self.db = db
         self.settings = settings
         self.exercise_config_service = exercise_config_service
         self.form_check_service = form_check_service
+        self.ai_service = ai_service  # Enhanced AIService for ML-based form analysis
 
     async def _get_exercise_config_model_async(self, exercise_template_id: UUID) -> Optional[ExerciseConfig]:
         """
@@ -813,7 +814,130 @@ class DynamicFormAnalysisService:
         # `evaluate_rep` now returns the structured issues.
         return all_rep_issues, current_rep_score
 
-    async def analyze_form_dynamically(
+    async def analyze_form_dynamically(self, video: Video) -> FormCheck:
+        """
+        Analyze form dynamically from a video object.
+        
+        This method handles the complete flow: fetching config, creating form check,
+        and performing analysis. It also integrates with the enhanced AIService for
+        ML-based form analysis when appropriate.
+        
+        Args:
+            video: Video object with pose/angle data
+            
+        Returns:
+            FormCheck object with analysis results
+        """
+        logger.info(f"Starting dynamic form analysis for Video ID: {video.id}")
+        
+        # Create a new form check for this analysis
+        from app.schemas.form_check import FormCheckCreate
+        form_check_data = FormCheckCreate(
+            video_id=video.id,
+            exercise_template_id=video.exercise_template_id if hasattr(video, 'exercise_template_id') else None,
+            status="processing"
+        )
+        
+        try:
+            initial_form_check = await self.form_check_service.create_async(form_check_data)
+        except Exception as e:
+            logger.error(f"Failed to create form check for video {video.id}: {e}")
+            # Create a minimal form check object for error handling
+            initial_form_check = FormCheck(
+                video_id=video.id,
+                status=FormCheckStatus.FAILED,
+                error_details=f"Failed to create form check: {str(e)}",
+                score=0.0
+            )
+            return initial_form_check
+        
+        # Get exercise configuration
+        exercise_config = None
+        if hasattr(video, 'exercise_template_id') and video.exercise_template_id:
+            try:
+                exercise_config = await self._get_exercise_config_model_async(video.exercise_template_id)
+            except Exception as e:
+                logger.warning(f"Failed to get exercise config for video {video.id}: {e}")
+        
+        # Enhanced ML-based analysis for squats
+        if (self.ai_service and 
+            hasattr(video, 'exercise_type') and 
+            video.exercise_type and 
+            video.exercise_type.lower() == 'squat' and
+            hasattr(video, 'raw_pose_data') and 
+            video.raw_pose_data):
+            
+            try:
+                logger.info(f"Using enhanced AIService for squat analysis on video {video.id}")
+                
+                # Get the best pose data for analysis
+                pose_data = video.pose_data if hasattr(video, 'pose_data') and video.pose_data else video.raw_pose_data
+                
+                if pose_data:
+                    # Find the best frame with highest confidence for analysis
+                    best_frame = None
+                    best_confidence = 0.0
+                    
+                    for frame_data in pose_data:
+                        if frame_data and isinstance(frame_data, list):
+                            # Calculate frame confidence (average of landmark confidences)
+                            confidences = []
+                            for landmark in frame_data:
+                                if isinstance(landmark, dict) and 'visibility' in landmark:
+                                    confidences.append(landmark['visibility'])
+                            
+                            if confidences:
+                                frame_confidence = np.mean(confidences)
+                                if frame_confidence > best_confidence:
+                                    best_confidence = frame_confidence
+                                    best_frame = frame_data
+                    
+                    if best_frame and best_confidence > 0.5:  # Minimum confidence threshold
+                        # Call enhanced AIService analyze_form method
+                        analysis_result = await self.ai_service.analyze_form(
+                            landmarks=best_frame,
+                            exercise_type='squat'
+                        )
+                        
+                        # Update form check with ML results
+                        initial_form_check.score = analysis_result.get('score', 0.0)
+                        initial_form_check.overall_score = analysis_result.get('score', 0.0)
+                        initial_form_check.summary = f"ML Analysis: {analysis_result.get('analysis_method', 'unknown')} method used"
+                        initial_form_check.status = FormCheckStatus.COMPLETED
+                        
+                        # Convert AIService feedback to FeedbackItems
+                        feedback_items = []
+                        for feedback in analysis_result.get('feedback_structured', []):
+                            feedback_item = FeedbackItem(
+                                form_check_id=initial_form_check.id,
+                                type=feedback.get('type', FeedbackType.TECHNIQUE),
+                                message=feedback.get('message', ''),
+                                timestamp=feedback.get('timestamp', 0.0),
+                                severity=feedback.get('severity', FeedbackSeverity.INFO),
+                                suggestions=feedback.get('suggestions', [])
+                            )
+                            feedback_items.append(feedback_item)
+                        
+                        initial_form_check.feedback_items = feedback_items
+                        
+                        logger.info(f"ML analysis completed for video {video.id}: score={initial_form_check.score:.1f}, method={analysis_result.get('analysis_method')}")
+                        return initial_form_check
+                    
+            except Exception as e:
+                logger.error(f"ML-based analysis failed for video {video.id}, falling back to rule-based: {e}")
+        
+        # Fall back to rule-based analysis if ML analysis isn't available or failed
+        if exercise_config:
+            return await self._analyze_form_dynamically_with_config(video, exercise_config, initial_form_check)
+        else:
+            # No config available, use basic rule-based analysis
+            logger.warning(f"No exercise config available for video {video.id}, using basic analysis")
+            initial_form_check.status = FormCheckStatus.COMPLETED
+            initial_form_check.score = 50.0  # Default score when no analysis possible
+            initial_form_check.summary = "Basic analysis completed - no exercise configuration available"
+            return initial_form_check
+    
+    async def _analyze_form_dynamically_with_config(
         self,
         video: Video, # Video object with angle_data populated
         exercise_config: ExerciseConfig, # The active exercise configuration
