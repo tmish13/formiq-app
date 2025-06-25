@@ -42,6 +42,12 @@ export interface FormCheck {
   created_at: string;
   updated_at: string;
   feedback_items?: FeedbackItem[];
+  // ML Model Scores (0-100 scale)
+  posture_score?: number;        // Alignment and correctness of body positioning
+  stability_score?: number;      // Balance and control during exercise
+  depth_score?: number;          // Range of motion and movement depth
+  ml_model_version?: string;     // Version of ML model used for analysis
+  classification_confidence?: number; // Model confidence in exercise classification
 }
 
 export interface FormCheckResponse {
@@ -55,4 +61,10 @@ export interface FormCheckResponse {
   analysis_url?: string;
   created_at: string;
   updated_at?: string;
+  // ML Model Scores (0-100 scale)
+  posture_score?: number;
+  stability_score?: number;
+  depth_score?: number;
+  ml_model_version?: string;
+  classification_confidence?: number;
 } 

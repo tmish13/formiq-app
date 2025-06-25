@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import Skeleton from '../common/SkeletonLoader';
-import { LoadingSpinner } from '../common/LoadingSpinner';
+import { LoadingSpinner } from '../atoms/LoadingSpinner';
 import { getThemeValue, fallbacks } from '../../utils/themeUtils';
 
 const ExampleContainer = styled.div`

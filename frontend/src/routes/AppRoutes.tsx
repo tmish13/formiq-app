@@ -1,7 +1,7 @@
 import React, { Suspense } from 'react';
 import { useRoutes } from 'react-router-dom';
 import { routes } from './routes';
-import { LoadingSpinner } from '../components/common/LoadingSpinner';
+import { LoadingSpinner } from '../components/atoms/LoadingSpinner';
 import { ErrorBoundary } from '../components/common/ErrorBoundary';
 
 export const AppRoutes: React.FC = () => {

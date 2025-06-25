@@ -1,5 +1,5 @@
-import { apiService } from './api';
-import { FormCheck, ExerciseType, FormCheckStatus } from '../types';
+import apiService from './apiService';
+import { FormCheck, ExerciseType, FormCheckStatus } from '../types/formCheck';
 
 export class FormCheckService {
   private static instance: FormCheckService | null = null;
@@ -87,6 +87,63 @@ export class FormCheckService {
 
   async getHistory(): Promise<FormCheck[]> {
     const response = await apiService.get<FormCheck[]>(`${this.baseUrl}/history`);
+    return response.data;
+  }
+
+  // ML-specific methods
+
+  async getMLAnalysis(id: string): Promise<{
+    ml_scores?: {
+      posture_score: number;
+      stability_score: number;
+      depth_score: number;
+      confidence?: number;
+    };
+    pose_data?: any[];
+    detected_issues?: any[];
+  }> {
+    const response = await apiService.get(`${this.baseUrl}/${id}/ml-analysis`);
+    return response.data;
+  }
+
+  async getReferencePose(exerciseType: ExerciseType): Promise<any> {
+    const response = await apiService.get(`/api/exercises/${exerciseType}/reference-pose`);
+    return response.data;
+  }
+
+  async exportAnalysisFrame(id: string, frameIndex: number): Promise<Blob> {
+    const response = await apiService.get(`${this.baseUrl}/${id}/export-frame/${frameIndex}`, {
+      responseType: 'blob'
+    });
+    return response.data;
+  }
+
+  async getFormCheckComparison(currentId: string, previousId: string): Promise<{
+    current: FormCheck;
+    previous: FormCheck;
+    improvements: {
+      posture_improvement: number;
+      stability_improvement: number;
+      depth_improvement: number;
+      overall_improvement: number;
+    };
+  }> {
+    const response = await apiService.get(`${this.baseUrl}/compare/${currentId}/${previousId}`);
+    return response.data;
+  }
+
+  async getMLModelInfo(): Promise<{
+    version: string;
+    supported_exercises: string[];
+    confidence_threshold: number;
+    last_updated: string;
+  }> {
+    const response = await apiService.get('/api/ml/model-info');
+    return response.data;
+  }
+
+  async requestMLReanalysis(id: string): Promise<FormCheck> {
+    const response = await apiService.post<FormCheck>(`${this.baseUrl}/${id}/reanalyze`);
     return response.data;
   }
 }

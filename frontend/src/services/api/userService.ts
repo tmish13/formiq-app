@@ -1,5 +1,5 @@
 import { BaseApiService, ApiResponse } from './baseApi';
-import { UserProfile } from './authService';
+import { User } from '../../types/auth';
 
 export interface UserPreferences {
   theme?: 'light' | 'dark';
@@ -35,12 +35,12 @@ class UserService extends BaseApiService {
     return UserService.instance;
   }
 
-  public async getProfile(): Promise<ApiResponse<UserProfile>> {
-    return this.get<UserProfile>('/users/profile');
+  public async getProfile(): Promise<ApiResponse<User>> {
+    return this.get<User>('/users/profile');
   }
 
-  public async updateProfile(data: Partial<UserProfile>): Promise<ApiResponse<UserProfile>> {
-    return this.put<UserProfile>('/users/profile', data);
+  public async updateProfile(data: Partial<User>): Promise<ApiResponse<User>> {
+    return this.put<User>('/users/profile', data);
   }
 
   public async updatePreferences(preferences: UserPreferences): Promise<ApiResponse<UserPreferences>> {

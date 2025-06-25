@@ -163,6 +163,17 @@ const ExerciseLibraryPage: React.FC = () => {
     navigate(`/workout/exercise/${exerciseId}`);
   };
 
+  const handleStartFormCheck = (exerciseId: string, exerciseName: string) => {
+    // Navigate to upload page with exercise pre-selected
+    navigate('/workout/form-check/upload', { 
+      state: { 
+        exerciseId, 
+        exerciseName,
+        fromLibrary: true 
+      } 
+    });
+  };
+
   const renderExerciseCard = (exercise: Exercise) => (
     <Card 
       sx={{ 
@@ -183,7 +194,7 @@ const ExerciseLibraryPage: React.FC = () => {
           image={exercise.thumbnailUrl || '/placeholder-exercise.jpg'}
           alt={exercise.name}
         />
-        <CardContent sx={{ flexGrow: 1 }}>
+        <CardContent>
           <Typography gutterBottom variant="h6" component="h2">
             {exercise.name}
           </Typography>
@@ -214,6 +225,35 @@ const ExerciseLibraryPage: React.FC = () => {
           </Box>
         </CardContent>
       </CardActionArea>
+      
+      {/* Action buttons outside of CardActionArea */}
+      <Box sx={{ p: 2, pt: 0, mt: 'auto' }}>
+        <Button
+          variant="contained"
+          color="primary"
+          fullWidth
+          startIcon={<AddIcon />}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleStartFormCheck(exercise.id, exercise.name);
+          }}
+          sx={{ mb: 1 }}
+        >
+          Start Form Check
+        </Button>
+        <Button
+          variant="outlined"
+          color="secondary"
+          fullWidth
+          size="small"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleExerciseClick(exercise.id);
+          }}
+        >
+          View Details
+        </Button>
+      </Box>
     </Card>
   );
 

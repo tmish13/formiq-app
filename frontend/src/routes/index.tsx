@@ -1,10 +1,10 @@
 import React, { Suspense, lazy } from 'react';
 import { Routes, Route, Navigate, useRoutes } from 'react-router-dom';
 import { ProtectedRoute } from '../components/auth/ProtectedRoute';
-import { LoadingSpinner } from '../components/common/LoadingSpinner';
+import { LoadingSpinner } from '../components/atoms/LoadingSpinner';
 import { Skeleton } from '../components/common/SkeletonLoader';
 import styled from 'styled-components';
-import { Navigation } from '../components/navigation/Navigation';
+import { Navigation } from '../components/organisms/Navigation';
 import { FormAnalysis } from '../pages/FormAnalysis';
 import { Progress } from '../pages/Progress';
 import Login from '../pages/auth/Login';
@@ -47,7 +47,7 @@ const FlexRow = styled.div`
 `;
 
 // Enhanced page loader with skeleton UI
-const PageLoader = () => (
+const EnhancedPageLoader = () => (
   <LoaderContainer>
     <HeaderSkeleton>
       <Skeleton variant="rectangular" width="100%" height="64px" />
@@ -93,7 +93,7 @@ export const AppRoutes: React.FC = () => {
   return (
     <>
       <Navigation />
-      <Suspense fallback={<PageLoader />}>
+      <Suspense fallback={<EnhancedPageLoader />}>
         {routeElements}
       </Suspense>
     </>
@@ -108,7 +108,7 @@ export const AppRoutesFallback: React.FC = () => {
   return (
     <>
       <Navigation />
-      <Suspense fallback={<PageLoader />}>
+      <Suspense fallback={<EnhancedPageLoader />}>
         <Routes>
           {appRoutes.map((route) => (
             <Route

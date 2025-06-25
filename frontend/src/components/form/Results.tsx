@@ -4,7 +4,7 @@ import styled from 'styled-components';
 import { FormAnalysisResult } from '../../types/formAnalysis';
 import VideoPlayer from '../VideoPlayer';
 import { FormFeedback } from '../FormFeedback';
-import LoadingSpinner from '../LoadingSpinner';
+import { LoadingSpinner } from '../atoms/LoadingSpinner';
 
 const Container = styled.div`
   padding: 20px;

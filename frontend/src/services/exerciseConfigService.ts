@@ -24,26 +24,17 @@ class ExerciseConfigService {
    * @returns List of exercise configurations
    */
   async getAll(exerciseId?: string, activeOnly = false): Promise<ExerciseConfigWithExercise[]> {
-    let url = this.baseUrl;
-    const params = new URLSearchParams();
+    const params: any = {};
     
     if (exerciseId) {
-      params.append('exercise_id', exerciseId);
+      params.exercise_id = exerciseId;
     }
     
     if (activeOnly) {
-      params.append('active_only', 'true');
+      params.active_only = true;
     }
     
-    if (params.toString()) {
-      url += `?${params.toString()}`;
-    }
-    
-    // Use public post method to make a GET request
-    const response = await apiService.post<ExerciseConfigWithExercise[]>(`/internal/fetch`, {
-      method: 'GET',
-      url: url
-    });
+    const response = await apiService.get<ExerciseConfigWithExercise[]>('/exercise-configs', params);
     return response.data;
   }
 
@@ -53,11 +44,7 @@ class ExerciseConfigService {
    * @returns Exercise configuration with exercise details
    */
   async getById(configId: string): Promise<ExerciseConfigWithExercise> {
-    // Use public post method to make a GET request
-    const response = await apiService.post<ExerciseConfigWithExercise>(`/internal/fetch`, {
-      method: 'GET',
-      url: `${this.baseUrl}/${configId}`
-    });
+    const response = await apiService.get<ExerciseConfigWithExercise>(`/exercise-configs/${configId}`);
     return response.data;
   }
 
@@ -67,11 +54,7 @@ class ExerciseConfigService {
    * @returns Active exercise configuration
    */
   async getActiveForExercise(exerciseId: string): Promise<ExerciseConfig> {
-    // Use public post method to make a GET request
-    const response = await apiService.post<ExerciseConfig>(`/internal/fetch`, {
-      method: 'GET',
-      url: `${this.baseUrl}/exercise/${exerciseId}/active`
-    });
+    const response = await apiService.get<ExerciseConfig>(`/exercise-configs/exercise/${exerciseId}/active`);
     return response.data;
   }
 
@@ -81,7 +64,7 @@ class ExerciseConfigService {
    * @returns Created configuration
    */
   async create(config: ExerciseConfigCreate): Promise<ExerciseConfig> {
-    const response = await apiService.post<ExerciseConfig>(this.baseUrl, config);
+    const response = await apiService.post<ExerciseConfig>('/exercise-configs', config);
     return response.data;
   }
 
@@ -92,12 +75,7 @@ class ExerciseConfigService {
    * @returns Updated configuration
    */
   async update(configId: string, config: ExerciseConfigUpdate): Promise<ExerciseConfig> {
-    // Use public post method to make a PUT request
-    const response = await apiService.post<ExerciseConfig>(`/internal/fetch`, {
-      method: 'PUT',
-      url: `${this.baseUrl}/${configId}`,
-      data: config
-    });
+    const response = await apiService.put<ExerciseConfig>(`/exercise-configs/${configId}`, config);
     return response.data;
   }
 
@@ -113,13 +91,12 @@ class ExerciseConfigService {
     config: ExerciseConfigCreate,
     deactivatePrevious = true
   ): Promise<ExerciseConfig> {
-    let url = `${this.baseUrl}/exercise/${exerciseId}/new_version`;
-    
-    if (!deactivatePrevious) {
-      url += '?deactivate_previous=false';
-    }
-    
-    const response = await apiService.post<ExerciseConfig>(url, config);
+    const params = deactivatePrevious ? {} : { deactivate_previous: false };
+    const response = await apiService.post<ExerciseConfig>(
+      `/exercise-configs/exercise/${exerciseId}/new_version`,
+      config,
+      { params }
+    );
     return response.data;
   }
 
@@ -129,11 +106,7 @@ class ExerciseConfigService {
    * @returns Success status
    */
   async delete(configId: string): Promise<void> {
-    // Use public post method to make a DELETE request
-    await apiService.post<void>(`/internal/fetch`, {
-      method: 'DELETE',
-      url: `${this.baseUrl}/${configId}`
-    });
+    await apiService.delete(`/exercise-configs/${configId}`);
   }
 }
 

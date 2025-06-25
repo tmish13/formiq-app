@@ -1,6 +1,6 @@
 import React from 'react';
 import styled from 'styled-components';
-import { LoadingSpinner } from './LoadingSpinner';
+import { LoadingSpinner } from '../atoms/LoadingSpinner';
 import { getThemeValue } from '../../utils/themeUtils';
 
 interface LoadingStateProps {

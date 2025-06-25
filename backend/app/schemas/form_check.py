@@ -234,10 +234,17 @@ class FeedbackItemResponse(BaseModel):
 
 class FormCheckDetailedResponse(FormCheckListResponse):
     """
-    Schema for detailed form check response, including feedback items and reference pose data.
+    Schema for detailed form check response, including ML scores, feedback items, and visual overlay data.
     """
+    # ML Model Scores (0-100 scale)
+    posture_score: Optional[float] = Field(None, description="Posture score from ML model (0-100)")
+    stability_score: Optional[float] = Field(None, description="Stability score from ML model (0-100)")
+    depth_score: Optional[float] = Field(None, description="Depth/range of motion score from ML model (0-100)")
+    
+    # Visual Overlay Data
     feedback_items: Optional[List[FeedbackItemResponse]] = Field(None, description="List of detailed feedback items")
     reference_pose_data: Optional[Dict[str, Any]] = Field(None, description="Reference pose data for visual overlays")
+    visual_overlay_data: Optional[Dict[str, Any]] = Field(None, description="Data for rendering pose comparison overlays")
 
     model_config = ConfigDict(
         from_attributes=True,
@@ -256,6 +263,9 @@ class FormCheckDetailedResponse(FormCheckListResponse):
                 "configuration_name": "Squat Standard Configuration",
                 "classified_exercise_slug": "squat",
                 "classification_confidence": 0.95,
+                "posture_score": 88.5,
+                "stability_score": 82.0,
+                "depth_score": 90.5,
                 "form_metadata": {
                     "total_form_checks": 10,
                     "pending_form_checks": 2,
@@ -279,7 +289,19 @@ class FormCheckDetailedResponse(FormCheckListResponse):
                         "joint_angles": {"leftKnee": 85.2, "rightKnee": 87.5},
                         "suggestions": ["Keep your knees aligned with your toes"]
                     }
-                ]
+                ],
+                "reference_pose_data": {
+                    "pose_sequence": [...],
+                    "key_poses": {"setup": {...}, "bottom": {...}},
+                    "metadata": {"exercise_type": "squat"}
+                },
+                "visual_overlay_data": {
+                    "similarity_score": 0.82,
+                    "alignment_quality": "good",
+                    "joint_colors": {"left_knee": {"color": "#4CAF50", "similarity": 0.85}},
+                    "deviation_highlights": [],
+                    "connection_lines": []
+                }
             }
         }
     )

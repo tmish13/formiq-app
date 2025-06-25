@@ -6,7 +6,7 @@ import { getThemeValue } from '../../utils/themeUtils';
 import { Header, HeaderContent } from './Header';
 import { errorHandlingService } from '../../services/errorHandlingService';
 import { Snackbar, Alert } from '@mui/material';
-import { MobileNavigation } from '../navigation/MobileNavigation';
+import { MobileNavigation } from '../organisms/MobileNavigation';
 
 // Commenting out these imports until they are properly implemented
 // import { Footer } from './Footer';

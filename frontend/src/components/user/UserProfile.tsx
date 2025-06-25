@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import styled from 'styled-components';
 import { useAuth } from '../../hooks/useAuth';
 import { User } from '../../types';
-import { LoadingSpinner } from '../common/LoadingSpinner';
+import { LoadingSpinner } from '../atoms/LoadingSpinner';
 import { ErrorMessage } from '../common/ErrorMessage';
 import { apiService } from '../../services/apiService';
 import { ApiError, ErrorCode } from '../../utils/errorHandling';
@@ -126,7 +126,7 @@ export const UserProfile: React.FC = () => {
       const formData = new FormData();
       formData.append('avatar', file);
       
-      await apiService.profile.updateAvatar(formData);
+      await apiService.updateAvatar(formData);
       // Note: Avatar URL will be updated through the user profile update
     } catch (err: any) {
       setError({

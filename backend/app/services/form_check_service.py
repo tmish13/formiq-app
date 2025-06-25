@@ -1036,6 +1036,10 @@ class FormCheckService(BaseService[FormCheck, FormCheckCreate, FormCheckUpdate])
                 "classified_exercise_slug": form_check.classified_exercise_slug,
                 "classification_confidence": form_check.classification_confidence,
                 "form_metadata": form_check.form_metadata,
+                # Add ML scores from XGBoost model
+                "posture_score": form_check.posture_score,
+                "stability_score": form_check.stability_score,
+                "depth_score": form_check.depth_score,
                 "feedback_items": [
                     {
                         "id": item.id,
@@ -1051,32 +1055,77 @@ class FormCheckService(BaseService[FormCheck, FormCheckCreate, FormCheckUpdate])
                 ] if form_check.feedback_items else []
             }
             
-            # Add reference pose data if requested
+            # Add reference pose data and visual overlay data if requested
             if include_reference_pose and form_check.exercise_id:
                 try:
                     # Import here to avoid circular imports
                     from app.services.exercise_config_service import ExerciseConfigService
+                    from app.services.pose_comparison_service import PoseComparisonService
+                    from app.services.reference_pose_service import ReferencePoseService
                     
-                    # Create exercise config service instance
+                    # Create service instances
                     exercise_config_service = ExerciseConfigService(
                         db=self.db,
                         settings=self.settings
                     )
+                    pose_comparison_service = PoseComparisonService(self.settings)
+                    reference_pose_service = ReferencePoseService(self.settings)
                     
-                    # Get reference pose data
+                    # Get or generate reference pose data
                     reference_data = await exercise_config_service.get_reference_pose_by_exercise_id(
                         exercise_id=form_check.exercise_id
                     )
                     
+                    # If no reference pose exists, generate it
+                    if not reference_data and form_check.exercise:
+                        exercise_name = form_check.exercise.name.lower()
+                        if 'squat' in exercise_name:
+                            reference_data = reference_pose_service.generate_reference_pose('squat')
+                            # Optionally save this for future use
+                            await exercise_config_service.generate_and_populate_reference_pose(
+                                exercise_id=form_check.exercise_id,
+                                exercise_type='squat'
+                            )
+                    
                     form_check_dict["reference_pose_data"] = reference_data
                     
-                    logger.info(f"Added reference pose data to form check {form_check_id}")
+                    # Generate visual overlay comparison data if we have user pose data
+                    overlay_data = None
+                    if reference_data and form_check.keypoints:
+                        try:
+                            # Extract user pose data from keypoints
+                            user_pose_data = form_check.keypoints
+                            
+                            # For now, use the setup pose for comparison
+                            # In a full implementation, you'd match the user's video phase
+                            if 'key_poses' in reference_data and 'setup' in reference_data['key_poses']:
+                                setup_pose = reference_data['key_poses']['setup']
+                                
+                                # Generate comparison data
+                                from app.services.pose_comparison_service import PoseAlignmentService
+                                alignment_service = PoseAlignmentService(self.settings)
+                                
+                                overlay_data = alignment_service.generate_overlay_alignment_data(
+                                    user_pose=user_pose_data,
+                                    reference_pose=setup_pose,
+                                    highlight_deviations=True
+                                )
+                                
+                        except Exception as overlay_error:
+                            logger.warning(f"Error generating overlay data: {overlay_error}")
+                            overlay_data = None
+                    
+                    form_check_dict["visual_overlay_data"] = overlay_data
+                    
+                    logger.info(f"Added reference pose data and visual overlay to form check {form_check_id}")
                     
                 except Exception as e:
                     logger.error(f"Error getting reference pose data for form check {form_check_id}: {e}")
                     form_check_dict["reference_pose_data"] = None
+                    form_check_dict["visual_overlay_data"] = None
             else:
                 form_check_dict["reference_pose_data"] = None
+                form_check_dict["visual_overlay_data"] = None
             
             return form_check_dict
             

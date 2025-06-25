@@ -4,7 +4,7 @@ import { CameraCapture } from '../camera/CameraCapture';
 import { PoseAnalysis } from '../camera/PoseAnalysis';
 import { AnalysisResults as AnalysisResultsComponent } from './AnalysisResults';
 import { getThemeValue, fallbacks } from '../../utils/themeUtils';
-import { LoadingSpinner } from '../common/LoadingSpinner';
+import { LoadingSpinner } from '../atoms/LoadingSpinner';
 import { ErrorMessage } from '../common/ErrorMessage';
 import { Button } from '../common/Button';
 import { CircularProgress } from '@mui/material';

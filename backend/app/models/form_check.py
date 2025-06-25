@@ -49,9 +49,9 @@ class FormCheck(BaseModel):
         reps_detected (int): Detected reps
         classified_exercise_slug (str): AI-classified exercise slug
         classification_confidence (float): AI-classified confidence
-        posture_score (float): Posture score (0-1)
-        hypertrophy_form_score (float): Hypertrophy form score (0-1)
-        stability_score (float): Stability score (0-1)
+        posture_score (float): Posture score (0-100)
+        stability_score (float): Stability score (0-100) 
+        depth_score (float): Depth/range of motion score (0-100)
     """
     __tablename__ = "form_checks"
 
@@ -81,8 +81,8 @@ class FormCheck(BaseModel):
 
     # New fields for Comprehensive ML-Driven Form Analysis (Phase 1.2)
     posture_score = Column(Float, nullable=True)
-    hypertrophy_form_score = Column(Float, nullable=True)
     stability_score = Column(Float, nullable=True)
+    depth_score = Column(Float, nullable=True)
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -143,7 +143,7 @@ class FormCheck(BaseModel):
 
         return url
 
-    @validates('score', 'confidence_score', 'classification_confidence', 'posture_score', 'hypertrophy_form_score', 'stability_score')
+    @validates('score', 'confidence_score', 'classification_confidence', 'posture_score', 'stability_score', 'depth_score')
     def validate_score(self, key: str, score: Optional[float]) -> Optional[float]:
         """
         Validate score values.
@@ -167,12 +167,12 @@ class FormCheck(BaseModel):
             raise ValidationError("Confidence score must be between 0 and 1")
         elif key == 'classification_confidence' and not (0 <= score <= 1):
             raise ValidationError("Classification confidence score must be between 0 and 1")
-        elif key == 'posture_score' and not (0 <= score <= 1):
-            raise ValidationError("Posture score must be between 0 and 1")
-        elif key == 'hypertrophy_form_score' and not (0 <= score <= 1):
-            raise ValidationError("Hypertrophy form score must be between 0 and 1")
-        elif key == 'stability_score' and not (0 <= score <= 1):
-            raise ValidationError("Stability score must be between 0 and 1")
+        elif key == 'posture_score' and not (0 <= score <= 100):
+            raise ValidationError("Posture score must be between 0 and 100")
+        elif key == 'stability_score' and not (0 <= score <= 100):
+            raise ValidationError("Stability score must be between 0 and 100")
+        elif key == 'depth_score' and not (0 <= score <= 100):
+            raise ValidationError("Depth score must be between 0 and 100")
 
         return score
 
@@ -195,10 +195,10 @@ class FormCheck(BaseModel):
             self.validate_score('classification_confidence', self.classification_confidence)
         if self.posture_score is not None:
             self.validate_score('posture_score', self.posture_score)
-        if self.hypertrophy_form_score is not None:
-            self.validate_score('hypertrophy_form_score', self.hypertrophy_form_score)
         if self.stability_score is not None:
             self.validate_score('stability_score', self.stability_score)
+        if self.depth_score is not None:
+            self.validate_score('depth_score', self.depth_score)
 
     def __repr__(self) -> str:
         return f"<FormCheck {self.id} - {self.exercise_id}>"

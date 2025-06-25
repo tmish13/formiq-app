@@ -3,6 +3,7 @@ from typing import Any, List, Optional, Dict
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from uuid import UUID
+from datetime import datetime
 
 from app.core.deps import get_current_active_user, get_db, get_async_exercise_config_service
 from app.repositories.exercise_repository import ExerciseRepository
@@ -252,4 +253,88 @@ async def bulk_generate_reference_poses(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred during bulk reference pose generation: {str(e)}"
+        )
+
+
+@router.post(
+    "/{exercise_template_id}/pose-comparison",
+    response_model=Dict[str, Any],
+    summary="Compare User Pose with Reference",
+    description="Compare a user's pose with the reference pose for real-time feedback and visual overlay data."
+)
+async def compare_pose_with_reference(
+    exercise_template_id: UUID,
+    user_pose: Dict[str, Any],
+    phase: Optional[str] = Query("setup", description="Movement phase to compare against (setup, mid_descent, bottom, mid_ascent)"),
+    exercise_config_service: ExerciseConfigService = Depends(get_async_exercise_config_service)
+):
+    """
+    Compare a user's pose with the reference pose for the specified exercise and phase.
+    
+    Args:
+        exercise_template_id: ID of the exercise template
+        user_pose: User's pose data (keypoints with confidence scores)
+        phase: Movement phase to compare against
+        
+    Returns:
+        Dictionary containing similarity scores, visual overlay data, and feedback
+    """
+    try:
+        from app.services.pose_comparison_service import PoseAlignmentService
+        from app.core.config import get_settings
+        
+        # Get reference pose data
+        reference_data = await exercise_config_service.get_reference_pose_by_exercise_id(
+            exercise_id=exercise_template_id
+        )
+        
+        if not reference_data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Reference pose data not found for exercise {exercise_template_id}"
+            )
+        
+        # Check if requested phase exists
+        if 'key_poses' not in reference_data or phase not in reference_data['key_poses']:
+            available_phases = list(reference_data.get('key_poses', {}).keys())
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Phase '{phase}' not available. Available phases: {available_phases}"
+            )
+        
+        reference_pose = reference_data['key_poses'][phase]
+        
+        # Initialize pose comparison service
+        settings = get_settings()
+        alignment_service = PoseAlignmentService(settings)
+        
+        # Calculate pose similarity
+        similarity_result = alignment_service.calculate_pose_similarity(
+            user_pose=user_pose,
+            reference_pose=reference_pose,
+            normalize_positions=True
+        )
+        
+        # Generate visual overlay data
+        overlay_data = alignment_service.generate_overlay_alignment_data(
+            user_pose=user_pose,
+            reference_pose=reference_pose,
+            highlight_deviations=True
+        )
+        
+        return {
+            "exercise_id": str(exercise_template_id),
+            "phase": phase,
+            "similarity_result": similarity_result,
+            "overlay_data": overlay_data,
+            "reference_pose": reference_pose,
+            "timestamp": str(datetime.utcnow())
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An error occurred during pose comparison: {str(e)}"
         ) 

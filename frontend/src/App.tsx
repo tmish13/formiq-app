@@ -4,7 +4,7 @@ import { ThemeProvider } from 'styled-components';
 import { store } from './store';
 import { theme } from './theme';
 import { AppRoutes } from './routes';
-import { ErrorBoundary } from './components/organisms/ErrorBoundary';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { AppLayout } from './components/layout/AppLayout';
 
 export const App: React.FC = () => {

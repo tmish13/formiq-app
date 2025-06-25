@@ -1,7 +1,83 @@
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
+import { Capacitor } from '@capacitor/core';
+import { logError, logNetworkError } from '../utils/errorLogging';
 
-// Define API base URL
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+// Get the base URL for the API depending on environment
+const getBaseUrl = () => {
+  // In native mobile platforms
+  if (Capacitor.isNativePlatform()) {
+    if (Capacitor.getPlatform() === 'android') {
+      return 'http://10.0.2.2:8000/api/v1';
+    }
+    if (Capacitor.getPlatform() === 'ios') {
+      return 'http://localhost:8000/api/v1';
+    }
+  }
+  
+  // In web browser
+  return process.env.REACT_APP_API_URL ? 
+    `${process.env.REACT_APP_API_URL}/api/v1` : 
+    'http://localhost:8000/api/v1';
+};
+
+const API_BASE_URL = getBaseUrl();
+
+// Define API endpoints aligned with backend Phase 1.0-1.1
+export const endpoints = {
+  auth: {
+    login: '/auth/login',
+    register: '/auth/register',
+    refreshToken: '/auth/refresh',
+    logout: '/auth/logout',
+  },
+  user: {
+    profile: '/users/me',
+    update: '/users/me',
+    subscription: '/users/subscription',
+  },
+  workouts: {
+    list: '/workouts',
+    detail: (id: string) => `/workouts/${id}`,
+    create: '/workouts',
+    update: (id: string) => `/workouts/${id}`,
+    delete: (id: string) => `/workouts/${id}`,
+  },
+  videos: {
+    uploadUrl: '/videos/upload-url',
+    uploadComplete: '/videos/upload-complete',
+    detail: (id: string) => `/videos/${id}`,
+    list: '/videos',
+    status: (id: string) => `/videos/${id}/status`,
+  },
+  formChecks: {
+    upload: '/form-checks',
+    detail: (id: string) => `/form-checks/${id}`,
+    list: '/form-checks',
+    delete: (id: string) => `/form-checks/${id}`,
+    complete: (id: string) => `/form-checks/${id}/complete`,
+    feedback: (id: string) => `/form-checks/${id}/feedback`,
+    mlAnalysis: (id: string) => `/form-checks/${id}/ml-analysis`,
+    history: '/form-checks/history',
+  },
+  exercises: {
+    list: '/exercises',
+    detail: (id: string) => `/exercises/${id}`,
+    referencePose: (exerciseType: string) => `/exercises/${exerciseType}/reference-pose`,
+  },
+  exerciseConfigs: {
+    list: '/exercise-configs',
+    detail: (id: string) => `/exercise-configs/${id}`,
+    byExercise: (exerciseId: string) => `/exercise-configs/exercise/${exerciseId}`,
+    activeByExercise: (exerciseId: string) => `/exercise-configs/exercise/${exerciseId}/active`,
+    create: '/exercise-configs',
+    update: (id: string) => `/exercise-configs/${id}`,
+    delete: (id: string) => `/exercise-configs/${id}`,
+  },
+  ml: {
+    modelInfo: '/ml/model-info',
+    scores: (formCheckId: string) => `/ml/scores/${formCheckId}`,
+  },
+} as const;
 
 // Define API error interface
 export interface ApiError {
@@ -23,12 +99,13 @@ class ApiService {
       baseURL: API_BASE_URL,
       headers: {
         'Content-Type': 'application/json',
-      }
+      },
+      timeout: 15000, // Increase timeout for slower connections
     });
 
     // Add request interceptor to include JWT token for authentication
     this.api.interceptors.request.use((config) => {
-      const token = localStorage.getItem('access_token');
+      const token = localStorage.getItem('token');
       if (token && config.headers) {
         config.headers['Authorization'] = `Bearer ${token}`;
       }
@@ -46,35 +123,22 @@ class ApiService {
           originalRequest._retry = true;
           
           try {
-            // Try to refresh the token
-            const refreshToken = localStorage.getItem('refresh_token');
-            if (!refreshToken) {
-              // No refresh token available, redirect to login
-              this.redirectToLogin();
-              return Promise.reject(error);
-            }
-            
-            // Call token refresh endpoint
-            const response = await axios.post(`${API_BASE_URL}/auth/refresh`, { 
-              refresh_token: refreshToken 
-            });
-            
-            // Update stored tokens
-            localStorage.setItem('access_token', response.data.access_token);
-            if (response.data.refresh_token) {
-              localStorage.setItem('refresh_token', response.data.refresh_token);
-            }
-            
-            // Retry original request with new token
-            originalRequest.headers['Authorization'] = `Bearer ${response.data.access_token}`;
-            return axios(originalRequest);
-          } catch (refreshError) {
-            // If refresh fails, clear tokens and redirect to login
-            localStorage.removeItem('access_token');
-            localStorage.removeItem('refresh_token');
+            // Handle token refresh - for now just redirect to login
+            // TODO: Implement proper refresh token logic when backend supports it
+            localStorage.removeItem('token');
             this.redirectToLogin();
-            return Promise.reject(refreshError);
+            return Promise.reject(error);
+          } catch (refreshError) {
+            console.error('Token refresh failed:', refreshError);
+            return Promise.reject(error);
           }
+        }
+        
+        // Network error handling
+        if (!error.response) {
+          logNetworkError('network-connectivity', error);
+        } else {
+          logNetworkError('api-request-failed', error);
         }
         
         return this.handleApiError(error);
@@ -110,12 +174,9 @@ class ApiService {
   async login(email: string, password: string): Promise<AxiosResponse> {
     const response = await this.api.post('/auth/login', { email, password });
     
-    // Store tokens in localStorage
+    // Store token in localStorage
     if (response.data.access_token) {
-      localStorage.setItem('access_token', response.data.access_token);
-    }
-    if (response.data.refresh_token) {
-      localStorage.setItem('refresh_token', response.data.refresh_token);
+      localStorage.setItem('token', response.data.access_token);
     }
     
     return response;
@@ -144,9 +205,8 @@ class ApiService {
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
-      // Always clear tokens
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
+      // Always clear token
+      localStorage.removeItem('token');
     }
   }
 
@@ -235,9 +295,111 @@ class ApiService {
     return this.api.delete<T>(endpoint);
   }
 
+  // ======= Video Upload Methods (Backend Phase 1.0 Integration) =======
+
+  /**
+   * Get presigned URL for video upload
+   */
+  async getVideoUploadUrl(metadata: {
+    filename: string;
+    contentType: string;
+    exerciseId?: string;
+    userId?: string;
+  }): Promise<{
+    uploadUrl: string;
+    videoId: string;
+    fields?: Record<string, string>;
+  }> {
+    const response = await this.api.post('/videos/upload-url', metadata);
+    return response.data;
+  }
+
+  /**
+   * Upload video to S3 using presigned URL
+   */
+  async uploadVideoToS3(uploadUrl: string, file: File, fields?: Record<string, string>): Promise<void> {
+    const formData = new FormData();
+    
+    // Add any required fields first
+    if (fields) {
+      Object.entries(fields).forEach(([key, value]) => {
+        formData.append(key, value);
+      });
+    }
+    
+    // Add the file last
+    formData.append('file', file);
+
+    // Upload directly to S3 (not through our API)
+    await axios.post(uploadUrl, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  }
+
+  /**
+   * Confirm video upload completion
+   */
+  async confirmVideoUpload(videoId: string, metadata?: {
+    duration?: number;
+    size?: number;
+    width?: number;
+    height?: number;
+  }): Promise<any> {
+    const response = await this.api.post('/videos/upload-complete', {
+      videoId,
+      ...metadata,
+    });
+    return response.data;
+  }
+
+  /**
+   * Get video processing status
+   */
+  async getVideoStatus(videoId: string): Promise<{
+    status: string;
+    progress?: number;
+    error?: string;
+    processedUrl?: string;
+  }> {
+    const response = await this.api.get(`/videos/${videoId}/status`);
+    return response.data;
+  }
+
+  // ======= Exercise & Exercise Config Methods (Backend Phase 1.1 Integration) =======
+
+  /**
+   * Get all exercises
+   */
+  async getExercises(filters?: {
+    type?: string;
+    difficulty?: string;
+    muscleGroups?: string[];
+  }): Promise<any[]> {
+    const response = await this.api.get('/exercises', { params: filters });
+    return response.data;
+  }
+
+  /**
+   * Get exercise by ID
+   */
+  async getExercise(exerciseId: string): Promise<any> {
+    const response = await this.api.get(`/exercises/${exerciseId}`);
+    return response.data;
+  }
+
+  /**
+   * Get reference pose data for exercise
+   */
+  async getReferencePose(exerciseType: string): Promise<any> {
+    const response = await this.api.get(`/exercises/${exerciseType}/reference-pose`);
+    return response.data;
+  }
+
   // Method to check if user is authenticated
   public isAuthenticated(): boolean {
-    return !!localStorage.getItem('access_token');
+    return !!localStorage.getItem('token');
   }
 }
 

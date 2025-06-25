@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { CameraService } from '../../services/CameraService';
 import { UploadGuidance } from '../UploadGuidance';
-import { LoadingSpinner } from '../LoadingSpinner';
+import { LoadingSpinner } from '../atoms/LoadingSpinner';
 
 const Container = styled.div`
   padding: 20px;

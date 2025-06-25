@@ -64,7 +64,10 @@ def create_mock_video_sequence():
     
     # Generate 30 frames simulating a squat movement
     for frame in range(30):
-        pose = base_pose.copy()
+        # Create a deep copy to avoid modifying the original
+        pose = {}
+        for joint_name, coords in base_pose.items():
+            pose[joint_name] = coords.copy()
         
         # Simulate descent and ascent
         if frame < 10:  # Setup phase
@@ -394,8 +397,9 @@ async def test_edge_cases():
         settings = get_settings()
         alignment_service = PoseAlignmentService(settings)
         
-        # Test empty poses
+        # Test empty poses (expected to generate warning)
         logger.info("Testing empty pose handling...")
+        logger.info("   Note: The following warning is expected for empty pose test...")
         empty_similarity = alignment_service.calculate_pose_similarity(
             user_pose={},
             reference_pose={}
@@ -405,6 +409,7 @@ async def test_edge_cases():
         
         # Test incomplete poses
         logger.info("Testing incomplete pose handling...")
+        logger.info("   Note: The following warning is expected for mismatched joints test...")
         incomplete_user = {'left_knee': [0.5, 0.7, 0.9]}
         incomplete_ref = {'right_knee': [0.5, 0.7, 0.9]}
         

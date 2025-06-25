@@ -1,10 +1,28 @@
-import { apiService } from './apiService';
+import apiService from './apiService';
 
 export enum ExerciseType {
   STRENGTH = 'strength',
   CARDIO = 'cardio',
   FLEXIBILITY = 'flexibility',
   BALANCE = 'balance'
+}
+
+export enum ExerciseDifficulty {
+  BEGINNER = 'beginner',
+  INTERMEDIATE = 'intermediate',
+  ADVANCED = 'advanced'
+}
+
+export interface ExerciseLibraryFilters {
+  searchQuery?: string;
+  type?: ExerciseType;
+  difficulty?: ExerciseDifficulty;
+  muscleGroups?: string[];
+  equipment?: string[];
+  duration?: {
+    min: number;
+    max: number;
+  };
 }
 
 export interface ExerciseFormRule {
@@ -37,7 +55,7 @@ export interface Exercise {
   name: string;
   type: ExerciseType;
   description: string;
-  difficulty: 'beginner' | 'intermediate' | 'advanced';
+  difficulty: ExerciseDifficulty;
   targetMuscles: string[];
   equipment: string[];
   formRules: ExerciseFormRule[];
@@ -47,16 +65,33 @@ export interface Exercise {
   variations: string[];
   created_at: string;
   updated_at: string;
+  metrics?: {
+    recommendedSets: number;
+    recommendedReps: number;
+    restTime?: number;
+  };
 }
 
 class ExerciseLibraryService {
   private exercises: Map<string, Exercise> = new Map();
   private formRules: Map<string, ExerciseFormRule> = new Map();
 
-  public async getExercises(): Promise<Exercise[]> {
+  public async getExercises(filters?: {
+    type?: string;
+    difficulty?: string;
+    muscleGroups?: string[];
+    searchQuery?: string;
+  }): Promise<Exercise[]> {
     try {
-      const response = await apiService.exercises.getAll();
-      const exercises = response.data;
+      // Convert frontend filters to backend format
+      const backendFilters = {
+        type: filters?.type,
+        difficulty: filters?.difficulty,
+        muscleGroups: filters?.muscleGroups,
+        search: filters?.searchQuery
+      };
+
+      const exercises = await apiService.getExercises(backendFilters);
       
       // Update local cache
       exercises.forEach(exercise => {
@@ -66,8 +101,101 @@ class ExerciseLibraryService {
       return exercises;
     } catch (error) {
       console.error('Failed to fetch exercises:', error);
-      throw error;
+      
+      // Return mock data for development if backend is not available
+      return this.getMockExercises(filters);
     }
+  }
+
+  private getMockExercises(filters?: any): Exercise[] {
+    const mockExercises: Exercise[] = [
+      {
+        id: '1',
+        name: 'Barbell Squat',
+        type: ExerciseType.STRENGTH,
+        description: 'A compound exercise that targets the quadriceps, hamstrings, and glutes.',
+        difficulty: ExerciseDifficulty.INTERMEDIATE,
+        targetMuscles: ['Quadriceps', 'Hamstrings', 'Glutes'],
+        equipment: ['Barbell'],
+        formRules: [],
+        thumbnailUrl: '/placeholder-exercise.jpg',
+        tips: ['Keep your chest up', 'Drive through your heels'],
+        variations: ['Front Squat', 'Goblet Squat'],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        metrics: {
+          recommendedSets: 3,
+          recommendedReps: 12
+        }
+      },
+      {
+        id: '2',
+        name: 'Deadlift',
+        type: ExerciseType.STRENGTH,
+        description: 'A compound exercise that works the entire posterior chain.',
+        difficulty: ExerciseDifficulty.ADVANCED,
+        targetMuscles: ['Hamstrings', 'Glutes', 'Back'],
+        equipment: ['Barbell'],
+        formRules: [],
+        thumbnailUrl: '/placeholder-exercise.jpg',
+        tips: ['Keep the bar close to your body', 'Maintain neutral spine'],
+        variations: ['Romanian Deadlift', 'Sumo Deadlift'],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        metrics: {
+          recommendedSets: 3,
+          recommendedReps: 8
+        }
+      },
+      {
+        id: '3',
+        name: 'Push-ups',
+        type: ExerciseType.STRENGTH,
+        description: 'A bodyweight exercise that targets the chest, shoulders, and triceps.',
+        difficulty: ExerciseDifficulty.BEGINNER,
+        targetMuscles: ['Chest', 'Shoulders', 'Triceps'],
+        equipment: ['Bodyweight'],
+        formRules: [],
+        thumbnailUrl: '/placeholder-exercise.jpg',
+        tips: ['Keep your body in a straight line', 'Lower until chest nearly touches ground'],
+        variations: ['Incline Push-ups', 'Diamond Push-ups'],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        metrics: {
+          recommendedSets: 3,
+          recommendedReps: 15
+        }
+      }
+    ];
+
+    // Apply filters to mock data
+    let filteredExercises = mockExercises;
+
+    if (filters?.searchQuery) {
+      const query = filters.searchQuery.toLowerCase();
+      filteredExercises = filteredExercises.filter(ex => 
+        ex.name.toLowerCase().includes(query) ||
+        ex.description.toLowerCase().includes(query)
+      );
+    }
+
+    if (filters?.type) {
+      filteredExercises = filteredExercises.filter(ex => ex.type === filters.type);
+    }
+
+    if (filters?.difficulty) {
+      filteredExercises = filteredExercises.filter(ex => ex.difficulty === filters.difficulty);
+    }
+
+    if (filters?.muscleGroups?.length) {
+      filteredExercises = filteredExercises.filter(ex => 
+        ex.targetMuscles.some(muscle => 
+          filters.muscleGroups!.includes(muscle)
+        )
+      );
+    }
+
+    return filteredExercises;
   }
 
   public async getExercise(id: string): Promise<Exercise | null> {
@@ -77,8 +205,7 @@ class ExerciseLibraryService {
         return this.exercises.get(id)!;
       }
 
-      const response = await apiService.exercises.get(id);
-      const exercise = response.data;
+      const exercise = await apiService.getExercise(id);
       
       // Update cache
       this.exercises.set(exercise.id, exercise);
@@ -105,8 +232,8 @@ class ExerciseLibraryService {
 
   public async searchExercises(query: string): Promise<Exercise[]> {
     try {
-      const response = await apiService.exercises.search(query);
-      return response.data;
+      const exercises = await apiService.getExercises({ search: query } as any);
+      return exercises;
     } catch (error) {
       console.error('Failed to search exercises:', error);
       throw error;
@@ -120,8 +247,13 @@ class ExerciseLibraryService {
     targetMuscles?: string[];
   }): Promise<Exercise[]> {
     try {
-      const response = await apiService.exercises.filter(filters);
-      return response.data;
+      const exercises = await apiService.getExercises({
+        type: filters.type,
+        difficulty: filters.difficulty,
+        muscleGroups: filters.targetMuscles,
+        equipment: filters.equipment
+      } as any);
+      return exercises;
     } catch (error) {
       console.error('Failed to filter exercises:', error);
       throw error;
@@ -130,6 +262,24 @@ class ExerciseLibraryService {
 
   public getExerciseTypes(): ExerciseType[] {
     return Object.values(ExerciseType);
+  }
+
+  public async getMuscleGroups(): Promise<string[]> {
+    // In a real implementation, this would come from the backend
+    // For now, return common muscle groups
+    return [
+      'Chest', 'Back', 'Shoulders', 'Arms', 'Legs', 'Core',
+      'Biceps', 'Triceps', 'Quadriceps', 'Hamstrings', 'Glutes', 'Calves'
+    ];
+  }
+
+  public async getEquipment(): Promise<string[]> {
+    // In a real implementation, this would come from the backend
+    // For now, return common equipment
+    return [
+      'Barbell', 'Dumbbell', 'Kettlebell', 'Resistance Bands',
+      'Pull-up Bar', 'Bench', 'Machine', 'Bodyweight', 'Cable'
+    ];
   }
 
   public validateForm(exerciseId: string, jointAngles: { [key: string]: number }): {

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Box, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper } from '@mui/material';
 import { useFormCheck } from '../../hooks/useFormCheck';
-import { LoadingSpinner } from '../../components/common/LoadingSpinner';
+import { LoadingSpinner } from '../../components/atoms/LoadingSpinner';
 
 const History: React.FC = () => {
   const { formChecks, isLoading, error } = useFormCheck();

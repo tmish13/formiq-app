@@ -22,8 +22,10 @@ export const ROUTES = {
   PROGRESS: '/progress',
   WORKOUT: '/workout',
   FORM_CHECK_UPLOAD: '/workout/form-check/upload',
+  PROCESSING: '/processing/:videoId',
   ANALYSIS: '/analysis',
   VIDEOS: '/videos',
+  EXERCISE_LIBRARY: '/exercise-library',
   
   // Admin routes
   ADMIN_USERS: '/admin/users',
@@ -40,6 +42,8 @@ const FormCheckUploadPage = lazy(() => import('../pages/workout/FormCheckUploadP
 const AnalysisPage = lazy(() => import('../pages/analysis/AnalysisPage').then(module => ({ default: module.AnalysisPage })));
 const ProfilePage = lazy(() => import('../pages/profile/ProfilePage').then(module => ({ default: module.ProfilePage })));
 const WorkoutPage = lazy(() => import('../pages/workout/WorkoutPage').then(module => ({ default: module.WorkoutPage })));
+const ExerciseLibraryPage = lazy(() => import('../pages/workout/ExerciseLibraryPage'));
+const ProcessingProgressPage = lazy(() => import('../pages/processing/ProcessingProgressPage').then(module => ({ default: module.ProcessingProgressPage })));
 const VideosPage = lazy(() => import('../pages/Videos'));
 const NotFoundPage = lazy(() => import('../pages/NotFoundPage').then(module => ({ default: module.NotFoundPage })));
 
@@ -127,12 +131,20 @@ export const protectedRoutes: RouteObject[] = [
     element: <ProtectedRoute><FormCheckUploadPage /></ProtectedRoute>
   },
   {
+    path: ROUTES.PROCESSING,
+    element: <ProtectedRoute>{withSuspense(ProcessingProgressPage)}</ProtectedRoute>
+  },
+  {
     path: ROUTES.ANALYSIS,
     element: <ProtectedRoute><AnalysisPage /></ProtectedRoute>
   },
   {
     path: ROUTES.VIDEOS,
     element: <ProtectedRoute><VideosPage /></ProtectedRoute>
+  },
+  {
+    path: ROUTES.EXERCISE_LIBRARY,
+    element: <ProtectedRoute>{withSuspense(ExerciseLibraryPage)}</ProtectedRoute>
   }
 ];
 

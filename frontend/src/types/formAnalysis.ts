@@ -1,5 +1,6 @@
 import { ExerciseType } from '../services/exerciseLibraryService';
 import { Keypoint } from '@tensorflow-models/pose-detection';
+import { MLScores, PoseData, PoseIssue } from './ml';
 
 export interface Point2D {
   x: number;
@@ -74,6 +75,9 @@ export interface PoseAnalysisResult {
     symmetry: number;
     consistency: number;
   };
+  // Enhanced with ML scores
+  ml_scores?: MLScores;
+  detected_issues?: PoseIssue[];
   feedback: FormFeedback[];
   timestamp: number;
 }
@@ -99,6 +103,10 @@ export interface FormAnalysisResult {
   feedback: FormFeedback[];
   timestamp: number;
   videoUrl: string;
+  // Enhanced with ML analysis
+  ml_scores?: MLScores;
+  detected_issues?: PoseIssue[];
+  pose_data?: PoseData[];
 }
 
 export interface FormAnalysisProgress {

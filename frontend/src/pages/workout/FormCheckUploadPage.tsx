@@ -1,14 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { CameraCapture } from '../../components/camera/CameraCapture';
 import { useNetworkStatus } from '../../services/networkService';
 import { storageService } from '../../services/storageService';
-import { apiService } from '../../services/apiService';
-import { videoService } from '../../services/videoService';
+import { videoUploadService, VideoUploadProgress } from '../../services/videoUploadService';
 import { getThemeValue, fallbacks } from '../../utils/themeUtils';
-import { ApiResponse } from '../../services/apiService';
-import { LoadingSpinner } from '../../components/common/LoadingSpinner';
+import { LoadingSpinner } from '../../components/atoms/LoadingSpinner';
+import { exerciseLibraryService } from '../../services/exerciseLibraryService';
 
 const PageContainer = styled.div`
   max-width: 800px;
@@ -145,6 +144,76 @@ const ProgressBar = styled.div<{ progress: number }>`
   }
 `;
 
+const ProgressStage = styled.div<{ active: boolean }>`
+  padding: 12px 16px;
+  margin: 8px 0;
+  border-radius: 8px;
+  border: 2px solid ${({ theme, active }) => 
+    active ? theme.colors.primary : theme.colors.border};
+  background-color: ${({ theme, active }) => 
+    active ? theme.colors.primaryLight : theme.colors.white};
+  opacity: ${({ active }) => active ? 1 : 0.6};
+  transition: all 0.3s ease;
+`;
+
+const StageTitle = styled.h4`
+  margin: 0 0 4px 0;
+  color: ${({ theme }) => theme.colors.text};
+  font-size: ${({ theme }) => theme.typography.fontSize.md};
+`;
+
+const StageDescription = styled.p`
+  margin: 0;
+  color: ${({ theme }) => theme.colors.textSecondary};
+  font-size: ${({ theme }) => theme.typography.fontSize.sm};
+`;
+
+const ProcessingContainer = styled.div`
+  background-color: ${({ theme }) => theme.colors.background};
+  border-radius: 12px;
+  padding: 24px;
+  margin-top: 24px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+`;
+
+const PreselectedExercise = styled.div`
+  background-color: ${({ theme }) => theme.colors.primaryLight};
+  border: 2px solid ${({ theme }) => theme.colors.primary};
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+`;
+
+const ExerciseInfo = styled.div`
+  h3 {
+    margin: 0 0 4px 0;
+    color: ${({ theme }) => theme.colors.primary};
+  }
+  p {
+    margin: 0;
+    color: ${({ theme }) => theme.colors.textSecondary};
+    font-size: ${({ theme }) => theme.typography.fontSize.sm};
+  }
+`;
+
+const ChangeButton = styled.button`
+  background: transparent;
+  border: 1px solid ${({ theme }) => theme.colors.primary};
+  color: ${({ theme }) => theme.colors.primary};
+  border-radius: 4px;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: ${({ theme }) => theme.typography.fontSize.sm};
+  
+  &:hover {
+    background-color: ${({ theme }) => theme.colors.primary};
+    color: ${({ theme }) => theme.colors.white};
+  }
+`;
+
 // Exercise types
 const EXERCISE_TYPES = [
   { value: 'squat', label: 'Squat' },
@@ -178,53 +247,63 @@ interface FormCheckResponse {
 
 export const FormCheckUploadPage: React.FC = () => {
   const [videoFile, setVideoFile] = useState<File | null>(null);
-  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [exerciseType, setExerciseType] = useState<string>('');
+  const [exerciseName, setExerciseName] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
   const [isUploading, setIsUploading] = useState<boolean>(false);
-  const [isCompressing, setIsCompressing] = useState<boolean>(false);
-  const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [uploadProgress, setUploadProgress] = useState<VideoUploadProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [isQueued, setIsQueued] = useState<boolean>(false);
+  const [videoId, setVideoId] = useState<string | null>(null);
+  const [exercises, setExercises] = useState<any[]>([]);
   const { status } = useNetworkStatus();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Check for preselected exercise from Exercise Library
+  useEffect(() => {
+    const state = location.state as any;
+    if (state?.exerciseId && state?.exerciseName) {
+      setExerciseType(state.exerciseId);
+      setExerciseName(state.exerciseName);
+    }
+  }, [location.state]);
+
+  // Load exercises for dropdown
+  useEffect(() => {
+    const loadExercises = async () => {
+      try {
+        const exerciseList = await exerciseLibraryService.getExercises();
+        setExercises(exerciseList);
+      } catch (error) {
+        console.error('Failed to load exercises:', error);
+      }
+    };
+    loadExercises();
+  }, []);
 
   const handleVideoCapture = async (video: File, thumbnail?: File) => {
     try {
-      setIsCompressing(true);
       setError(null);
-
-      // Compress video before setting it
-      const compressedVideo = await videoService.compressVideo(video, {
-        maxSizeMB: 50,
-        maxWidth: 1280,
-        maxHeight: 720,
-        quality: 0.8,
-      });
-
-      // Set the compressed video file
-      setVideoFile(new File([compressedVideo.data], video.name, { 
-        type: compressedVideo.type 
-      }));
-
-      // Set the thumbnail file if provided, otherwise generate one
-      if (thumbnail) {
-        setThumbnailFile(thumbnail);
-      } else {
-        const videoThumbnail = await videoService.generateThumbnail(video);
-        if (videoThumbnail) {
-          setThumbnailFile(new File([videoThumbnail], 'thumbnail.jpg', { 
-            type: 'image/jpeg' 
-          }));
-        }
-      }
+      setVideoFile(video);
+      setSuccess('Video captured successfully!');
     } catch (err) {
       console.error('Error processing video:', err);
       setError('Failed to process video. Please try again.');
-    } finally {
-      setIsCompressing(false);
     }
+  };
+
+  const handleExerciseChange = (exerciseId: string) => {
+    setExerciseType(exerciseId);
+    const exercise = exercises.find(ex => ex.id === exerciseId);
+    if (exercise) {
+      setExerciseName(exercise.name);
+    }
+  };
+
+  const clearPreselectedExercise = () => {
+    setExerciseType('');
+    setExerciseName('');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -243,78 +322,81 @@ export const FormCheckUploadPage: React.FC = () => {
     setError(null);
     setSuccess(null);
     setIsUploading(true);
-    setUploadProgress(0);
+    setUploadProgress(null);
+    setVideoId(null);
     
     try {
-      // Create form data for the API request
-      const formData = new FormData();
-      formData.append('video', videoFile);
-      formData.append('exercise_type', exerciseType);
-      
-      if (notes) {
-        formData.append('notes', notes);
-      }
-      
-      if (thumbnailFile) {
-        formData.append('thumbnail', thumbnailFile);
-      }
-      
-      // Make API request with offline capability and progress tracking
-      const response = await apiService.formChecks.upload(formData, {
-        onUploadProgress: (progressEvent) => {
-          if (progressEvent.total) {
-            const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-            setUploadProgress(progress);
+      // Use the new video upload service with real backend integration
+      const uploadedVideoId = await videoUploadService.uploadVideo(videoFile, {
+        exerciseId: exerciseType,
+        exerciseName: exerciseName,
+        onProgress: (progress: VideoUploadProgress) => {
+          setUploadProgress(progress);
+          if (progress.videoId) {
+            setVideoId(progress.videoId);
           }
+        },
+        onStatusUpdate: (status) => {
+          console.log('Video status update:', status);
         }
       });
+
+      setSuccess('Upload complete! Redirecting to processing page...');
       
-      const formCheckData = (response.data as ApiResponse<FormCheckResponse>).data;
-      
-      // Check if the request is being processed
-      if (formCheckData.status === 'processing') {
-        setIsQueued(true);
-        
-        // Store the form check data locally for offline access
-        await storageService.addToWorkoutQueue({
-          method: 'post',
-          url: '/form-checks',
-          data: {
-            exercise_type: exerciseType,
-            notes,
-            video_filename: videoFile.name,
-            recorded_at: new Date().toISOString(),
-          },
-          queueId: formCheckData.id || `offline-${Date.now()}`,
-          queuedAt: new Date().toISOString(),
+      // Navigate to processing page for real-time monitoring
+      setTimeout(() => {
+        navigate(`/processing/${uploadedVideoId}`, { 
+          state: { 
+            exerciseType: exerciseType,
+            exerciseName: exerciseName,
+            fromUpload: true
+          }
         });
-        
-        setSuccess('Your form check has been saved and will be processed shortly');
-      } else {
-        setSuccess('Your form check has been uploaded successfully!');
-        
-        // Navigate to analysis page after successful upload
-        setTimeout(() => {
-          navigate('/analysis', { 
-            state: { 
-              formCheckId: formCheckData.id,
-              exerciseType: exerciseType
-            }
-          });
-        }, 2000);
-      }
+      }, 1500);
+
     } catch (err) {
       console.error('Error uploading form check:', err);
-      setError('Failed to upload form check. Please try again.');
+      setError(err instanceof Error ? err.message : 'Failed to upload form check. Please try again.');
     } finally {
       setIsUploading(false);
-      setUploadProgress(0);
     }
+  };
+
+  const renderProgressStages = () => {
+    if (!uploadProgress) return null;
+
+    const stages = [
+      { key: 'preparing', title: 'Preparing Video', description: 'Validating and preparing video for upload' },
+      { key: 'uploading', title: 'Uploading to Cloud', description: 'Securely uploading your video to our servers' },
+      { key: 'processing', title: 'Processing Video', description: 'Extracting frames and analyzing movement' },
+      { key: 'analyzing', title: 'AI Analysis', description: 'Running pose detection and form analysis' },
+      { key: 'completed', title: 'Analysis Complete', description: 'Your form check results are ready!' }
+    ];
+
+    return (
+      <ProcessingContainer>
+        <h3>Processing Your Form Check</h3>
+        <ProgressBar progress={uploadProgress.progress} />
+        <p>{uploadProgress.message}</p>
+        {videoId && (
+          <p style={{ fontSize: '14px', color: '#666' }}>
+            Video ID: {videoId}
+          </p>
+        )}
+        
+        {stages.map((stage) => (
+          <ProgressStage key={stage.key} active={uploadProgress.stage === stage.key}>
+            <StageTitle>{stage.title}</StageTitle>
+            <StageDescription>{stage.description}</StageDescription>
+          </ProgressStage>
+        ))}
+      </ProcessingContainer>
+    );
   };
 
   return (
     <PageContainer>
-      <Heading>Record Exercise Form</Heading>
+      <Heading>AI-Powered Form Analysis</Heading>
       
       {!status.connected && (
         <OfflineNotice>
@@ -325,51 +407,67 @@ export const FormCheckUploadPage: React.FC = () => {
       {error && <ErrorMessage>{error}</ErrorMessage>}
       {success && <SuccessMessage>{success}</SuccessMessage>}
       
+      {/* Show preselected exercise */}
+      {exerciseName && (
+        <PreselectedExercise>
+          <ExerciseInfo>
+            <h3>{exerciseName}</h3>
+            <p>Exercise preselected from library</p>
+          </ExerciseInfo>
+          <ChangeButton onClick={clearPreselectedExercise}>
+            Change Exercise
+          </ChangeButton>
+        </PreselectedExercise>
+      )}
+      
       <CameraCapture onVideoCapture={handleVideoCapture} maxDuration={60} />
       
-      <FormContainer>
-        <form onSubmit={handleSubmit}>
-          <SelectContainer>
-            <Label htmlFor="exercise-type">Exercise Type</Label>
-            <Select
-              id="exercise-type"
-              value={exerciseType}
-              onChange={(e) => setExerciseType(e.target.value)}
-              required
-            >
-              <option value="">Select Exercise Type</option>
-              {EXERCISE_TYPES.map((exercise) => (
-                <option key={exercise.value} value={exercise.value}>
-                  {exercise.label}
-                </option>
-              ))}
-            </Select>
-          </SelectContainer>
-          
-          <Label htmlFor="notes">Additional Notes (Optional)</Label>
-          <TextArea
-            id="notes"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Add any notes about your form, weight used, or concerns..."
-          />
-          
-          <Button type="submit" disabled={isUploading || isCompressing || !videoFile}>
-            {isCompressing ? 'Processing Video...' : isUploading ? `Uploading... ${uploadProgress}%` : isQueued ? 'Queued for Upload' : 'Submit Form Check'}
-          </Button>
-          {(isUploading || isCompressing) && <ProgressBar progress={uploadProgress} />}
-        </form>
-      </FormContainer>
-
-      {(isUploading || isCompressing) && (
-        <LoadingOverlay>
-          <div>
-            <LoadingSpinner size="large" />
-            <LoadingText>
-              {isCompressing ? 'Processing video...' : `Uploading video... ${uploadProgress}%`}
-            </LoadingText>
-          </div>
-        </LoadingOverlay>
+      {/* Show upload progress */}
+      {isUploading && renderProgressStages()}
+      
+      {!isUploading && (
+        <FormContainer>
+          <form onSubmit={handleSubmit}>
+            {!exerciseName && (
+              <SelectContainer>
+                <Label htmlFor="exercise-type">Exercise Type</Label>
+                <Select
+                  id="exercise-type"
+                  value={exerciseType}
+                  onChange={(e) => handleExerciseChange(e.target.value)}
+                  required
+                >
+                  <option value="">Select Exercise Type</option>
+                  {exercises.length > 0 ? (
+                    exercises.map((exercise) => (
+                      <option key={exercise.id} value={exercise.id}>
+                        {exercise.name}
+                      </option>
+                    ))
+                  ) : (
+                    EXERCISE_TYPES.map((exercise) => (
+                      <option key={exercise.value} value={exercise.value}>
+                        {exercise.label}
+                      </option>
+                    ))
+                  )}
+                </Select>
+              </SelectContainer>
+            )}
+            
+            <Label htmlFor="notes">Additional Notes (Optional)</Label>
+            <TextArea
+              id="notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Add any notes about your form, weight used, or concerns..."
+            />
+            
+            <Button type="submit" disabled={isUploading || !videoFile || !exerciseType}>
+              {isUploading ? 'Processing...' : 'Start AI Analysis'}
+            </Button>
+          </form>
+        </FormContainer>
       )}
     </PageContainer>
   );

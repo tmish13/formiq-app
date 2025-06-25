@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import api from '../config/api';
+import apiService from '../services/apiService';
 import { AxiosRequestConfig, AxiosProgressEvent, AxiosError } from 'axios';
 import { handleApiError, AppError, ErrorCode } from '../utils/errorHandling';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -79,15 +79,7 @@ export function useApi<T>(
     }
 
     try {
-      const response = await api.request({
-        url: endpoint,
-        method,
-        ...config,
-        headers: {
-          'Accept': 'application/json',
-          ...(config.headers || {})
-        }
-      });
+      const response = await apiService[method](endpoint, config.data || config.params);
 
       const responseData = response.data;
       setData(responseData);

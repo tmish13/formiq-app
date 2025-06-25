@@ -32,12 +32,9 @@ class AuthService {
       const response = await apiService.post('/auth/register', data);
       const responseData = response.data as AuthResponse;
       
-      // Store tokens if they're returned with registration
+      // Store token if it's returned with registration
       if (responseData.access_token) {
-        localStorage.setItem('access_token', responseData.access_token);
-      }
-      if (responseData.refresh_token) {
-        localStorage.setItem('refresh_token', responseData.refresh_token);
+        localStorage.setItem('token', responseData.access_token);
       }
       
       return responseData.user || response.data as User;
@@ -56,9 +53,8 @@ class AuthService {
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
-      // Always clear tokens on logout
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
+      // Always clear token on logout
+      localStorage.removeItem('token');
     }
   }
 
@@ -66,7 +62,7 @@ class AuthService {
    * Check if user is authenticated
    */
   isAuthenticated(): boolean {
-    return !!localStorage.getItem('access_token');
+    return !!localStorage.getItem('token');
   }
 
   /**
