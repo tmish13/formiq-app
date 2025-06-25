@@ -234,9 +234,10 @@ class FeedbackItemResponse(BaseModel):
 
 class FormCheckDetailedResponse(FormCheckListResponse):
     """
-    Schema for detailed form check response, including feedback items.
+    Schema for detailed form check response, including feedback items and reference pose data.
     """
     feedback_items: Optional[List[FeedbackItemResponse]] = Field(None, description="List of detailed feedback items")
+    reference_pose_data: Optional[Dict[str, Any]] = Field(None, description="Reference pose data for visual overlays")
 
     model_config = ConfigDict(
         from_attributes=True,

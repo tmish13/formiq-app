@@ -123,9 +123,11 @@ class FeedbackType(str, Enum):
         TECHNIQUE: Feedback on technique
         POSTURE: Feedback on posture
         RANGE: Feedback on range of motion
+        RANGE_OF_MOTION: Alias for range
         SPEED: Feedback on speed
         BALANCE: Feedback on balance
         JOINT_ANGLE: Feedback on joint angle
+        ALIGNMENT: Feedback on body alignment
     """
     SUCCESS = "success"
     WARNING = "warning"
@@ -134,9 +136,11 @@ class FeedbackType(str, Enum):
     TECHNIQUE = "technique"
     POSTURE = "posture"
     RANGE = "range"
+    RANGE_OF_MOTION = "range_of_motion"
     SPEED = "speed"
     BALANCE = "balance"
     JOINT_ANGLE = "joint_angle"
+    ALIGNMENT = "alignment"
 
     @classmethod
     def get_color(cls, feedback_type: str) -> str:
@@ -155,11 +159,14 @@ class FeedbackSeverity(str, Enum):
         LOW: Minor form adjustment needed
         MEDIUM: Notable form improvement required
         HIGH: Significant form correction needed
+        CRITICAL: Critical form issues requiring immediate attention
+        INFO: Informational feedback
     """
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
     CRITICAL = "critical"
+    INFO = "info"
 
     @classmethod
     def get_priority(cls, severity: str) -> int:

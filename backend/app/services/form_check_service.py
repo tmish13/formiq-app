@@ -985,6 +985,104 @@ class FormCheckService(BaseService[FormCheck, FormCheckCreate, FormCheckUpdate])
         except Exception as e:
             logger.error(f"Failed to create FormCheck for video {video_id}: {e}", exc_info=True)
             return None
+    
+    async def get_form_check_details_with_reference(
+        self, 
+        form_check_id: UUID, 
+        user_id: UUID,
+        include_reference_pose: bool = True
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get detailed form check information including reference pose data for visual overlays.
+        
+        Args:
+            form_check_id: ID of the form check
+            user_id: ID of the requesting user
+            include_reference_pose: Whether to include reference pose data
+            
+        Returns:
+            Dictionary with form check details and optional reference pose data
+        """
+        try:
+            # Get the form check with eager loading
+            stmt = select(FormCheck).options(
+                selectinload(FormCheck.feedback_items),
+                selectinload(FormCheck.exercise)
+            ).where(FormCheck.id == form_check_id)
+            
+            result = await self.db.execute(stmt)
+            form_check = result.scalar_one_or_none()
+            
+            if not form_check:
+                logger.warning(f"FormCheck {form_check_id} not found")
+                return None
+            
+            # Check permissions
+            if form_check.user_id != user_id:
+                raise PermissionDeniedException("Not authorized to view this form check.")
+            
+            # Convert to dict for easier manipulation
+            form_check_dict = {
+                "id": str(form_check.id),
+                "user_id": str(form_check.user_id),
+                "exercise_id": str(form_check.exercise_id),
+                "video_url": form_check.video_url,
+                "status": form_check.status.value if hasattr(form_check.status, 'value') else str(form_check.status),
+                "score": form_check.score,
+                "overall_feedback": form_check.overall_feedback,
+                "created_at": form_check.created_at,
+                "exercise_name": form_check.exercise.name if form_check.exercise else None,
+                "configuration_id": str(form_check.configuration_id) if form_check.configuration_id else None,
+                "classified_exercise_slug": form_check.classified_exercise_slug,
+                "classification_confidence": form_check.classification_confidence,
+                "form_metadata": form_check.form_metadata,
+                "feedback_items": [
+                    {
+                        "id": item.id,
+                        "form_check_id": str(item.form_check_id),
+                        "type": item.type.value if hasattr(item.type, 'value') else str(item.type),
+                        "severity": item.severity.value if hasattr(item.severity, 'value') else str(item.severity),
+                        "message": item.message,
+                        "timestamp": item.timestamp,
+                        "suggestions": item.suggestions,
+                        "created_at": item.created_at
+                    }
+                    for item in form_check.feedback_items
+                ] if form_check.feedback_items else []
+            }
+            
+            # Add reference pose data if requested
+            if include_reference_pose and form_check.exercise_id:
+                try:
+                    # Import here to avoid circular imports
+                    from app.services.exercise_config_service import ExerciseConfigService
+                    
+                    # Create exercise config service instance
+                    exercise_config_service = ExerciseConfigService(
+                        db=self.db,
+                        settings=self.settings
+                    )
+                    
+                    # Get reference pose data
+                    reference_data = await exercise_config_service.get_reference_pose_by_exercise_id(
+                        exercise_id=form_check.exercise_id
+                    )
+                    
+                    form_check_dict["reference_pose_data"] = reference_data
+                    
+                    logger.info(f"Added reference pose data to form check {form_check_id}")
+                    
+                except Exception as e:
+                    logger.error(f"Error getting reference pose data for form check {form_check_id}: {e}")
+                    form_check_dict["reference_pose_data"] = None
+            else:
+                form_check_dict["reference_pose_data"] = None
+            
+            return form_check_dict
+            
+        except Exception as e:
+            logger.error(f"Error getting form check details with reference: {e}", exc_info=True)
+            return None
 
 async def get_async_form_check_service(
     # db: AsyncSession = Depends(get_async_db), # MODIFIED: Removed Depends from signature

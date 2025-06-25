@@ -665,6 +665,176 @@ class ExerciseConfigService(BaseService[ExerciseConfig, ExerciseConfigCreate, Ex
         """Deletes an exercise configuration by ID."""
         return await super().remove_async(id=id)
 
+    async def generate_and_populate_reference_pose(
+        self, 
+        exercise_config_id: UUID,
+        body_proportions: Optional[Dict[str, float]] = None,
+        stance_width: str = "shoulder_width"
+    ) -> bool:
+        """
+        Generate and populate reference pose data for an exercise configuration.
+        
+        Args:
+            exercise_config_id: ID of the exercise configuration
+            body_proportions: Optional body measurements for scaling
+            stance_width: Stance width preference for squats
+            
+        Returns:
+            True if successfully generated and saved, False otherwise
+        """
+        try:
+            logger.info(f"Generating reference pose for ExerciseConfig {exercise_config_id}")
+            
+            # Get the exercise config and related exercise template
+            config = await self.get_config_async(id=exercise_config_id)
+            if not config:
+                logger.error(f"ExerciseConfig {exercise_config_id} not found")
+                return False
+            
+            # Get exercise template to determine exercise type
+            stmt = select(ExerciseTemplate).where(ExerciseTemplate.id == config.exercise_id)
+            result = await self.db.execute(stmt)
+            exercise_template = result.scalar_one_or_none()
+            
+            if not exercise_template:
+                logger.error(f"ExerciseTemplate not found for config {exercise_config_id}")
+                return False
+            
+            # Import here to avoid circular imports
+            from app.services.reference_pose_service import ReferencePoseService
+            
+            # Generate reference pose
+            reference_service = ReferencePoseService(self.settings)
+            exercise_type = exercise_template.name.lower()
+            
+            pose_data = reference_service.generate_reference_pose(
+                exercise_type=exercise_type,
+                body_proportions=body_proportions,
+                stance_width=stance_width
+            )
+            
+            if not pose_data.get('pose_sequence'):
+                logger.error(f"Failed to generate reference pose for {exercise_type}")
+                return False
+            
+            # Update the exercise config with reference pose data
+            update_data = ExerciseConfigUpdate(reference_pose_data=pose_data)
+            await self.update_config_async(id=exercise_config_id, obj_in=update_data)
+            
+            logger.info(f"Successfully populated reference pose for ExerciseConfig {exercise_config_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error generating reference pose for {exercise_config_id}: {e}", exc_info=True)
+            return False
+    
+    async def get_reference_pose_by_exercise_id(
+        self, 
+        exercise_id: UUID,
+        body_proportions: Optional[Dict[str, float]] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get reference pose data for an exercise by exercise ID.
+        Generates it if it doesn't exist.
+        
+        Args:
+            exercise_id: ID of the exercise template
+            body_proportions: Optional body measurements for scaling
+            
+        Returns:
+            Reference pose data dictionary or None if failed
+        """
+        try:
+            # Get active config for the exercise
+            active_config = await self.get_active_config_for_exercise_async(exercise_id)
+            
+            if not active_config:
+                logger.warning(f"No active config found for exercise {exercise_id}")
+                return None
+            
+            # Check if reference pose data exists
+            if active_config.reference_pose_data:
+                logger.info(f"Returning existing reference pose for exercise {exercise_id}")
+                return active_config.reference_pose_data
+            
+            # Generate reference pose if it doesn't exist
+            logger.info(f"Generating new reference pose for exercise {exercise_id}")
+            success = await self.generate_and_populate_reference_pose(
+                exercise_config_id=active_config.id,
+                body_proportions=body_proportions
+            )
+            
+            if success:
+                # Fetch the updated config
+                updated_config = await self.get_config_async(id=active_config.id)
+                return updated_config.reference_pose_data if updated_config else None
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error getting reference pose for exercise {exercise_id}: {e}", exc_info=True)
+            return None
+    
+    async def bulk_generate_reference_poses(
+        self, 
+        exercise_types: Optional[List[str]] = None
+    ) -> Dict[str, bool]:
+        """
+        Generate reference poses for multiple exercises in bulk.
+        
+        Args:
+            exercise_types: List of exercise types to generate for. If None, generates for all supported types.
+            
+        Returns:
+            Dictionary mapping exercise type to success status
+        """
+        results = {}
+        
+        try:
+            # Import here to avoid circular imports
+            from app.services.reference_pose_service import ReferencePoseService
+            reference_service = ReferencePoseService(self.settings)
+            
+            # If no specific types provided, use all supported types
+            if exercise_types is None:
+                exercise_types = reference_service.get_supported_exercises()
+            
+            # Get all exercise templates that match the types
+            stmt = select(ExerciseTemplate).where(
+                func.lower(ExerciseTemplate.name).in_([et.lower() for et in exercise_types])
+            )
+            result = await self.db.execute(stmt)
+            exercise_templates = result.scalars().all()
+            
+            for template in exercise_templates:
+                exercise_type = template.name.lower()
+                logger.info(f"Generating reference pose for {exercise_type}")
+                
+                try:
+                    # Get or create active config
+                    active_config = await self.get_or_create_config_async(
+                        exercise_id=template.id,
+                        exercise_name_key=exercise_type
+                    )
+                    
+                    # Generate reference pose
+                    success = await self.generate_and_populate_reference_pose(
+                        exercise_config_id=active_config.id
+                    )
+                    
+                    results[exercise_type] = success
+                    
+                except Exception as e:
+                    logger.error(f"Error generating reference pose for {exercise_type}: {e}")
+                    results[exercise_type] = False
+            
+            logger.info(f"Bulk reference pose generation completed. Results: {results}")
+            return results
+            
+        except Exception as e:
+            logger.error(f"Error in bulk reference pose generation: {e}", exc_info=True)
+            return {}
+
     async def get_reference_pose_data_async(self, exercise_config_id: UUID) -> Optional[Dict[str, Any]]:
         """
         Retrieves the reference_pose_data for a given ExerciseConfig ID.

@@ -156,10 +156,12 @@ async def search_exercises(
     "/{exercise_template_id}/reference-overlay", 
     response_model=Optional[Dict[str, Any]],
     summary="Get Reference Visual Overlay Data",
-    description="Retrieves the reference pose data (keypoints, ideal angles for key phases) for the active configuration of a given exercise template. Used for displaying 'green reference' visual overlays."
+    description="Retrieves the reference pose data (keypoints, ideal angles for key phases) for the active configuration of a given exercise template. Auto-generates reference pose if it doesn't exist for supported exercises."
 )
 async def get_reference_overlay_data(
     exercise_template_id: UUID,
+    body_proportions: Optional[str] = Query(None, description="JSON string of body proportions for scaling"),
+    generate_if_missing: bool = Query(True, description="Auto-generate reference pose if missing"),
     exercise_config_service: ExerciseConfigService = Depends(get_async_exercise_config_service)
 ):
     """
@@ -167,24 +169,44 @@ async def get_reference_overlay_data(
     
     - Fetches the active ExerciseConfig for the given exercise_template_id.
     - Retrieves the reference_pose_data from that configuration.
+    - Auto-generates reference pose if missing and exercise is supported.
     """
     try:
-        active_config = await exercise_config_service.get_active_config_for_exercise_async(
-            exercise_id=exercise_template_id
-        )
-        if not active_config:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Active exercise configuration not found for exercise template ID: {exercise_template_id}"
+        # Parse body proportions if provided
+        body_props = None
+        if body_proportions:
+            try:
+                import json
+                body_props = json.loads(body_proportions)
+            except json.JSONDecodeError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid body_proportions JSON format"
+                )
+        
+        # Use the new method that auto-generates if missing
+        if generate_if_missing:
+            reference_data = await exercise_config_service.get_reference_pose_by_exercise_id(
+                exercise_id=exercise_template_id,
+                body_proportions=body_props
+            )
+        else:
+            # Original behavior - just get existing data
+            active_config = await exercise_config_service.get_active_config_for_exercise_async(
+                exercise_id=exercise_template_id
+            )
+            if not active_config:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Active exercise configuration not found for exercise template ID: {exercise_template_id}"
+                )
+            
+            reference_data = await exercise_config_service.get_reference_pose_data_async(
+                exercise_config_id=active_config.id
             )
         
-        reference_data = await exercise_config_service.get_reference_pose_data_async(
-            exercise_config_id=active_config.id
-        )
-        
         if not reference_data:
-            # It's okay if reference_data is None/empty, means it's not defined for this config
-            # Frontend should handle this gracefully (e.g., not show the overlay)
+            # Return null if no reference data available
             return None 
             
         return reference_data
@@ -197,4 +219,37 @@ async def get_reference_overlay_data(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred while fetching reference overlay data."
+        )
+
+
+@router.post(
+    "/generate-reference-poses",
+    response_model=Dict[str, bool],
+    summary="Bulk Generate Reference Poses",
+    description="Generate reference poses for multiple exercises in bulk. Useful for admin/setup operations."
+)
+async def bulk_generate_reference_poses(
+    exercise_types: Optional[List[str]] = Query(None, description="List of exercise types to generate for"),
+    exercise_config_service: ExerciseConfigService = Depends(get_async_exercise_config_service)
+):
+    """
+    Generate reference poses for multiple exercises in bulk.
+    
+    Args:
+        exercise_types: Optional list of exercise types. If not provided, generates for all supported types.
+        
+    Returns:
+        Dictionary mapping exercise type to success status
+    """
+    try:
+        results = await exercise_config_service.bulk_generate_reference_poses(
+            exercise_types=exercise_types
+        )
+        
+        return results
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An error occurred during bulk reference pose generation: {str(e)}"
         ) 

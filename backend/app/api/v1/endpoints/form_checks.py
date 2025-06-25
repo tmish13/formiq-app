@@ -180,10 +180,16 @@ async def get_form_check_details(
     Get detailed information for a specific form check.
     """
     try:
-        form_check = await form_check_service.get_form_check_details(
-            form_check_id=form_check_id, user_id=current_user.id
+        form_check = await form_check_service.get_form_check_details_with_reference(
+            form_check_id=form_check_id, 
+            user_id=current_user.id,
+            include_reference_pose=True
         )
-        return form_check # Service handles NotFoundException
+        
+        if not form_check:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Form check not found")
+        
+        return form_check
     except NotFoundException as nfe:
         logger.warning(f"NotFound for form_check_id {form_check_id}: {str(nfe)}")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(nfe))
