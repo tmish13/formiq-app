@@ -1,0 +1,1 @@
+Help me solve this problem: $ARGUMENTS by breaking it down into smaller steps, analyzing all possible approaches, and providing a detailed solution with explanations for each step of your reasoning. 

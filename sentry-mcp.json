@@ -1,0 +1,7 @@
+{
+  "command": "npx",
+  "args": [
+    "mcp-remote@latest",
+    "https://mcp.sentry.dev/sse"
+  ]
+}

@@ -24,6 +24,7 @@ export const ROUTES = {
   FORM_CHECK_UPLOAD: '/workout/form-check/upload',
   PROCESSING: '/processing/:videoId',
   ANALYSIS: '/analysis',
+  ANALYTICS: '/analytics',
   VIDEOS: '/videos',
   EXERCISE_LIBRARY: '/exercise-library',
   
@@ -44,6 +45,7 @@ const ProfilePage = lazy(() => import('../pages/profile/ProfilePage').then(modul
 const WorkoutPage = lazy(() => import('../pages/workout/WorkoutPage').then(module => ({ default: module.WorkoutPage })));
 const ExerciseLibraryPage = lazy(() => import('../pages/workout/ExerciseLibraryPage'));
 const ProcessingProgressPage = lazy(() => import('../pages/processing/ProcessingProgressPage').then(module => ({ default: module.ProcessingProgressPage })));
+const Analytics = lazy(() => import('../pages/Analytics').then(module => ({ default: module.Analytics })));
 const VideosPage = lazy(() => import('../pages/Videos'));
 const NotFoundPage = lazy(() => import('../pages/NotFoundPage').then(module => ({ default: module.NotFoundPage })));
 
@@ -137,6 +139,10 @@ export const protectedRoutes: RouteObject[] = [
   {
     path: ROUTES.ANALYSIS,
     element: <ProtectedRoute><AnalysisPage /></ProtectedRoute>
+  },
+  {
+    path: ROUTES.ANALYTICS,
+    element: <ProtectedRoute>{withSuspense(Analytics)}</ProtectedRoute>
   },
   {
     path: ROUTES.VIDEOS,

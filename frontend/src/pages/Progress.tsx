@@ -9,11 +9,17 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  AreaChart,
+  Area,
 } from 'recharts';
 import { Theme } from '../types/theme';
 import { getThemeValue, fallbacks } from '../utils/themeUtils';
 import { ProgressDashboard } from '../components/progress/ProgressDashboard';
 import { progressService, ProgressData } from '../services/progressService';
+import { FormCheckService } from '../services/formCheckService';
+import { FormCheck } from '../types/formCheck';
+import { MLScoreCard } from '../components/molecules/MLScoreCard';
+import { MLScores } from '../types/ml';
 
 const PageContainer = styled.div<{ theme?: Partial<Theme> }>`
   display: flex;
@@ -214,56 +220,36 @@ const ChartTitle = styled.h2`
   margin-bottom: 20px;
 `;
 
-// Mock data for sessions
-const mockSessions = [
-  {
-    id: 1,
-    title: 'Morning Squat Session',
-    date: '2024-03-15',
-    score: 85,
-    thumbnail: 'https://via.placeholder.com/300x200',
-  },
-  {
-    id: 2,
-    title: 'Evening Push-up Routine',
-    date: '2024-03-14',
-    score: 75,
-    thumbnail: 'https://via.placeholder.com/300x200',
-  },
-  {
-    id: 3,
-    title: 'Deadlift Practice',
-    date: '2024-03-13',
-    score: 92,
-    thumbnail: 'https://via.placeholder.com/300x200',
-  },
-  {
-    id: 4,
-    title: 'Lunge Training',
-    date: '2024-03-12',
-    score: 68,
-    thumbnail: 'https://via.placeholder.com/300x200',
-  },
-];
+// Enhanced data interfaces for real backend data
+interface ProgressChartData {
+  date: string;
+  overall_score: number;
+  posture_score?: number;
+  stability_score?: number;
+  depth_score?: number;
+}
 
-// Mock data for progress chart
-const mockProgressData = [
-  { date: '2024-03-01', score: 65 },
-  { date: '2024-03-05', score: 70 },
-  { date: '2024-03-08', score: 75 },
-  { date: '2024-03-12', score: 68 },
-  { date: '2024-03-13', score: 92 },
-  { date: '2024-03-14', score: 75 },
-  { date: '2024-03-15', score: 85 },
-];
+interface SessionData {
+  id: number;
+  title: string;
+  date: string;
+  score: number;
+  thumbnail: string;
+  ml_scores?: MLScores;
+  exercise_type: string;
+}
 
 export const Progress: React.FC = () => {
   const [exerciseType, setExerciseType] = useState<string>('all');
   const [history, setHistory] = useState<ProgressData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [sessions] = useState(mockSessions);
-  const [progressData] = useState(mockProgressData);
+  const [sessions, setSessions] = useState<SessionData[]>([]);
+  const [progressData, setProgressData] = useState<ProgressChartData[]>([]);
+  const [formChecks, setFormChecks] = useState<FormCheck[]>([]);
+  const [averageMLScores, setAverageMLScores] = useState<MLScores | null>(null);
+  
+  const formCheckService = FormCheckService.getInstance();
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -291,11 +277,66 @@ export const Progress: React.FC = () => {
       setIsLoading(true);
       setError(null);
       
+      // Load form checks from backend
+      const formCheckData = exerciseType !== 'all' 
+        ? await formCheckService.getFormChecksByExerciseType(exerciseType as any)
+        : await formCheckService.getFormChecks();
+      
+      setFormChecks(formCheckData);
+      
+      // Convert form checks to sessions data
+      const sessionsData: SessionData[] = formCheckData.map((fc, index) => ({
+        id: fc.id,
+        title: `${fc.exercise_type.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')} Session`,
+        date: fc.created_at,
+        score: fc.score || 0,
+        thumbnail: fc.thumbnail_url || 'https://via.placeholder.com/300x200',
+        ml_scores: fc.posture_score && fc.stability_score && fc.depth_score ? {
+          posture_score: fc.posture_score,
+          stability_score: fc.stability_score,
+          depth_score: fc.depth_score,
+          confidence: fc.confidence_score
+        } : undefined,
+        exercise_type: fc.exercise_type
+      }));
+      setSessions(sessionsData);
+
+      // Convert to progress chart data
+      const chartData: ProgressChartData[] = formCheckData
+        .filter(fc => fc.score !== null && fc.score !== undefined)
+        .map(fc => ({
+          date: new Date(fc.created_at).toLocaleDateString(),
+          overall_score: fc.score || 0,
+          posture_score: fc.posture_score || undefined,
+          stability_score: fc.stability_score || undefined,
+          depth_score: fc.depth_score || undefined,
+        }))
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      setProgressData(chartData);
+
+      // Calculate average ML scores
+      const mlScoresData = formCheckData.filter(fc => 
+        fc.posture_score && fc.stability_score && fc.depth_score
+      );
+      
+      if (mlScoresData.length > 0) {
+        const avgScores: MLScores = {
+          posture_score: mlScoresData.reduce((sum, fc) => sum + (fc.posture_score || 0), 0) / mlScoresData.length,
+          stability_score: mlScoresData.reduce((sum, fc) => sum + (fc.stability_score || 0), 0) / mlScoresData.length,
+          depth_score: mlScoresData.reduce((sum, fc) => sum + (fc.depth_score || 0), 0) / mlScoresData.length,
+          confidence: mlScoresData.reduce((sum, fc) => sum + (fc.confidence_score || 0), 0) / mlScoresData.length,
+        };
+        setAverageMLScores(avgScores);
+      }
+      
+      // Load legacy progress history for backward compatibility
       const filter = exerciseType !== 'all' ? { exerciseType } : undefined;
-      const data = await progressService.getProgressHistory(filter);
-      setHistory(data);
+      const historyData = await progressService.getProgressHistory(filter);
+      setHistory(historyData);
+      
     } catch (err: any) {
-      setError(err.message || 'Failed to load history');
+      setError(err.message || 'Failed to load progress data');
+      console.error('Progress loading error:', err);
     } finally {
       setIsLoading(false);
     }
@@ -324,8 +365,20 @@ export const Progress: React.FC = () => {
     <PageContainer>
       <Header>
         <Title>Your Progress</Title>
-        <Description>Track your form improvement over time</Description>
+        <Description>Track your form improvement over time with AI-powered analysis</Description>
       </Header>
+
+      {/* ML Scores Overview */}
+      {averageMLScores && (
+        <div style={{ marginBottom: '32px', width: '100%', maxWidth: '800px' }}>
+          <MLScoreCard 
+            scores={averageMLScores}
+            variant="summary"
+            showTrend={false}
+            showConfidence={true}
+          />
+        </div>
+      )}
 
       <Grid
         as={motion.div}
@@ -344,6 +397,18 @@ export const Progress: React.FC = () => {
             <SessionTitle>{session.title}</SessionTitle>
             <SessionDate>{new Date(session.date).toLocaleDateString()}</SessionDate>
             <ScoreBadge score={session.score}>{session.score}%</ScoreBadge>
+            
+            {/* Display ML scores if available */}
+            {session.ml_scores && (
+              <div style={{ marginTop: '12px' }}>
+                <MLScoreCard 
+                  scores={session.ml_scores}
+                  variant="compact"
+                  showTrend={false}
+                  showConfidence={false}
+                />
+              </div>
+            )}
           </SessionCard>
         ))}
       </Grid>
@@ -351,19 +416,54 @@ export const Progress: React.FC = () => {
       <ChartContainer>
         <ChartTitle>Form Score Progress</ChartTitle>
         <ResponsiveContainer width="100%" height={400}>
-          <LineChart data={progressData}>
+          <AreaChart data={progressData}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="date" />
             <YAxis domain={[0, 100]} />
-            <Tooltip />
-            <Line
-              type="monotone"
-              dataKey="score"
-              stroke="#4CAF50"
-              strokeWidth={2}
-              dot={{ fill: '#4CAF50' }}
+            <Tooltip 
+              formatter={(value, name) => [
+                `${value}%`,
+                name === 'overall_score' ? 'Overall Score' :
+                name === 'posture_score' ? 'Posture Score' :
+                name === 'stability_score' ? 'Stability Score' :
+                name === 'depth_score' ? 'Depth Score' : name
+              ]}
             />
-          </LineChart>
+            <Area
+              type="monotone"
+              dataKey="overall_score"
+              stroke="#4CAF50"
+              fill="#4CAF5020"
+              strokeWidth={3}
+            />
+            {progressData.some(d => d.posture_score) && (
+              <Area
+                type="monotone"
+                dataKey="posture_score"
+                stroke="#2196F3"
+                fill="#2196F320"
+                strokeWidth={2}
+              />
+            )}
+            {progressData.some(d => d.stability_score) && (
+              <Area
+                type="monotone"
+                dataKey="stability_score"
+                stroke="#FF9500"
+                fill="#FF950020"
+                strokeWidth={2}
+              />
+            )}
+            {progressData.some(d => d.depth_score) && (
+              <Area
+                type="monotone"
+                dataKey="depth_score"
+                stroke="#9C27B0"
+                fill="#9C27B020"
+                strokeWidth={2}
+              />
+            )}
+          </AreaChart>
         </ResponsiveContainer>
       </ChartContainer>
 
@@ -385,11 +485,13 @@ export const Progress: React.FC = () => {
         </FilterContainer>
 
         {isLoading ? (
-          <LoadingSpinner>Loading history...</LoadingSpinner>
+          <LoadingSpinner>Loading progress data...</LoadingSpinner>
         ) : error ? (
           <ErrorMessage>{error}</ErrorMessage>
-        ) : history.length === 0 ? (
-          <ErrorMessage>No history available</ErrorMessage>
+        ) : sessions.length === 0 && history.length === 0 ? (
+          <ErrorMessage>
+            No exercise sessions yet. Start your first form check to see your progress!
+          </ErrorMessage>
         ) : (
           <HistoryList>
             {history.map((item) => (

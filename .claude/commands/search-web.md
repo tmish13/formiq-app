@@ -1,0 +1,1 @@
+Search the web for this: $ARGUMENTS and provide the most up-to-date answers and relevant information/research on the topic that answers my queries.
