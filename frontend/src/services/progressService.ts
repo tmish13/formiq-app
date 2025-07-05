@@ -1,5 +1,5 @@
-import { apiService } from './apiService';
-import { ApiResponse } from './apiService';
+import apiService from './apiService';
+import type { ApiResponse } from '../types/api';
 
 export interface ProgressData {
   id: string;
@@ -116,6 +116,88 @@ class ProgressService {
       console.error('Error fetching progress trends:', error);
       throw error;
     }
+  }
+
+  /**
+   * Get overview data for dashboard
+   */
+  async getProgressOverview(): Promise<{
+    currentStreak: number;
+    averageScore: number;
+    totalSessions: number;
+    weeklyImprovement: number;
+  }> {
+    const cacheKey = 'overview';
+    
+    // Check cache first
+    const cached = this.getFromCache(cacheKey);
+    if (cached) return cached;
+    
+    try {
+      // Try to get from backend first
+      const response = await apiService.get('/progress/overview');
+      const data = response.data;
+      this.setCache(cacheKey, data);
+      return data;
+    } catch (error) {
+      console.warn('Backend progress overview not available, calculating from stats');
+      
+      // Fallback: calculate from existing data
+      try {
+        const stats = await this.getProgressStats();
+        const history = await this.getProgressHistory({ limit: 50 });
+        
+        const overview = {
+          currentStreak: this.calculateStreak(history),
+          averageScore: stats.averageScore,
+          totalSessions: stats.totalAnalyses,
+          weeklyImprovement: stats.improvementRate
+        };
+        
+        this.setCache(cacheKey, overview);
+        return overview;
+      } catch (fallbackError) {
+        console.error('Error calculating progress overview:', fallbackError);
+        // Return default values
+        return {
+          currentStreak: 0,
+          averageScore: 0,
+          totalSessions: 0,
+          weeklyImprovement: 0
+        };
+      }
+    }
+  }
+
+  /**
+   * Calculate current streak from progress history
+   */
+  private calculateStreak(history: ProgressData[]): number {
+    if (history.length === 0) return 0;
+    
+    // Sort by date, most recent first
+    const sortedHistory = history.sort((a, b) => 
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+    
+    let streak = 0;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    for (const session of sortedHistory) {
+      const sessionDate = new Date(session.createdAt);
+      sessionDate.setHours(0, 0, 0, 0);
+      
+      const daysDiff = Math.floor((today.getTime() - sessionDate.getTime()) / (1000 * 60 * 60 * 24));
+      
+      if (daysDiff === streak) {
+        streak++;
+      } else if (daysDiff > streak) {
+        break;
+      }
+    }
+    
+    return streak;
   }
 
   /**

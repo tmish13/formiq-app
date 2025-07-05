@@ -1,5 +1,4 @@
 import { setupServer } from 'msw/node';
-import { http, HttpResponse } from 'msw';
 import { handlers } from './handlers';
 
 // This configures a Service Worker with the given request handlers.

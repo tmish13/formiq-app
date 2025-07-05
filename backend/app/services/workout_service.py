@@ -8,6 +8,8 @@ from sqlalchemy import select, desc, and_, or_
 from fastapi import Depends
 
 from app.core.database import get_db
+from app.core.db_deps import get_async_db
+from app.core.config import get_settings
 from app.core.exceptions import (
     ValidationError,
     NotFoundException,
@@ -249,10 +251,10 @@ def get_workout_service(
     return WorkoutService(db=db_session, app_settings=current_app_settings)
 
 async def get_async_workout_service(
-    # db: AsyncSession = Depends(get_async_db), # Comment out/remove original Depends here
-    # app_settings: Settings = Depends(get_settings) # Comment out/remove original Depends here
+    db: AsyncSession = Depends(get_async_db),
+    app_settings: Settings = Depends(get_settings)
 ) -> WorkoutService:
-    from app.core.deps import get_async_db, get_settings # Import locally
-    db_session: AsyncSession = Depends(get_async_db)
-    current_app_settings: Settings = Depends(get_settings)
-    return WorkoutService(db=db_session, app_settings=current_app_settings) 
+    """Get async workout service instance.""" 
+    return WorkoutService(db=db, app_settings=app_settings)
+
+# Imports already done above 

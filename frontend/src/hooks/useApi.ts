@@ -81,7 +81,7 @@ export function useApi<T>(
     try {
       const response = await apiService[method](endpoint, config.data || config.params);
 
-      const responseData = response.data;
+      const responseData = response.data as T;
       setData(responseData);
       setLoading(false);
 

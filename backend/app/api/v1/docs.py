@@ -206,12 +206,25 @@ def custom_openapi(app: FastAPI) -> Dict[str, Any]:
     if app.openapi_schema:
         return app.openapi_schema
     
-    openapi_schema = get_openapi(
-        title=app.title,
-        version=app.version,
-        description=app.description,
-        routes=app.routes,
-    )
+    try:
+        openapi_schema = get_openapi(
+            title=app.title,
+            version=app.version,
+            description=app.description,
+            routes=app.routes,
+        )
+    except Exception as e:
+        # If there's an issue with schema generation, return a basic schema
+        print(f"Error generating OpenAPI schema: {e}")
+        openapi_schema = {
+            "openapi": "3.0.2",
+            "info": {
+                "title": app.title,
+                "version": app.version,
+                "description": app.description,
+            },
+            "paths": {},
+        }
     
     # Add global security scheme for bearer token authentication
     openapi_schema["components"] = openapi_schema.get("components", {})

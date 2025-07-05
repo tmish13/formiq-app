@@ -5,11 +5,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import (
     get_async_db,
     get_current_active_user,
-    check_subscription_tier,
-    validate_workout_access,
-    get_async_workout_service,
     get_async_progress_service
 )
+from app.core.deps import check_subscription_tier
 from app.models.user import User
 from app.models.workout import Workout
 from app.models.enums import SubscriptionTier
@@ -20,6 +18,7 @@ from app.schemas.workout import (
     WorkoutWithExercises,
     ExerciseCreate,
     WorkoutPlanCreate,
+    WorkoutPlanUpdate,
     WorkoutPlanRead,
     WorkoutPlanWithExercises,
     ExerciseProgressResponse,
@@ -32,12 +31,51 @@ from app.schemas.exercise import (
     ExerciseSetUpdate,
     ExerciseSetResponse,
 )
-from app.services.workout_service import WorkoutService
+from app.services.workout_service import WorkoutService, get_async_workout_service
 from app.services.progress_service import ProgressService
-from app.utils.workout_plan_utils import generate_next_workout_date
 from datetime import date, timedelta
 
+# Inline utility function for generating next workout date
+def generate_next_workout_date(frequency_days: int, last_workout_date: date) -> date:
+    """Generate the next workout date based on frequency."""
+    return last_workout_date + timedelta(days=frequency_days)
+
+# Dependency factory for subscription tier checking
+def require_subscription_tier(required_tiers: List[str]):
+    """Create a dependency that checks if user has one of the required subscription tiers."""
+    async def _check_tier(current_user: User = Depends(get_current_active_user)) -> None:
+        user_tier = current_user.subscription_tier.value if current_user.subscription_tier else SubscriptionTier.FREE.value
+        if user_tier not in required_tiers and user_tier.upper() not in required_tiers:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"This feature requires one of these subscription tiers: {', '.join(required_tiers)}"
+            )
+    return _check_tier
+
 router = APIRouter()
+
+# Local dependency function
+async def validate_workout_access(
+    workout_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_async_db)
+) -> Workout:
+    """Validate that the current user has access to the specified workout."""
+    from sqlalchemy import select
+    
+    stmt = select(Workout).where(
+        Workout.id == workout_id,
+        Workout.user_id == current_user.id
+    )
+    result = await db.execute(stmt)
+    workout = result.scalars().first()
+    
+    if not workout:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Workout not found or access denied"
+        )
+    return workout
 
 @router.post("/", response_model=WorkoutRead, status_code=status.HTTP_201_CREATED)
 async def create_workout(
@@ -46,7 +84,7 @@ async def create_workout(
     current_user: User = Depends(get_current_active_user),
     workout_in: WorkoutCreate,
     workout_service: WorkoutService = Depends(get_async_workout_service),
-    _: None = Depends(check_subscription_tier(["STANDARD", "PREMIUM"]))
+    _: None = Depends(require_subscription_tier(["STANDARD", "PREMIUM"]))
 ) -> WorkoutRead:
     """Create a new workout."""
     workout = await workout_service.create_workout_async(
@@ -93,12 +131,11 @@ async def get_workout(
     workout_id: int,
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_active_user),
-    workout_service: WorkoutService = Depends(get_async_workout_service),
-    _: None = Depends(validate_workout_access)
+    workout_service: WorkoutService = Depends(get_async_workout_service)
 ) -> WorkoutWithExercises:
     """Get a specific workout."""
-    workout = await workout_service.get_workout_with_exercises_async(
-        workout_id=workout_id
+    workout = await workout_service.get_workout_details_async(
+        workout_id=workout_id, user_id=current_user.id
     )
     if not workout:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workout not found")
@@ -111,8 +148,7 @@ async def update_workout(
     workout_in: WorkoutUpdate,
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_active_user),
-    workout_service: WorkoutService = Depends(get_async_workout_service),
-    _: None = Depends(validate_workout_access)
+    workout_service: WorkoutService = Depends(get_async_workout_service)
 ) -> WorkoutRead:
     """Update a workout."""
     updated_workout = await workout_service.update_workout_async(
@@ -128,8 +164,7 @@ async def delete_workout(
     workout_id: int,
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_active_user),
-    workout_service: WorkoutService = Depends(get_async_workout_service),
-    _: None = Depends(validate_workout_access)
+    workout_service: WorkoutService = Depends(get_async_workout_service)
 ) -> None:
     """Delete a workout."""
     await workout_service.delete_workout_async(
@@ -144,7 +179,7 @@ async def create_workout_plan(
     current_user: User = Depends(get_current_active_user),
     plan_in: WorkoutPlanCreate,
     workout_service: WorkoutService = Depends(get_async_workout_service),
-    _: None = Depends(check_subscription_tier(["PREMIUM"]))
+    _: None = Depends(require_subscription_tier(["PREMIUM"]))
 ) -> WorkoutPlanRead:
     """Create a workout plan."""
     plan = await workout_service.create_workout_plan_async(
@@ -229,7 +264,7 @@ async def track_exercise_progress(
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_active_user),
     progress_service: ProgressService = Depends(get_async_progress_service),
-    _: None = Depends(check_subscription_tier(["STANDARD", "PREMIUM"]))
+    _: None = Depends(require_subscription_tier(["STANDARD", "PREMIUM"]))
 ) -> List[ExerciseProgressResponse]:
     """Track progress for a specific exercise.
     Note: The service currently accepts a 'time_range' (e.g., last 30 days) rather than specific start/end dates.
@@ -252,7 +287,7 @@ async def track_exercise_progress(
     "/progress/",
     response_model=ExerciseProgressResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(check_subscription_tier(["STANDARD", "PREMIUM"]))],
+    dependencies=[Depends(require_subscription_tier(["STANDARD", "PREMIUM"]))],
 )
 async def log_exercise_progress(
     *,
@@ -307,7 +342,7 @@ async def get_next_workout_date_for_plan(
     status_code=status.HTTP_201_CREATED,
     summary="Add an exercise set to a workout's exercise",
     description="Adds a new set to a specific exercise within a workout. Ensures user has access to the workout.",
-    dependencies=[Depends(validate_workout_access)], # Validates workout_id and user access
+    # Note: Workout access validation is handled inside the service method
 )
 async def add_exercise_set_to_workout_exercise(
     *,
@@ -405,7 +440,7 @@ async def delete_exercise_set(
     response_model=WorkoutShareResponse,
     summary="Share a workout",
     description="Shares a workout with another user via email.",
-    dependencies=[Depends(validate_workout_access)],
+    # Note: Workout access validation is handled inside the service method
 )
 async def share_workout(
     *,

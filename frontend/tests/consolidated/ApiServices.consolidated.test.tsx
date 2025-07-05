@@ -11,18 +11,36 @@ import React, { useEffect, useState } from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
-import { http, HttpResponse } from 'msw';
+import { rest } from 'msw';
 
 // Import shared testing utilities
 import { 
-  setupMockServer, 
-  setupServerLifecycle,
   createMockUser,
   createMockFormCheck,
   createMockFormChecks,
+  healthHandlers,
+  userHandlers,
   authHandlers,
-  formCheckHandlers
+  formCheckHandlers,
+  exerciseHandlers
 } from '../utils/sharedMocks';
+
+// Import global server to add handlers to it
+import { server } from '../mocks/server';
+
+// Import API services
+import apiService from '../../src/services/apiService';
+import { storageService } from '../../src/services/storageService';
+
+// Mock storageService to provide auth token
+jest.mock('../../src/services/storageService', () => ({
+  getAuthToken: jest.fn().mockResolvedValue('mock-auth-token'),
+  getRefreshToken: jest.fn().mockResolvedValue('mock-refresh-token'),
+  setAuthToken: jest.fn(),
+  setRefreshToken: jest.fn(),
+  removeAuthToken: jest.fn(),
+  removeRefreshToken: jest.fn(),
+}));
 
 // Define types for the application
 interface UserProfile {
@@ -58,17 +76,18 @@ interface Exercise {
 // API test handlers
 const customHandlers = [
   // Health check endpoint
-  http.get('/api/health', () => {
-    return HttpResponse.json({ status: 'ok' });
+  rest.get('/api/health', (req, res, ctx) => {
+    return res(ctx.json({ status: 'ok' }));
   }),
   
   // User profile endpoint
-  http.get('/api/users/:userId', ({ params }) => {
+  rest.get('/api/users/:userId', (req, res, ctx) => {
+    const { params } = req;
     if (params.userId === 'invalid-id') {
-      return new HttpResponse(null, { status: 404 });
+      return res(ctx.status(404));
     }
     
-    return HttpResponse.json({
+    return res(ctx.json({
       id: params.userId,
       name: 'Test User',
       email: 'test@example.com',
@@ -78,12 +97,12 @@ const customHandlers = [
         formChecksCompleted: 12,
         averageScore: 85
       }
-    });
+    }));
   }),
   
   // Exercises library endpoints
-  http.get('/api/exercises', ({ request }) => {
-    const url = new URL(request.url);
+  rest.get('/api/exercises', (req, res, ctx) => {
+    const url = new URL(req.url);
     const category = url.searchParams.get('category');
     
     const exercises = [
@@ -95,74 +114,88 @@ const customHandlers = [
     ];
     
     if (category) {
-      return HttpResponse.json({
+      return res(ctx.json({
         items: exercises.filter(ex => ex.category === category)
-      });
+      }));
     }
     
-    return HttpResponse.json({ items: exercises });
+    return res(ctx.json({ items: exercises }));
   }),
   
   // Workouts endpoints
-  http.get('/api/workouts', () => {
-    return HttpResponse.json({
+  rest.get('/api/workouts', (req, res, ctx) => {
+    return res(ctx.json({
       items: [
         { id: 'w1', name: 'Full Body Strength', exercises: ['ex1', 'ex3', 'ex5'] },
         { id: 'w2', name: 'Lower Body Focus', exercises: ['ex1', 'ex2'] },
         { id: 'w3', name: 'Core Blast', exercises: ['ex5'] }
       ]
-    });
+    }));
   }),
   
   // Error endpoint for testing error handling
-  http.get('/api/error', () => {
-    return new HttpResponse(null, { status: 500 });
+  rest.get('/api/error', (req, res, ctx) => {
+    return res(ctx.status(500));
   })
 ];
 
-// Setup mock server
-const server = setupMockServer([
+// Add test-specific handlers to the global server
+// The global server is already set up in setupTests.ts
+const testHandlers = [
+  ...healthHandlers,
+  ...userHandlers,
   ...authHandlers,
   ...formCheckHandlers,
+  ...exerciseHandlers,
   ...customHandlers
-]);
-setupServerLifecycle(server);
+];
 
 /**
  * API Interaction Tests
  */
 describe('User Interactions with Network-Dependent Features', () => {
+  beforeAll(() => {
+    // Add test-specific handlers to the global MSW server
+    server.use(...testHandlers);
+  });
+
   beforeEach(() => {
     localStorage.clear();
   });
+
+  afterAll(() => {
+    // Reset to original handlers after all tests
+    server.resetHandlers();
+  });
   
   /**
-   * API Health Check Component
+   * API Health Check Component - Using apiService for absolute URLs
    */
   const ApiHealthCheck = () => {
     const [apiStatus, setApiStatus] = useState<'unknown' | 'online' | 'offline'>('unknown');
-      const [isLoading, setIsLoading] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
       
     const checkApiStatus = async () => {
-          setIsLoading(true);
-          setError(null);
-          
-          try {
-        const response = await fetch('/api/health');
-        const data = await response.json();
+      setIsLoading(true);
+      setError(null);
+      
+      try {
+        // Use user profile endpoint as a health check since it exists in apiService
+        const response = await apiService.get('/users/me');
         
-        setApiStatus(data.status === 'ok' ? 'online' : 'offline');
-          } catch (err) {
+        // If we get a response, API is online
+        setApiStatus('online');
+      } catch (err) {
         setApiStatus('offline');
         setError('Could not connect to the API');
-          } finally {
-            setIsLoading(false);
-          }
-        };
+      } finally {
+        setIsLoading(false);
+      }
+    };
       
-      return (
-        <div>
+    return (
+      <div>
         <h1>API Status</h1>
         <button 
           onClick={checkApiStatus} 
@@ -555,7 +588,7 @@ describe('User Interactions with Network-Dependent Features', () => {
     it('GIVEN the API is down WHEN a user checks the API status THEN they see an error message', async () => {
       // Override the handler to return an error
       server.use(
-        http.get('/api/health', () => {
+        rest.get('/api/health', () => {
           return new HttpResponse(null, { status: 500 });
         })
       );

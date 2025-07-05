@@ -1,8 +1,17 @@
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'jsdom',
-  setupFiles: ['<rootDir>/polyfills.js'],
+  setupFiles: ['<rootDir>/src/polyfills.js'],
   setupFilesAfterEnv: ['<rootDir>/src/setupTests.ts'],
+  testEnvironmentOptions: {
+    customExportConditions: ['node', 'node-addons'],
+  },
+  globals: {
+    'process.env': {
+      NODE_ENV: 'test',
+      REACT_APP_API_URL: 'http://localhost:8000'
+    }
+  },
   moduleNameMapper: {
     '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
     '\\.(gif|ttf|eot|svg|png|jpg|jpeg|webp)$': '<rootDir>/tests/__mocks__/fileMock.js',
@@ -14,12 +23,12 @@ module.exports = {
     '^@contexts/(.*)$': '<rootDir>/src/contexts/$1',
     '^@store/(.*)$': '<rootDir>/src/store/$1',
     '^@types/(.*)$': '<rootDir>/src/types/$1',
-    '^styled-components$': '<rootDir>/node_modules/styled-components',
+    '^styled-components$': '<rootDir>/tests/__mocks__/styled-components.js',
     '^react-router-dom$': '<rootDir>/node_modules/react-router-dom',
     '^ioredis$': '<rootDir>/tests/__mocks__/ioredis.ts',
     '^@theme$': '<rootDir>/tests/__mocks__/mockTheme.ts',
-    '^../../mocks/server$': '<rootDir>/tests/utils/testServer.ts',
-    '^../../../mocks/server$': '<rootDir>/tests/utils/testServer.ts',
+    '^../../mocks/server$': '<rootDir>/tests/mocks/server.ts',
+    '^../../../mocks/server$': '<rootDir>/tests/mocks/server.ts',
     '^../formCheckService$': '<rootDir>/src/services/formAnalysisService.ts',
     '^../../services/formCheckService$': '<rootDir>/src/services/formAnalysisService.ts',
     '^@tensorflow-models/pose-detection$': '<rootDir>/tests/__mocks__/@tensorflow-models/pose-detection.ts',
@@ -89,7 +98,9 @@ module.exports = {
   testMatch: [
     "**/__tests__/**/*.ts?(x)",
     "**/?(*.)+(spec|test).ts?(x)",
-    "../tests/consolidated/*.consolidated.test.ts?(x)"
+    "<rootDir>/tests/consolidated/*.consolidated.test.ts?(x)",
+    "<rootDir>/tests/integration/**/*.test.ts?(x)",
+    "<rootDir>/tests/e2e/**/*.test.ts?(x)"
   ],
   testPathIgnorePatterns: [
     '/node_modules/',
@@ -102,5 +113,5 @@ module.exports = {
   testTimeout: 10000,
   maxWorkers: '50%',
   modulePaths: ['<rootDir>/src'],
-  roots: ['<rootDir>/src', '<rootDir>/../tests']
+  roots: ['<rootDir>/src', '<rootDir>/tests']
 }; 

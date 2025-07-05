@@ -3,18 +3,20 @@
 import '@testing-library/jest-dom';
 import { TextEncoder, TextDecoder } from 'util';
 import { cleanup, configure } from '@testing-library/react';
-import { server } from './mocks/server';
+import { server } from '../tests/mocks/server';
 import React from 'react';
 import 'whatwg-fetch';
-import { LocalStorageMock, clearMockStorage } from './mocks/storage';
 import { MockMediaRecorder } from './__mocks__/browser/mediaRecorder';
 import { jest } from '@jest/globals';
+
+// Configure test environment variables
+process.env.NODE_ENV = 'test';
+process.env.REACT_APP_API_URL = 'http://localhost:8000';
 // Temporarily disable jest-styled-components due to compatibility issues
 // import 'jest-styled-components';
 
 // Import mocks
 import './mocks/cameraMock';
-import './mocks/storage';
 
 // Ensure Jest is available globally
 if (typeof global.jest === 'undefined') {
@@ -226,6 +228,32 @@ jest.mock('@capacitor/filesystem', () => ({
   }
 }));
 
+// Mock Capacitor Preferences
+jest.mock('@capacitor/preferences', () => ({
+  Preferences: {
+    get: jest.fn().mockResolvedValue({ value: null }),
+    set: jest.fn().mockResolvedValue(undefined),
+    remove: jest.fn().mockResolvedValue(undefined),
+    clear: jest.fn().mockResolvedValue(undefined)
+  }
+}));
+
+// Mock storageService to avoid Capacitor issues in tests
+jest.mock('./services/storageService', () => ({
+  storageService: {
+    getAuthToken: jest.fn().mockResolvedValue(null),
+    setAuthToken: jest.fn().mockResolvedValue(undefined),
+    removeAuthToken: jest.fn().mockResolvedValue(undefined),
+    getRefreshToken: jest.fn().mockResolvedValue(null),
+    setRefreshToken: jest.fn().mockResolvedValue(undefined),
+    removeRefreshToken: jest.fn().mockResolvedValue(undefined),
+    getUserProfile: jest.fn().mockResolvedValue(null),
+    setUserProfile: jest.fn().mockResolvedValue(undefined),
+    removeUserProfile: jest.fn().mockResolvedValue(undefined),
+    clear: jest.fn().mockResolvedValue(undefined)
+  }
+}));
+
 // Configure Testing Library
 configure({ 
   testIdAttribute: 'data-testid',
@@ -233,15 +261,36 @@ configure({
   throwSuggestions: false 
 });
 
+// Simple localStorage mock
+const createStorageMock = () => {
+  let store: Record<string, string> = {};
+  return {
+    getItem: mockJest.fn((key: string) => store[key] || null),
+    setItem: mockJest.fn((key: string, value: string) => {
+      store[key] = value;
+    }),
+    removeItem: mockJest.fn((key: string) => {
+      delete store[key];
+    }),
+    clear: mockJest.fn(() => {
+      store = {};
+    }),
+    get length() {
+      return Object.keys(store).length;
+    },
+    key: mockJest.fn((index: number) => Object.keys(store)[index] || null),
+  };
+};
+
 // Setup mock for localStorage
 Object.defineProperty(window, 'localStorage', {
-  value: new LocalStorageMock(),
+  value: createStorageMock(),
   writable: true
 });
 
 // Setup mock for sessionStorage
 Object.defineProperty(window, 'sessionStorage', {
-  value: new LocalStorageMock(),
+  value: createStorageMock(),
   writable: true
 });
 
@@ -338,7 +387,10 @@ afterEach(() => {
   server.resetHandlers();
   cleanup(); // Added explicit cleanup
   mockJest.clearAllMocks();
-  clearMockStorage(); // Clear mock storage after each test
+  // Clear localStorage mocks after each test
+  if (window.localStorage?.clear) {
+    window.localStorage.clear();
+  }
 });
 
 // Clean up after the tests are finished

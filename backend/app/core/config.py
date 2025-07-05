@@ -482,6 +482,38 @@ class Settings(BaseSettings):
         description="Stripe price ID for premium plan"
     )
     
+    # Social Authentication Settings
+    GOOGLE_CLIENT_ID: str = Field(
+        default=os.getenv("GOOGLE_CLIENT_ID", ""),
+        description="Google OAuth2 client ID"
+    )
+    GOOGLE_CLIENT_SECRET: str = Field(
+        default=os.getenv("GOOGLE_CLIENT_SECRET", ""),
+        description="Google OAuth2 client secret"
+    )
+    APPLE_CLIENT_ID: str = Field(
+        default=os.getenv("APPLE_CLIENT_ID", ""),
+        description="Apple Sign In client ID (Service ID)"
+    )
+    APPLE_TEAM_ID: str = Field(
+        default=os.getenv("APPLE_TEAM_ID", ""),
+        description="Apple Developer Team ID"
+    )
+    APPLE_KEY_ID: str = Field(
+        default=os.getenv("APPLE_KEY_ID", ""),
+        description="Apple Sign In Key ID"
+    )
+    APPLE_PRIVATE_KEY: str = Field(
+        default=os.getenv("APPLE_PRIVATE_KEY", ""),
+        description="Apple Sign In private key (ES256)"
+    )
+    
+    # Social Auth Redirect URLs
+    FRONTEND_URL: str = Field(
+        default=os.getenv("FRONTEND_URL", "http://localhost:3000"),
+        description="Frontend URL for social auth redirects"
+    )
+    
     # SMTP Settings / Email Configuration for fastapi-mail
     MAIL_SERVER: str = Field(
         default=os.getenv("MAIL_SERVER", os.getenv("SMTP_HOST", "smtp.gmail.com")),
@@ -701,6 +733,88 @@ class Settings(BaseSettings):
     USE_ML_MODELS: bool = Field(
         default=os.getenv("USE_ML_MODELS", "true").lower() == "true",
         description="Enable ML models for form analysis (squat XGBoost model). Falls back to rule-based analysis when disabled."
+    )
+    
+    # GPU and Batch Processing Settings
+    USE_GPU_POSE_DETECTION: bool = Field(
+        default=os.getenv("USE_GPU_POSE_DETECTION", "true").lower() == "true",
+        description="Enable GPU acceleration for MediaPipe pose detection when available"
+    )
+    POSE_BATCH_SIZE: int = Field(
+        default=safe_int(os.getenv("POSE_BATCH_SIZE"), 8),
+        description="Batch size for pose detection processing. Higher values use more memory but may be faster."
+    )
+    POSE_MAX_CONCURRENT_BATCHES: int = Field(
+        default=safe_int(os.getenv("POSE_MAX_CONCURRENT_BATCHES"), 2),
+        description="Maximum number of concurrent batch processing tasks for pose detection"
+    )
+    
+    # Compression Settings for Storage Optimization
+    USE_POSE_COMPRESSION: bool = Field(
+        default=os.getenv("USE_POSE_COMPRESSION", "true").lower() == "true",
+        description="Enable compression for pose sequence data storage"
+    )
+    DEFAULT_POSE_COMPRESSION_METHOD: str = Field(
+        default=os.getenv("DEFAULT_POSE_COMPRESSION_METHOD", "gzip"),
+        description="Default compression method for pose data (gzip, lz4, zstd, none)"
+    )
+    USE_FEATURE_COMPRESSION: bool = Field(
+        default=os.getenv("USE_FEATURE_COMPRESSION", "true").lower() == "true",
+        description="Enable compression for extracted feature data storage"
+    )
+    DEFAULT_FEATURE_COMPRESSION_METHOD: str = Field(
+        default=os.getenv("DEFAULT_FEATURE_COMPRESSION_METHOD", "gzip"),
+        description="Default compression method for feature data (gzip, lz4, zstd, none)"
+    )
+    COMPRESSION_AUTO_SELECT: bool = Field(
+        default=os.getenv("COMPRESSION_AUTO_SELECT", "true").lower() == "true",
+        description="Auto-select compression method based on data size for optimal performance"
+    )
+    
+    # Redis Cache Configuration
+    REDIS_URL: str = Field(
+        default=os.getenv("REDIS_URL", "redis://localhost:6379/0"),
+        description="Redis connection URL for caching"
+    )
+    REDIS_MAX_CONNECTIONS: int = Field(
+        default=safe_int(os.getenv("REDIS_MAX_CONNECTIONS"), 20),
+        description="Maximum number of Redis connections in the pool"
+    )
+    REDIS_CONNECTION_TIMEOUT: float = Field(
+        default=float(os.getenv("REDIS_CONNECTION_TIMEOUT", "5.0")),
+        description="Redis connection timeout in seconds"
+    )
+    
+    # Cache TTL Settings (Time To Live in seconds)
+    CACHE_DEFAULT_TTL: int = Field(
+        default=safe_int(os.getenv("CACHE_DEFAULT_TTL"), 3600),  # 1 hour
+        description="Default cache TTL in seconds"
+    )
+    CACHE_POSE_TTL: int = Field(
+        default=safe_int(os.getenv("CACHE_POSE_TTL"), 7200),  # 2 hours  
+        description="Cache TTL for pose sequence data in seconds"
+    )
+    CACHE_FEATURES_TTL: int = Field(
+        default=safe_int(os.getenv("CACHE_FEATURES_TTL"), 1800),  # 30 minutes
+        description="Cache TTL for extracted features in seconds"
+    )
+    CACHE_PREDICTION_TTL: int = Field(
+        default=safe_int(os.getenv("CACHE_PREDICTION_TTL"), 3600),  # 1 hour
+        description="Cache TTL for ML predictions in seconds"
+    )
+    
+    # Cache Performance Settings
+    CACHE_USE_COMPRESSION: bool = Field(
+        default=os.getenv("CACHE_USE_COMPRESSION", "true").lower() == "true",
+        description="Enable compression for large cached data"
+    )
+    CACHE_COMPRESSION_THRESHOLD: int = Field(
+        default=safe_int(os.getenv("CACHE_COMPRESSION_THRESHOLD"), 1024),  # 1KB
+        description="Minimum data size in bytes to trigger compression"
+    )
+    CACHE_CIRCUIT_BREAKER: bool = Field(
+        default=os.getenv("CACHE_CIRCUIT_BREAKER", "true").lower() == "true",
+        description="Enable circuit breaker pattern for cache reliability"
     )
     
     # Logging

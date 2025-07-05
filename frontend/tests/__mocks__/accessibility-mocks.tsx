@@ -46,14 +46,4 @@ export const MockCameraCapture: React.FC<MockCameraCaptureProps> = ({
   );
 };
 
-// Mock for FormAnalysis component
-export const MockFormAnalysis: React.FC = () => {
-  return (
-    <div data-testid="form-analysis">
-      <h4>Form Analysis</h4>
-      <form>
-        <button type="submit" aria-label="Submit Form">Submit</button>
-      </form>
-    </div>
-  );
-}; 
+ 

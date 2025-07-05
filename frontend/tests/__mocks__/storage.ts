@@ -43,7 +43,7 @@ export const mockStorageService = {
 
 export const clearMockStorage = () => mockStorage.clear();
 
-jest.mock('../../src/services/storage', () => ({
+jest.mock('../../src/services/storageService', () => ({
   storageService: mockStorageService,
 }));
 

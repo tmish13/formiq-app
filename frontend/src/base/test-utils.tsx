@@ -1,13 +1,12 @@
 import React from 'react';
 import { render, RenderOptions } from '@testing-library/react';
-import { ThemeProvider } from 'styled-components';
-import { theme } from '../theme';
+import { ModernThemeProvider } from '../contexts/ModernThemeContext';
 
 const AllTheProviders: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
-    <ThemeProvider theme={theme}>
+    <ModernThemeProvider>
       {children}
-    </ThemeProvider>
+    </ModernThemeProvider>
   );
 };
 

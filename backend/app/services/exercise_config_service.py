@@ -870,9 +870,13 @@ class ExerciseConfigService(BaseService[ExerciseConfig, ExerciseConfigCreate, Ex
 
 
 # Dependency Providers
+from fastapi import Depends
+from app.core.db_deps import get_async_db
+from app.core.config import get_settings
+
 async def get_async_exercise_config_service(
-    db: AsyncSession, # Correctly will be injected by FastAPI
-    settings: Settings # Correctly will be injected by FastAPI
+    db: AsyncSession = Depends(get_async_db),
+    settings: Settings = Depends(get_settings)
 ) -> ExerciseConfigService:
     return ExerciseConfigService(db=db, settings=settings)
 

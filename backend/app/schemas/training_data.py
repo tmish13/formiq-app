@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Dict, Any, Optional
 from app.models.enums import ExerciseType
 
@@ -17,8 +17,8 @@ class TrainingDataSubmission(BaseModel):
     user_height_cm: Optional[float] = Field(None, description="User height in centimeters (if available)")
     user_weight_kg: Optional[float] = Field(None, description="User weight in kilograms (if available)")
     
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "exercise_type": "squat",
                 "source": "google_form",
@@ -34,6 +34,7 @@ class TrainingDataSubmission(BaseModel):
                 "user_weight_kg": 70
             }
         }
+    )
 
 class TrainingDataResponse(BaseModel):
     """Response schema for training data submission."""

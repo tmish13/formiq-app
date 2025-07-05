@@ -4,12 +4,10 @@ export interface FeedbackItem {
   type: 'success' | 'warning' | 'error';
   message: string;
   suggestion: string;
-}
-
-export interface PoseAnalysisResult {
-  feedback: FeedbackItem[];
-  keypoints: Keypoint[];
-  timestamp: number;
+  severity?: 'low' | 'medium' | 'high';
+  text?: string;
+  details?: string;
+  timestamp?: number;
 }
 
 export interface ExerciseConfig {

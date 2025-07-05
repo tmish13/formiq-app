@@ -12,6 +12,12 @@ export interface JointAngle {
   confidence: number;
 }
 
+export interface JointAngleMeasurement {
+  joint: string;
+  angle: number;
+  confidence?: number;
+}
+
 export interface JointAngles {
   leftKnee?: JointAngle;
   rightKnee?: JointAngle;
@@ -75,6 +81,7 @@ export interface PoseAnalysisResult {
     symmetry: number;
     consistency: number;
   };
+  score: number;
   // Enhanced with ML scores
   ml_scores?: MLScores;
   detected_issues?: PoseIssue[];
@@ -87,12 +94,14 @@ export interface FormFeedback {
   confidence: number;
   type: 'warning' | 'error' | 'success';
   jointName?: string;
+  suggestion?: string;
 }
 
 export interface FormAnalysisRequest {
   keypoints?: Keypoint[];
-  video_url?: string;
+  videoUrl?: string;
   exercise_id?: string;
+  duration?: number;
 }
 
 export interface FormAnalysisResult {
@@ -101,8 +110,18 @@ export interface FormAnalysisResult {
   keypoints: Keypoint[];
   angles: JointAngles;
   feedback: FormFeedback[];
+  suggestions: string[];
   timestamp: number;
   videoUrl: string;
+  risk_level?: 'low' | 'medium' | 'high';
+  comparison_score?: number;
+  // Add missing metrics property for UI components
+  metrics: {
+    alignment: number;
+    stability: number;
+    symmetry: number;
+    consistency: number;
+  };
   // Enhanced with ML analysis
   ml_scores?: MLScores;
   detected_issues?: PoseIssue[];

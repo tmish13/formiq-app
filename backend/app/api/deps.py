@@ -46,6 +46,9 @@ from app.services.health_service import get_async_health_service
 from app.services.monitoring_service import get_async_monitoring_service
 from app.services.analytics_service import get_async_analytics_service
 
+import logging
+logger = logging.getLogger(__name__)
+
 # Dictionary to hold services and repositories
 dependencies: Dict[str, Callable[..., Any]] = {}
 

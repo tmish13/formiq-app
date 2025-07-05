@@ -31,7 +31,7 @@ export const NetworkStatusProvider: React.FC<NetworkStatusProviderProps> = ({ ch
       // but not on first load
       if (status.connected && !networkStatus.connected && !isFirstConnect) {
         // You could trigger a notification here or dispatch an action
-        console.log('Reconnected to network, syncing data...');
+        // Reconnected to network, syncing data...
       }
       
       // If we've connected once, mark first connect as done

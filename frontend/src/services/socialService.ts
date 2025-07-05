@@ -1,4 +1,4 @@
-import { apiService } from './apiService';
+import apiService from './apiService';
 import { WorkoutTemplate } from './workoutPlanningService';
 
 export interface User {

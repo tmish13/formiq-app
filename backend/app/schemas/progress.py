@@ -1,7 +1,7 @@
 """Pydantic schemas for progress tracking."""
 from typing import List, Optional
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 class ProgressMetrics(BaseModel):
     """Schema for progress metrics."""
@@ -24,9 +24,7 @@ class ProgressResponse(BaseModel):
     improvement_areas: List[str]
     last_updated: datetime
     
-    class Config:
-        """Pydantic config."""
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 class ProgressSnapshot(BaseModel):
     """Schema for progress snapshot."""
@@ -36,9 +34,7 @@ class ProgressSnapshot(BaseModel):
     reps: int
     notes: Optional[str] = None
     
-    class Config:
-        """Pydantic config."""
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 class ProgressSummary(BaseModel):
     """Schema for progress summary."""
@@ -48,6 +44,4 @@ class ProgressSummary(BaseModel):
     average_consistency_score: float
     exercises: dict[str, dict]
     
-    class Config:
-        """Pydantic config."""
-        orm_mode = True 
+    model_config = ConfigDict(from_attributes=True) 

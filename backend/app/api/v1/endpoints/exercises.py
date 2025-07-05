@@ -337,4 +337,100 @@ async def compare_pose_with_reference(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred during pose comparison: {str(e)}"
+        )
+
+
+@router.get("/categories", response_model=List[Dict[str, Any]])
+async def get_exercise_categories(
+    exercise_service: ExerciseService = Depends(get_exercise_service)
+):
+    """
+    Get all exercise categories with counts.
+    
+    Returns:
+        List of exercise categories with exercise counts
+    """
+    try:
+        categories = await exercise_service.get_categories()
+        return categories
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching exercise categories: {str(e)}"
+        )
+
+
+@router.get("/muscle-groups", response_model=List[Dict[str, Any]])
+async def get_muscle_groups(
+    exercise_service: ExerciseService = Depends(get_exercise_service)
+):
+    """
+    Get all muscle groups with exercise counts.
+    
+    Returns:
+        List of muscle groups with exercise counts
+    """
+    try:
+        muscle_groups = await exercise_service.get_muscle_groups()
+        return muscle_groups
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching muscle groups: {str(e)}"
+        )
+
+
+@router.get("/difficulty-levels", response_model=List[Dict[str, Any]])
+async def get_difficulty_levels(
+    exercise_service: ExerciseService = Depends(get_exercise_service)
+):
+    """
+    Get all difficulty levels with exercise counts.
+    
+    Returns:
+        List of difficulty levels with exercise counts
+    """
+    try:
+        difficulty_levels = await exercise_service.get_difficulty_levels()
+        return difficulty_levels
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching difficulty levels: {str(e)}"
+        )
+
+
+@router.get("/{exercise_id}/reference-pose", response_model=Dict[str, Any])
+async def get_reference_pose(
+    exercise_id: str,
+    exercise_service: ExerciseService = Depends(get_exercise_service)
+):
+    """
+    Get reference pose data for an exercise.
+    
+    Args:
+        exercise_id: Exercise ID
+        
+    Returns:
+        Reference pose data including keypoints and angles
+    """
+    try:
+        reference_pose = await exercise_service.get_reference_pose(exercise_id)
+        if not reference_pose:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Reference pose not found for this exercise"
+            )
+        
+        return reference_pose
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching reference pose: {str(e)}"
         ) 

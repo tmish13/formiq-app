@@ -1,5 +1,2 @@
-export { ExerciseSelector } from './ExerciseSelector';
-export { FormFeedback } from './FormFeedback';
-export { ExerciseCard } from './ExerciseCard';
-export { ExerciseList } from './ExerciseList';
-export { ExerciseDetails } from './ExerciseDetails'; 
+// Exercise components exports
+// Note: UI components removed, keeping index for future components

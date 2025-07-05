@@ -31,6 +31,7 @@
     "@tensorflow/tfjs-converter": "^4.22.0",
     "@tensorflow/tfjs-core": "^4.22.0",
     "@types/styled-components": "^5.1.34",
+    "google-auth-library": "^10.1.0",
     "react-feather": "^2.0.10",
     "react-router-dom": "^6.11.2",
     "styled-components": "^6.1.17"

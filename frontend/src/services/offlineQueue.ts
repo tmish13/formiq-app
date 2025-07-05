@@ -10,8 +10,8 @@ interface ApiService {
 }
 
 // Import the API service and specify its type
-import { apiService as api } from './api';
-const apiService = api as unknown as ApiService;
+import apiService from './apiService';
+const api = apiService as unknown as ApiService;
 
 import { EventEmitter } from 'events';
 

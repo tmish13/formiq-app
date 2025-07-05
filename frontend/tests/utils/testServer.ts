@@ -1,12 +1,12 @@
 import { setupServer } from 'msw/node';
 import { rest } from 'msw';
-import { handlers } from '../../src/services/api/handlers';
+// import { handlers } from '../../src/services/api/handlers';
 
 // This configures a request mocking server with the given request handlers.
-export const server = setupServer(...handlers);
+// export const server = setupServer(...handlers);
 
 // Export individual handlers for test-specific overrides
-export { handlers };
+// export { handlers };
 
 // Define common request handlers
 export const commonHandlers = [
@@ -83,15 +83,18 @@ export const commonHandlers = [
   }),
 ];
 
+// Create server with common handlers
+export const server = setupServer(...commonHandlers);
+
 // Establish API mocking before all tests.
-beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
+// beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
 
 // Reset any request handlers that we may add during the tests,
 // so they don't affect other tests.
-afterEach(() => server.resetHandlers());
+// afterEach(() => server.resetHandlers());
 
 // Clean up after the tests are finished.
-afterAll(() => server.close());
+// afterAll(() => server.close());
 
 // Test server usage:
 // 1. Import server & handlers in tests

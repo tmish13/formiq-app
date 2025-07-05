@@ -1,11 +1,10 @@
 import React from 'react';
 import { render, RenderOptions } from '@testing-library/react';
 import { Provider } from 'react-redux';
-import { ThemeProvider } from 'styled-components';
 import { BrowserRouter } from 'react-router-dom';
 import { configureStore } from '@reduxjs/toolkit';
 import { RootState } from '../store';
-import { mockTheme } from './test-mocks';
+import { ModernThemeProvider } from '../contexts/ModernThemeContext';
 
 // Create a mock store for testing
 export const createMockStore = (preloadedState: Partial<RootState> = {}) => {
@@ -27,11 +26,11 @@ const AllTheProviders: React.FC<{ children: React.ReactNode }> = ({ children }) 
   
   return (
     <Provider store={store}>
-      <ThemeProvider theme={mockTheme as any}>
+      <ModernThemeProvider>
         <BrowserRouter>
           {children}
         </BrowserRouter>
-      </ThemeProvider>
+      </ModernThemeProvider>
     </Provider>
   );
 };
@@ -57,11 +56,11 @@ export const renderWithProviders = (
   
   const Wrapper = ({ children }: { children: React.ReactNode }) => (
     <Provider store={store}>
-      <ThemeProvider theme={mockTheme as any}>
+      <ModernThemeProvider>
         <BrowserRouter>
           {children}
         </BrowserRouter>
-      </ThemeProvider>
+      </ModernThemeProvider>
     </Provider>
   );
   

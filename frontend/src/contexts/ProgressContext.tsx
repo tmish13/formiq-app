@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { apiService } from '../services/apiService';
+import apiService, { endpoints } from '../services/apiService';
 
 interface AnalysisResult {
   id: string;
@@ -38,8 +38,8 @@ export const ProgressProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     try {
       setLoading(true);
       setError(null);
-      const response = await apiService.formAnalysis.getHistory();
-      setHistory(response.data);
+      const response = await apiService.get(endpoints.formChecks.history);
+      setHistory(response.data as AnalysisResult[]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch history');
     } finally {
@@ -49,8 +49,8 @@ export const ProgressProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const getAnalysis = useCallback(async (id: string): Promise<AnalysisResult> => {
     try {
-      const response = await apiService.formAnalysis.getAnalysis(id);
-      return response.data;
+      const response = await apiService.get(endpoints.formChecks.detail(id));
+      return response.data as AnalysisResult;
     } catch (err) {
       throw new Error(err instanceof Error ? err.message : 'Failed to fetch analysis');
     }

@@ -44,7 +44,7 @@ def initialize_worker_services(**kwargs):
     try:
         settings_obj = get_settings() # Services might need settings
         _shared_ai_service = AIService(app_settings=settings_obj) # Pass settings
-        _shared_storage_service = StorageService(settings=settings_obj) # Pass settings
+        _shared_storage_service = StorageService(app_settings=settings_obj) # Pass settings
         # Initialize ExerciseConfigService and VideoService with db access needs to be handled carefully
         # For services requiring DB session for __init__, this pattern might not be ideal,
         # or they should be designed to be initializable without a session, deferring DB ops to methods.
@@ -236,15 +236,22 @@ async def process_form_check_task(self, video_id_str: str, form_check_id_str: st
             else:
                 logger.warning("[CeleryTask] No keypoints available for classification. Proceeding with generic analysis.")
 
-        # *** New ML Model Analysis Step ***
+        # *** Enhanced Temporal ML Analysis Step ***
         if final_exercise_id_for_ml:
-            logger.info(f"[CeleryTask] Preparing inputs for comprehensive ML model. Exercise ID: {final_exercise_id_for_ml}")
+            logger.info(f"[CeleryTask] Preparing inputs for enhanced temporal ML analysis. Exercise ID: {final_exercise_id_for_ml}")
             
-            keypoints_for_ml: List[List[Dict[str, float]]] = []
+            # Get exercise template for analysis method determination
+            exercise_template_name = exercise_template_for_analysis.name if exercise_template_for_analysis else "unknown"
+            
+            # Prepare clean keypoint sequence for temporal analysis
+            clean_keypoints_for_ml: List[List[Dict[str, float]]] = []
             if keypoint_sequence_for_classification:
-                keypoints_for_ml = [
-                    frame for frame in keypoint_sequence_for_classification if frame is not None
-                ]
+                for frame in keypoint_sequence_for_classification:
+                    if frame is not None and isinstance(frame, list) and len(frame) > 0:
+                        # Filter out None landmarks and ensure proper structure
+                        valid_landmarks = [lm for lm in frame if lm is not None and isinstance(lm, dict)]
+                        if valid_landmarks:
+                            clean_keypoints_for_ml.append(valid_landmarks)
 
             angles_for_ml: List[Dict[str, float]] = []
             if video_model.calculated_angles:
@@ -252,27 +259,72 @@ async def process_form_check_task(self, video_id_str: str, form_check_id_str: st
                     frame for frame in video_model.calculated_angles if frame is not None
                 ]
             
-            if not keypoints_for_ml and not angles_for_ml:
-                logger.warning(f"[CeleryTask] No keypoints or angles available for comprehensive ML analysis for FormCheck {form_check_id}. Skipping ML scoring.")
+            if not clean_keypoints_for_ml:
+                logger.warning(f"[CeleryTask] No valid keypoint sequences available for temporal ML analysis for FormCheck {form_check_id}. Skipping enhanced ML scoring.")
             else:
                 try:
-                    logger.info(f"[CeleryTask] Calling AIService.analyze_exercise_form_ml for FormCheck {form_check_id}")
-                    ml_scores = await _ai_service_instance.analyze_exercise_form_ml(
-                        keypoint_data=keypoints_for_ml, 
-                        angle_data=angles_for_ml, 
-                        exercise_id=final_exercise_id_for_ml
+                    logger.info(f"[CeleryTask] Using enhanced temporal analysis for {exercise_template_name} with {len(clean_keypoints_for_ml)} valid frames")
+                    
+                    # Use new temporal sequence analysis method
+                    temporal_analysis_results = await _ai_service_instance.analyze_form_sequence(
+                        landmark_sequence=clean_keypoints_for_ml,
+                        exercise_type=exercise_template_name.lower(),
+                        min_confidence=0.6
                     )
-                    form_check.posture_score = ml_scores.get("posture_score")
-                    form_check.hypertrophy_form_score = ml_scores.get("hypertrophy_form_score")
-                    form_check.stability_score = ml_scores.get("stability_score")
-                    logger.info(f"[CeleryTask] Successfully received and stored ML scores for FormCheck {form_check_id}: {ml_scores}")
+                    
+                    # Extract temporal metrics and scores
+                    temporal_metrics = temporal_analysis_results.get('temporal_metrics', {})
+                    movement_quality = temporal_analysis_results.get('movement_quality', {})
+                    
+                    # Store enhanced metrics in form_check
+                    form_check.posture_score = temporal_analysis_results.get('score', 0.0) / 100.0  # Store as 0-1
+                    form_check.stability_score = temporal_metrics.get('stability_score', 0.0)
+                    form_check.depth_score = movement_quality.get('consistency', 0.0)
+                    
+                    # Store additional temporal analysis metadata
+                    enhanced_details = form_check.details or {}
+                    enhanced_details.update({
+                        'temporal_analysis': True,
+                        'frame_count': temporal_metrics.get('frame_count', 0),
+                        'valid_frames': temporal_metrics.get('valid_frames', 0),
+                        'consistency_score': temporal_metrics.get('consistency_score', 0.0),
+                        'analysis_method': temporal_analysis_results.get('analysis_method', 'unknown'),
+                        'movement_quality': movement_quality
+                    })
+                    form_check.details = enhanced_details
+                    
+                    logger.info(f"[CeleryTask] Enhanced temporal analysis complete for FormCheck {form_check_id}: "
+                               f"Score={temporal_analysis_results.get('score', 0):.1f}%, "
+                               f"Method={temporal_analysis_results.get('analysis_method')}, "
+                               f"Frames={temporal_metrics.get('valid_frames')}/{temporal_metrics.get('frame_count')}")
+                    
                     await db_session.merge(form_check) # Merge changes before potential commit by DFAS or finalize
-                    # No commit here, will be handled by finalize or DFAS if it also commits
+                    
+                    # Also call legacy ML scoring for compatibility if available
+                    if angles_for_ml and hasattr(_ai_service_instance, 'analyze_exercise_form_ml'):
+                        try:
+                            legacy_ml_scores = await _ai_service_instance.analyze_exercise_form_ml(
+                                keypoint_data=clean_keypoints_for_ml, 
+                                angle_data=angles_for_ml, 
+                                exercise_id=final_exercise_id_for_ml
+                            )
+                            # Store additional legacy scores if needed
+                            if 'hypertrophy_form_score' in legacy_ml_scores:
+                                enhanced_details['hypertrophy_form_score'] = legacy_ml_scores['hypertrophy_form_score']
+                                form_check.details = enhanced_details
+                                await db_session.merge(form_check)
+                            logger.debug(f"[CeleryTask] Legacy ML scores also computed: {legacy_ml_scores}")
+                        except Exception as legacy_exc:
+                            logger.warning(f"[CeleryTask] Legacy ML scoring failed, continuing with temporal analysis: {legacy_exc}")
+                    
                 except Exception as ml_exc:
-                    logger.error(f"[CeleryTask] Error during AIService.analyze_exercise_form_ml for FormCheck {form_check_id}: {ml_exc}", exc_info=True)
-                    # Optionally, store a specific error state for these scores or leave them None
+                    logger.error(f"[CeleryTask] Error during enhanced temporal ML analysis for FormCheck {form_check_id}: {ml_exc}", exc_info=True)
+                    # Fallback to storing basic analysis failure details
+                    form_check.details = form_check.details or {}
+                    form_check.details['temporal_analysis_error'] = str(ml_exc)
+                    await db_session.merge(form_check)
         else:
-            logger.info(f"[CeleryTask] No definitive exercise_id for ML analysis (FormCheck {form_check_id}). Skipping comprehensive ML scoring.")
+            logger.info(f"[CeleryTask] No definitive exercise_id for temporal ML analysis (FormCheck {form_check_id}). Skipping enhanced ML scoring.")
 
         # Existing Dynamic Form Analysis (Rule-Based)
         logger.info(f"[CeleryTask] Proceeding with DynamicFormAnalysisService for FormCheck ID: {form_check_id}")
@@ -335,7 +387,11 @@ async def process_form_check_task(self, video_id_str: str, form_check_id_str: st
                 "risk_level": analyzed_form_check_model.details.get("risk_level", "low") if analyzed_form_check_model.details else "low",
                 "feedback_structured": feedback_structured_list,
                 "error_message": analyzed_form_check_model.error_details,
-                "summary": analyzed_form_check_model.summary # Make sure DFAS sets this
+                "summary": analyzed_form_check_model.summary, # Make sure DFAS sets this
+                # Include ML scores from the FormCheck model
+                "posture_score": form_check.posture_score,
+                "stability_score": form_check.stability_score,
+                "depth_score": form_check.depth_score
             }
             
             if final_status != FormCheckStatus.COMPLETED: # If DFAS set it to ERROR

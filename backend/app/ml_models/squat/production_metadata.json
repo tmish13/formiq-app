@@ -1,11 +1,8 @@
 {
-  "version": "1.0.0",
-  "model_type": "binary_classification",
-  "features_count": 23,
-  "description": "FormIQ Squat Form Analysis Model - MVP Ready",
-  "performance": {
-    "balanced_accuracy": 0.8571,
-    "confidence_threshold": 0.35
-  },
-  "created_date": "2025-06-24T13:25:00"
+  "model_type": "RandomForest_demo",
+  "training_date": "2025-07-02T20:50:57.468414",
+  "feature_count": 23,
+  "training_accuracy": 1.0,
+  "samples_used": 18,
+  "optimal_threshold": 0.5
 }

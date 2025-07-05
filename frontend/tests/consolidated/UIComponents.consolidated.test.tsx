@@ -1,8 +1,9 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ThemeProvider } from 'styled-components';
-import { lightTheme, darkTheme } from '../../frontend/src/theme';
+import { ThemeProvider, useTheme } from 'styled-components';
+import { lightTheme, darkTheme } from '../../src/theme';
+import { Theme } from '../../src/types/theme';
 
 // Mock components for testing
 // Button Component
@@ -364,35 +365,35 @@ describe('UI Components Consolidated Tests', () => {
     it('provides theme context to components', () => {
       // Create a component that consumes theme
       const ThemeConsumer = () => {
-        const theme = React.useContext(ThemeProvider.context);
+        const theme = useTheme() as Theme;
         return (
           <div data-testid="theme-consumer">
-            <span data-testid="primary-color">{theme.colors.primary}</span>
-            <span data-testid="font-family">{theme.typography.fontFamily}</span>
+            <span data-testid="primary-color">{theme.colors.primary.main}</span>
+            <span data-testid="font-family">{theme.typography.fontFamily.primary}</span>
           </div>
         );
       };
       
       renderWithTheme(<ThemeConsumer />);
       
-      expect(screen.getByTestId('primary-color')).toHaveTextContent(mockTheme.colors.primary);
-      expect(screen.getByTestId('font-family')).toHaveTextContent(mockTheme.typography.fontFamily);
+      expect(screen.getByTestId('primary-color')).toHaveTextContent(mockTheme.colors.primary.main);
+      expect(screen.getByTestId('font-family')).toHaveTextContent(mockTheme.typography.fontFamily.primary);
     });
     
     it('renders components with light theme', () => {
       // Create a component that uses theme values
       const ThemedButton = () => {
-        const theme = React.useContext(ThemeProvider.context);
+        const theme = useTheme() as Theme;
         return (
           <button 
             data-testid="themed-button"
             style={{ 
-              backgroundColor: theme.colors.primary,
-              color: theme.colors.background,
+              backgroundColor: theme.colors.primary.main,
+              color: theme.colors.background.main,
               padding: theme.spacing.md,
-              borderRadius: theme.borderRadius.medium,
-              fontFamily: theme.typography.fontFamily,
-              fontSize: theme.typography.fontSize.medium
+              borderRadius: theme.borderRadius.md,
+              fontFamily: theme.typography.fontFamily.primary,
+              fontSize: theme.typography.fontSize.md
             }}
           >
             Themed Button
@@ -415,17 +416,17 @@ describe('UI Components Consolidated Tests', () => {
     it('renders components with dark theme', () => {
       // Create a component that uses theme values
       const ThemedButton = () => {
-        const theme = React.useContext(ThemeProvider.context);
+        const theme = useTheme() as Theme;
         return (
           <button 
             data-testid="themed-button"
             style={{ 
-              backgroundColor: theme.colors.primary,
-              color: theme.colors.background,
+              backgroundColor: theme.colors.primary.main,
+              color: theme.colors.background.main,
               padding: theme.spacing.md,
-              borderRadius: theme.borderRadius.medium,
-              fontFamily: theme.typography.fontFamily,
-              fontSize: theme.typography.fontSize.medium
+              borderRadius: theme.borderRadius.md,
+              fontFamily: theme.typography.fontFamily.primary,
+              fontSize: theme.typography.fontSize.md
             }}
           >
             Themed Button

@@ -1,11 +1,11 @@
 import React, { Suspense } from 'react';
 import { useRoutes } from 'react-router-dom';
-import { routes } from './routes';
+import { appRoutes } from './routes';
 import { LoadingSpinner } from '../components/atoms/LoadingSpinner';
-import { ErrorBoundary } from '../components/common/ErrorBoundary';
+import ErrorBoundary from '../components/common/ErrorBoundary';
 
 export const AppRoutes: React.FC = () => {
-  const element = useRoutes(routes);
+  const element = useRoutes(appRoutes);
 
   return (
     <ErrorBoundary>

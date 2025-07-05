@@ -12,13 +12,15 @@ from datetime import datetime, timezone
 import json
 
 from app.models.video import Video # MODIFIED
-from app.models.enums import VideoStatus # ADDED: Import from central enums
+from app.models.enums import VideoStatus, CompressionMethod # ADDED: Import from central enums
 from app.schemas.video import VideoResponse, VideoUploadResponse, VideoCreate, VideoUpdate, AngleDataItem
 from app.services.storage_service import StorageService
 from app.core.config import Settings # Renamed from settings for consistency
 from uuid import uuid4
 from app.services.base_service import BaseService
 from app.core.exceptions import NotFoundException, PermissionDeniedException, ServerErrorException
+from app.utils.compression import compress_pose_sequence, decompress_pose_sequence, CompressionMethod as CompMethod
+from app.services.cache_service import CacheService, get_cache_service
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +33,27 @@ class VideoService(BaseService[Video, VideoCreate, VideoUpdate]):
         self.storage_service = storage_service
         self.app_settings = app_settings
         self.response_schema = VideoResponse
+        
+        # Cache service for performance optimization
+        self.cache_service: Optional[CacheService] = None
+        self._cache_initialized = False
+    
+    async def _ensure_cache_service(self) -> Optional[CacheService]:
+        """Lazily initialize cache service for performance optimization."""
+        if not self._cache_initialized:
+            try:
+                self.cache_service = await get_cache_service(self.app_settings)
+                if self.cache_service:
+                    logger.info("Cache service initialized successfully for VideoService")
+                else:
+                    logger.warning("Cache service initialization failed, operating without cache")
+            except Exception as e:
+                logger.warning(f"Cache service initialization error: {e}")
+                self.cache_service = None
+            finally:
+                self._cache_initialized = True
+        
+        return self.cache_service
 
     async def create_upload_session(
         self, 
@@ -643,19 +666,45 @@ class VideoService(BaseService[Video, VideoCreate, VideoUpdate]):
         raw_pose_data: Optional[list] = None,
         status: Optional[VideoStatus] = None,
         error_message: Optional[str] = None,
+        use_compression: bool = True,
+        compression_method: Optional[CompressionMethod] = None
     ):
-        """Updates the raw pose data, status, and error message for a video."""
+        """
+        Updates the raw pose data, status, and error message for a video with optional compression.
+        
+        Args:
+            video_id: Video ID to update
+            raw_pose_data: Pose sequence data to store
+            status: Video processing status
+            error_message: Error message if any
+            use_compression: Whether to compress pose data (default: True)
+            compression_method: Compression method to use (default: auto-select based on data size)
+        """
         video = await self.get_async(id=video_id) 
         if not video:
             logger.error(f"Video not found with ID {video_id} in update_video_raw_pose_data_and_status.")
             raise ValueError(f"Video not found with ID {video_id} for update.") 
 
         update_data = {}
+        
         if raw_pose_data is not None:
-            update_data["raw_pose_data"] = raw_pose_data
-            # No specific 'processed_raw_pose_data_at' timestamp for this one, 
-            # as it's considered more 'raw' than 'pose_data' generally.
-        elif raw_pose_data is None and hasattr(video, 'raw_pose_data'): # Explicitly clear if passed as None
+            if use_compression:
+                # Use compressed storage for better performance
+                success = await self._store_compressed_pose_data(
+                    video, raw_pose_data, compression_method
+                )
+                if success:
+                    logger.info(f"Successfully compressed and stored pose data for video {video_id}")
+                    # Keep raw_pose_data as None since we're using compressed storage
+                    update_data["raw_pose_data"] = None
+                else:
+                    logger.warning(f"Compression failed for video {video_id}, falling back to uncompressed storage")
+                    update_data["raw_pose_data"] = raw_pose_data
+            else:
+                # Use legacy uncompressed storage
+                update_data["raw_pose_data"] = raw_pose_data
+                
+        elif raw_pose_data is None and hasattr(video, 'raw_pose_data'):
             update_data["raw_pose_data"] = None
 
         if status is not None:
@@ -675,8 +724,214 @@ class VideoService(BaseService[Video, VideoCreate, VideoUpdate]):
         video = await self.update_async(db_obj=video, obj_in=video_update_schema) # CORRECTED CALL
         # No explicit commit here, BaseService.update_async handles it.
         await self.db.refresh(video) # Refresh to get the latest state after update
-        logger.info(f"Updated video {video_id} with raw_pose_data, status to {status}. Error: {error_message}. BaseService handled commit.")
+        
+        # Invalidate cache for this video when pose data is updated
+        if raw_pose_data is not None:
+            cache_service = await self._ensure_cache_service()
+            if cache_service:
+                try:
+                    invalidated_count = await cache_service.invalidate_video_cache(video_id)
+                    if invalidated_count > 0:
+                        logger.info(f"Invalidated {invalidated_count} cache entries for video {video_id}")
+                except Exception as e:
+                    logger.warning(f"Cache invalidation failed for video {video_id}: {e}")
+        
+        logger.info(f"Updated video {video_id} with pose data (compressed: {use_compression}), status to {status}. Error: {error_message}.")
         return video
+        
+    async def _store_compressed_pose_data(
+        self,
+        video: Video,
+        pose_sequence: list,
+        compression_method: Optional[CompressionMethod] = None
+    ) -> bool:
+        """
+        Store pose sequence data using compression.
+        
+        Args:
+            video: Video model instance
+            pose_sequence: Pose sequence to compress and store
+            compression_method: Compression method to use
+            
+        Returns:
+            True if compression and storage succeeded, False otherwise
+        """
+        try:
+            # Auto-select compression method based on data size if not specified
+            if compression_method is None:
+                import json
+                estimated_size_kb = len(json.dumps(pose_sequence).encode('utf-8')) / 1024
+                compression_method = CompressionMethod.get_recommended_method(int(estimated_size_kb))
+                logger.debug(f"Auto-selected compression method {compression_method.value} for {estimated_size_kb:.1f}KB pose data")
+            
+            # Use the Video model's compression helper method
+            success = video.set_compressed_pose_data(pose_sequence, compression_method)
+            
+            if success:
+                logger.info(f"Compressed pose data for video {video.id}: "
+                          f"{video.original_pose_size:,} → {video.compressed_pose_size:,} bytes "
+                          f"({video.compression_ratio:.3f} ratio) using {compression_method.value}")
+            
+            return success
+            
+        except Exception as e:
+            logger.error(f"Failed to compress pose data for video {video.id}: {e}", exc_info=True)
+            return False
+    
+    async def get_video_pose_data(self, video_id: UUID) -> Optional[list]:
+        """
+        Retrieve pose data for a video with cache optimization.
+        
+        Args:
+            video_id: Video ID to retrieve pose data for
+            
+        Returns:
+            Pose sequence data or None if not found
+        """
+        try:
+            # Check cache first
+            cache_service = await self._ensure_cache_service()
+            cached_pose_data = None
+            
+            if cache_service:
+                # Generate cache key for video pose data
+                video_cache_key = cache_service.key_manager.generate_video_metadata_key(video_id)
+                try:
+                    # For pose sequences, we cache by video_id but need the actual data to generate the pose key
+                    # So we'll cache at the video metadata level for now
+                    pass  # We'll implement video-level caching after getting the data
+                except Exception as e:
+                    logger.debug(f"Cache lookup failed for video {video_id}: {e}")
+            
+            video = await self.get_async(id=video_id)
+            if not video:
+                logger.error(f"Video not found with ID {video_id}")
+                return None
+            
+            pose_data = None
+            
+            # Try compressed data first (preferred)
+            if video.compressed_pose_data and video.pose_compression_method:
+                pose_data = video.get_pose_data_decompressed()
+                if pose_data is not None:
+                    logger.debug(f"Retrieved compressed pose data for video {video_id} "
+                               f"(method: {video.pose_compression_method.value}, "
+                               f"ratio: {video.compression_ratio:.3f})")
+                else:
+                    logger.warning(f"Failed to decompress pose data for video {video_id}, trying fallback")
+            
+            # Fallback to uncompressed data
+            if pose_data is None:
+                if video.raw_pose_data:
+                    logger.debug(f"Retrieved uncompressed pose data for video {video_id}")
+                    pose_data = video.raw_pose_data
+                elif video.pose_data:
+                    logger.debug(f"Retrieved legacy pose data for video {video_id}")
+                    pose_data = video.pose_data
+            
+            # Cache the pose data if available and cache service is ready
+            if pose_data and cache_service:
+                try:
+                    await cache_service.set_pose_sequence(
+                        pose_data, 
+                        ttl=cache_service.pose_ttl,
+                        compression_method=CompMethod.LZ4  # Fast compression for retrieval caching
+                    )
+                    logger.debug(f"Cached pose data for video {video_id}")
+                except Exception as e:
+                    logger.debug(f"Failed to cache pose data for video {video_id}: {e}")
+            
+            if pose_data is None:
+                logger.info(f"No pose data found for video {video_id}")
+            
+            return pose_data
+            
+        except Exception as e:
+            logger.error(f"Failed to retrieve pose data for video {video_id}: {e}", exc_info=True)
+            return None
+    
+    async def store_extracted_features(
+        self, 
+        video_id: UUID, 
+        features: Dict[str, float],
+        use_compression: bool = True,
+        compression_method: Optional[CompressionMethod] = None
+    ) -> bool:
+        """
+        Store extracted features for a video with optional compression.
+        
+        Args:
+            video_id: Video ID to update
+            features: Extracted biomechanical features
+            use_compression: Whether to compress features (default: True)
+            compression_method: Compression method to use
+            
+        Returns:
+            True if storage succeeded, False otherwise
+        """
+        try:
+            video = await self.get_async(id=video_id)
+            if not video:
+                logger.error(f"Video not found with ID {video_id}")
+                return False
+            
+            # Cache features for fast ML model access
+            cache_service = await self._ensure_cache_service()
+            
+            if use_compression:
+                # Auto-select compression method for features (smaller data)
+                if compression_method is None:
+                    compression_method = CompressionMethod.GZIP  # Best for small feature data
+                
+                success = video.set_compressed_features(features, compression_method)
+                if success:
+                    logger.info(f"Compressed and stored features for video {video_id} "
+                              f"using {compression_method.value}")
+                    
+                    # Update the video in database
+                    await self.db.commit()
+                    await self.db.refresh(video)
+                    
+                    # Cache features for ML model access
+                    if cache_service:
+                        try:
+                            await cache_service.set_features(
+                                features, 
+                                ttl=cache_service.features_ttl,
+                                use_compression=True
+                            )
+                            logger.debug(f"Cached features for video {video_id}")
+                        except Exception as e:
+                            logger.debug(f"Failed to cache features for video {video_id}: {e}")
+                    
+                    return True
+                else:
+                    logger.warning(f"Feature compression failed for video {video_id}")
+                    return False
+            else:
+                # Store features in analysis_results field (legacy approach)
+                update_data = {"analysis_results": {"features": features}}
+                video_update_schema = VideoUpdate(**update_data)
+                await self.update_async(db_obj=video, obj_in=video_update_schema)
+                logger.info(f"Stored uncompressed features for video {video_id}")
+                
+                # Cache features even if stored uncompressed
+                if cache_service:
+                    try:
+                        await cache_service.set_features(
+                            features, 
+                            ttl=cache_service.features_ttl,
+                            use_compression=False
+                        )
+                        logger.debug(f"Cached uncompressed features for video {video_id}")
+                    except Exception as e:
+                        logger.debug(f"Failed to cache features for video {video_id}: {e}")
+                
+                return True
+                
+        except Exception as e:
+            logger.error(f"Failed to store features for video {video_id}: {e}", exc_info=True)
+            return False
 
     async def update_video_smoothed_pose_data(
         self,

@@ -84,7 +84,7 @@ class NetworkService {
       if (this.retryCount < this.maxRetries) {
         this.retryCount++;
         const delay = Math.pow(2, this.retryCount) * 1000;
-        console.log(`Retrying network service initialization in ${delay}ms (attempt ${this.retryCount}/${this.maxRetries})`);
+        // Retrying network service initialization
         
         setTimeout(() => {
           this.initialize();

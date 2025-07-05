@@ -1,4 +1,4 @@
-import { apiService } from './apiService';
+import apiService from './apiService';
 import { Exercise, ExerciseType, ExerciseDifficulty } from './exerciseLibraryService';
 
 export interface ExerciseRecommendation {

@@ -1,6 +1,8 @@
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { Capacitor } from '@capacitor/core';
 import { logError, logNetworkError } from '../utils/errorLogging';
+import { storageService } from './storageService';
+import { mockAuthService } from './mockAuthService';
 
 // Get the base URL for the API depending on environment
 const getBaseUrl = () => {
@@ -48,6 +50,9 @@ export const endpoints = {
     detail: (id: string) => `/videos/${id}`,
     list: '/videos',
     status: (id: string) => `/videos/${id}/status`,
+    statistics: '/videos/statistics',
+    metrics: '/videos/metrics',
+    processingStats: '/videos/processing-stats',
   },
   formChecks: {
     upload: '/form-checks',
@@ -77,6 +82,13 @@ export const endpoints = {
     modelInfo: '/ml/model-info',
     scores: (formCheckId: string) => `/ml/scores/${formCheckId}`,
   },
+  analytics: {
+    overview: '/analytics/overview',
+    performance: '/analytics/performance',
+    exerciseStats: '/analytics/exercise-stats',
+    timeSeriesData: '/analytics/time-series',
+    export: '/analytics/export',
+  },
 } as const;
 
 // Define API error interface
@@ -104,8 +116,8 @@ class ApiService {
     });
 
     // Add request interceptor to include JWT token for authentication
-    this.api.interceptors.request.use((config) => {
-      const token = localStorage.getItem('token');
+    this.api.interceptors.request.use(async (config) => {
+      const token = await storageService.getAuthToken();
       if (token && config.headers) {
         config.headers['Authorization'] = `Bearer ${token}`;
       }
@@ -123,9 +135,21 @@ class ApiService {
           originalRequest._retry = true;
           
           try {
-            // Handle token refresh - for now just redirect to login
-            // TODO: Implement proper refresh token logic when backend supports it
-            localStorage.removeItem('token');
+            // Attempt to refresh the token
+            const refreshToken = await storageService.getRefreshToken();
+            if (refreshToken) {
+              const response = await this.refreshToken(refreshToken);
+              if (response.access_token) {
+                await storageService.setAuthToken(response.access_token);
+                // Retry the original request with new token
+                originalRequest.headers['Authorization'] = `Bearer ${response.access_token}`;
+                return this.api(originalRequest);
+              }
+            }
+            
+            // If refresh fails or no refresh token, redirect to login
+            await storageService.removeAuthToken();
+            await storageService.removeRefreshToken();
             this.redirectToLogin();
             return Promise.reject(error);
           } catch (refreshError) {
@@ -151,6 +175,13 @@ class ApiService {
     window.location.href = '/login';
   }
 
+  // Helper method to determine if we should use mock service
+  private shouldUseMock(): boolean {
+    return process.env.NODE_ENV === 'development' || 
+           process.env.REACT_APP_USE_MOCK_AUTH === 'true' ||
+           !process.env.REACT_APP_API_URL;
+  }
+
   /**
    * Handle API errors
    */
@@ -172,11 +203,25 @@ class ApiService {
    * Log in a user
    */
   async login(email: string, password: string): Promise<AxiosResponse> {
+    // Use mock service if backend is not available or in development
+    if (this.shouldUseMock()) {
+      const authResponse = await mockAuthService.login(email, password);
+      
+      // Store tokens in storageService
+      await storageService.setAuthToken(authResponse.access_token);
+      await storageService.setRefreshToken(authResponse.refresh_token);
+      
+      return { data: authResponse } as AxiosResponse;
+    }
+
     const response = await this.api.post('/auth/login', { email, password });
     
-    // Store token in localStorage
+    // Store tokens in storageService
     if (response.data.access_token) {
-      localStorage.setItem('token', response.data.access_token);
+      await storageService.setAuthToken(response.data.access_token);
+    }
+    if (response.data.refresh_token) {
+      await storageService.setRefreshToken(response.data.refresh_token);
     }
     
     return response;
@@ -186,14 +231,42 @@ class ApiService {
    * Register a new user
    */
   async register(userData: any): Promise<AxiosResponse<any>> {
+    // Use mock service if backend is not available or in development
+    if (this.shouldUseMock()) {
+      const authResponse = await mockAuthService.register(userData);
+      
+      // Store tokens in storageService
+      await storageService.setAuthToken(authResponse.access_token);
+      await storageService.setRefreshToken(authResponse.refresh_token);
+      
+      return { data: authResponse } as AxiosResponse;
+    }
+
     return this.api.post('/auth/register', userData);
+  }
+
+  /**
+   * Complete user onboarding
+   */
+  async completeOnboarding(): Promise<AxiosResponse<any>> {
+    // Use mock service if backend is not available or in development
+    if (this.shouldUseMock()) {
+      return await mockAuthService.completeOnboarding() as AxiosResponse;
+    }
+
+    return this.api.post('/auth/complete-onboarding');
   }
 
   /**
    * Validate the current session
    */
   async validateSession(): Promise<AxiosResponse<any>> {
-    return this.api.get('/auth/validate-session');
+    // Use mock service if backend is not available or in development
+    if (this.shouldUseMock()) {
+      return await mockAuthService.validateSession() as AxiosResponse;
+    }
+
+    return this.api.post('/auth/test-token');
   }
 
   /**
@@ -201,12 +274,18 @@ class ApiService {
    */
   async logout(): Promise<void> {
     try {
-      await this.api.post('/auth/logout');
+      // Use mock service if backend is not available or in development
+      if (this.shouldUseMock()) {
+        await mockAuthService.logout();
+      } else {
+        await this.api.post('/auth/logout');
+      }
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
-      // Always clear token
-      localStorage.removeItem('token');
+      // Always clear tokens
+      await storageService.removeAuthToken();
+      await storageService.removeRefreshToken();
     }
   }
 
@@ -214,21 +293,153 @@ class ApiService {
    * Request a password reset
    */
   async requestPasswordReset(email: string): Promise<AxiosResponse<void>> {
-    return this.api.post('/auth/password-reset-request', { email });
+    if (this.shouldUseMock()) {
+      await mockAuthService.requestPasswordReset(email);
+      return { data: undefined } as AxiosResponse<void>;
+    }
+    
+    return this.api.post('/auth/reset-password/request', { email });
   }
 
   /**
    * Confirm a password reset
    */
   async confirmPasswordReset(data: any): Promise<AxiosResponse<void>> {
-    return this.api.post('/auth/password-reset-confirm', data);
+    return this.api.post('/auth/reset-password/confirm', data);
   }
 
   /**
    * Verify email with token
    */
   async verifyEmail(token: string): Promise<AxiosResponse<void>> {
-    return this.api.post('/auth/verify-email', { token });
+    return this.api.post('/auth/verify-email/confirm', { token });
+  }
+
+  /**
+   * Request email verification
+   */
+  async requestEmailVerification(email: string): Promise<AxiosResponse<void>> {
+    return this.api.post('/auth/verify-email/request', { email });
+  }
+
+  /**
+   * Confirm email verification
+   */
+  async confirmEmailVerification(token: string): Promise<AxiosResponse<void>> {
+    return this.api.post('/auth/verify-email/confirm', { token });
+  }
+
+  /**
+   * Reset password with token
+   */
+  async resetPassword(token: string, newPassword: string): Promise<AxiosResponse<void>> {
+    if (this.shouldUseMock()) {
+      await mockAuthService.resetPassword(token, newPassword);
+      return { data: undefined } as AxiosResponse<void>;
+    }
+    
+    return this.api.post('/auth/reset-password/confirm', { 
+      token, 
+      new_password: newPassword 
+    });
+  }
+
+  /**
+   * Change password for authenticated user
+   */
+  async changePassword(currentPassword: string, newPassword: string): Promise<AxiosResponse<void>> {
+    return this.api.post('/users/me/change-password', {
+      current_password: currentPassword,
+      new_password: newPassword
+    });
+  }
+
+  // ======= Social Authentication Methods =======
+
+  /**
+   * Authenticate with Google
+   */
+  async googleAuth(token: string): Promise<AxiosResponse<any>> {
+    if (this.shouldUseMock()) {
+      const authResponse = await mockAuthService.socialLogin('google', token);
+      
+      // Store tokens in storageService
+      await storageService.setAuthToken(authResponse.access_token);
+      await storageService.setRefreshToken(authResponse.refresh_token);
+      
+      return { data: authResponse } as AxiosResponse;
+    }
+    
+    const response = await this.api.post('/auth/social/google', { token });
+    
+    // Store tokens if successful
+    if (response.data.access_token) {
+      await storageService.setAuthToken(response.data.access_token);
+    }
+    if (response.data.refresh_token) {
+      await storageService.setRefreshToken(response.data.refresh_token);
+    }
+    
+    return response;
+  }
+
+  /**
+   * Authenticate with Apple
+   */
+  async appleAuth(token: string): Promise<AxiosResponse<any>> {
+    if (this.shouldUseMock()) {
+      const authResponse = await mockAuthService.socialLogin('apple', token);
+      
+      // Store tokens in storageService
+      await storageService.setAuthToken(authResponse.access_token);
+      await storageService.setRefreshToken(authResponse.refresh_token);
+      
+      return { data: authResponse } as AxiosResponse;
+    }
+    
+    const response = await this.api.post('/auth/social/apple', { token });
+    
+    // Store tokens if successful
+    if (response.data.access_token) {
+      await storageService.setAuthToken(response.data.access_token);
+    }
+    if (response.data.refresh_token) {
+      await storageService.setRefreshToken(response.data.refresh_token);
+    }
+    
+    return response;
+  }
+
+  /**
+   * Get Google OAuth redirect URL
+   */
+  getGoogleOAuthUrl(): string {
+    if (this.shouldUseMock()) {
+      // Return a mock URL that will be handled by the callback component
+      return `/auth/google/callback?code=mock_google_code&state=mock_state`;
+    }
+    return `${API_BASE_URL}/auth/social/google/redirect`;
+  }
+
+  /**
+   * Get Apple OAuth redirect URL
+   */
+  getAppleOAuthUrl(): string {
+    if (this.shouldUseMock()) {
+      // Return a mock URL that will be handled by the callback component
+      return `/auth/apple/callback?code=mock_apple_code&state=mock_state`;
+    }
+    return `${API_BASE_URL}/auth/social/apple/redirect`;
+  }
+
+  /**
+   * Refresh the access token using refresh token
+   */
+  async refreshToken(refreshToken: string): Promise<{access_token: string; refresh_token?: string}> {
+    const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
+      refresh_token: refreshToken
+    });
+    return response.data;
   }
 
   // ======= User Profile Methods =======
@@ -397,9 +608,158 @@ class ApiService {
     return response.data;
   }
 
+  // ======= Analytics Methods =======
+
+  /**
+   * Get analytics overview data
+   */
+  async getAnalyticsOverview(timeRange?: string): Promise<{
+    totalSessions: number;
+    averageScore: number;
+    bestExercise: string | null;
+    weeklyProgress: number;
+    improvementRate: number;
+  }> {
+    const response = await this.api.get('/analytics/overview', {
+      params: { timeRange }
+    });
+    return response.data;
+  }
+
+  /**
+   * Get exercise-specific statistics
+   */
+  async getExerciseStats(timeRange?: string): Promise<Array<{
+    exercise_type: string;
+    count: number;
+    avg_score: number;
+    best_score: number;
+    improvement: number;
+    trend: 'up' | 'down' | 'stable';
+  }>> {
+    const response = await this.api.get('/analytics/exercise-stats', {
+      params: { timeRange }
+    });
+    return response.data;
+  }
+
+  /**
+   * Get time series data for charts
+   */
+  async getTimeSeriesData(timeRange?: string): Promise<Array<{
+    date: string;
+    overall_score: number;
+    posture_score: number;
+    stability_score: number;
+    depth_score: number;
+    session_count: number;
+  }>> {
+    const response = await this.api.get('/analytics/time-series', {
+      params: { timeRange }
+    });
+    return response.data;
+  }
+
+  /**
+   * Get performance metrics summary
+   */
+  async getPerformanceMetrics(timeRange?: string): Promise<{
+    consistency: number;
+    weakestArea: 'posture' | 'stability' | 'depth' | null;
+    strongestArea: 'posture' | 'stability' | 'depth' | null;
+    targetRecommendations: string[];
+  }> {
+    const response = await this.api.get('/analytics/performance', {
+      params: { timeRange }
+    });
+    return response.data;
+  }
+
+  /**
+   * Export analytics data
+   */
+  async exportAnalyticsData(format: 'csv' | 'json' | 'pdf', timeRange?: string): Promise<Blob> {
+    const response = await this.api.get('/analytics/export', {
+      params: { format, timeRange },
+      responseType: 'blob'
+    });
+    return response.data;
+  }
+
+  // ======= Video Statistics Methods =======
+
+  /**
+   * Get comprehensive video statistics
+   */
+  async getVideoStatistics(timeRange?: string): Promise<{
+    totalVideos: number;
+    processedVideos: number;
+    failedVideos: number;
+    processingVideos: number;
+    averageProcessingTime: number;
+    totalStorageUsed: number;
+    uploadsByExerciseType: Record<string, number>;
+    dailyUploads: Array<{ date: string; count: number }>;
+    successRate: number;
+  }> {
+    const response = await this.api.get('/videos/statistics', {
+      params: { timeRange }
+    });
+    return response.data;
+  }
+
+  /**
+   * Get video processing performance metrics
+   */
+  async getVideoProcessingMetrics(): Promise<{
+    averageProcessingTime: number;
+    processingSuccess: number;
+    processingFailure: number;
+    queueLength: number;
+    processedToday: number;
+    processingErrors: Array<{ error: string; count: number }>;
+    processingTimeByExercise: Record<string, number>;
+  }> {
+    const response = await this.api.get('/videos/processing-stats');
+    return response.data;
+  }
+
+  /**
+   * Get video-to-form-check conversion metrics
+   */
+  async getVideoConversionMetrics(timeRange?: string): Promise<{
+    videosUploaded: number;
+    formChecksCreated: number;
+    conversionRate: number;
+    averageTimeToCompletion: number;
+    successfulAnalyses: number;
+    failedAnalyses: number;
+  }> {
+    const response = await this.api.get('/videos/conversion-metrics', {
+      params: { timeRange }
+    });
+    return response.data;
+  }
+
+  /**
+   * Get video storage and quality metrics
+   */
+  async getVideoQualityMetrics(): Promise<{
+    averageFileSize: number;
+    averageDuration: number;
+    resolutionDistribution: Record<string, number>;
+    formatDistribution: Record<string, number>;
+    qualityScores: Array<{ quality: string; count: number }>;
+    compressionRates: Array<{ original: number; compressed: number; ratio: number }>;
+  }> {
+    const response = await this.api.get('/videos/quality-metrics');
+    return response.data;
+  }
+
   // Method to check if user is authenticated
-  public isAuthenticated(): boolean {
-    return !!localStorage.getItem('token');
+  public async isAuthenticated(): Promise<boolean> {
+    const token = await storageService.getAuthToken();
+    return !!token;
   }
 }
 

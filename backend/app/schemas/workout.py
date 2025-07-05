@@ -72,6 +72,19 @@ class WorkoutUpdate(BaseModel):
     
     model_config = ConfigDict(from_attributes=True)
 
+class WorkoutRead(WorkoutBase):
+    """Schema for reading a workout."""
+    id: UUID
+    user_id: UUID
+    created_at: datetime
+    updated_at: datetime
+    
+    model_config = ConfigDict(from_attributes=True)
+
+class WorkoutWithExercises(WorkoutRead):
+    """Workout schema with associated exercises."""
+    exercises: List[Exercise] = []
+
 # Additional schemas for workout plans
 
 class WorkoutPlanBase(BaseModel):
@@ -100,6 +113,36 @@ class WorkoutPlanUpdate(BaseModel):
     duration_weeks: Optional[int] = None
     level: Optional[WorkoutLevel] = None
     workout_ids: Optional[List[UUID]] = None
+    
+    model_config = ConfigDict(from_attributes=True)
+
+class WorkoutPlanRead(WorkoutPlanBase):
+    """Schema for reading a workout plan."""
+    id: UUID
+    user_id: UUID
+    created_at: datetime
+    updated_at: datetime
+    
+    model_config = ConfigDict(from_attributes=True)
+
+class WorkoutPlanWithExercises(WorkoutPlanRead):
+    """Workout plan schema with associated workouts."""
+    workouts: List[WorkoutRead] = []
+
+class WorkoutShare(BaseModel):
+    """Schema for sharing a workout."""
+    share_with_email: str
+    message: Optional[str] = None
+    
+    model_config = ConfigDict(from_attributes=True)
+
+class WorkoutShareResponse(BaseModel):
+    """Response schema for workout sharing."""
+    success: bool
+    message: str
+    shared_with: str
+    
+    model_config = ConfigDict(from_attributes=True)
 
 class ExerciseProgressResponse(BaseModel):
     """Exercise progress response schema."""

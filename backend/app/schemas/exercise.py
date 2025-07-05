@@ -84,4 +84,54 @@ class ExerciseResponse(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime] = None
     
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ExerciseProgressCreate(BaseModel):
+    """Schema for creating exercise progress."""
+    exercise_name: str = Field(..., description="Name of the exercise")
+    metrics: Dict[str, Any] = Field(..., description="Progress metrics")
+    notes: Optional[str] = Field(None, description="Optional notes")
+
+
+class ExerciseSetCreate(BaseModel):
+    """Schema for creating an exercise set."""
+    reps: int = Field(..., ge=1, le=100, description="Number of repetitions")
+    weight: Optional[float] = Field(None, ge=0, description="Weight used (optional)")
+    duration: Optional[int] = Field(None, ge=1, description="Duration in seconds (for time-based exercises)")
+    distance: Optional[float] = Field(None, ge=0, description="Distance (for cardio exercises)")
+    notes: Optional[str] = Field(None, max_length=500, description="Optional notes")
+
+
+class ExerciseSetUpdate(BaseModel):
+    """Schema for updating an exercise set."""
+    reps: Optional[int] = Field(None, ge=1, le=100, description="Number of repetitions")
+    weight: Optional[float] = Field(None, ge=0, description="Weight used")
+    duration: Optional[int] = Field(None, ge=1, description="Duration in seconds")
+    distance: Optional[float] = Field(None, ge=0, description="Distance")
+    notes: Optional[str] = Field(None, max_length=500, description="Optional notes")
+
+
+class ExerciseSetResponse(BaseModel):
+    """Schema for exercise set responses."""
+    id: int = Field(..., description="Set ID")
+    exercise_id: int = Field(..., description="Exercise ID")
+    reps: int = Field(..., description="Number of repetitions")
+    weight: Optional[float] = Field(None, description="Weight used")
+    duration: Optional[int] = Field(None, description="Duration in seconds")
+    distance: Optional[float] = Field(None, description="Distance")
+    notes: Optional[str] = Field(None, description="Notes")
+    created_at: datetime = Field(..., description="Creation timestamp")
+    
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ExerciseProgressResponse(BaseModel):
+    """Schema for exercise progress responses."""
+    id: UUID = Field(..., description="Progress ID")
+    exercise_name: str = Field(..., description="Exercise name")
+    metrics: Dict[str, Any] = Field(..., description="Progress metrics")
+    notes: Optional[str] = Field(None, description="Notes")
+    created_at: datetime = Field(..., description="Creation timestamp")
+    
     model_config = ConfigDict(from_attributes=True) 

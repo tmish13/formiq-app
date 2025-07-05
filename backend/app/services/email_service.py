@@ -19,24 +19,12 @@ logger = logging.getLogger(__name__)
 # Initialize settings to ensure ENVIRONMENT is correctly loaded for SUPPRESS_SEND
 settings = get_settings()
 
-# Print debug information for MAIL_PASSWORD
-print(f"DEBUG: MAIL_PASSWORD from settings: {settings.MAIL_PASSWORD!r}")
-print(f"DEBUG: Type of MAIL_PASSWORD: {type(settings.MAIL_PASSWORD)}")
-if hasattr(settings.MAIL_PASSWORD, 'get_secret_value'):
-    print(f"DEBUG: MAIL_PASSWORD secret value: {settings.MAIL_PASSWORD.get_secret_value()!r}")
-
 # Configure Jinja2 for email templates
 email_templates_dir = Path(settings.EMAIL_TEMPLATES_DIR)
 jinja_env = Environment(
     loader=FileSystemLoader(email_templates_dir),
     autoescape=select_autoescape(['html', 'xml'])
 )
-
-# Print debug information for MAIL_PASSWORD just before ConnectionConfig initialization
-print(f"DEBUG email_service.py: MAIL_PASSWORD from settings: {settings.MAIL_PASSWORD!r}")
-print(f"DEBUG email_service.py: Type of MAIL_PASSWORD: {type(settings.MAIL_PASSWORD)}")
-raw_mail_password = settings.MAIL_PASSWORD.get_secret_value() if settings.MAIL_PASSWORD else None
-print(f"DEBUG email_service.py: Raw MAIL_PASSWORD value for ConnectionConfig: {raw_mail_password!r}")
 
 # Configure FastMail
 mail_config = ConnectionConfig(

@@ -3,5 +3,10 @@
   "args": [
     "mcp-remote@latest",
     "https://mcp.sentry.dev/sse"
-  ]
+  ],
+  "mcpServers": {
+    "server-name": {
+      "url": "https://my-mcp-server.vercel.app/api/mcp"
+    }
+  }
 }

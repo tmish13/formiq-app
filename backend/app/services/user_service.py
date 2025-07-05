@@ -105,6 +105,36 @@ class UserService(BaseService[DBUser, UserCreate, UserUpdate]):
         await self.db.refresh(user)
         logger.info(f"Subscription updated for user {user_id} to tier {tier}")
         return user
+    
+    async def complete_onboarding(self, db: AsyncSession, user_id: UUID) -> DBUser:
+        """
+        Mark a user's onboarding as completed.
+        
+        Args:
+            db: Database session
+            user_id: ID of the user to update
+            
+        Returns:
+            Updated user object
+            
+        Raises:
+            NotFoundException: If user is not found
+        """
+        from datetime import datetime
+        
+        user = await db.get(DBUser, user_id)
+        if not user:
+            raise NotFoundException(f"User {user_id} not found")
+        
+        user.has_completed_onboarding = True
+        user.onboarding_completed_at = datetime.utcnow()
+        
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+        
+        logger.info(f"Onboarding completed for user {user_id}")
+        return user
 
 def get_user_service(
 ) -> UserService:

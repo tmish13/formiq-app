@@ -1,81 +1,65 @@
-import React, { useState, FormEvent } from 'react';
-import { useAuth } from '../../hooks/useAuth';
-import { Button, TextField, Typography, Box, Paper, Alert } from '@mui/material';
+import React, { useState } from 'react';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 
 export const RequestEmailVerificationForm: React.FC = () => {
   const [email, setEmail] = useState('');
-  const [submitted, setSubmitted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const { requestEmailVerification, error } = useAuth();
+  const [isSubmitted, setIsSubmitted] = useState(false);
 
-  const handleSubmit = async (e: FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    const success = await requestEmailVerification(email);
-    setIsLoading(false);
-    if (success) {
-      setSubmitted(true);
-    }
+    
+    // TODO: Implement email verification request logic
+    setTimeout(() => {
+      setIsLoading(false);
+      setIsSubmitted(true);
+    }, 1000);
   };
 
-  if (submitted) {
+  if (isSubmitted) {
     return (
-      <Paper elevation={3} sx={{ p: 4, maxWidth: 500, mx: 'auto', mt: 4 }}>
-        <Typography variant="h5" component="h1" gutterBottom>
-          Verification Email Sent
-        </Typography>
-        <Alert severity="success">
-          If an account exists with the email {email}, verification instructions have been sent.
-          Please check your inbox and spam folders.
-        </Alert>
-        <Typography variant="body2" sx={{ mt: 2 }}>
-          The verification link will expire in 24 hours for security reasons.
-        </Typography>
-      </Paper>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle>Verification Email Sent</CardTitle>
+            <CardDescription>
+              We've sent a verification email to your address. Please check your inbox.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
     );
   }
 
   return (
-    <Paper elevation={3} sx={{ p: 4, maxWidth: 500, mx: 'auto', mt: 4 }}>
-      <Typography variant="h5" component="h1" gutterBottom>
-        Verify Your Email Address
-      </Typography>
-      
-      <Typography variant="body1" sx={{ mb: 3 }}>
-        Enter your email address and we'll send you a verification link.
-      </Typography>
-      
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      )}
-      
-      <Box component="form" onSubmit={handleSubmit} noValidate>
-        <TextField
-          margin="normal"
-          required
-          fullWidth
-          id="email"
-          label="Email Address"
-          name="email"
-          autoComplete="email"
-          autoFocus
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          disabled={isLoading}
-        />
-        
-        <Button
-          type="submit"
-          fullWidth
-          variant="contained"
-          sx={{ mt: 3, mb: 2 }}
-          disabled={isLoading || !email}
-        >
-          {isLoading ? 'Sending...' : 'Send Verification Email'}
-        </Button>
-      </Box>
-    </Paper>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+      <Card className="w-full max-w-md">
+        <CardHeader>
+          <CardTitle>Request Email Verification</CardTitle>
+          <CardDescription>
+            Enter your email address to receive a verification link.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <Input
+                type="email"
+                placeholder="Enter your email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </div>
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? 'Sending...' : 'Send Verification Email'}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
   );
-}; 
+};

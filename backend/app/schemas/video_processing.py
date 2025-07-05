@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional, List, Dict, Any
 
 class VideoProcessResult(BaseModel):
@@ -8,5 +8,4 @@ class VideoProcessResult(BaseModel):
     metadata: Optional[Dict[str, Any]] = None
     error_details: Optional[str] = None
 
-    class Config:
-        from_attributes = True # orm_mode = True for Pydantic v1 
+    model_config = ConfigDict(from_attributes=True) 

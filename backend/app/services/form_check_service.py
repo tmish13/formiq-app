@@ -225,7 +225,11 @@ class FormCheckService(BaseService[FormCheck, FormCheckCreate, FormCheckUpdate])
                 "raw_feedback_strings": analysis_results.get("feedback", []),
                 "model_version": analysis_results.get("model_version", "unknown") # Example additional detail
             },
-            "analysis_completed_at": datetime.utcnow()
+            "analysis_completed_at": datetime.utcnow(),
+            # Add ML scores from analysis results
+            "posture_score": analysis_results.get("posture_score"),
+            "stability_score": analysis_results.get("stability_score"),
+            "depth_score": analysis_results.get("depth_score")
         }
         
         if status == FormCheckStatus.ERROR:

@@ -13,6 +13,8 @@ export interface User {
   stripeCustomerId?: string;
   stripeSubscriptionId?: string;
   isEmailVerified: boolean;
+  has_completed_onboarding?: boolean;
+  onboarding_completed_at?: string;
   createdAt: string;
   updatedAt: string;
 } 

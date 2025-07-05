@@ -77,6 +77,11 @@ class User(BaseModel):
     is_verified = Column(Boolean, default=False, nullable=False)
     is_superuser = Column(Boolean, default=False, nullable=False)
     verified_at = Column(DateTime)
+    
+    # Onboarding fields
+    has_completed_onboarding = Column(Boolean, default=False, nullable=False)
+    onboarding_completed_at = Column(DateTime, nullable=True)
+    
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     last_login = Column(DateTime)

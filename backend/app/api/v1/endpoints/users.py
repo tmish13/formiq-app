@@ -1,7 +1,7 @@
 """Users router module."""
 from typing import Any, List, Dict
 
-from fastapi import APIRouter, Depends, HTTPException, status, Body
+from fastapi import APIRouter, Depends, HTTPException, status, Body, File, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api import deps
@@ -303,4 +303,110 @@ async def update_settings(
         user_id=current_user.id,
         settings=settings_data
     )
-    return updated_settings 
+    return updated_settings
+
+
+@router.post("/me/avatar", response_model=Dict[str, Any])
+async def upload_avatar(
+    *,
+    db: AsyncSession = Depends(deps.get_async_db),
+    current_user: User = Depends(deps.get_current_user),
+    file: UploadFile = File(...),
+    user_service: UserService = Depends(deps.get_user_service)
+) -> Any:
+    """
+    Upload user avatar image.
+    
+    Args:
+        file: Avatar image file (JPG, PNG, GIF supported)
+        
+    Returns:
+        Avatar upload result with URL
+        
+    Raises:
+        HTTPException: If file format not supported or upload fails
+    """
+    # Validate file type
+    allowed_types = ["image/jpeg", "image/jpg", "image/png", "image/gif"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid file type. Only JPG, PNG, and GIF are supported."
+        )
+    
+    # Validate file size (max 5MB)
+    max_size = 5 * 1024 * 1024  # 5MB
+    file_content = await file.read()
+    if len(file_content) > max_size:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File too large. Maximum size is 5MB."
+        )
+    
+    try:
+        # Upload avatar using user service
+        avatar_result = await user_service.upload_avatar(
+            user_id=current_user.id,
+            file_content=file_content,
+            filename=file.filename,
+            content_type=file.content_type
+        )
+        
+        return {
+            "message": "Avatar uploaded successfully",
+            "avatar_url": avatar_result["avatar_url"],
+            "thumbnail_url": avatar_result.get("thumbnail_url")
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Avatar upload failed: {str(e)}"
+        )
+
+
+@router.delete("/me/avatar", response_model=Dict[str, str])
+async def delete_avatar(
+    *,
+    db: AsyncSession = Depends(deps.get_async_db),
+    current_user: User = Depends(deps.get_current_user),
+    user_service: UserService = Depends(deps.get_user_service)
+) -> Any:
+    """
+    Delete user avatar image.
+    
+    Returns:
+        Deletion result message
+    """
+    try:
+        await user_service.delete_avatar(current_user.id)
+        return {"message": "Avatar deleted successfully"}
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Avatar deletion failed: {str(e)}"
+        )
+
+
+@router.get("/me/subscription", response_model=Dict[str, Any])
+async def get_subscription(
+    *,
+    current_user: User = Depends(deps.get_current_user),
+    user_service: UserService = Depends(deps.get_user_service)
+) -> Any:
+    """
+    Get user subscription details.
+    
+    Returns:
+        Subscription information including plan, status, and usage
+    """
+    try:
+        subscription = await user_service.get_subscription_details(current_user.id)
+        return subscription
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching subscription: {str(e)}"
+        ) 

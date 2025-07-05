@@ -2,16 +2,13 @@
 // It now re-exports the centralized testing utilities
 import React from 'react';
 import { render, RenderOptions, RenderResult } from '@testing-library/react';
-import { ThemeProvider } from 'styled-components';
 import { Provider } from 'react-redux';
 import { BrowserRouter, MemoryRouter, Routes, Route } from 'react-router-dom';
 import { configureStore } from '@reduxjs/toolkit';
-import { theme } from './theme';
 import rootReducer from './store/rootReducer';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { mockTheme } from './theme/mockTheme';
-import { Theme } from './theme';
+import { ModernThemeProvider } from './contexts/ModernThemeContext';
 
 // Re-export everything
 export * from '@testing-library/react';
@@ -96,9 +93,9 @@ export function testRender(
     // Wrap with theme if needed
     if (!withoutTheme) {
       wrappedChildren = (
-        <ThemeProvider theme={theme}>
+        <ModernThemeProvider>
           {wrappedChildren}
-        </ThemeProvider>
+        </ModernThemeProvider>
       );
     }
 

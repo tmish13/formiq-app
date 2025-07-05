@@ -1,6 +1,16 @@
 import { Platform } from '@capacitor/core';
-import { Health } from '@capacitor-community/health';
+// TODO: Install @capacitor-community/health when available
+// import { Health } from '@capacitor-community/health';
 import { StorageService } from './storageService';
+
+// Mock Health interface for now
+const Health = {
+  async getSteps(): Promise<number> { return 0; },
+  async getCalories(): Promise<number> { return 0; },
+  async getDistance(): Promise<number> { return 0; },
+  async getHeartRate(): Promise<number[]> { return []; },
+  async getWorkoutMinutes(): Promise<number> { return 0; },
+};
 
 export interface HealthData {
   steps: number;

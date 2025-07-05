@@ -168,6 +168,17 @@ class UserInDBBase(UserBase):
     is_email_verified: Optional[bool] = False
     subscription_tier: str = Field("FREE", description="User's subscription tier")
     subscription_end_date: Optional[datetime] = None
+    
+    # Onboarding fields
+    has_completed_onboarding: Optional[bool] = Field(
+        False,
+        description="Whether the user has completed the onboarding process"
+    )
+    onboarding_completed_at: Optional[datetime] = Field(
+        None,
+        description="When the user completed onboarding",
+        example="2024-01-20T10:45:00Z"
+    )
 
     model_config = ConfigDict(from_attributes=True)
 

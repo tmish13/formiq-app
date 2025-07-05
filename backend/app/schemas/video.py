@@ -1,6 +1,6 @@
 """Video upload schemas for validation."""
 from typing import Optional, Dict, Any, List
-from pydantic import BaseModel, Field, validator, constr
+from pydantic import BaseModel, Field, field_validator, constr, ConfigDict
 from fastapi import UploadFile
 from datetime import datetime
 from uuid import UUID
@@ -27,7 +27,8 @@ class VideoCreate(VideoBase):
     object_key: Optional[str] = None
     exercise_type: Optional[str] = None
 
-    @validator("mime_type")
+    @field_validator("mime_type")
+    @classmethod
     def validate_mime_type(cls, v):
         if not v.startswith("video/"):
             raise ValueError("MIME type must be a video format")
@@ -56,7 +57,8 @@ class VideoUpdate(BaseModel):
     celery_task_id: Optional[str] = None
     processed_frame_count: Optional[int] = None
 
-    @validator("mime_type", check_fields=False)
+    @field_validator("mime_type")
+    @classmethod
     def validate_update_mime_type(cls, v):
         if v is not None and not v.startswith("video/"):
             raise ValueError("MIME type must be a video format")
@@ -81,9 +83,7 @@ class VideoResponse(VideoBase):
     rep_count: Optional[int] = None
     processed_frame_count: Optional[int] = None
 
-    class Config:
-        orm_mode = True
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class VideoAnalysisRequest(BaseModel):
     """Schema for requesting video analysis."""
@@ -119,18 +119,14 @@ class VideoAnalysis(BaseModel):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional analysis metadata")
     
-    class Config:
-        """Pydantic configuration."""
-        from_attributes = True
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
+    model_config = ConfigDict(from_attributes=True)
 
 class VideoUploadRequest(VideoBase):
     """Schema for video upload request."""
     file: UploadFile = Field(..., description="Video file to upload")
     
-    @validator("file")
+    @field_validator("file")
+    @classmethod
     def validate_file(cls, v):
         """Validate video file."""
         # Get allowed types from settings

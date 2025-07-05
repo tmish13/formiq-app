@@ -4,6 +4,7 @@ export interface Exercise {
   sets: number;
   reps: number;
   weight?: number;
+  duration?: number; // in minutes
   notes?: string;
 }
 

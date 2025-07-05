@@ -1,4 +1,4 @@
-import { apiService } from './apiService';
+import apiService from './apiService';
 import { poseAnalysisService } from './poseAnalysisService';
 import { FormAnalysisRequest, FormAnalysisResult, FormAnalysisResponse, JointAngles, FormFeedback, JointAngle } from '../types/formAnalysis';
 import { ExerciseType } from './exerciseLibraryService';
@@ -232,7 +232,7 @@ export class FormAnalysisService extends EventEmitter {
 
   public async getAnalysisHistory(): Promise<FormAnalysisResult[]> {
     try {
-      const response = await apiService.formAnalysis.getHistory();
+      const response = await apiService.get('/form-checks/history');
       return response.data;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to fetch analysis history';
@@ -243,7 +243,7 @@ export class FormAnalysisService extends EventEmitter {
 
   public async saveAnalysis(result: FormAnalysisResult): Promise<void> {
     try {
-      await apiService.formAnalysis.save(result);
+      await apiService.post('/form-checks', result);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to save analysis';
       this.setState({ error: errorMessage });

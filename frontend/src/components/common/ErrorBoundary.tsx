@@ -1,31 +1,10 @@
 import React, { Component, ErrorInfo } from 'react';
-import styled from 'styled-components';
-import { Box, Typography, Button, Stack } from '@mui/material';
 import { store } from '../../store';
 import { setError } from '../../store/slices/authSlice';
 import { errorHandlingService } from '../../services/errorHandlingService';
-import { getThemeValue } from '../../utils/themeUtils';
-
-const ErrorContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 400px;
-  padding: 2rem;
-  text-align: center;
-`;
-
-const ErrorTitle = styled.h2`
-  color: ${({ theme }) => getThemeValue(theme, 'colors.error.main', '#dc3545')};
-  margin-bottom: 1rem;
-`;
-
-const ErrorMessage = styled.p`
-  color: ${({ theme }) => getThemeValue(theme, 'colors.text.secondary', '#666')};
-  margin-bottom: 2rem;
-  max-width: 600px;
-`;
+import { Button } from '../ui/button';
+import { Card, CardContent } from '../ui/card';
+import { AlertTriangle, RotateCcw, RefreshCw } from 'lucide-react';
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -131,33 +110,43 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
       }
 
       return (
-        <ErrorContainer>
-          <ErrorTitle>Oops! Something went wrong</ErrorTitle>
-          <ErrorMessage>
-            {this.getUserFriendlyMessage(this.state.error)}
-          </ErrorMessage>
-          <Stack direction="row" spacing={2}>
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={this.handleRetry}
-            >
-              Try Again
-            </Button>
-            <Button
-              variant="outlined"
-              color="primary"
-              onClick={this.handleReload}
-            >
-              Reload Page
-            </Button>
-          </Stack>
-          {process.env.NODE_ENV === 'development' && this.state.error && (
-            <Box component="pre" sx={{ mt: 2, p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
-              {this.state.error.message}
-            </Box>
-          )}
-        </ErrorContainer>
+        <div className="flex flex-col items-center justify-center min-h-[400px] p-8 text-center">
+          <Card className="w-full max-w-md">
+            <CardContent className="pt-6">
+              <div className="flex flex-col items-center space-y-4">
+                <AlertTriangle className="h-12 w-12 text-destructive" />
+                <h2 className="text-2xl font-semibold text-destructive">
+                  Oops! Something went wrong
+                </h2>
+                <p className="text-muted-foreground max-w-sm">
+                  {this.getUserFriendlyMessage(this.state.error)}
+                </p>
+                <div className="flex gap-3">
+                  <Button
+                    onClick={this.handleRetry}
+                    className="flex items-center gap-2"
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                    Try Again
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={this.handleReload}
+                    className="flex items-center gap-2"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    Reload Page
+                  </Button>
+                </div>
+                {process.env.NODE_ENV === 'development' && this.state.error && (
+                  <pre className="mt-4 p-3 bg-muted rounded text-sm text-left w-full overflow-auto">
+                    {this.state.error.message}
+                  </pre>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       );
     }
 

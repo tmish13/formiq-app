@@ -123,6 +123,9 @@ export interface PoseOverlayProps {
   highlightIssues?: PoseIssue[];
   onKeypointHover?: (keypoint: Keypoint) => void;
   onIssueClick?: (issue: PoseIssue) => void;
+  isRealTime?: boolean;                    // Enable real-time mode optimizations
+  connectionStatus?: 'connected' | 'disconnected' | 'connecting';
+  frameRate?: number;                      // Current frame rate for performance display
 }
 
 // Real-time analysis state

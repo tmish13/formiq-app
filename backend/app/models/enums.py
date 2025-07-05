@@ -346,5 +346,78 @@ class PoseEstimationFramework(str, Enum):
     ONNX = "onnx"
     DEFAULT = MEDIAPIPE # Default framework
 
+class CompressionMethod(str, Enum):
+    """
+    Compression methods supported for data storage optimization.
+
+    Attributes:
+        NONE: No compression applied
+        GZIP: GZIP compression (standard, good balance)
+        LZ4: LZ4 compression (ultra-fast, lower ratio)
+        ZSTD: Zstandard compression (modern, excellent ratio and speed)
+    """
+    NONE = "none"
+    GZIP = "gzip"
+    LZ4 = "lz4"
+    ZSTD = "zstd"
+
+    @classmethod
+    def get_recommended_method(cls, data_size_kb: int) -> 'CompressionMethod':
+        """Get recommended compression method based on data size."""
+        if data_size_kb < 10:  # Small data
+            return cls.GZIP  # Higher compression ratio for small data
+        elif data_size_kb < 100:  # Medium data
+            return cls.LZ4   # Fast compression for real-time processing
+        else:  # Large data
+            return cls.ZSTD  # Best overall performance for large data
+
+    @classmethod
+    def get_performance_profile(cls, method: 'CompressionMethod') -> Dict[str, str]:
+        """Get performance characteristics of compression method."""
+        profiles = {
+            cls.NONE: {"speed": "instant", "ratio": "none", "cpu": "none"},
+            cls.GZIP: {"speed": "medium", "ratio": "high", "cpu": "medium"},
+            cls.LZ4: {"speed": "very_fast", "ratio": "medium", "cpu": "low"},
+            cls.ZSTD: {"speed": "fast", "ratio": "very_high", "cpu": "medium"}
+        }
+        return profiles.get(method, profiles[cls.NONE])
+
+
+class StorageFormat(str, Enum):
+    """
+    Storage formats supported for database optimization.
+
+    Attributes:
+        JSON: Standard JSON format (human-readable, but larger)
+        MSGPACK: MessagePack binary format (15-30% smaller than JSON, faster)
+        PROTOBUF: Protocol Buffers binary format (40-60% smaller, schema-based)
+        PICKLE: Python pickle format (for complex Python objects)
+    """
+    JSON = "json"
+    MSGPACK = "msgpack"
+    PROTOBUF = "protobuf"
+    PICKLE = "pickle"
+
+    @classmethod
+    def get_recommended_format(cls, data_size_kb: int, access_frequency: str = "medium") -> 'StorageFormat':
+        """Get recommended storage format based on data characteristics."""
+        if data_size_kb < 1:  # Very small data
+            return cls.JSON  # Minimal overhead for tiny data
+        elif data_size_kb < 10:  # Small data
+            return cls.MSGPACK  # Good balance for small to medium data
+        else:  # Large data
+            return cls.MSGPACK  # Best overall performance for large pose data
+
+    @classmethod
+    def get_performance_profile(cls, format: 'StorageFormat') -> Dict[str, str]:
+        """Get performance characteristics of storage format."""
+        profiles = {
+            cls.JSON: {"speed": "medium", "size": "large", "compatibility": "universal"},
+            cls.MSGPACK: {"speed": "fast", "size": "small", "compatibility": "good"},
+            cls.PROTOBUF: {"speed": "very_fast", "size": "very_small", "compatibility": "limited"},
+            cls.PICKLE: {"speed": "fast", "size": "medium", "compatibility": "python_only"}
+        }
+        return profiles.get(format, profiles[cls.JSON])
+
 # Example of a more complex enum if needed in the future
 # class DetailedEnum(Enum): 

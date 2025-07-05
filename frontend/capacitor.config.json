@@ -4,13 +4,41 @@
   "webDir": "build",
   "bundledWebRuntime": false,
   "server": {
-    "androidScheme": "https",
-    "iosScheme": "https",
-    "hostname": "app.formiq.com"
+    "allowNavigation": [
+      "http://localhost:3000",
+      "http://localhost:8000",
+      "http://10.0.0.9:3000",
+      "http://10.0.0.9:8000",
+      "http://192.168.1.*:3000",
+      "http://192.168.1.*:8000"
+    ],
+    "cleartext": true
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 2000,
+      "launchAutoHide": true,
+      "backgroundColor": "#ffffffff",
+      "showSpinner": false
+    },
+    "Camera": {
+      "permissions": ["camera", "photos"]
+    },
+    "StatusBar": {
+      "style": "dark"
+    },
+    "App": {
+      "appUrlOpen": {
+        "iosCustomApplicationProtocols": ["formiq"],
+        "androidCustomApplicationProtocols": ["formiq"]
+      }
+    }
   },
   "ios": {
     "contentInset": "always",
     "backgroundColor": "#ffffff",
-    "preferredContentMode": "mobile"
+    "preferredContentMode": "mobile",
+    "allowsLinkPreview": false,
+    "overrideUserInterfaceStyle": "light"
   }
 } 

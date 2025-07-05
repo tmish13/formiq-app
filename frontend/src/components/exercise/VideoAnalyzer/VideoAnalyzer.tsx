@@ -1,66 +1,25 @@
-import React, { useEffect, useRef, useState } from 'react';
-import styled from 'styled-components';
-import { getThemeValue } from '../../../utils/themeUtils';
-import type { VideoAnalyzerProps } from './index';
+import React from 'react';
 
-const VideoContainer = styled.div`
-  position: relative;
-  width: 100%;
-  max-width: 600px;
-  margin: 0 auto;
-  border-radius: ${({ theme }) => getThemeValue(theme, 'borderRadius.md', '8px')};
-  overflow: hidden;
-  box-shadow: ${({ theme }) => getThemeValue(theme, 'shadows.md', '0 4px 6px rgba(0,0,0,0.1)')};
-`;
+interface VideoAnalyzerProps {
+  videoUrl?: string;
+  onAnalysisComplete?: (results: any) => void;
+  className?: string;
+}
 
-const Video = styled.video`
-  width: 100%;
-  height: auto;
-  display: block;
-`;
-
-const VideoAnalyzer: React.FC<VideoAnalyzerProps> = ({
-  videoFile,
-  exerciseType,
-  isAnalyzing,
-  onError,
-  onAnalysisStart,
+export const VideoAnalyzer: React.FC<VideoAnalyzerProps> = ({
+  videoUrl,
+  onAnalysisComplete,
+  className = ''
 }) => {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [videoUrl, setVideoUrl] = useState<string>('');
-
-  useEffect(() => {
-    if (videoFile) {
-      const url = URL.createObjectURL(videoFile);
-      setVideoUrl(url);
-      return () => URL.revokeObjectURL(url);
-    }
-  }, [videoFile]);
-
-  useEffect(() => {
-    if (isAnalyzing && videoRef.current) {
-      try {
-        videoRef.current.currentTime = 0;
-        videoRef.current.play();
-        onAnalysisStart();
-      } catch (error) {
-        onError(error);
-      }
-    }
-  }, [isAnalyzing, onAnalysisStart, onError]);
-
   return (
-    <VideoContainer>
-      <Video
-        ref={videoRef}
-        src={videoUrl}
-        controls={!isAnalyzing}
-        playsInline
-        muted
-        loop={isAnalyzing}
-      />
-    </VideoContainer>
+    <div className={`video-analyzer ${className}`}>
+      <div className="text-center p-8">
+        <p className="text-gray-600 dark:text-gray-400">
+          Video Analysis Component - Implementation Pending
+        </p>
+      </div>
+    </div>
   );
 };
 
-export default VideoAnalyzer; 
+export default VideoAnalyzer;

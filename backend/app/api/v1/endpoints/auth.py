@@ -2,6 +2,7 @@
 from datetime import timedelta, datetime
 from typing import Any, Dict, Optional
 import time
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, Response, Cookie, Body
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
@@ -11,12 +12,13 @@ from pydantic import BaseModel, EmailStr
 from app.api import deps
 from app.core.config import settings
 from app.core.security import (
-    verify_token_payload
+    verify_token_payload,
+    verify_session_token_and_get_payload
 )
 from app.core.exceptions import AuthenticationException, ValidationException, RateLimitExceededException, EmailError, NotFoundException
 from app.models.user import User
 from app.schemas.token import Token, TokenPayload, RefreshToken
-from app.schemas.user import User as UserSchema, UserCreate, UserPasswordReset, UserResponse
+from app.schemas.user import User as UserSchema, UserCreate, UserPasswordReset, UserResponse, UserUpdate
 from app.schemas.auth import (
     PasswordResetRequest, 
     EmailVerificationRequest, 
@@ -35,6 +37,9 @@ from app.core.monitoring import (
     track_rate_limit_hit
 )
 from app.core.redis import Redis
+
+# Initialize logger
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -391,7 +396,7 @@ async def logout(
     be refreshable.
     """
     try:
-        session_data = verify_session_token(token)
+        session_data = verify_session_token_and_get_payload(token, deps.get_redis())
         if session_data:
             await session_service.deactivate_session(session_data["session_id"])
         
@@ -438,7 +443,7 @@ async def logout_all(
     the refresh token cookie on this device.
     """
     try:
-        session_data = verify_session_token(token)
+        session_data = verify_session_token_and_get_payload(token, deps.get_redis())
         if session_data:
             await session_service.deactivate_all_sessions(session_data["user_id"])
         
@@ -708,4 +713,203 @@ async def verify_email(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         logger.error(f"Unexpected error during GET email verification for token {token}: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Could not verify email.") 
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Could not verify email.")
+
+
+# ======= Social Authentication Endpoints =======
+
+@router.post(
+    "/social/google",
+    response_model=dict,
+    status_code=200,
+    responses={
+        200: {"description": "Successfully authenticated with Google"},
+        400: {"description": "Invalid Google token"},
+        500: {"description": "Social authentication error"}
+    }
+)
+async def google_auth(
+    token: str = Body(..., description="Google ID token"),
+    db: AsyncSession = Depends(deps.get_async_db)
+):
+    """
+    Authenticate user with Google OAuth2.
+    
+    Verifies the Google ID token and either logs in existing user
+    or creates a new user account.
+    """
+    try:
+        from app.services.social_auth_service import SocialAuthService
+        social_auth_service = SocialAuthService()
+        
+        result = await social_auth_service.handle_social_login(
+            provider="google",
+            token=token,
+            db=db
+        )
+        
+        return result
+        
+    except AuthenticationException as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error(f"Google authentication error: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Google authentication failed")
+
+
+@router.post(
+    "/social/apple", 
+    response_model=dict,
+    status_code=200,
+    responses={
+        200: {"description": "Successfully authenticated with Apple"},
+        400: {"description": "Invalid Apple token"},
+        500: {"description": "Social authentication error"}
+    }
+)
+async def apple_auth(
+    token: str = Body(..., description="Apple ID token"),
+    db: AsyncSession = Depends(deps.get_async_db)
+):
+    """
+    Authenticate user with Apple Sign In.
+    
+    Verifies the Apple ID token and either logs in existing user
+    or creates a new user account.
+    """
+    try:
+        from app.services.social_auth_service import SocialAuthService
+        social_auth_service = SocialAuthService()
+        
+        result = await social_auth_service.handle_social_login(
+            provider="apple",
+            token=token,
+            db=db
+        )
+        
+        return result
+        
+    except AuthenticationException as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error(f"Apple authentication error: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Apple authentication failed")
+
+
+@router.get(
+    "/social/google/redirect",
+    status_code=302,
+    responses={
+        302: {"description": "Redirect to Google OAuth"}
+    }
+)
+async def google_oauth_redirect():
+    """
+    Redirect to Google OAuth2 authorization URL.
+    
+    This endpoint redirects users to Google's OAuth2 consent screen.
+    """
+    from urllib.parse import urlencode
+    
+    google_auth_url = "https://accounts.google.com/o/oauth2/v2/auth"
+    params = {
+        "client_id": settings.GOOGLE_CLIENT_ID,
+        "response_type": "code",
+        "scope": "openid email profile",
+        "redirect_uri": f"{settings.FRONTEND_URL}/auth/google/callback",
+        "state": "random_state_string"  # In production, use secure random state
+    }
+    
+    redirect_url = f"{google_auth_url}?{urlencode(params)}"
+    
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url=redirect_url)
+
+
+@router.get(
+    "/social/apple/redirect", 
+    status_code=302,
+    responses={
+        302: {"description": "Redirect to Apple OAuth"}
+    }
+)
+async def apple_oauth_redirect():
+    """
+    Redirect to Apple Sign In authorization URL.
+    
+    This endpoint redirects users to Apple's Sign In consent screen.
+    """
+    from urllib.parse import urlencode
+    
+    apple_auth_url = "https://appleid.apple.com/auth/authorize"
+    params = {
+        "client_id": settings.APPLE_CLIENT_ID,
+        "response_type": "code",
+        "scope": "name email",
+        "redirect_uri": f"{settings.FRONTEND_URL}/auth/apple/callback",
+        "state": "random_state_string",  # In production, use secure random state
+        "response_mode": "form_post"
+    }
+    
+    redirect_url = f"{apple_auth_url}?{urlencode(params)}"
+    
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url=redirect_url)
+
+
+@router.post(
+    "/complete-onboarding",
+    response_model=UserResponse,
+    status_code=200,
+    responses={
+        200: {
+            "description": "Onboarding completed successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "Onboarding completed successfully",
+                        "user": {
+                            "id": "123e4567-e89b-12d3-a456-426614174000",
+                            "email": "user@example.com",
+                            "has_completed_onboarding": True,
+                            "onboarding_completed_at": "2024-01-20T10:45:00Z"
+                        }
+                    }
+                }
+            }
+        },
+        401: {
+            "description": "Authentication required",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Not authenticated"}
+                }
+            }
+        }
+    }
+)
+async def complete_onboarding(
+    current_user: User = Depends(deps.get_current_user),
+    user_service: UserService = Depends(deps.get_user_service),
+    db: AsyncSession = Depends(deps.get_db)
+) -> Any:
+    """
+    Mark the current user's onboarding as completed.
+    
+    Updates the user's onboarding status and timestamp.
+    """
+    try:
+        # Update user's onboarding status
+        updated_user = await user_service.complete_onboarding(db, current_user.id)
+        
+        return {
+            "message": "Onboarding completed successfully",
+            "user": updated_user
+        }
+        
+    except Exception as e:
+        logger.error(f"Error completing onboarding for user {current_user.id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to complete onboarding. Please try again."
+        ) 

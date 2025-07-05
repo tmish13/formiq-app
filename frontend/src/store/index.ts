@@ -111,7 +111,7 @@ const analyticsMiddleware: Middleware<{}, RootState> =
     if (action.meta?.track) {
       const { event, properties } = action.meta.track;
       // Implement your analytics tracking here
-      console.debug('Analytics event:', event, properties);
+      // Analytics event tracking
     }
     return next(action);
 };

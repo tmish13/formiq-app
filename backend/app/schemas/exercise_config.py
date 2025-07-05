@@ -2,7 +2,7 @@
 Exercise Configuration Schemas for API request/response validation.
 """
 from pydantic import BaseModel, Field, ConfigDict
-from typing import Dict, List, Optional, Any, Union, Tuple
+from typing import Dict, List, Optional, Any, Union
 from uuid import UUID
 from datetime import datetime
 
@@ -241,7 +241,7 @@ class SymmetryRule(BaseModel):
     """
     Schema for symmetry rules between bilateral joints.
     """
-    joint_pair: Tuple[str, str] = Field(..., description="Tuple of joint names to compare for symmetry (e.g., ('leftKnee', 'rightKnee'))")
+    joint_pair: List[str] = Field(..., description="List of two joint names to compare for symmetry (e.g., ['leftKnee', 'rightKnee'])", min_items=2, max_items=2)
     max_difference_degrees: float = Field(default=15.0, description="Maximum acceptable absolute difference in angles between the joint pair in degrees")
     applicable_phases: Optional[List[str]] = Field(None, description="List of movement phases where this rule applies. If None, applies to all phases.")
     

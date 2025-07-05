@@ -16,8 +16,9 @@ from app.core.config import settings as global_settings, Settings # IMPORTED Set
 from app.core.logging import get_logger
 from app.models.enums import ExerciseType, FeedbackType, FeedbackSeverity # IMPORTED Feedback Enums
 from app.constants.angles import UNIVERSAL_ANGLE_DEFINITIONS # ORIGINAL IMPORT
-from app.services.ml_model_service import MLModelService
-from app.services.feature_extraction_service import SquatFeatureExtractor
+from app.services.ml_model_service import MLModelService, EnhancedSquatModelLoader
+from app.services.enhanced_feature_extraction_service import EnhancedSquatFeatureExtractor
+from app.services.cache_service import CacheService, get_cache_service
 
 logger = get_logger(__name__)
 
@@ -30,27 +31,79 @@ class AIService:
         logger.info("Initializing AIService...")
         self.settings = app_settings or global_settings # Use provided or global settings
 
+        # Initialize MediaPipe Pose with optimized settings for batch processing
         self.pose = mp.solutions.pose.Pose(
             static_image_mode=False,
             model_complexity=self.settings.AI_MODEL_COMPLEXITY, # Use self.settings
             min_detection_confidence=self.settings.AI_MIN_DETECTION_CONFIDENCE, # Use self.settings
             min_tracking_confidence=self.settings.AI_MIN_TRACKING_CONFIDENCE # Use self.settings
         )
+        
+        # Initialize GPU-accelerated pose model if available
+        self._init_gpu_pose_model()
+        
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         logger.info(f"AI Service using device: {self.device}")
         self.model = self._load_form_analysis_model()
         self.exercise_classification_model = self._load_exercise_classification_model()
         
-        # Initialize ML model service and feature extraction
+        # Initialize enhanced ML model service and feature extraction
         self.ml_model_service = MLModelService(self.settings)
-        self.squat_feature_extractor = SquatFeatureExtractor()
+        self.enhanced_squat_model = EnhancedSquatModelLoader(self.settings)
+        self.squat_feature_extractor = EnhancedSquatFeatureExtractor()
         
         # Feature flag for ML models
         self.use_ml_models = getattr(self.settings, 'USE_ML_MODELS', True)
-        logger.info(f"AIService initialized with ML models: {self.use_ml_models}")
+        
+        # Batch processing configuration
+        self.batch_size = getattr(self.settings, 'POSE_BATCH_SIZE', 8)
+        self.use_gpu_acceleration = getattr(self.settings, 'USE_GPU_POSE_DETECTION', True) and torch.cuda.is_available()
+        
+        logger.info(f"AIService initialized with ML models: {self.use_ml_models}, "
+                   f"Batch size: {self.batch_size}, GPU acceleration: {self.use_gpu_acceleration}")
+        
+        # Cache service for ML prediction optimization
+        self.cache_service: Optional[CacheService] = None
+        self._cache_initialized = False
         
         # TODO: Integrate loading of other models (pose, comparison) from ml_model_service.py
         # TODO: Integrate loading of templates from ml_model_service.py
+    
+    async def _ensure_cache_service(self) -> Optional[CacheService]:
+        """Lazily initialize cache service for ML prediction optimization."""
+        if not self._cache_initialized:
+            try:
+                self.cache_service = await get_cache_service(self.settings)
+                if self.cache_service:
+                    logger.info("Cache service initialized successfully for AIService")
+                else:
+                    logger.warning("Cache service initialization failed, operating without cache")
+            except Exception as e:
+                logger.warning(f"Cache service initialization error: {e}")
+                self.cache_service = None
+            finally:
+                self._cache_initialized = True
+        
+        return self.cache_service
+        
+    def _init_gpu_pose_model(self) -> None:
+        """Initialize GPU-accelerated pose model if available."""
+        try:
+            # Check if GPU is available and desired
+            if torch.cuda.is_available():
+                logger.info("GPU detected, enabling GPU acceleration for pose detection")
+                self.gpu_pose = mp.solutions.pose.Pose(
+                    static_image_mode=False,
+                    model_complexity=1,  # Use lighter model for GPU batching
+                    min_detection_confidence=self.settings.AI_MIN_DETECTION_CONFIDENCE,
+                    min_tracking_confidence=self.settings.AI_MIN_TRACKING_CONFIDENCE
+                )
+            else:
+                logger.info("No GPU available, using CPU-only pose detection")
+                self.gpu_pose = None
+        except Exception as e:
+            logger.warning(f"Failed to initialize GPU pose model: {e}")
+            self.gpu_pose = None
         
     def _load_form_analysis_model(self) -> Any:
         """Load the form analysis model."""
@@ -163,7 +216,7 @@ class AIService:
         Falls back to rule-based analysis for other exercises or when ML models are disabled.
         """
         
-        def _run_ml_inference_and_rules():
+        async def _run_ml_inference_and_rules():
             if not landmarks:
                 logger.warning("analyze_form called with no landmarks.")
                 return {
@@ -181,7 +234,7 @@ class AIService:
             # ML Model Analysis for Squats
             if (self.use_ml_models and 
                 exercise_type.lower() == 'squat' and 
-                self.ml_model_service.get_squat_model().is_model_available()):
+                self.enhanced_squat_model.is_model_available()):
                 
                 try:
                     logger.info("Using ML model for squat form analysis")
@@ -195,9 +248,45 @@ class AIService:
                     features = self.squat_feature_extractor.extract_features(pose_sequence)
                     logger.debug(f"Extracted {len(features)} features for ML inference")
                     
-                    # Get ML prediction
-                    squat_model = self.ml_model_service.get_squat_model()
-                    is_good_form, confidence, prediction_details = squat_model.predict_form_quality(features)
+                    # Check cache for ML prediction first
+                    cache_service = await self._ensure_cache_service()
+                    cached_prediction = None
+                    
+                    if cache_service:
+                        try:
+                            cached_prediction = await cache_service.get_ml_prediction(
+                                features, model_version="enhanced_v2.0"
+                            )
+                            if cached_prediction:
+                                logger.debug("Using cached ML prediction for squat analysis")
+                        except Exception as e:
+                            logger.debug(f"Cache lookup failed for ML prediction: {e}")
+                    
+                    if cached_prediction:
+                        # Use cached prediction
+                        is_good_form = cached_prediction.get('is_good_form', False)
+                        confidence = cached_prediction.get('ensemble_confidence', 0.5)
+                        prediction_details = cached_prediction
+                    else:
+                        # Get ML prediction
+                        is_good_form, confidence, prediction_details = self.enhanced_squat_model.predict_form_quality(features)
+                        
+                        # Cache the prediction for future use
+                        if cache_service:
+                            try:
+                                prediction_result = {
+                                    'is_good_form': is_good_form,
+                                    'ensemble_confidence': confidence,
+                                    **prediction_details
+                                }
+                                await cache_service.set_ml_prediction(
+                                    features, prediction_result, 
+                                    model_version="enhanced_v2.0",
+                                    ttl=cache_service.prediction_ttl
+                                )
+                                logger.debug("Cached ML prediction for squat analysis")
+                            except Exception as e:
+                                logger.debug(f"Failed to cache ML prediction: {e}")
                     
                     # Convert ML prediction to score (0-100)
                     ml_score = confidence * 100
@@ -290,8 +379,8 @@ class AIService:
             }
 
         try:
-            # Run the analysis in a separate thread to avoid blocking
-            analysis_output = await asyncio.to_thread(_run_ml_inference_and_rules)
+            # Run the async analysis
+            analysis_output = await _run_ml_inference_and_rules()
             return analysis_output
         except Exception as e_async_wrapper:
             logger.error(f"Async wrapper error in analyze_form: {e_async_wrapper}", exc_info=True)
@@ -302,6 +391,343 @@ class AIService:
                 "feedback_structured": [],
                 "analysis_method": "error"
             }
+
+    async def analyze_form_sequence(
+        self, 
+        landmark_sequence: List[List[Dict[str, float]]], 
+        exercise_type: str,
+        min_confidence: float = 0.6
+    ) -> Dict[str, Any]:
+        """
+        Analyze exercise form using temporal sequence of pose landmarks.
+        
+        This method provides improved accuracy by analyzing movement patterns
+        over time rather than single frames.
+        
+        Args:
+            landmark_sequence: List of pose landmark sequences for multiple frames
+            exercise_type: Type of exercise being analyzed
+            min_confidence: Minimum confidence threshold for analysis
+            
+        Returns:
+            Dictionary with temporal analysis results including:
+            - Enhanced scoring with temporal factors
+            - Movement quality assessment
+            - Consistency metrics
+            - Frame-by-frame breakdown
+        """
+        if not landmark_sequence:
+            logger.warning("analyze_form_sequence called with empty landmark sequence")
+            return {
+                "score": 0.0,
+                "feedback": ["No pose sequence data provided."],
+                "risk_level": "high",
+                "feedback_structured": [],
+                "analysis_method": "error"
+            }
+        
+        logger.info(f"Starting temporal sequence analysis for {exercise_type} with {len(landmark_sequence)} frames")
+        
+        async def _run_temporal_analysis():
+            try:
+                # Enhanced ML Model Analysis for Squats with Temporal Processing
+                if (self.use_ml_models and 
+                    exercise_type.lower() == 'squat' and 
+                    self.enhanced_squat_model.is_model_available()):
+                    
+                    logger.info("Using enhanced ML model for temporal squat analysis")
+                    
+                    # Extract features for each frame
+                    feature_sequence = []
+                    for frame_landmarks in landmark_sequence:
+                        try:
+                            # Feature extractor expects a sequence, so wrap single frame
+                            frame_features = self.squat_feature_extractor.extract_features([frame_landmarks])
+                            feature_sequence.append(frame_features)
+                        except Exception as e:
+                            logger.warning(f"Feature extraction failed for frame: {e}")
+                            continue
+                    
+                    if not feature_sequence:
+                        raise ValueError("No valid features extracted from sequence")
+                    
+                    # Check cache for temporal sequence prediction
+                    cache_service = await self._ensure_cache_service()
+                    cached_temporal_prediction = None
+                    
+                    if cache_service and len(feature_sequence) > 0:
+                        try:
+                            # Use first features for cache key (temporal sequences are harder to cache)
+                            # In future, we could implement sequence-specific caching
+                            representative_features = feature_sequence[0]  # Use first frame features as cache key
+                            cached_temporal_prediction = await cache_service.get_ml_prediction(
+                                representative_features, model_version="temporal_v2.0"
+                            )
+                            if cached_temporal_prediction:
+                                logger.debug("Using cached temporal prediction for squat sequence")
+                        except Exception as e:
+                            logger.debug(f"Cache lookup failed for temporal prediction: {e}")
+                    
+                    if cached_temporal_prediction and 'temporal_confidence' in cached_temporal_prediction:
+                        # Use cached temporal prediction
+                        temporal_results = cached_temporal_prediction
+                    else:
+                        # Use enhanced temporal prediction
+                        temporal_results = self.enhanced_squat_model.predict_temporal_sequence(
+                            feature_sequence, min_confidence
+                        )
+                        
+                        # Cache the temporal prediction (using representative features)
+                        if cache_service and len(feature_sequence) > 0:
+                            try:
+                                representative_features = feature_sequence[0]
+                                await cache_service.set_ml_prediction(
+                                    representative_features, temporal_results,
+                                    model_version="temporal_v2.0",
+                                    ttl=cache_service.prediction_ttl // 2  # Shorter TTL for temporal predictions
+                                )
+                                logger.debug("Cached temporal prediction for squat sequence")
+                            except Exception as e:
+                                logger.debug(f"Failed to cache temporal prediction: {e}")
+                    
+                    # Process temporal results
+                    final_score = temporal_results['temporal_confidence'] * 100
+                    is_good_form = temporal_results['is_good_form']
+                    
+                    feedback_messages = []
+                    feedback_structured = []
+                    
+                    # Generate temporal-specific feedback
+                    if is_good_form:
+                        feedback_messages.append(
+                            f"Excellent squat form with consistent movement (confidence: {temporal_results['temporal_confidence']:.2f})"
+                        )
+                        feedback_structured.append({
+                            "type": FeedbackType.TECHNIQUE,
+                            "message": f"Consistent squat form! Temporal score: {final_score:.1f}%",
+                            "timestamp": 0.0,
+                            "severity": FeedbackSeverity.LOW
+                        })
+                    else:
+                        feedback_messages.append(
+                            f"Form inconsistencies detected (confidence: {temporal_results['temporal_confidence']:.2f})"
+                        )
+                    
+                    # Add movement quality feedback
+                    movement_quality = temporal_results['movement_quality']
+                    
+                    if movement_quality['consistency'] < 0.7:
+                        feedback_messages.append("Work on movement consistency throughout the range of motion")
+                        feedback_structured.append({
+                            "type": FeedbackType.TECHNIQUE,
+                            "message": f"Movement consistency needs improvement (score: {movement_quality['consistency']:.2f})",
+                            "timestamp": 0.0,
+                            "severity": FeedbackSeverity.MEDIUM,
+                            "suggestions": ["Focus on controlled movement", "Practice tempo control"]
+                        })
+                    
+                    if temporal_results['improvement_trend']:
+                        feedback_messages.append("Good - your form is improving throughout the movement")
+                        feedback_structured.append({
+                            "type": FeedbackType.TECHNIQUE,
+                            "message": "Positive improvement trend detected",
+                            "timestamp": 0.0,
+                            "severity": FeedbackSeverity.LOW
+                        })
+                    
+                    # Stability analysis
+                    if temporal_results['temporal_stability'] < 0.8:
+                        feedback_messages.append("Focus on stability - movement appears shaky")
+                        feedback_structured.append({
+                            "type": FeedbackType.ALIGNMENT,
+                            "message": f"Movement stability could be improved (score: {temporal_results['temporal_stability']:.2f})",
+                            "timestamp": 0.0,
+                            "severity": FeedbackSeverity.MEDIUM,
+                            "suggestions": ["Engage core muscles", "Slow down the movement", "Focus on control"]
+                        })
+                    
+                    # Add model metadata
+                    feedback_structured.append({
+                        "type": FeedbackType.TECHNIQUE,
+                        "message": f"Analysis by Enhanced FormIQ Temporal ML Model",
+                        "timestamp": 0.0,
+                        "severity": FeedbackSeverity.INFO
+                    })
+                    
+                    # Determine risk level based on temporal factors
+                    if final_score > 80 and temporal_results['temporal_stability'] > 0.8:
+                        risk_level = "low"
+                    elif final_score > 60 and temporal_results['temporal_stability'] > 0.6:
+                        risk_level = "medium"
+                    else:
+                        risk_level = "high"
+                    
+                    return {
+                        "score": final_score,
+                        "feedback": feedback_messages,
+                        "risk_level": risk_level,
+                        "feedback_structured": feedback_structured,
+                        "analysis_method": "temporal_ml_model",
+                        "temporal_metrics": {
+                            "frame_count": temporal_results['frame_count'],
+                            "valid_frames": temporal_results['valid_frames'],
+                            "consistency_score": temporal_results['consistency_score'],
+                            "stability_score": temporal_results['temporal_stability'],
+                            "improvement_trend": temporal_results['improvement_trend']
+                        },
+                        "movement_quality": movement_quality
+                    }
+                    
+                else:
+                    # Fallback to frame-by-frame analysis for non-ML or non-squat exercises
+                    logger.info(f"Using frame-by-frame analysis for {exercise_type} (ML not available)")
+                    
+                    frame_scores = []
+                    all_feedback = []
+                    all_structured_feedback = []
+                    
+                    # Analyze each frame
+                    for i, frame_landmarks in enumerate(landmark_sequence):
+                        if not frame_landmarks:
+                            continue
+                            
+                        try:
+                            # Use single frame analysis
+                            frame_result = self._run_single_frame_analysis(frame_landmarks, exercise_type)
+                            frame_scores.append(frame_result['score'])
+                            
+                            # Add frame-specific feedback with timestamps
+                            for feedback_item in frame_result.get('feedback_structured', []):
+                                feedback_item = feedback_item.copy()
+                                feedback_item['timestamp'] = i * (1.0 / 30)  # Assume 30fps
+                                all_structured_feedback.append(feedback_item)
+                                
+                        except Exception as e:
+                            logger.warning(f"Frame {i} analysis failed: {e}")
+                            continue
+                    
+                    if frame_scores:
+                        # Calculate temporal metrics
+                        avg_score = np.mean(frame_scores)
+                        score_consistency = 1.0 - (np.std(frame_scores) / (np.mean(frame_scores) + 1e-6))
+                        
+                        # Generate summary feedback
+                        feedback_messages = [
+                            f"Analyzed {len(frame_scores)} frames with average score: {avg_score:.1f}%"
+                        ]
+                        
+                        if score_consistency < 0.7:
+                            feedback_messages.append("Work on maintaining consistent form throughout the movement")
+                            all_structured_feedback.append({
+                                "type": FeedbackType.TECHNIQUE,
+                                "message": f"Form consistency needs improvement (score: {score_consistency:.2f})",
+                                "timestamp": 0.0,
+                                "severity": FeedbackSeverity.MEDIUM
+                            })
+                        
+                        # Determine risk level
+                        if avg_score > 80 and score_consistency > 0.8:
+                            risk_level = "low"
+                        elif avg_score > 60 and score_consistency > 0.6:
+                            risk_level = "medium"
+                        else:
+                            risk_level = "high"
+                        
+                        return {
+                            "score": avg_score,
+                            "feedback": feedback_messages,
+                            "risk_level": risk_level,
+                            "feedback_structured": all_structured_feedback,
+                            "analysis_method": "rule_based_sequence",
+                            "temporal_metrics": {
+                                "frame_count": len(landmark_sequence),
+                                "valid_frames": len(frame_scores),
+                                "consistency_score": score_consistency,
+                                "score_range": [min(frame_scores), max(frame_scores)]
+                            }
+                        }
+                    else:
+                        raise ValueError("No valid frames could be analyzed")
+                        
+            except Exception as e:
+                logger.error(f"Temporal analysis failed: {e}", exc_info=True)
+                return {
+                    "score": 0.0,
+                    "feedback": [f"Temporal analysis failed: {str(e)}"],
+                    "risk_level": "high",
+                    "feedback_structured": [],
+                    "analysis_method": "error"
+                }
+        
+        try:
+            # Run temporal analysis in separate thread
+            return await _run_temporal_analysis()
+        except Exception as e:
+            logger.error(f"Async temporal analysis wrapper failed: {e}", exc_info=True)
+            return {
+                "score": 0.0,
+                "feedback": ["Temporal analysis failed due to an internal error."],
+                "risk_level": "high",
+                "feedback_structured": [],
+                "analysis_method": "error"
+            }
+    
+    def _run_single_frame_analysis(self, landmarks: List[Dict[str, float]], exercise_type: str) -> Dict[str, Any]:
+        """
+        Helper method to run single frame analysis without async wrapper.
+        Used by temporal sequence analysis for fallback processing.
+        """
+        if not landmarks:
+            return {
+                "score": 0.0,
+                "feedback": ["No pose detected."],
+                "risk_level": "high",
+                "feedback_structured": []
+            }
+        
+        current_score = 1.0
+        feedback_messages = []
+        feedback_structured_list = []
+        
+        try:
+            # General spine alignment check
+            spine_angle = self._calculate_angle(landmarks, 11, 23, 24)
+            if spine_angle is not None and (spine_angle < 160 or spine_angle > 200):
+                msg = "Maintain a neutral spine."
+                feedback_messages.append(msg)
+                feedback_structured_list.append({
+                    "type": FeedbackType.ALIGNMENT,
+                    "message": msg,
+                    "timestamp": 0.0,
+                    "severity": FeedbackSeverity.MEDIUM,
+                    "suggestions": ["Engage core, keep chest up."]
+                })
+                current_score *= 0.8
+            
+            # Exercise-specific analysis
+            if exercise_type.lower() == 'squat':
+                current_score = self._analyze_squat_rules(landmarks, feedback_messages, 
+                                                       feedback_structured_list, current_score)
+            
+        except Exception as e:
+            logger.error(f"Error in single frame analysis: {e}")
+            current_score = 0.3
+        
+        final_score = max(0.0, min(1.0, current_score)) * 100
+        
+        if final_score > 80:
+            risk_level = "low"
+        elif final_score > 60:
+            risk_level = "medium"
+        else:
+            risk_level = "high"
+        
+        return {
+            "score": final_score,
+            "feedback": feedback_messages,
+            "risk_level": risk_level,
+            "feedback_structured": feedback_structured_list
+        }
     
     def _generate_squat_feedback_from_features(self, features: Dict[str, float]) -> Dict[str, List]:
         """
@@ -1256,9 +1682,8 @@ class AIService:
         min_pose_confidence_threshold: Optional[float] = None
     ) -> List[Optional[Dict[str, Any]]]:
         """
-        Detects poses in a list of NumPy frames.
-        This method is designed to be called from async contexts (like Celery tasks)
-        and handles running the CPU-bound pose detection in worker threads.
+        Detects poses in a list of NumPy frames using optimized batch processing.
+        This method uses batch processing and GPU acceleration when available for improved performance.
 
         Args:
             frames: A list of video frames, where each frame is a NumPy array (BGR format).
@@ -1275,31 +1700,482 @@ class AIService:
 
         # Use the class's configured min_detection_confidence if not overridden
         threshold = min_pose_confidence_threshold if min_pose_confidence_threshold is not None \
-                    else settings.AI_MIN_DETECTION_CONFIDENCE # Default to global setting
+                    else self.settings.AI_MIN_DETECTION_CONFIDENCE
 
+        logger.info(f"Processing {len(frames)} frames for pose detection with batch size {self.batch_size}")
+        start_time = time.time()
+
+        # Use optimized batch processing
+        if self.use_gpu_acceleration and len(frames) >= self.batch_size:
+            all_frame_pose_data = await self._process_frames_batch_gpu(frames, threshold)
+        else:
+            all_frame_pose_data = await self._process_frames_batch_cpu(frames, threshold)
+        
+        processing_time = time.time() - start_time
+        valid_detections = sum(1 for result in all_frame_pose_data if result is not None)
+        
+        logger.info(f"Pose detection completed: {valid_detections}/{len(frames)} frames processed "
+                   f"in {processing_time:.2f}s ({len(frames)/processing_time:.1f} fps)")
+        
+        return all_frame_pose_data
+
+    async def _process_frames_batch_cpu(
+        self, 
+        frames: List[np.ndarray], 
+        threshold: float
+    ) -> List[Optional[Dict[str, Any]]]:
+        """
+        Process frames using CPU-based batch processing with optimized threading.
+        """
         all_frame_pose_data: List[Optional[Dict[str, Any]]] = []
+        
+        # Process frames in batches for better memory management
+        for i in range(0, len(frames), self.batch_size):
+            batch = frames[i:i + self.batch_size]
+            batch_results = await self._process_frame_batch_parallel(batch, threshold)
+            all_frame_pose_data.extend(batch_results)
+        
+        return all_frame_pose_data
 
-        for frame_np in frames:
-            if frame_np is None: # Should not happen if Celery task filters, but defensive
-                all_frame_pose_data.append(None)
-                continue
+    async def _process_frames_batch_gpu(
+        self, 
+        frames: List[np.ndarray], 
+        threshold: float
+    ) -> List[Optional[Dict[str, Any]]]:
+        """
+        Process frames using GPU acceleration when available.
+        Falls back to CPU processing if GPU processing fails.
+        """
+        try:
+            if self.gpu_pose is None:
+                logger.warning("GPU pose model not available, falling back to CPU")
+                return await self._process_frames_batch_cpu(frames, threshold)
             
+            all_frame_pose_data: List[Optional[Dict[str, Any]]] = []
+            
+            # Process frames in optimized GPU batches
+            for i in range(0, len(frames), self.batch_size):
+                batch = frames[i:i + self.batch_size]
+                batch_results = await self._process_gpu_batch(batch, threshold)
+                all_frame_pose_data.extend(batch_results)
+            
+            return all_frame_pose_data
+            
+        except Exception as e:
+            logger.warning(f"GPU batch processing failed: {e}, falling back to CPU")
+            return await self._process_frames_batch_cpu(frames, threshold)
+
+    async def _process_frame_batch_parallel(
+        self, 
+        batch: List[np.ndarray], 
+        threshold: float
+    ) -> List[Optional[Dict[str, Any]]]:
+        """
+        Process a batch of frames in parallel using thread pool.
+        """
+        import concurrent.futures
+        
+        async def process_single_frame(frame: np.ndarray) -> Optional[Dict[str, Any]]:
             try:
-                # self.detect_pose is synchronous, run it in a thread
-                landmarks, confidence = await asyncio.to_thread(self.detect_pose, frame_np)
+                landmarks, confidence = await asyncio.to_thread(self.detect_pose, frame)
                 
                 if landmarks and confidence >= threshold:
-                    all_frame_pose_data.append({
+                    return {
                         "landmarks": landmarks,
                         "confidence": confidence
-                    })
+                    }
                 else:
-                    all_frame_pose_data.append(None) # No pose or below threshold
+                    return None
             except Exception as e:
-                logger.error(f"Error processing a frame with self.detect_pose: {e}", exc_info=True)
-                all_frame_pose_data.append(None) # Mark as failed for this frame
+                logger.error(f"Error processing frame in batch: {e}", exc_info=True)
+                return None
         
-        return all_frame_pose_data 
+        # Process all frames in the batch concurrently
+        tasks = [process_single_frame(frame) for frame in batch if frame is not None]
+        
+        # Handle None frames in the batch
+        results = []
+        task_iter = iter(await asyncio.gather(*tasks, return_exceptions=True))
+        
+        for frame in batch:
+            if frame is None:
+                results.append(None)
+            else:
+                try:
+                    result = next(task_iter)
+                    if isinstance(result, Exception):
+                        logger.error(f"Exception in parallel processing: {result}")
+                        results.append(None)
+                    else:
+                        results.append(result)
+                except StopIteration:
+                    results.append(None)
+        
+        return results
+
+    async def _process_gpu_batch(
+        self, 
+        batch: List[np.ndarray], 
+        threshold: float
+    ) -> List[Optional[Dict[str, Any]]]:
+        """
+        Process a batch of frames using GPU-optimized MediaPipe.
+        """
+        async def process_frame_gpu(frame: np.ndarray) -> Optional[Dict[str, Any]]:
+            try:
+                # Use GPU pose model for faster processing
+                landmarks, confidence = await asyncio.to_thread(self._detect_pose_gpu, frame)
+                
+                if landmarks and confidence >= threshold:
+                    return {
+                        "landmarks": landmarks,
+                        "confidence": confidence
+                    }
+                else:
+                    return None
+            except Exception as e:
+                logger.error(f"Error in GPU pose detection: {e}")
+                return None
+        
+        # Process batch with GPU acceleration
+        tasks = [process_frame_gpu(frame) for frame in batch if frame is not None]
+        results = []
+        task_iter = iter(await asyncio.gather(*tasks, return_exceptions=True))
+        
+        for frame in batch:
+            if frame is None:
+                results.append(None)
+            else:
+                try:
+                    result = next(task_iter)
+                    if isinstance(result, Exception):
+                        logger.error(f"Exception in GPU processing: {result}")
+                        results.append(None)
+                    else:
+                        results.append(result)
+                except StopIteration:
+                    results.append(None)
+        
+        return results
+
+    def _detect_pose_gpu(self, frame: np.ndarray) -> Tuple[List[Dict[str, float]], float]:
+        """
+        GPU-optimized pose detection method.
+        """
+        try:
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            frame_rgb.flags.writeable = False
+            
+            # Use GPU pose model if available
+            pose_model = self.gpu_pose if self.gpu_pose else self.pose
+            results = pose_model.process(frame_rgb)
+            
+            frame_rgb.flags.writeable = True
+            
+            if not results.pose_landmarks:
+                return [], 0.0
+                
+            landmarks = []
+            visibility_sum = 0.0
+            lm_count = 0
+            
+            for landmark in results.pose_landmarks.landmark:
+                landmarks.append({
+                    "x": landmark.x,
+                    "y": landmark.y,
+                    "z": landmark.z,
+                    "visibility": landmark.visibility
+                })
+                visibility_sum += landmark.visibility
+                lm_count += 1
+                
+            confidence = (visibility_sum / lm_count) if lm_count > 0 else 0.0
+            
+            return landmarks, confidence
+            
+        except Exception as e:
+            logger.error(f"Error in GPU pose detection: {str(e)}", exc_info=True)
+            return [], 0.0
+
+    async def analyze_form_sequence_with_sliding_window(
+        self, 
+        landmark_sequence: List[List[Dict[str, float]]], 
+        exercise_type: str,
+        window_size: int = 5,
+        stride: int = 1,
+        min_confidence: float = 0.6
+    ) -> Dict[str, Any]:
+        """
+        Enhanced temporal sequence analysis using sliding window approach for improved accuracy.
+        
+        This method analyzes exercise form using overlapping windows of frames to capture
+        temporal dependencies and movement patterns more effectively than single-frame analysis.
+        
+        Args:
+            landmark_sequence: List of pose landmark sequences for multiple frames
+            exercise_type: Type of exercise being analyzed
+            window_size: Size of the sliding window (number of frames to analyze together)
+            stride: Step size for sliding the window (1 = overlap all frames)
+            min_confidence: Minimum confidence threshold for analysis
+            
+        Returns:
+            Dictionary with enhanced temporal analysis results including:
+            - Aggregated scoring across windows
+            - Movement quality assessment
+            - Temporal consistency metrics
+            - Window-by-window breakdown
+        """
+        if not landmark_sequence or len(landmark_sequence) < window_size:
+            logger.warning(f"Sequence too short for sliding window analysis: {len(landmark_sequence) if landmark_sequence else 0} frames, need at least {window_size}")
+            return await self.analyze_form_sequence(landmark_sequence, exercise_type, min_confidence)
+        
+        logger.info(f"Starting sliding window temporal analysis for {exercise_type} with {len(landmark_sequence)} frames, "
+                   f"window_size={window_size}, stride={stride}")
+        
+        def _run_sliding_window_analysis():
+            try:
+                window_results = []
+                window_scores = []
+                window_confidences = []
+                
+                # Generate sliding windows
+                for start_idx in range(0, len(landmark_sequence) - window_size + 1, stride):
+                    end_idx = start_idx + window_size
+                    window_sequence = landmark_sequence[start_idx:end_idx]
+                    
+                    # Analyze each window
+                    try:
+                        window_result = self._analyze_window_sequence(
+                            window_sequence, exercise_type, min_confidence, start_idx
+                        )
+                        window_results.append(window_result)
+                        window_scores.append(window_result['score'])
+                        window_confidences.append(window_result.get('confidence', 0.5))
+                        
+                    except Exception as e:
+                        logger.warning(f"Window analysis failed for frames {start_idx}-{end_idx}: {e}")
+                        continue
+                
+                if not window_results:
+                    raise ValueError("No valid window results obtained")
+                
+                # Aggregate window results with temporal weighting
+                aggregated_result = self._aggregate_window_results(
+                    window_results, window_scores, window_confidences, landmark_sequence
+                )
+                
+                # Add sliding window metadata
+                aggregated_result.update({
+                    "analysis_method": "sliding_window_temporal",
+                    "window_analysis": {
+                        "window_size": window_size,
+                        "stride": stride,
+                        "total_windows": len(window_results),
+                        "window_scores": window_scores,
+                        "window_confidences": window_confidences
+                    }
+                })
+                
+                return aggregated_result
+                
+            except Exception as e:
+                logger.error(f"Sliding window analysis failed: {e}", exc_info=True)
+                # Fallback to regular temporal analysis
+                logger.info("Falling back to regular temporal sequence analysis")
+                return asyncio.run(self.analyze_form_sequence(landmark_sequence, exercise_type, min_confidence))
+        
+        # Run the sliding window analysis
+        return await asyncio.to_thread(_run_sliding_window_analysis)
+
+    def _analyze_window_sequence(
+        self, 
+        window_sequence: List[List[Dict[str, float]]], 
+        exercise_type: str, 
+        min_confidence: float,
+        start_frame: int
+    ) -> Dict[str, Any]:
+        """
+        Analyze a single window of frames for temporal patterns.
+        """
+        if self.use_ml_models and exercise_type.lower() == 'squat' and self.enhanced_squat_model.is_model_available():
+            # Extract features for the window
+            feature_sequence = []
+            for frame_landmarks in window_sequence:
+                try:
+                    # Feature extractor expects a sequence, so wrap single frame
+                    frame_features = self.squat_feature_extractor.extract_features([frame_landmarks])
+                    feature_sequence.append(frame_features)
+                except Exception as e:
+                    logger.warning(f"Feature extraction failed for window frame: {e}")
+                    continue
+            
+            if not feature_sequence:
+                raise ValueError("No valid features extracted from window")
+            
+            # Use temporal prediction on the window
+            temporal_results = self.enhanced_squat_model.predict_temporal_sequence(
+                feature_sequence, min_confidence
+            )
+            
+            return {
+                "score": temporal_results['temporal_confidence'] * 100,
+                "confidence": temporal_results['temporal_confidence'],
+                "is_good_form": temporal_results['is_good_form'],
+                "stability": temporal_results['temporal_stability'],
+                "consistency": temporal_results['consistency_score'],
+                "movement_quality": temporal_results['movement_quality'],
+                "start_frame": start_frame,
+                "frame_count": len(window_sequence)
+            }
+        else:
+            # Fallback to rule-based analysis for the window
+            window_scores = []
+            for frame_landmarks in window_sequence:
+                try:
+                    frame_result = self._run_single_frame_analysis(frame_landmarks, exercise_type)
+                    window_scores.append(frame_result['score'])
+                except Exception:
+                    continue
+            
+            if window_scores:
+                avg_score = np.mean(window_scores)
+                consistency = 1.0 - (np.std(window_scores) / (np.mean(window_scores) + 1e-6))
+                
+                return {
+                    "score": avg_score,
+                    "confidence": min(1.0, consistency),
+                    "is_good_form": avg_score > 60,
+                    "stability": consistency,
+                    "consistency": consistency,
+                    "movement_quality": {"consistency": consistency},
+                    "start_frame": start_frame,
+                    "frame_count": len(window_sequence)
+                }
+            else:
+                raise ValueError("No valid frame analysis in window")
+
+    def _aggregate_window_results(
+        self, 
+        window_results: List[Dict[str, Any]], 
+        window_scores: List[float], 
+        window_confidences: List[float],
+        full_sequence: List[List[Dict[str, float]]]
+    ) -> Dict[str, Any]:
+        """
+        Aggregate results from multiple sliding windows using temporal weighting.
+        """
+        # Calculate temporal weights (center frames get higher weight)
+        total_frames = len(full_sequence)
+        weights = []
+        
+        for i, result in enumerate(window_results):
+            start_frame = result['start_frame']
+            window_center = start_frame + (result['frame_count'] // 2)
+            
+            # Weight based on distance from sequence center and confidence
+            center_distance = abs(window_center - (total_frames // 2)) / (total_frames // 2)
+            temporal_weight = 1.0 - (center_distance * 0.3)  # Reduce weight by up to 30% for edge frames
+            confidence_weight = window_confidences[i]
+            
+            combined_weight = temporal_weight * confidence_weight
+            weights.append(combined_weight)
+        
+        # Normalize weights
+        total_weight = sum(weights)
+        if total_weight > 0:
+            weights = [w / total_weight for w in weights]
+        else:
+            weights = [1.0 / len(weights)] * len(weights)
+        
+        # Weighted aggregation
+        final_score = sum(score * weight for score, weight in zip(window_scores, weights))
+        final_confidence = sum(conf * weight for conf, weight in zip(window_confidences, weights))
+        
+        # Aggregate other metrics
+        stabilities = [r.get('stability', 0.5) for r in window_results]
+        consistencies = [r.get('consistency', 0.5) for r in window_results]
+        
+        final_stability = sum(stab * weight for stab, weight in zip(stabilities, weights))
+        final_consistency = sum(cons * weight for cons, weight in zip(consistencies, weights))
+        
+        # Movement trend analysis
+        score_trend = np.gradient(window_scores)
+        is_improving = np.mean(score_trend) > 0.1
+        
+        # Generate comprehensive feedback
+        feedback_messages = []
+        feedback_structured = []
+        
+        # Overall performance feedback
+        if final_score >= 80 and final_stability >= 0.8:
+            feedback_messages.append(f"Excellent form with consistent movement (score: {final_score:.1f}%)")
+            feedback_structured.append({
+                "type": FeedbackType.TECHNIQUE,
+                "message": f"Outstanding temporal form analysis! Score: {final_score:.1f}%",
+                "timestamp": 0.0,
+                "severity": FeedbackSeverity.LOW
+            })
+            risk_level = "low"
+        elif final_score >= 60:
+            feedback_messages.append(f"Good form with room for improvement (score: {final_score:.1f}%)")
+            feedback_structured.append({
+                "type": FeedbackType.TECHNIQUE,
+                "message": f"Good form detected with temporal analysis. Score: {final_score:.1f}%",
+                "timestamp": 0.0,
+                "severity": FeedbackSeverity.MEDIUM
+            })
+            risk_level = "medium"
+        else:
+            feedback_messages.append(f"Form needs significant improvement (score: {final_score:.1f}%)")
+            feedback_structured.append({
+                "type": FeedbackType.TECHNIQUE,
+                "message": f"Form issues detected. Score: {final_score:.1f}%",
+                "timestamp": 0.0,
+                "severity": FeedbackSeverity.HIGH
+            })
+            risk_level = "high"
+        
+        # Stability feedback
+        if final_stability < 0.6:
+            feedback_messages.append("Focus on movement stability - detected shaky or inconsistent movement")
+            feedback_structured.append({
+                "type": FeedbackType.ALIGNMENT,
+                "message": f"Movement stability needs improvement (score: {final_stability:.2f})",
+                "timestamp": 0.0,
+                "severity": FeedbackSeverity.MEDIUM,
+                "suggestions": ["Slow down the movement", "Engage core muscles", "Focus on control"]
+            })
+        
+        # Trend feedback
+        if is_improving:
+            feedback_messages.append("Positive trend - your form is improving throughout the movement")
+            feedback_structured.append({
+                "type": FeedbackType.TECHNIQUE,
+                "message": "Good improvement trend detected across the movement",
+                "timestamp": 0.0,
+                "severity": FeedbackSeverity.LOW
+            })
+        
+        return {
+            "score": final_score,
+            "feedback": feedback_messages,
+            "risk_level": risk_level,
+            "feedback_structured": feedback_structured,
+            "temporal_metrics": {
+                "temporal_confidence": final_confidence,
+                "temporal_stability": final_stability,
+                "consistency_score": final_consistency,
+                "improvement_trend": is_improving,
+                "frame_count": total_frames,
+                "window_count": len(window_results)
+            },
+            "movement_quality": {
+                "consistency": final_consistency,
+                "stability": final_stability,
+                "trend": "improving" if is_improving else "stable",
+                "average_confidence": final_confidence
+            }
+        }
 
     async def calculate_angles_for_pose_sequence(
         self,

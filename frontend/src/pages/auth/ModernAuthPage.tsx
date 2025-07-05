@@ -1,0 +1,1030 @@
+import React, { useState, useEffect } from "react"
+import { motion, AnimatePresence } from "framer-motion"
+import { Eye, EyeOff, Mail, Lock, User, ArrowLeft, CheckCircle } from "lucide-react"
+import { Input } from "../../components/ui/input"
+import { Label } from "../../components/ui/label"
+import { useNavigate } from "react-router-dom"
+import { useAuth } from "../../hooks/useAuth"
+import apiService from "../../services/apiService"
+
+type AuthMode = "login" | "signup" | "forgot-password" | "reset-success"
+
+export default function ModernAuthPage() {
+  const [authMode, setAuthMode] = useState<AuthMode>("login")
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [logoAnimated, setLogoAnimated] = useState(false)
+  const [showToast, setShowToast] = useState(false)
+  const [toastMessage, setToastMessage] = useState("")
+  const [toastType, setToastType] = useState<"success" | "error">("success")
+  const [formData, setFormData] = useState({
+    email: "",
+    password: "",
+    confirmPassword: "",
+    firstName: "",
+    lastName: "",
+  })
+  const [errors, setErrors] = useState<Record<string, string>>({})
+  const navigate = useNavigate()
+  const { login, register, requestPasswordReset, socialLogin } = useAuth()
+
+  useEffect(() => {
+    // Trigger logo animation after component mounts
+    const timer = setTimeout(() => setLogoAnimated(true), 300)
+    return () => clearTimeout(timer)
+  }, [])
+
+  const handleInputChange = (field: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }))
+    // Clear error when user starts typing
+    if (errors[field]) {
+      setErrors((prev) => ({ ...prev, [field]: "" }))
+    }
+  }
+
+  const validateForm = () => {
+    const newErrors: Record<string, string> = {}
+
+    // Email validation
+    if (!formData.email) {
+      newErrors.email = "Email is required"
+    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+      newErrors.email = "Please enter a valid email"
+    }
+
+    // Password validation for login and signup
+    if (authMode !== "forgot-password") {
+      if (!formData.password) {
+        newErrors.password = "Password is required"
+      } else if (authMode === "signup" && formData.password.length < 8) {
+        newErrors.password = "Password must be at least 8 characters"
+      }
+    }
+
+    // Signup specific validations
+    if (authMode === "signup") {
+      if (!formData.firstName) {
+        newErrors.firstName = "First name is required"
+      }
+      if (!formData.lastName) {
+        newErrors.lastName = "Last name is required"
+      }
+      if (!formData.confirmPassword) {
+        newErrors.confirmPassword = "Please confirm your password"
+      } else if (formData.password !== formData.confirmPassword) {
+        newErrors.confirmPassword = "Passwords don't match"
+      }
+    }
+
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }
+
+  const showToastMessage = (message: string, type: "success" | "error" = "success") => {
+    setToastMessage(message)
+    setToastType(type)
+    setShowToast(true)
+    setTimeout(() => setShowToast(false), 4000)
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (!validateForm()) return
+
+    setIsLoading(true)
+    setErrors({}) // Clear previous errors
+
+    try {
+      if (authMode === "forgot-password") {
+        await requestPasswordReset(formData.email)
+        setAuthMode("reset-success")
+        showToastMessage("Reset link sent successfully!", "success")
+      } else if (authMode === "signup") {
+        console.log("🔄 Creating account for:", formData.email);
+        const registrationData = {
+          confirm_password: formData.confirmPassword,
+          username: `${formData.firstName}${formData.lastName}`.toLowerCase(),
+          first_name: formData.firstName,
+          last_name: formData.lastName
+        };
+        console.log("📝 Registration data:", registrationData);
+        
+        await register(formData.email, formData.password, registrationData);
+        
+        console.log("✅ Account creation successful!");
+        
+        // Show success message and redirect to login
+        showToastMessage("Account created successfully! Please sign in with your new credentials.", "success")
+        setTimeout(() => {
+          setAuthMode("login")
+          setFormData({
+            email: formData.email, // Keep email for convenience
+            password: "",
+            confirmPassword: "",
+            firstName: "",
+            lastName: "",
+          })
+        }, 2000)
+        
+      } else {
+        console.log("🔄 Logging in user:", formData.email);
+        await login(formData.email, formData.password);
+        console.log("✅ Login successful!");
+        // Navigation is handled by useAuth hook
+      }
+    } catch (error: any) {
+      console.error("Authentication error:", error)
+      
+      // Extract specific error message
+      let errorMessage = "Authentication failed. Please try again."
+      
+      if (error.response?.data?.detail) {
+        errorMessage = error.response.data.detail
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message
+      } else if (error.message) {
+        errorMessage = error.message
+      }
+      
+      // Handle specific error types
+      if (authMode === "login") {
+        if (errorMessage.toLowerCase().includes("invalid") || 
+            errorMessage.toLowerCase().includes("incorrect") ||
+            errorMessage.toLowerCase().includes("wrong")) {
+          errorMessage = "Invalid email or password. Please check your credentials and try again."
+        }
+      } else if (authMode === "signup") {
+        if (errorMessage.toLowerCase().includes("exists") || 
+            errorMessage.toLowerCase().includes("already")) {
+          errorMessage = "An account with this email already exists. Please sign in instead."
+        }
+      }
+      
+      setErrors({ general: errorMessage })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleSocialLogin = async (provider: 'google' | 'apple') => {
+    setIsLoading(true)
+    try {
+      console.log(`🔐 Starting ${provider} authentication...`);
+      
+      // Check if we're in a mobile environment
+      const { Capacitor } = await import('@capacitor/core');
+      const isNativeMobile = Capacitor.isNativePlatform();
+      
+      if (provider === 'google') {
+        if (isNativeMobile) {
+          // Mobile Google OAuth using web redirect flow
+          const { Browser } = await import('@capacitor/browser');
+          const { App } = await import('@capacitor/app');
+          
+          // Use existing backend redirect endpoint
+          const apiBaseUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+          const oauthUrl = `${apiBaseUrl}/auth/social/google/redirect?redirect_uri=${encodeURIComponent('formiq://auth/callback')}`;
+          
+          console.log('🌐 Opening Google OAuth URL:', oauthUrl);
+          
+          // Open OAuth in in-app browser
+          await Browser.open({
+            url: oauthUrl,
+            windowName: 'oauth',
+          });
+          
+          // Listen for the app to be reopened (OAuth callback)
+          const listener = await App.addListener('appUrlOpen', async (data) => {
+            console.log('📱 App URL opened:', data.url);
+            
+            if (data.url.includes('formiq://auth/callback')) {
+              try {
+                // Extract OAuth token or code from the URL
+                const url = new URL(data.url);
+                const token = url.searchParams.get('token');
+                const code = url.searchParams.get('code');
+                const error = url.searchParams.get('error');
+                
+                if (error) {
+                  throw new Error(`OAuth error: ${error}`);
+                }
+                
+                if (token) {
+                  // Direct token - use socialLogin
+                  await socialLogin('google', token);
+                  showToastMessage("Successfully signed in with Google!", "success");
+                } else if (code) {
+                  // OAuth code - exchange for token using existing endpoint
+                  const response = await fetch(`${apiBaseUrl}/api/v1/auth/social/google`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code })
+                  });
+                  
+                  if (response.ok) {
+                    const data = await response.json();
+                    await socialLogin('google', data.access_token);
+                    showToastMessage("Successfully signed in with Google!", "success");
+                  } else {
+                    throw new Error('Failed to exchange OAuth code');
+                  }
+                }
+                
+                // Close the browser and remove listener
+                await Browser.close();
+                listener.remove();
+                setIsLoading(false);
+              } catch (err) {
+                console.error('OAuth callback error:', err);
+                setErrors({ general: 'Google authentication failed. Please try again.' });
+                setIsLoading(false);
+              }
+            }
+          });
+        } else {
+          // Web Google OAuth - redirect to backend endpoint
+          const apiBaseUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+          window.location.href = `${apiBaseUrl}/auth/social/google/redirect?redirect_uri=${encodeURIComponent(window.location.origin + '/auth/google/callback')}`;
+        }
+        
+      } else if (provider === 'apple') {
+        if (isNativeMobile) {
+          // Try native Apple Sign In first
+          try {
+            const { SignInWithApple } = await import('@capacitor-community/apple-sign-in');
+            
+            const result = await SignInWithApple.authorize({
+              clientId: 'com.formiq.app',
+              redirectURI: 'formiq://auth/callback',
+              scopes: 'email name',
+              state: 'state',
+              nonce: 'nonce'
+            });
+            
+            if (result.response && result.response.identityToken) {
+              await socialLogin('apple', result.response.identityToken);
+              showToastMessage("Successfully signed in with Apple!", "success");
+              setIsLoading(false);
+            }
+          } catch (appleError) {
+            console.error('Native Apple Sign In failed, falling back to web flow');
+            
+            // Fallback to web-based Apple OAuth
+            const { Browser } = await import('@capacitor/browser');
+            const { App } = await import('@capacitor/app');
+            
+            const apiBaseUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+            const oauthUrl = `${apiBaseUrl}/auth/social/apple/redirect?redirect_uri=${encodeURIComponent('formiq://auth/callback')}`;
+            
+            await Browser.open({
+              url: oauthUrl,
+              windowName: 'oauth',
+            });
+            
+            const listener = await App.addListener('appUrlOpen', async (data) => {
+              if (data.url.includes('formiq://auth/callback')) {
+                try {
+                  const url = new URL(data.url);
+                  const token = url.searchParams.get('token');
+                  const code = url.searchParams.get('code');
+                  
+                  if (token) {
+                    await socialLogin('apple', token);
+                  } else if (code) {
+                    const response = await fetch(`${apiBaseUrl}/api/v1/auth/social/apple`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ code })
+                    });
+                    
+                    if (response.ok) {
+                      const data = await response.json();
+                      await socialLogin('apple', data.access_token);
+                    }
+                  }
+                  
+                  showToastMessage("Successfully signed in with Apple!", "success");
+                  await Browser.close();
+                  listener.remove();
+                  setIsLoading(false);
+                } catch (err) {
+                  console.error('Apple OAuth callback error:', err);
+                  setErrors({ general: 'Apple authentication failed. Please try again.' });
+                  setIsLoading(false);
+                }
+              }
+            });
+          }
+        } else {
+          // Web Apple OAuth - redirect to backend endpoint
+          const apiBaseUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+          window.location.href = `${apiBaseUrl}/auth/social/apple/redirect?redirect_uri=${encodeURIComponent(window.location.origin + '/auth/apple/callback')}`;
+        }
+      }
+    } catch (error) {
+      console.error(`${provider} login failed:`, error)
+      setErrors({ general: `${provider} authentication failed. Please try again.` })
+      setIsLoading(false)
+    }
+  }
+
+  const renderSocialButtons = () => (
+    <div className="space-y-4">
+      <div className="relative">
+        <div className="absolute inset-0 flex items-center">
+          <span className="w-full border-t border-slate-300 dark:border-slate-600" />
+        </div>
+        <div className="relative flex justify-center text-xs uppercase">
+          <span className="bg-white dark:bg-slate-800 px-2 text-slate-500 dark:text-slate-400">Or continue with</span>
+        </div>
+      </div>
+
+      <div className="flex gap-4">
+        <motion.button
+          type="button"
+          whileHover={{ scale: 1.02, y: -1 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={() => handleSocialLogin("google")}
+          disabled={isLoading}
+          className="flex-1 h-12 flex items-center justify-center gap-3 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 hover:bg-gray-800 dark:hover:bg-gray-800 transition-all duration-200 disabled:opacity-50"
+        >
+          <svg className="h-5 w-5" viewBox="0 0 24 24">
+            <path
+              fill="#4285F4"
+              d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+            />
+            <path
+              fill="#34A853"
+              d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+            />
+            <path
+              fill="#FBBC05"
+              d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+            />
+            <path
+              fill="#EA4335"
+              d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+            />
+          </svg>
+          <span className="font-medium text-slate-700 dark:text-slate-300">Google</span>
+        </motion.button>
+
+        <motion.button
+          type="button"
+          whileHover={{ scale: 1.02, y: -1 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={() => handleSocialLogin("apple")}
+          disabled={isLoading}
+          className="flex-1 h-12 flex items-center justify-center gap-3 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 hover:bg-gray-800 dark:hover:bg-gray-800 transition-all duration-200 disabled:opacity-50"
+        >
+          <svg className="h-5 w-5 text-slate-700 dark:text-slate-300" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701" />
+          </svg>
+          <span className="font-medium text-slate-700 dark:text-slate-300">Apple</span>
+        </motion.button>
+      </div>
+    </div>
+  )
+
+  const renderLoginForm = () => (
+    <motion.div
+      key="login"
+      initial={{ opacity: 0, x: 20 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -20 }}
+      transition={{ duration: 0.3 }}
+      className="space-y-6"
+    >
+      <div className="text-center space-y-3">
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100" style={{ lineHeight: "1.2" }}>
+          Welcome back
+        </h1>
+        <p className="text-slate-600 dark:text-slate-400 -mt-1">Sign in to continue</p>
+      </div>
+
+      {renderSocialButtons()}
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="space-y-2">
+          <Label htmlFor="email" className="text-sm font-medium text-slate-700 dark:text-slate-300">
+            Email
+          </Label>
+          <div className="relative">
+            <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
+            <Input
+              id="email"
+              type="email"
+              placeholder="your@email.com"
+              value={formData.email}
+              onChange={(e) => handleInputChange("email", e.target.value)}
+              disabled={isLoading}
+              className={`border border-gray-700 focus:border-purple-500 rounded-md p-3 pl-10 h-12 touch-target ${
+                errors.email ? "border-red-400 focus:border-red-400" : ""
+              }`}
+              style={{ maxWidth: "100%", textOverflow: "ellipsis" }}
+            />
+          </div>
+          {errors.email && (
+            <motion.p
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-sm text-red-400 text-left"
+            >
+              {errors.email}
+            </motion.p>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="password" className="text-sm font-medium text-slate-700 dark:text-slate-300">
+            Password
+          </Label>
+          <div className="relative">
+            <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
+            <Input
+              id="password"
+              type={showPassword ? "text" : "password"}
+              placeholder="Enter your password"
+              value={formData.password}
+              onChange={(e) => handleInputChange("password", e.target.value)}
+              disabled={isLoading}
+              className={`border border-gray-700 focus:border-purple-500 rounded-md p-3 pl-10 pr-10 h-12 touch-target ${
+                errors.password ? "border-red-400 focus:border-red-400" : ""
+              }`}
+              style={{ maxWidth: "100%", textOverflow: "ellipsis" }}
+            />
+            <motion.button
+              type="button"
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              onClick={() => setShowPassword(!showPassword)}
+              disabled={isLoading}
+              className="absolute right-3 top-0 h-12 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors disabled:opacity-50 touch-target"
+            >
+              {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </motion.button>
+          </div>
+          {errors.password && (
+            <motion.p
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-sm text-red-400 text-left"
+            >
+              {errors.password}
+            </motion.p>
+          )}
+        </div>
+
+        {/* General Error Display */}
+        {errors.general && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3"
+          >
+            <p className="text-sm text-red-600 dark:text-red-400">{errors.general}</p>
+          </motion.div>
+        )}
+
+        <div className="flex items-center justify-between">
+          <label className="flex items-center space-x-2 text-sm">
+            <input
+              type="checkbox"
+              disabled={isLoading}
+              className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-50"
+            />
+            <span className="text-slate-600 dark:text-slate-400">Remember me</span>
+          </label>
+          <motion.button
+            type="button"
+            whileHover={{ scale: 1.02 }}
+            onClick={() => setAuthMode("forgot-password")}
+            disabled={isLoading}
+            className="text-sm text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 font-medium disabled:opacity-50 hover:underline transition-all duration-200"
+          >
+            Forgot password?
+          </motion.button>
+        </div>
+
+        <motion.button
+          type="submit"
+          disabled={isLoading}
+          className="w-full h-14 py-5 bg-gradient-to-r from-purple-500 to-indigo-600 hover:scale-105 hover:shadow-xl text-white font-semibold text-lg rounded-lg shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.98 }}
+        >
+          {isLoading ? (
+            <div className="flex items-center justify-center space-x-2">
+              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              <span>Signing in...</span>
+            </div>
+          ) : (
+            <span>Sign In</span>
+          )}
+        </motion.button>
+      </form>
+
+      <div className="text-center">
+        <p className="text-slate-600/80 dark:text-slate-400/80">
+          No account yet?{" "}
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            onClick={() => setAuthMode("signup")}
+            disabled={isLoading}
+            className="text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 font-bold disabled:opacity-50 hover:underline transition-all duration-200"
+          >
+            Create one
+          </motion.button>
+        </p>
+      </div>
+    </motion.div>
+  )
+
+  const renderSignupForm = () => (
+    <motion.div
+      key="signup"
+      initial={{ opacity: 0, x: 20 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -20 }}
+      transition={{ duration: 0.3 }}
+      className="space-y-6"
+    >
+      <div className="text-center space-y-3">
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100" style={{ lineHeight: "1.2" }}>
+          Create your account
+        </h1>
+        <p className="text-slate-600 dark:text-slate-400 -mt-1">Join FormIQ to perfect your form</p>
+      </div>
+
+      {renderSocialButtons()}
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="firstName" className="text-sm font-medium text-slate-700 dark:text-slate-300">
+              First Name
+            </Label>
+            <div className="relative">
+              <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
+              <Input
+                id="firstName"
+                type="text"
+                placeholder="First name"
+                value={formData.firstName}
+                onChange={(e) => handleInputChange("firstName", e.target.value)}
+                disabled={isLoading}
+                className={`border border-gray-700 focus:border-purple-500 rounded-md p-3 pl-10 h-12 touch-target ${
+                  errors.firstName ? "border-red-400 focus:border-red-400" : ""
+                }`}
+              />
+            </div>
+            {errors.firstName && (
+              <motion.p
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-sm text-red-400 text-left"
+              >
+                {errors.firstName}
+              </motion.p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="lastName" className="text-sm font-medium text-slate-700 dark:text-slate-300">
+              Last Name
+            </Label>
+            <div className="relative">
+              <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
+              <Input
+                id="lastName"
+                type="text"
+                placeholder="Last name"
+                value={formData.lastName}
+                onChange={(e) => handleInputChange("lastName", e.target.value)}
+                disabled={isLoading}
+                className={`border border-gray-700 focus:border-purple-500 rounded-md p-3 pl-10 h-12 touch-target ${
+                  errors.lastName ? "border-red-400 focus:border-red-400" : ""
+                }`}
+              />
+            </div>
+            {errors.lastName && (
+              <motion.p
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-sm text-red-400 text-left"
+              >
+                {errors.lastName}
+              </motion.p>
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="email" className="text-sm font-medium text-slate-700 dark:text-slate-300">
+            Email
+          </Label>
+          <div className="relative">
+            <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
+            <Input
+              id="email"
+              type="email"
+              placeholder="your@email.com"
+              value={formData.email}
+              onChange={(e) => handleInputChange("email", e.target.value)}
+              disabled={isLoading}
+              className={`border border-gray-700 focus:border-purple-500 rounded-md p-3 pl-10 h-12 touch-target ${
+                errors.email ? "border-red-400 focus:border-red-400" : ""
+              }`}
+            />
+          </div>
+          {errors.email && (
+            <motion.p
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-sm text-red-400 text-left"
+            >
+              {errors.email}
+            </motion.p>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="password" className="text-sm font-medium text-slate-700 dark:text-slate-300">
+            Password
+          </Label>
+          <div className="relative">
+            <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
+            <Input
+              id="password"
+              type={showPassword ? "text" : "password"}
+              placeholder="Create a strong password"
+              value={formData.password}
+              onChange={(e) => handleInputChange("password", e.target.value)}
+              disabled={isLoading}
+              className={`border border-gray-700 focus:border-purple-500 rounded-md p-3 pl-10 pr-10 h-12 touch-target ${
+                errors.password ? "border-red-400 focus:border-red-400" : ""
+              }`}
+            />
+            <motion.button
+              type="button"
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              onClick={() => setShowPassword(!showPassword)}
+              disabled={isLoading}
+              className="absolute right-3 top-0 h-12 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors disabled:opacity-50 touch-target"
+            >
+              {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </motion.button>
+          </div>
+          {errors.password && (
+            <motion.p
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-sm text-red-400 text-left"
+            >
+              {errors.password}
+            </motion.p>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="confirmPassword" className="text-sm font-medium text-slate-700 dark:text-slate-300">
+            Confirm Password
+          </Label>
+          <div className="relative">
+            <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
+            <Input
+              id="confirmPassword"
+              type={showConfirmPassword ? "text" : "password"}
+              placeholder="Confirm your password"
+              value={formData.confirmPassword}
+              onChange={(e) => handleInputChange("confirmPassword", e.target.value)}
+              disabled={isLoading}
+              className={`border border-gray-700 focus:border-purple-500 rounded-md p-3 pl-10 pr-10 h-12 touch-target ${
+                errors.confirmPassword ? "border-red-400 focus:border-red-400" : ""
+              }`}
+            />
+            <motion.button
+              type="button"
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+              disabled={isLoading}
+              className="absolute right-3 top-0 h-12 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors disabled:opacity-50 touch-target"
+            >
+              {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </motion.button>
+          </div>
+          {errors.confirmPassword && (
+            <motion.p
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-sm text-red-400 text-left"
+            >
+              {errors.confirmPassword}
+            </motion.p>
+          )}
+        </div>
+
+        {/* General Error Display for Signup */}
+        {errors.general && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3"
+          >
+            <p className="text-sm text-red-600 dark:text-red-400">{errors.general}</p>
+          </motion.div>
+        )}
+
+        <motion.button
+          type="submit"
+          disabled={isLoading}
+          className="w-full h-14 py-5 bg-gradient-to-r from-purple-500 to-indigo-600 hover:scale-105 hover:shadow-xl text-white font-semibold text-lg rounded-lg shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.98 }}
+        >
+          {isLoading ? (
+            <div className="flex items-center justify-center space-x-2">
+              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              <span>Creating account...</span>
+            </div>
+          ) : (
+            <span>Create Account</span>
+          )}
+        </motion.button>
+      </form>
+
+      <div className="text-center">
+        <p className="text-slate-600/80 dark:text-slate-400/80">
+          Already have an account?{" "}
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            onClick={() => setAuthMode("login")}
+            disabled={isLoading}
+            className="text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 font-bold disabled:opacity-50 hover:underline transition-all duration-200"
+          >
+            Sign in
+          </motion.button>
+        </p>
+      </div>
+    </motion.div>
+  )
+
+  const renderForgotPasswordForm = () => (
+    <motion.div
+      key="forgot-password"
+      initial={{ opacity: 0, x: 20 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -20 }}
+      transition={{ duration: 0.3 }}
+      className="space-y-6"
+    >
+      <div className="text-center space-y-3">
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100" style={{ lineHeight: "1.2" }}>
+          Reset your password
+        </h1>
+        <p className="text-slate-600 dark:text-slate-400 -mt-1">
+          Enter your email and we'll send you a reset link
+        </p>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="space-y-2">
+          <Label htmlFor="email" className="text-sm font-medium text-slate-700 dark:text-slate-300">
+            Email
+          </Label>
+          <div className="relative">
+            <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
+            <Input
+              id="email"
+              type="email"
+              placeholder="your@email.com"
+              value={formData.email}
+              onChange={(e) => handleInputChange("email", e.target.value)}
+              disabled={isLoading}
+              className={`border border-gray-700 focus:border-purple-500 rounded-md p-3 pl-10 h-12 touch-target ${
+                errors.email ? "border-red-400 focus:border-red-400" : ""
+              }`}
+            />
+          </div>
+          {errors.email && (
+            <motion.p
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-sm text-red-400 text-left"
+            >
+              {errors.email}
+            </motion.p>
+          )}
+        </div>
+
+        <motion.button
+          type="submit"
+          disabled={isLoading}
+          className="w-full h-14 py-5 bg-gradient-to-r from-purple-500 to-indigo-600 hover:scale-105 hover:shadow-xl text-white font-semibold text-lg rounded-lg shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.98 }}
+        >
+          {isLoading ? (
+            <div className="flex items-center justify-center space-x-2">
+              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              <span>Sending reset link...</span>
+            </div>
+          ) : (
+            <span>Send Reset Link</span>
+          )}
+        </motion.button>
+      </form>
+
+      <div className="text-center">
+        <motion.button
+          whileHover={{ scale: 1.02 }}
+          onClick={() => setAuthMode("login")}
+          disabled={isLoading}
+          className="inline-flex items-center space-x-2 text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 font-medium disabled:opacity-50 hover:underline transition-all duration-200"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>Back to sign in</span>
+        </motion.button>
+      </div>
+    </motion.div>
+  )
+
+  const renderResetSuccess = () => (
+    <motion.div
+      key="reset-success"
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.9 }}
+      transition={{ duration: 0.3 }}
+      className="space-y-6 text-center"
+    >
+      <div className="flex justify-center">
+        <div className="w-16 h-16 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center">
+          <CheckCircle className="w-8 h-8 text-green-600 dark:text-green-400" />
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100" style={{ lineHeight: "1.2" }}>
+          Check your email
+        </h1>
+        <p className="text-slate-600 dark:text-slate-400">
+          We've sent a password reset link to <br />
+          <span className="font-medium text-slate-900 dark:text-slate-100">{formData.email}</span>
+        </p>
+      </div>
+
+      <div className="space-y-4">
+        <motion.button
+          whileHover={{ scale: 1.02 }}
+          onClick={() => setAuthMode("login")}
+          className="w-full h-12 bg-gradient-to-r from-purple-500 to-indigo-600 hover:shadow-lg text-white font-semibold rounded-lg transition-all duration-200 flex items-center justify-center"
+        >
+          Back to sign in
+        </motion.button>
+
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          Didn't receive the email? Check your spam folder or{" "}
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            onClick={() => setAuthMode("forgot-password")}
+            className="text-indigo-600 dark:text-indigo-400 hover:underline font-medium"
+          >
+            try again
+          </motion.button>
+        </p>
+      </div>
+    </motion.div>
+  )
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        {/* Logo with Animation */}
+        <motion.div
+          className="text-center mt-6 mb-2"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+        >
+          <div className="inline-flex items-center space-x-4">
+            <motion.div
+              className="relative w-12 h-12 flex items-center justify-center"
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+            >
+              {/* FormIQ Logo SVG */}
+              <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#8B5CF6" />
+                    <stop offset="100%" stopColor="#6366F1" />
+                  </linearGradient>
+                </defs>
+                <circle cx="24" cy="24" r="20" fill="url(#logoGradient)" />
+                <path
+                  d="M16 22L20 26L32 14"
+                  stroke="white"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </motion.div>
+            <div className="flex flex-col gap-0">
+              <motion.span
+                className="text-3xl font-bold text-slate-900 dark:text-slate-100"
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.3 }}
+              >
+                FormIQ
+              </motion.span>
+              <motion.div
+                className="text-xs text-slate-500 dark:text-slate-400 font-normal -mt-1"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.5 }}
+              >
+                Powered by FormIQ AI
+              </motion.div>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Auth Form Container with Glassmorphism */}
+        <motion.div
+          className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-xl rounded-2xl shadow-2xl p-6 border border-slate-200/50 dark:border-slate-700/50"
+          style={{ padding: "24px" }}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+        >
+          <AnimatePresence mode="wait">
+            {authMode === "login" && renderLoginForm()}
+            {authMode === "signup" && renderSignupForm()}
+            {authMode === "forgot-password" && renderForgotPasswordForm()}
+            {authMode === "reset-success" && renderResetSuccess()}
+          </AnimatePresence>
+        </motion.div>
+
+        {/* Minimal Footer */}
+        <motion.div
+          className="text-center mt-8"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.6, delay: 0.4 }}
+        >
+          <p className="text-sm text-slate-500 dark:text-slate-400">© 2024 FormIQ. Perfect your form with AI.</p>
+        </motion.div>
+      </div>
+
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {showToast && (
+          <motion.div
+            initial={{ opacity: 0, y: -50, x: "-50%" }}
+            animate={{ opacity: 1, y: 0, x: "-50%" }}
+            exit={{ opacity: 0, y: -50, x: "-50%" }}
+            className={`fixed top-4 left-1/2 transform text-white px-6 py-3 rounded-lg shadow-lg z-50 max-w-md text-center ${
+              toastType === "success" ? "bg-green-500" : "bg-red-500"
+            }`}
+          >
+            <div className="flex items-center space-x-2">
+              {toastType === "success" ? (
+                <CheckCircle className="w-5 h-5 flex-shrink-0" />
+              ) : (
+                <svg className="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+              )}
+              <span className="text-sm font-medium">{toastMessage}</span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Loading Overlay */}
+      <AnimatePresence>
+        {isLoading && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50"
+          >
+            <div className="bg-white dark:bg-slate-800 rounded-lg p-6 shadow-xl">
+              <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mx-auto mb-4" />
+              <p className="text-slate-600 dark:text-slate-400">Processing...</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}

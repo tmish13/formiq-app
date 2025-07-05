@@ -6,8 +6,9 @@ from sqlalchemy import select
 from uuid import UUID
 
 from app.core.logging import get_logger
-from app.core.config import Settings
+from app.core.config import Settings, get_settings
 from app.core.cache import CacheService
+from app.core.db_deps import get_async_db
 from app.core.exceptions import ValidationException, NotFoundException
 
 from app.models.workout import Exercise
@@ -265,16 +266,7 @@ class AnalyticsService:
 from fastapi import Depends
 
 async def get_async_analytics_service(
-    # db: AsyncSession = Depends(get_async_db), # MODIFIED: Removed Depends from signature
-    # settings: Settings = Depends(get_settings), # MODIFIED: Removed Depends from signature
-    # cache_svc: CacheService = Depends(get_cache_service) # MODIFIED: Removed Depends from signature
-) -> AnalyticsService:
-    from app.core.deps import get_async_db, get_settings, get_cache_service # ADDED: Local import
-    # Ensure Depends is available if it was only imported above (it's also imported via fastapi at top of file, so likely fine)
-    
-    # Obtain dependencies using Depends with the locally imported functions
-    db: AsyncSession = Depends(get_async_db)
+    db: AsyncSession = Depends(get_async_db),
     settings: Settings = Depends(get_settings)
-    cache_svc: CacheService = Depends(get_cache_service)
-    
-    return AnalyticsService(db=db, settings=settings, cache_svc=cache_svc) 
+) -> AnalyticsService:
+    return AnalyticsService(db=db, settings=settings, cache_svc=None) 

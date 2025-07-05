@@ -5,7 +5,7 @@
  */
 
 // API Services
-export * from './api/handlers';
+export * from './apiService';
 
 // Feature Services
 export * from './formCheckService';
@@ -16,9 +16,9 @@ export * from './socialService';
 export * from './videoService';
 export * from './healthService';
 export * from './exerciseConfigService';
+export * from './analyticsService';
 
 // Auth Services
-export * from './auth';
 export * from './sessionService';
 
 // Infrastructure Services
