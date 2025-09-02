@@ -24,8 +24,8 @@ mp_pose = mp.solutions.pose
 mp_drawing = mp.solutions.drawing_utils
 
 # Configuration
-INPUT_DIR = os.path.expanduser("~/Desktop/yt_squat")  # Input directory with squat videos
-OUTPUT_DIR = os.path.expanduser("~/Desktop/squat_processed")  # Output directory
+INPUT_DIR = os.path.expanduser("~/Desktop/Squat More/Labeled_Dataset/videos")  # Input directory with squat videos
+OUTPUT_DIR = os.path.expanduser("~/Desktop/Squat More/Labeled_Dataset/processed_videos")  # Output directory
 EXTRACT_FRAMES = True  # Whether to extract and save frames
 DETECT_KEYPOINTS = True  # Whether to detect and save keypoints
 TARGET_FPS = 30  # Target frames per second for extraction

@@ -1,0 +1,4 @@
+[2025-07-08 01:52:46] Starting processing. Already completed: 155 videos
+[2025-07-08 01:52:46] Progress: 155/1739 videos completed (8.9%)
+[2025-07-08 01:57:47] Batch processing chunk completed (5 min timeout)
+[2025-07-08 01:57:49] Progress: 230/1739 videos completed (13.2%)

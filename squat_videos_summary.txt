@@ -1,0 +1,19 @@
+SQUAT VIDEO DATASET SUMMARY
+===========================
+
+Location: /Users/tarpanmishra/Desktop/Squat More/Labeled_Dataset/videos/
+
+Total Videos: 1,739 unique squat videos
+
+File Format: MP4
+Naming Pattern: {video_id}_{sequence_number}.mp4
+Example: 32903_8.mp4, 33006_2.mp4, 50871_2.mp4
+
+File Size Range:
+- Smallest: 51K
+- Largest: 2.9M
+
+Video ID Range: 32903 to 50871
+
+All videos are unique (no duplicates found)
+All files follow the consistent naming pattern
