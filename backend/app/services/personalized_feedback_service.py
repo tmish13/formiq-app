@@ -5,6 +5,7 @@ from sqlalchemy import select
 from app.core.config import Settings
 from app.models.form_check import FormCheck
 from app.models.exercise import ExerciseTemplate
+from app.services.rag_feedback_service import rag_feedback_service, FeedbackContext
 # from ..core.utils.pose_estimation import calculate_pose_metrics
 import logging
 import numpy as np
@@ -101,8 +102,31 @@ class PersonalizedFeedbackService:
         """
         logger.info(f"PersonalizedFeedbackService: Generated LLM Prompt (len {len(prompt)}):\n{prompt}")
         
-        # Simulate LLM call
-        # In a real scenario: response = await self.llm_client.generate(prompt)
+        # Use RAG feedback service if available
+        if rag_feedback_service.is_available():
+            try:
+                # Prepare feedback context
+                exercise_type = self._get_exercise_type(exercise_name)
+                identified_faults = self._identify_form_faults(current_scores)
+                
+                feedback_context = FeedbackContext(
+                    exercise_name=exercise_name,
+                    exercise_type=exercise_type,
+                    form_scores=current_scores,
+                    identified_faults=identified_faults,
+                    user_level="intermediate",  # Could be determined from user history
+                    additional_context=f"Progress trends: {progress_metrics.get('trend_description', 'steady improvement')}"
+                )
+                
+                rag_response = rag_feedback_service.generate_feedback(feedback_context)
+                logger.info(f"PersonalizedFeedbackService: Generated RAG feedback for {exercise_name}")
+                return rag_response
+                
+            except Exception as e:
+                logger.error(f"RAG feedback generation failed: {e}")
+                # Fall through to fallback
+        
+        # Fallback to simulated response
         simulated_llm_response = (
             f"Great effort on the {exercise_name}! \
             Your posture score is {current_scores.get('posture_score', 'good')} and stability is {current_scores.get('stability_score', 'solid')}. \
@@ -282,6 +306,48 @@ class PersonalizedFeedbackService:
             if "metrics" in fc.results and isinstance(fc.results["metrics"], dict):
                 return float(fc.results["metrics"].get(metric_key, 0.0))
         return None
+    
+    def _get_exercise_type(self, exercise_name: str) -> str:
+        """Map exercise name to standardized exercise type for RAG retrieval."""
+        exercise_name_lower = exercise_name.lower()
+        
+        if "squat" in exercise_name_lower:
+            return "squat"
+        elif any(word in exercise_name_lower for word in ["deadlift", "dead lift"]):
+            return "deadlift"
+        elif any(word in exercise_name_lower for word in ["bench", "press"]):
+            return "bench_press"
+        elif any(word in exercise_name_lower for word in ["pull", "chin"]):
+            return "pullup"
+        else:
+            return "squat"  # Default fallback
+    
+    def _identify_form_faults(self, scores: Dict[str, float]) -> List[str]:
+        """Identify specific form faults based on ML scores."""
+        faults = []
+        
+        # Convert scores to 0-100 scale if they're 0-1
+        posture_score = scores.get("posture_score", 100)
+        stability_score = scores.get("stability_score", 100) 
+        depth_score = scores.get("depth_score", 100)
+        
+        # Normalize scores to 0-100 if needed
+        if posture_score <= 1.0:
+            posture_score *= 100
+        if stability_score <= 1.0:
+            stability_score *= 100
+        if depth_score <= 1.0:
+            depth_score *= 100
+        
+        # Identify faults based on score thresholds
+        if posture_score < 70:
+            faults.extend(["forward_lean", "torso_alignment"])
+        if stability_score < 70:
+            faults.extend(["knee_valgus", "balance_issues"])
+        if depth_score < 70:
+            faults.extend(["insufficient_depth", "range_of_motion"])
+        
+        return faults
 
     def _generate_suggestions_from_progress(
         self,

@@ -8,8 +8,9 @@ import os
 import subprocess # Added for FFmpeg integration
 import asyncio # Add asyncio import
 import logging # Add logging import
+import time
 
-from app.core.monitoring import track_model_inference
+from app.core.monitoring import track_model_inference, FRAME_PROCESSING_DURATION, FRAME_PROCESSING_COUNT, CONCURRENT_UPLOADS
 from app.models.enums import ExerciseType
 from app.core.config import Settings
 from app.core.exceptions import VideoProcessingError, VideoValidationError, VideoReadError
@@ -303,6 +304,8 @@ class VideoProcessingService:
         target_fps: int
     ) -> bool:
         """Normalize video using FFmpeg: set FPS, scale, and pad to target dimensions."""
+        ffmpeg_start_time = time.time()
+        
         if not os.path.exists(input_path):
             self.logger.error(f"Input video file not found for FFmpeg: {input_path}")
             return False
@@ -339,9 +342,19 @@ class VideoProcessingService:
             # consider asyncio.create_subprocess_exec or running in a thread pool.
             process = subprocess.run(command, capture_output=True, text=True, check=False, timeout=self.settings.FFMPEG_TIMEOUT) # Added timeout
 
+            ffmpeg_duration = time.time() - ffmpeg_start_time
+            
+            # Record FFmpeg processing time
+            FRAME_PROCESSING_DURATION.labels(
+                exercise_type="unknown",
+                processing_stage="ffmpeg_normalize"
+            ).observe(ffmpeg_duration)
+
             if process.returncode != 0:
                 self.logger.error(f"FFmpeg failed for {input_path}. Return code: {process.returncode}. Stderr: {process.stderr}")
                 return False
+                
+            self.logger.debug(f"FFmpeg normalization completed in {ffmpeg_duration:.3f}s")
             return True
         except subprocess.CalledProcessError as e:
             self.logger.error(f"Subprocess error during FFmpeg execution: {e}")
