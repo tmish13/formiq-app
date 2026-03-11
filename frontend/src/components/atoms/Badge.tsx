@@ -1,10 +1,11 @@
 "use client"
 
+import React from "react"
 import { motion } from "framer-motion"
 
 interface BadgeProps {
   label: string
-  icon?: string
+  icon?: React.ReactNode
   animated?: boolean
   variant?: "default" | "success" | "warning" | "purple"
   size?: "sm" | "md" | "lg"

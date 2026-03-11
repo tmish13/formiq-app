@@ -18,6 +18,7 @@ export function PremiumBadge({ tier, size = "md", animated = false, showTooltip 
       color: "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400",
       border: "border-slate-200 dark:border-slate-600",
       tooltip: "Basic plan - Essential features",
+      glow: "",
     },
     Pro: {
       icon: <Crown className="w-3 h-3" />,
@@ -64,20 +65,18 @@ export function PremiumBadge({ tier, size = "md", animated = false, showTooltip 
         relative overflow-hidden
       `}
     >
-      {/* Animated background for premium tiers */}
-      {tier !== "Basic" && (
-        <motion.div
-          animate={{
-            x: ["-100%", "100%"],
-          }}
-          transition={{
-            duration: 2,
-            repeat: Number.POSITIVE_INFINITY,
-            ease: "linear",
-          }}
-          className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
-        />
-      )}
+      {/* Animated shimmer for Pro/Premium tiers — Basic already returned above */}
+      <motion.div
+        animate={{
+          x: ["-100%", "100%"],
+        }}
+        transition={{
+          duration: 2,
+          repeat: Number.POSITIVE_INFINITY,
+          ease: "linear",
+        }}
+        className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
+      />
 
       <div className="relative z-10 flex items-center space-x-1">
         {config.icon && (

@@ -3,6 +3,7 @@ import { Capacitor } from '@capacitor/core';
 import { logError, logNetworkError } from '../utils/errorLogging';
 import { storageService } from './storageService';
 import { mockAuthService } from './mockAuthService';
+import { UserSettings } from '../types/auth';
 
 // Get the base URL for the API depending on environment
 const getBaseUrl = () => {
@@ -99,6 +100,25 @@ export interface ApiError {
   details?: unknown;
 }
 
+// In-memory token cache — avoids hitting storage (localStorage / Capacitor
+// Preferences) on every single request.  Cleared on 401 / logout.
+let _cachedToken: string | null = null;
+
+// In-flight refresh promise — ensures only one token refresh runs at a time
+// even when multiple concurrent requests receive a 401 simultaneously.
+let _refreshPromise: Promise<void> | null = null;
+
+async function getCachedAuthToken(): Promise<string | null> {
+  if (_cachedToken !== null) return _cachedToken;
+  const token = await storageService.getAuthToken();
+  _cachedToken = token;
+  return token;
+}
+
+function clearCachedToken(): void {
+  _cachedToken = null;
+}
+
 /**
  * Service for making API requests with JWT authentication
  */
@@ -115,9 +135,10 @@ class ApiService {
       timeout: 15000, // Increase timeout for slower connections
     });
 
-    // Add request interceptor to include JWT token for authentication
+    // Add request interceptor to include JWT token for authentication.
+    // Uses in-memory cache so storage is only hit once per session.
     this.api.interceptors.request.use(async (config) => {
-      const token = await storageService.getAuthToken();
+      const token = await getCachedAuthToken();
       if (token && config.headers) {
         config.headers['Authorization'] = `Bearer ${token}`;
       }
@@ -133,24 +154,40 @@ class ApiService {
         // If error is 401 (Unauthorized) and we haven't already tried to refresh
         if (error.response?.status === 401 && !originalRequest._retry) {
           originalRequest._retry = true;
-          
-          try {
-            // Attempt to refresh the token
-            const refreshToken = await storageService.getRefreshToken();
-            if (refreshToken) {
-              const response = await this.refreshToken(refreshToken);
-              if (response.access_token) {
-                await storageService.setAuthToken(response.access_token);
-                // Retry the original request with new token
-                originalRequest.headers['Authorization'] = `Bearer ${response.access_token}`;
-                return this.api(originalRequest);
+          clearCachedToken(); // stale token — clear cache before refresh attempt
+
+          // Serialize concurrent 401s: if a refresh is already in-flight, wait for
+          // it to finish rather than issuing a second simultaneous refresh call.
+          if (!_refreshPromise) {
+            _refreshPromise = (async () => {
+              try {
+                const refreshToken = await storageService.getRefreshToken();
+                if (refreshToken) {
+                  const response = await this.refreshToken(refreshToken);
+                  if (response.access_token) {
+                    await storageService.setAuthToken(response.access_token);
+                    _cachedToken = response.access_token;
+                    return;
+                  }
+                }
+                // No refresh token or no new token — log out
+                await storageService.removeAuthToken();
+                await storageService.removeRefreshToken();
+                clearCachedToken();
+                this.redirectToLogin();
+              } finally {
+                _refreshPromise = null;
               }
+            })();
+          }
+
+          try {
+            await _refreshPromise;
+            // If we have a new cached token, retry the original request
+            if (_cachedToken) {
+              originalRequest.headers['Authorization'] = `Bearer ${_cachedToken}`;
+              return this.api(originalRequest);
             }
-            
-            // If refresh fails or no refresh token, redirect to login
-            await storageService.removeAuthToken();
-            await storageService.removeRefreshToken();
-            this.redirectToLogin();
             return Promise.reject(error);
           } catch (refreshError) {
             console.error('Token refresh failed:', refreshError);
@@ -172,14 +209,13 @@ class ApiService {
 
   // Helper method to redirect to login page
   private redirectToLogin() {
-    window.location.href = '/login';
+    window.location.href = '/auth';
   }
 
-  // Helper method to determine if we should use mock service
+  // Helper method to determine if we should use mock service.
+  // Only mocks when REACT_APP_USE_MOCK_AUTH is explicitly 'true'.
   private shouldUseMock(): boolean {
-    return process.env.NODE_ENV === 'development' || 
-           process.env.REACT_APP_USE_MOCK_AUTH === 'true' ||
-           !process.env.REACT_APP_API_URL;
+    return process.env.REACT_APP_USE_MOCK_AUTH === 'true';
   }
 
   /**
@@ -214,16 +250,23 @@ class ApiService {
       return { data: authResponse } as AxiosResponse;
     }
 
-    const response = await this.api.post('/auth/login', { email, password });
-    
-    // Store tokens in storageService
+    // Backend uses OAuth2PasswordRequestForm: requires form-encoded body with 'username' field.
+    const formBody = new URLSearchParams();
+    formBody.append('username', email);
+    formBody.append('password', password);
+    const response = await this.api.post('/auth/login', formBody, {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    });
+
+    // Store tokens in storageService and update in-memory cache
     if (response.data.access_token) {
       await storageService.setAuthToken(response.data.access_token);
+      _cachedToken = response.data.access_token;
     }
     if (response.data.refresh_token) {
       await storageService.setRefreshToken(response.data.refresh_token);
     }
-    
+
     return response;
   }
 
@@ -246,19 +289,23 @@ class ApiService {
   }
 
   /**
-   * Complete user onboarding
+   * Complete user onboarding, optionally persisting goal + exercise preferences.
    */
-  async completeOnboarding(): Promise<AxiosResponse<any>> {
-    // Use mock service if backend is not available or in development
+  async completeOnboarding(preferences?: {
+    fitness_goal?: string;
+    preferred_exercises?: string[];
+  }): Promise<AxiosResponse<any>> {
     if (this.shouldUseMock()) {
       return await mockAuthService.completeOnboarding() as AxiosResponse;
     }
 
-    return this.api.post('/auth/complete-onboarding');
+    return this.api.post('/auth/complete-onboarding', preferences ?? {});
   }
 
   /**
-   * Validate the current session
+   * Validate the current session and return the full user object.
+   * Calls GET /users/me which returns a complete User schema including
+   * has_completed_onboarding, required for correct routing after page refresh.
    */
   async validateSession(): Promise<AxiosResponse<any>> {
     // Use mock service if backend is not available or in development
@@ -266,7 +313,7 @@ class ApiService {
       return await mockAuthService.validateSession() as AxiosResponse;
     }
 
-    return this.api.post('/auth/test-token');
+    return this.api.get('/users/me');
   }
 
   /**
@@ -283,9 +330,10 @@ class ApiService {
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
-      // Always clear tokens
+      // Always clear tokens and in-memory cache
       await storageService.removeAuthToken();
       await storageService.removeRefreshToken();
+      clearCachedToken();
     }
   }
 
@@ -348,9 +396,10 @@ class ApiService {
    * Change password for authenticated user
    */
   async changePassword(currentPassword: string, newPassword: string): Promise<AxiosResponse<void>> {
-    return this.api.post('/users/me/change-password', {
+    return this.api.put('/users/me/password', {
       current_password: currentPassword,
-      new_password: newPassword
+      new_password: newPassword,
+      confirm_password: newPassword,
     });
   }
 
@@ -469,6 +518,20 @@ class ApiService {
     });
   }
 
+  /**
+   * Get the current user's settings
+   */
+  async getUserSettings(): Promise<AxiosResponse<UserSettings>> {
+    return this.api.get<UserSettings>('/users/me/settings');
+  }
+
+  /**
+   * Update the current user's settings
+   */
+  async updateUserSettings(settings: Record<string, any>): Promise<AxiosResponse<UserSettings>> {
+    return this.api.put<UserSettings>('/users/me/settings', settings);
+  }
+
   // ======= Generic Request Methods =======
 
   /**
@@ -479,10 +542,10 @@ class ApiService {
   }
 
   /**
-   * Make a POST request
+   * Make a POST request (config is forwarded to axios for headers, params, etc.)
    */
-  async post<T>(endpoint: string, data?: any): Promise<AxiosResponse<T>> {
-    return this.api.post<T>(endpoint, data);
+  async post<T>(endpoint: string, data?: any, config?: AxiosRequestConfig): Promise<AxiosResponse<T>> {
+    return this.api.post<T>(endpoint, data, config);
   }
 
   /**
@@ -571,6 +634,7 @@ class ApiService {
   async getVideoStatus(videoId: string): Promise<{
     status: string;
     progress?: number;
+    step?: string;
     error?: string;
     processedUrl?: string;
   }> {

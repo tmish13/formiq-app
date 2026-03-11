@@ -4,7 +4,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { LoadingSpinner } from '../atoms/LoadingSpinner';
 
 const AuthenticatedRoot: React.FC = () => {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const [hasTimedOut, setHasTimedOut] = useState(false);
 
   useEffect(() => {
@@ -32,8 +32,16 @@ const AuthenticatedRoot: React.FC = () => {
     );
   }
 
-  // Redirect based on authentication status
-  return <Navigate to={isAuthenticated ? "/dashboard" : "/auth"} replace />;
+  if (!isAuthenticated) {
+    return <Navigate to="/auth" replace />;
+  }
+
+  // New users who haven't finished onboarding go to the onboarding flow
+  if (!user?.has_completed_onboarding) {
+    return <Navigate to="/onboarding" replace />;
+  }
+
+  return <Navigate to="/dashboard" replace />;
 };
 
 export default AuthenticatedRoot;

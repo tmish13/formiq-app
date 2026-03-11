@@ -1,9 +1,14 @@
 import apiService, { endpoints } from './apiService';
-import { FormCheck, ExerciseType, FormCheckStatus } from '../types/formCheck';
+import { FormCheck, ExerciseType, FormCheckStatus, MLAnalysisResponse } from '../types/formCheck';
 
 export class FormCheckService {
   private static instance: FormCheckService | null = null;
   private baseUrl = '/form-checks';
+
+  // Per-call fallback cache: shared across analytics methods so a single
+  // backend outage triggers only one getFormChecks() fetch, not three.
+  // Cleared after each top-level call chain by resetting to null.
+  private _fallbackChecksCache: FormCheck[] | null = null;
 
   private constructor() {}
 
@@ -15,7 +20,8 @@ export class FormCheckService {
   }
 
   async getFormChecks(): Promise<FormCheck[]> {
-    const response = await apiService.get<FormCheck[]>(this.baseUrl);
+    // Backend has no bare GET /form-checks — use the history endpoint instead
+    const response = await apiService.get<FormCheck[]>(`${this.baseUrl}/history`);
     return response.data;
   }
 
@@ -40,13 +46,6 @@ export class FormCheckService {
 
   async getFormChecksByExerciseType(exerciseType: ExerciseType): Promise<FormCheck[]> {
     const response = await apiService.get<FormCheck[]>(`${this.baseUrl}/exercise/${exerciseType}`);
-    return response.data;
-  }
-
-  async getLatestFormChecks(limit: number = 5): Promise<FormCheck[]> {
-    const response = await apiService.get<FormCheck[]>(`${this.baseUrl}/latest`, {
-      params: { limit }
-    });
     return response.data;
   }
 
@@ -80,29 +79,49 @@ export class FormCheckService {
     return response.data;
   }
 
+  /**
+   * Submit a video file directly for form-check analysis.
+   * Calls POST /form-checks/submit (multipart) — bypasses the S3 presigned-URL flow.
+   */
+  async submitFormCheck(
+    video: File,
+    exerciseName: string,
+    notes?: string,
+    posture_v1_mode?: 'active' | 'shadow',
+    weightKg?: number,
+    reps?: number,
+  ): Promise<FormCheck> {
+    const params = new URLSearchParams({ exercise_name: exerciseName });
+    if (notes) params.append('notes', notes);
+    if (posture_v1_mode) params.append('posture_v1_mode', posture_v1_mode);
+    if (weightKg != null) params.append('weight_kg', String(weightKg));
+    if (reps != null) params.append('reps', String(reps));
+
+    const formData = new FormData();
+    formData.append('video_upload', video);
+
+    const response = await apiService.post<FormCheck>(
+      `${this.baseUrl}/submit?${params.toString()}`,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 120000 }
+    );
+    return response.data;
+  }
+
   async analyze(id: string): Promise<FormCheck> {
     const response = await apiService.post<FormCheck>(`${this.baseUrl}/${id}/analyze`);
     return response.data;
   }
 
   async getHistory(): Promise<FormCheck[]> {
-    const response = await apiService.get<FormCheck[]>(`${this.baseUrl}/history`);
+    const response = await apiService.get<FormCheck[]>(`${this.baseUrl}/history?limit=100`);
     return response.data;
   }
 
   // ML-specific methods
 
-  async getMLAnalysis(id: string): Promise<{
-    ml_scores?: {
-      posture_score: number;
-      stability_score: number;
-      depth_score: number;
-      confidence?: number;
-    };
-    pose_data?: any[];
-    detected_issues?: any[];
-  }> {
-    const response = await apiService.get(`${this.baseUrl}/${id}/ml-analysis`);
+  async getMLAnalysis(id: string): Promise<MLAnalysisResponse> {
+    const response = await apiService.get<MLAnalysisResponse>(`${this.baseUrl}/${id}/ml-analysis`);
     return response.data;
   }
 
@@ -112,23 +131,32 @@ export class FormCheckService {
   }
 
   async exportAnalysisFrame(id: string, frameIndex: number): Promise<Blob> {
-    const response = await apiService.get(`${this.baseUrl}/${id}/export-frame/${frameIndex}`, {
+    const response = await apiService.get<Blob>(`${this.baseUrl}/${id}/export-frame/${frameIndex}`, {
       responseType: 'blob'
     });
     return response.data;
   }
 
   async getFormCheckComparison(currentId: string, previousId: string): Promise<{
-    current: FormCheck;
-    previous: FormCheck;
+    current: { id: string; score: number; created_at: string; exercise_type: string | null };
+    previous: { id: string; score: number; created_at: string; exercise_type: string | null };
     improvements: {
-      posture_improvement: number;
-      stability_improvement: number;
-      depth_improvement: number;
+      posture_improvement: number | null;
+      stability_improvement: number | null;
+      depth_improvement: number | null;
       overall_improvement: number;
     };
   }> {
-    const response = await apiService.get(`${this.baseUrl}/compare/${currentId}/${previousId}`);
+    const response = await apiService.get<{
+      current: { id: string; score: number; created_at: string; exercise_type: string | null };
+      previous: { id: string; score: number; created_at: string; exercise_type: string | null };
+      improvements: {
+        posture_improvement: number | null;
+        stability_improvement: number | null;
+        depth_improvement: number | null;
+        overall_improvement: number;
+      };
+    }>(`${this.baseUrl}/compare/${currentId}/${previousId}`);
     return response.data;
   }
 
@@ -138,13 +166,34 @@ export class FormCheckService {
     confidence_threshold: number;
     last_updated: string;
   }> {
-    const response = await apiService.get(endpoints.ml.modelInfo);
+    const response = await apiService.get<{
+      version: string;
+      supported_exercises: string[];
+      confidence_threshold: number;
+      last_updated: string;
+    }>(endpoints.ml.modelInfo);
     return response.data;
   }
 
   async requestMLReanalysis(id: string): Promise<FormCheck> {
     const response = await apiService.post<FormCheck>(`${this.baseUrl}/${id}/reanalyze`);
     return response.data;
+  }
+
+  // ------------------------------------------------------------------
+  // Shared fallback: one getFormChecks() call is shared across all three
+  // analytics methods so a backend outage causes only one extra fetch.
+  // ------------------------------------------------------------------
+
+  private async _getFallbackChecks(): Promise<FormCheck[]> {
+    if (!this._fallbackChecksCache) {
+      this._fallbackChecksCache = await this.getFormChecks();
+    }
+    return this._fallbackChecksCache;
+  }
+
+  private _clearFallbackCache(): void {
+    this._fallbackChecksCache = null;
   }
 
   // Analytics methods that utilize apiService for enhanced analytics
@@ -155,12 +204,13 @@ export class FormCheckService {
     weeklyProgress: number;
     improvementRate: number;
   }> {
+    this._clearFallbackCache(); // reset at the start of a fresh analytics request
     try {
       return await apiService.getAnalyticsOverview(timeRange);
     } catch (error) {
-      // Fallback to calculating from form checks if backend analytics not available
+      // Fallback: reuse the same fetch across all three analytics methods
       console.warn('Backend analytics not available, using fallback calculation');
-      const formChecks = await this.getFormChecks();
+      const formChecks = await this._getFallbackChecks();
       return this.calculateAnalyticsOverview(formChecks, timeRange);
     }
   }
@@ -170,7 +220,7 @@ export class FormCheckService {
       return await apiService.getExerciseStats(timeRange);
     } catch (error) {
       console.warn('Backend exercise stats not available, using fallback calculation');
-      const formChecks = await this.getFormChecks();
+      const formChecks = await this._getFallbackChecks();
       return this.calculateExerciseStats(formChecks, timeRange);
     }
   }
@@ -180,7 +230,7 @@ export class FormCheckService {
       return await apiService.getTimeSeriesData(timeRange);
     } catch (error) {
       console.warn('Backend time series data not available, using fallback calculation');
-      const formChecks = await this.getFormChecks();
+      const formChecks = await this._getFallbackChecks();
       return this.calculateTimeSeriesData(formChecks, timeRange);
     }
   }
@@ -214,11 +264,11 @@ export class FormCheckService {
     // Calculate best exercise
     const exerciseAvgs: Record<string, { total: number; count: number }> = {};
     completedChecks.forEach(fc => {
-      if (!exerciseAvgs[fc.exercise_type]) {
-        exerciseAvgs[fc.exercise_type] = { total: 0, count: 0 };
-      }
-      exerciseAvgs[fc.exercise_type].total += fc.score || 0;
-      exerciseAvgs[fc.exercise_type].count += 1;
+      const key = fc.exercise_type || fc.classified_exercise_slug;
+      if (!key) return;
+      if (!exerciseAvgs[key]) exerciseAvgs[key] = { total: 0, count: 0 };
+      exerciseAvgs[key].total += fc.score || 0;
+      exerciseAvgs[key].count += 1;
     });
 
     let bestExercise: string | null = null;
@@ -245,10 +295,10 @@ export class FormCheckService {
     const exerciseGroups: Record<string, FormCheck[]> = {};
 
     filteredChecks.forEach(fc => {
-      if (!exerciseGroups[fc.exercise_type]) {
-        exerciseGroups[fc.exercise_type] = [];
-      }
-      exerciseGroups[fc.exercise_type].push(fc);
+      const key = fc.exercise_type || fc.classified_exercise_slug;
+      if (!key) return;
+      if (!exerciseGroups[key]) exerciseGroups[key] = [];
+      exerciseGroups[key].push(fc);
     });
 
     return Object.entries(exerciseGroups).map(([exerciseType, checks]) => {
@@ -294,9 +344,12 @@ export class FormCheckService {
       }
 
       const dayData = dailyData[date];
-      dayData.session_count += 1;
 
-      if (fc.score) dayData.scores.push(fc.score);
+      // Only count valid sessions (with a real score) — uncertain sessions are excluded.
+      if (fc.score) {
+        dayData.session_count += 1;
+        dayData.scores.push(fc.score);
+      }
       if (fc.posture_score) dayData.posture_scores.push(fc.posture_score);
       if (fc.stability_score) dayData.stability_scores.push(fc.stability_score);
       if (fc.depth_score) dayData.depth_scores.push(fc.depth_score);

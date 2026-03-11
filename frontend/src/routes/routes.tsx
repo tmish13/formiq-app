@@ -43,6 +43,7 @@ const ProfilePage = lazy(() => import('../pages/ProfilePage'));
 const OnboardingPage = lazy(() => import('../pages/OnboardingPage'));
 const ExerciseLibraryPage = lazy(() => import('../pages/ExerciseLibraryPage'));
 const WorkoutsPage = lazy(() => import('../pages/WorkoutsPage'));
+const BetaChecklistPage = lazy(() => import('../pages/BetaChecklistPage'));
 
 // Create modern versions of missing pages using shadcn/ui
 const ModernProcessingPage = lazy(() => import('../pages/ModernProcessingPage'));
@@ -168,6 +169,11 @@ export const protectedRoutes: RouteObject[] = [
   {
     path: ROUTES.ONBOARDING,
     element: <ProtectedRoute>{withSuspense(OnboardingPage)}</ProtectedRoute>
+  },
+  {
+    // Hidden beta testing guide — not shown in nav
+    path: '/beta-checklist',
+    element: <ProtectedRoute>{withSuspense(BetaChecklistPage)}</ProtectedRoute>
   }
 ];
 

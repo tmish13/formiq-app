@@ -3,13 +3,128 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Eye, EyeOff, Mail, Lock, User, ArrowLeft, CheckCircle } from "lucide-react"
 import { Input } from "../../components/ui/input"
 import { Label } from "../../components/ui/label"
-import { useNavigate } from "react-router-dom"
+import { Navigate, useNavigate } from "react-router-dom"
 import { useAuth } from "../../hooks/useAuth"
+import { useAppSelector } from "../../store/hooks"
+import { useGoogleLogin } from "@react-oauth/google"
 import apiService from "../../services/apiService"
+import SocialSignInButtons from '../../components/auth/SocialSignInButtons'
 
 type AuthMode = "login" | "signup" | "forgot-password" | "reset-success"
 
+// ---------------------------------------------------------------------------
+// GoogleLoginButton — only rendered inside GoogleOAuthProvider (clientId set)
+// ---------------------------------------------------------------------------
+interface GoogleLoginButtonProps {
+  onSuccess: (accessToken: string) => void
+  onError: () => void
+  disabled?: boolean
+}
+
+const GoogleLoginButton: React.FC<GoogleLoginButtonProps> = ({ onSuccess, onError, disabled }) => {
+  const googleLogin = useGoogleLogin({
+    flow: 'implicit',
+    onSuccess: (tokenResponse) => onSuccess(tokenResponse.access_token),
+    onError,
+  })
+
+  return (
+    <motion.button
+      type="button"
+      whileHover={{ scale: 1.02, y: -1 }}
+      whileTap={{ scale: 0.98 }}
+      onClick={() => googleLogin()}
+      disabled={disabled}
+      className="flex-1 h-12 flex items-center justify-center gap-3 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all duration-200 disabled:opacity-50"
+    >
+      <svg className="h-5 w-5" viewBox="0 0 24 24">
+        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+      </svg>
+      <span className="font-medium text-slate-700 dark:text-slate-300">Google</span>
+    </motion.button>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// AppleLoginButton — loads Apple JS SDK lazily, uses popup flow.
+// Only rendered when REACT_APP_APPLE_CLIENT_ID is present.
+// Note: Apple Sign-In web requires HTTPS and a registered redirect URI.
+// ---------------------------------------------------------------------------
+interface AppleLoginButtonProps {
+  onSuccess: (idToken: string) => void
+  onError: () => void
+  disabled?: boolean
+}
+
+const APPLE_SDK_URL =
+  "https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js"
+
+const AppleLoginButton: React.FC<AppleLoginButtonProps> = ({ onSuccess, onError, disabled }) => {
+  const handleClick = async () => {
+    try {
+      // Load the Apple JS SDK script if it hasn't been loaded yet
+      if (!document.getElementById("apple-jssdk")) {
+        await new Promise<void>((resolve, reject) => {
+          const script = document.createElement("script")
+          script.id = "apple-jssdk"
+          script.src = APPLE_SDK_URL
+          script.onload = () => resolve()
+          script.onerror = () => reject(new Error("Failed to load Apple Sign-In script"))
+          document.head.appendChild(script)
+        })
+      }
+
+      const AppleID = (window as any).AppleID
+      if (!AppleID) {
+        throw new Error("Apple Sign-In SDK not available")
+      }
+
+      AppleID.auth.init({
+        clientId: process.env.REACT_APP_APPLE_CLIENT_ID!,
+        scope: "name email",
+        // redirectURI must be registered in your Apple developer portal.
+        // For popup mode Apple uses this as a validation hint, not a real redirect.
+        redirectURI: window.location.origin,
+        usePopup: true,
+      })
+
+      const response = await AppleID.auth.signIn()
+      const idToken = response?.authorization?.id_token
+      if (!idToken) {
+        throw new Error("No identity token in Apple response")
+      }
+      onSuccess(idToken)
+    } catch (error: any) {
+      // popup_closed_by_user is not an error — user simply cancelled
+      if (error?.error !== "popup_closed_by_user") {
+        console.error("Apple Sign-In error:", error)
+        onError()
+      }
+    }
+  }
+
+  return (
+    <motion.button
+      type="button"
+      whileHover={{ scale: 1.02, y: -1 }}
+      whileTap={{ scale: 0.98 }}
+      onClick={handleClick}
+      disabled={disabled}
+      className="flex-1 h-12 flex items-center justify-center gap-3 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all duration-200 disabled:opacity-50"
+    >
+      <svg className="h-5 w-5 text-slate-700 dark:text-slate-300" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701" />
+      </svg>
+      <span className="font-medium text-slate-700 dark:text-slate-300">Apple</span>
+    </motion.button>
+  )
+}
+
 export default function ModernAuthPage() {
+  const { isAuthenticated, user } = useAppSelector((state) => state.auth)
   const [authMode, setAuthMode] = useState<AuthMode>("login")
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
@@ -26,14 +141,74 @@ export default function ModernAuthPage() {
     lastName: "",
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [verificationResent, setVerificationResent] = useState(false)
+  const [isResendingVerification, setIsResendingVerification] = useState(false)
+  // "check your inbox" screen shown after signup when verification is required
+  const [verificationPending, setVerificationPending] = useState(false)
+  const [pendingEmail, setPendingEmail] = useState("")
+  // 30-second cooldown after each resend
+  const [resendCooldown, setResendCooldown] = useState(0)
   const navigate = useNavigate()
   const { login, register, requestPasswordReset, socialLogin } = useAuth()
+
+  const handleGoogleSuccess = async (accessToken: string) => {
+    try {
+      setIsLoading(true)
+      await socialLogin('google', accessToken)
+    } catch {
+      setErrors({ general: 'Google sign-in failed. Please try again.' })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleGoogleError = () => {
+    setErrors({ general: 'Google sign-in failed. Please try again.' })
+  }
+
+  const handleResendVerification = async (emailOverride?: string) => {
+    const target = emailOverride || formData.email
+    if (!target || resendCooldown > 0) return
+    setIsResendingVerification(true)
+    try {
+      await apiService.requestEmailVerification(target)
+    } catch (err) {
+      // fail silently — don't reveal whether email exists
+      console.debug("[FormIQ] resend verification failed:", err)
+    } finally {
+      setVerificationResent(true)
+      setIsResendingVerification(false)
+      setResendCooldown(30) // 30-second cooldown
+    }
+  }
+
+  const handleAppleSuccess = async (idToken: string) => {
+    try {
+      setIsLoading(true)
+      await socialLogin('apple', idToken)
+    } catch {
+      setErrors({ general: 'Apple sign-in failed. Please try again.' })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleAppleError = () => {
+    setErrors({ general: 'Apple sign-in failed. Please try again.' })
+  }
 
   useEffect(() => {
     // Trigger logo animation after component mounts
     const timer = setTimeout(() => setLogoAnimated(true), 300)
     return () => clearTimeout(timer)
   }, [])
+
+  // Count down resend cooldown
+  useEffect(() => {
+    if (resendCooldown <= 0) return
+    const t = setTimeout(() => setResendCooldown((c) => c - 1), 1000)
+    return () => clearTimeout(t)
+  }, [resendCooldown])
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -57,8 +232,14 @@ export default function ModernAuthPage() {
     if (authMode !== "forgot-password") {
       if (!formData.password) {
         newErrors.password = "Password is required"
-      } else if (authMode === "signup" && formData.password.length < 8) {
-        newErrors.password = "Password must be at least 8 characters"
+      } else if (authMode === "signup") {
+        if (formData.password.length < 8) {
+          newErrors.password = "Password must be at least 8 characters"
+        } else if (!/\d/.test(formData.password)) {
+          newErrors.password = "Password must contain at least one number"
+        } else if (!/[!@#$%^&*()\-_=+[\]{}|;:'",.<>/?`~]/.test(formData.password)) {
+          newErrors.password = "Password must contain at least one special character (e.g. !@#$%)"
+        }
       }
     }
 
@@ -103,31 +284,55 @@ export default function ModernAuthPage() {
         showToastMessage("Reset link sent successfully!", "success")
       } else if (authMode === "signup") {
         console.log("🔄 Creating account for:", formData.email);
+        // Derive username from name fields; fall back to email prefix if blank
+        const rawUsername = `${formData.firstName}${formData.lastName}`.toLowerCase().trim();
+        const usernameFromEmail = formData.email.split('@')[0].replace(/[^a-z0-9_]/g, '_');
         const registrationData = {
           confirm_password: formData.confirmPassword,
-          username: `${formData.firstName}${formData.lastName}`.toLowerCase(),
+          full_name: `${formData.firstName} ${formData.lastName}`.trim() || formData.email.split('@')[0],
+          username: rawUsername.length >= 3 ? rawUsername : usernameFromEmail,
           first_name: formData.firstName,
           last_name: formData.lastName
         };
         console.log("📝 Registration data:", registrationData);
-        
-        await register(formData.email, formData.password, registrationData);
-        
-        console.log("✅ Account creation successful!");
-        
-        // Show success message and redirect to login
-        showToastMessage("Account created successfully! Please sign in with your new credentials.", "success")
-        setTimeout(() => {
-          setAuthMode("login")
-          setFormData({
-            email: formData.email, // Keep email for convenience
-            password: "",
-            confirmPassword: "",
-            firstName: "",
-            lastName: "",
-          })
-        }, 2000)
-        
+
+        // --- Step 1: Register (separate catch so login errors don't get misread) ---
+        try {
+          await register(formData.email, formData.password, registrationData);
+          console.log("✅ Account creation successful!");
+        } catch (regError: any) {
+          const regMsg: string = regError.message || "Registration failed. Please try again."
+          if (regMsg.toLowerCase().includes("exists") || regMsg.toLowerCase().includes("already")) {
+            setErrors({ general: "An account with this email already exists. Please sign in instead." })
+          } else {
+            setErrors({ general: regMsg })
+          }
+          return // outer finally still runs setIsLoading(false)
+        }
+
+        // --- Step 2: Try auto-login; if blocked by email verification, show inbox screen ---
+        try {
+          await login(formData.email, formData.password)
+          // Navigation handled by useAuth
+        } catch (autoLoginErr: any) {
+          const autoLoginMsg: string = autoLoginErr?.message || ''
+          const needsVerify =
+            autoLoginMsg.toLowerCase().includes("verify your email") ||
+            autoLoginErr?.response?.status === 403
+          if (needsVerify) {
+            // Backend sent the verification email automatically on registration.
+            // Show a dedicated "check your inbox" screen.
+            setPendingEmail(formData.email)
+            setVerificationPending(true)
+            setVerificationResent(false)
+            setResendCooldown(30)
+          } else {
+            showToastMessage("Account created! Please sign in to continue.", "success")
+            setAuthMode("login")
+          }
+        }
+        return
+
       } else {
         console.log("🔄 Logging in user:", formData.email);
         await login(formData.email, formData.password);
@@ -148,20 +353,27 @@ export default function ModernAuthPage() {
         errorMessage = error.message
       }
       
-      // Handle specific error types
+      // Map known login error patterns to user-friendly messages
       if (authMode === "login") {
-        if (errorMessage.toLowerCase().includes("invalid") || 
+        if (
+          errorMessage.includes("EMAIL_NOT_VERIFIED") ||
+          errorMessage.toLowerCase().includes("verify your email")
+        ) {
+          setPendingEmail(formData.email)
+          setVerificationPending(true)
+          setVerificationResent(false)
+          setResendCooldown(30)
+          return // finally still runs setIsLoading(false); no error shown
+        } else if (errorMessage.toLowerCase().includes("invalid") ||
             errorMessage.toLowerCase().includes("incorrect") ||
-            errorMessage.toLowerCase().includes("wrong")) {
+            errorMessage.toLowerCase().includes("wrong") ||
+            errorMessage.toLowerCase().includes("validation failed")) {
           errorMessage = "Invalid email or password. Please check your credentials and try again."
         }
-      } else if (authMode === "signup") {
-        if (errorMessage.toLowerCase().includes("exists") || 
-            errorMessage.toLowerCase().includes("already")) {
-          errorMessage = "An account with this email already exists. Please sign in instead."
-        }
       }
-      
+      // Signup errors are handled in the inner try-catch above; this outer catch
+      // only fires for the forgot-password branch or unexpected throws.
+
       setErrors({ general: errorMessage })
     } finally {
       setIsLoading(false)
@@ -331,61 +543,13 @@ export default function ModernAuthPage() {
   }
 
   const renderSocialButtons = () => (
-    <div className="space-y-4">
-      <div className="relative">
-        <div className="absolute inset-0 flex items-center">
-          <span className="w-full border-t border-slate-300 dark:border-slate-600" />
-        </div>
-        <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-white dark:bg-slate-800 px-2 text-slate-500 dark:text-slate-400">Or continue with</span>
-        </div>
-      </div>
-
-      <div className="flex gap-4">
-        <motion.button
-          type="button"
-          whileHover={{ scale: 1.02, y: -1 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={() => handleSocialLogin("google")}
-          disabled={isLoading}
-          className="flex-1 h-12 flex items-center justify-center gap-3 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 hover:bg-gray-800 dark:hover:bg-gray-800 transition-all duration-200 disabled:opacity-50"
-        >
-          <svg className="h-5 w-5" viewBox="0 0 24 24">
-            <path
-              fill="#4285F4"
-              d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-            />
-            <path
-              fill="#34A853"
-              d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-            />
-            <path
-              fill="#FBBC05"
-              d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-            />
-            <path
-              fill="#EA4335"
-              d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-            />
-          </svg>
-          <span className="font-medium text-slate-700 dark:text-slate-300">Google</span>
-        </motion.button>
-
-        <motion.button
-          type="button"
-          whileHover={{ scale: 1.02, y: -1 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={() => handleSocialLogin("apple")}
-          disabled={isLoading}
-          className="flex-1 h-12 flex items-center justify-center gap-3 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 hover:bg-gray-800 dark:hover:bg-gray-800 transition-all duration-200 disabled:opacity-50"
-        >
-          <svg className="h-5 w-5 text-slate-700 dark:text-slate-300" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701" />
-          </svg>
-          <span className="font-medium text-slate-700 dark:text-slate-300">Apple</span>
-        </motion.button>
-      </div>
-    </div>
+    <SocialSignInButtons
+      onGoogleSuccess={handleGoogleSuccess}
+      onGoogleError={handleGoogleError}
+      onAppleSuccess={handleAppleSuccess}
+      onAppleError={handleAppleError}
+      isLoading={isLoading}
+    />
   )
 
   const renderLoginForm = () => (
@@ -404,8 +568,6 @@ export default function ModernAuthPage() {
         <p className="text-slate-600 dark:text-slate-400 -mt-1">Sign in to continue</p>
       </div>
 
-      {renderSocialButtons()}
-
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="space-y-2">
           <Label htmlFor="email" className="text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -420,7 +582,7 @@ export default function ModernAuthPage() {
               value={formData.email}
               onChange={(e) => handleInputChange("email", e.target.value)}
               disabled={isLoading}
-              className={`border border-gray-700 focus:border-purple-500 rounded-md p-3 pl-10 h-12 touch-target ${
+              className={`border border-slate-300 dark:border-slate-600 focus:border-indigo-500 dark:focus:border-indigo-400 rounded-md p-3 pl-10 h-12 ${
                 errors.email ? "border-red-400 focus:border-red-400" : ""
               }`}
               style={{ maxWidth: "100%", textOverflow: "ellipsis" }}
@@ -450,21 +612,19 @@ export default function ModernAuthPage() {
               value={formData.password}
               onChange={(e) => handleInputChange("password", e.target.value)}
               disabled={isLoading}
-              className={`border border-gray-700 focus:border-purple-500 rounded-md p-3 pl-10 pr-10 h-12 touch-target ${
+              className={`border border-slate-300 dark:border-slate-600 focus:border-indigo-500 dark:focus:border-indigo-400 rounded-md p-3 pl-10 pr-10 h-12 ${
                 errors.password ? "border-red-400 focus:border-red-400" : ""
               }`}
               style={{ maxWidth: "100%", textOverflow: "ellipsis" }}
             />
-            <motion.button
+            <button
               type="button"
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
               onClick={() => setShowPassword(!showPassword)}
               disabled={isLoading}
-              className="absolute right-3 top-0 h-12 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors disabled:opacity-50 touch-target"
+              className="absolute inset-y-0 right-3 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors disabled:opacity-50"
             >
-              {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-            </motion.button>
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
           </div>
           {errors.password && (
             <motion.p
@@ -511,12 +671,12 @@ export default function ModernAuthPage() {
         <motion.button
           type="submit"
           disabled={isLoading}
-          className="w-full h-14 py-5 bg-gradient-to-r from-purple-500 to-indigo-600 hover:scale-105 hover:shadow-xl text-white font-semibold text-lg rounded-lg shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-          whileHover={{ scale: 1.05 }}
+          className="w-full h-[52px] bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold text-base rounded-xl shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+          whileHover={{ scale: 1.01 }}
           whileTap={{ scale: 0.98 }}
         >
           {isLoading ? (
-            <div className="flex items-center justify-center space-x-2">
+            <div className="flex items-center justify-center gap-2">
               <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               <span>Signing in...</span>
             </div>
@@ -525,6 +685,8 @@ export default function ModernAuthPage() {
           )}
         </motion.button>
       </form>
+
+      {renderSocialButtons()}
 
       <div className="text-center">
         <p className="text-slate-600/80 dark:text-slate-400/80">
@@ -555,10 +717,8 @@ export default function ModernAuthPage() {
         <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100" style={{ lineHeight: "1.2" }}>
           Create your account
         </h1>
-        <p className="text-slate-600 dark:text-slate-400 -mt-1">Join FormIQ to perfect your form</p>
+        <p className="text-slate-600 dark:text-slate-400 -mt-1">Join thousands improving their form with AI</p>
       </div>
-
-      {renderSocialButtons()}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="grid grid-cols-2 gap-4">
@@ -575,7 +735,7 @@ export default function ModernAuthPage() {
                 value={formData.firstName}
                 onChange={(e) => handleInputChange("firstName", e.target.value)}
                 disabled={isLoading}
-                className={`border border-gray-700 focus:border-purple-500 rounded-md p-3 pl-10 h-12 touch-target ${
+                className={`border border-slate-300 dark:border-slate-600 focus:border-indigo-500 dark:focus:border-indigo-400 rounded-md p-3 pl-10 h-12 ${
                   errors.firstName ? "border-red-400 focus:border-red-400" : ""
                 }`}
               />
@@ -604,7 +764,7 @@ export default function ModernAuthPage() {
                 value={formData.lastName}
                 onChange={(e) => handleInputChange("lastName", e.target.value)}
                 disabled={isLoading}
-                className={`border border-gray-700 focus:border-purple-500 rounded-md p-3 pl-10 h-12 touch-target ${
+                className={`border border-slate-300 dark:border-slate-600 focus:border-indigo-500 dark:focus:border-indigo-400 rounded-md p-3 pl-10 h-12 ${
                   errors.lastName ? "border-red-400 focus:border-red-400" : ""
                 }`}
               />
@@ -634,7 +794,7 @@ export default function ModernAuthPage() {
               value={formData.email}
               onChange={(e) => handleInputChange("email", e.target.value)}
               disabled={isLoading}
-              className={`border border-gray-700 focus:border-purple-500 rounded-md p-3 pl-10 h-12 touch-target ${
+              className={`border border-slate-300 dark:border-slate-600 focus:border-indigo-500 dark:focus:border-indigo-400 rounded-md p-3 pl-10 h-12 ${
                 errors.email ? "border-red-400 focus:border-red-400" : ""
               }`}
             />
@@ -663,20 +823,19 @@ export default function ModernAuthPage() {
               value={formData.password}
               onChange={(e) => handleInputChange("password", e.target.value)}
               disabled={isLoading}
-              className={`border border-gray-700 focus:border-purple-500 rounded-md p-3 pl-10 pr-10 h-12 touch-target ${
+              maxLength={100}
+              className={`border border-slate-300 dark:border-slate-600 focus:border-indigo-500 dark:focus:border-indigo-400 rounded-md p-3 pl-10 pr-10 h-12 ${
                 errors.password ? "border-red-400 focus:border-red-400" : ""
               }`}
             />
-            <motion.button
+            <button
               type="button"
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
               onClick={() => setShowPassword(!showPassword)}
               disabled={isLoading}
-              className="absolute right-3 top-0 h-12 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors disabled:opacity-50 touch-target"
+              className="absolute inset-y-0 right-3 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors disabled:opacity-50"
             >
-              {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-            </motion.button>
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
           </div>
           {errors.password && (
             <motion.p
@@ -702,20 +861,19 @@ export default function ModernAuthPage() {
               value={formData.confirmPassword}
               onChange={(e) => handleInputChange("confirmPassword", e.target.value)}
               disabled={isLoading}
-              className={`border border-gray-700 focus:border-purple-500 rounded-md p-3 pl-10 pr-10 h-12 touch-target ${
+              maxLength={100}
+              className={`border border-slate-300 dark:border-slate-600 focus:border-indigo-500 dark:focus:border-indigo-400 rounded-md p-3 pl-10 pr-10 h-12 ${
                 errors.confirmPassword ? "border-red-400 focus:border-red-400" : ""
               }`}
             />
-            <motion.button
+            <button
               type="button"
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
               onClick={() => setShowConfirmPassword(!showConfirmPassword)}
               disabled={isLoading}
-              className="absolute right-3 top-0 h-12 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors disabled:opacity-50 touch-target"
+              className="absolute inset-y-0 right-3 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors disabled:opacity-50"
             >
-              {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-            </motion.button>
+              {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
           </div>
           {errors.confirmPassword && (
             <motion.p
@@ -742,12 +900,12 @@ export default function ModernAuthPage() {
         <motion.button
           type="submit"
           disabled={isLoading}
-          className="w-full h-14 py-5 bg-gradient-to-r from-purple-500 to-indigo-600 hover:scale-105 hover:shadow-xl text-white font-semibold text-lg rounded-lg shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-          whileHover={{ scale: 1.05 }}
+          className="w-full h-[52px] bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold text-base rounded-xl shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+          whileHover={{ scale: 1.01 }}
           whileTap={{ scale: 0.98 }}
         >
           {isLoading ? (
-            <div className="flex items-center justify-center space-x-2">
+            <div className="flex items-center justify-center gap-2">
               <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               <span>Creating account...</span>
             </div>
@@ -757,7 +915,19 @@ export default function ModernAuthPage() {
         </motion.button>
       </form>
 
-      <div className="text-center">
+      {renderSocialButtons()}
+
+      <div className="text-center space-y-3">
+        <p className="text-xs text-slate-500/80 dark:text-slate-400/80">
+          By continuing, you agree to our{" "}
+          <a href="/terms" className="text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 underline">
+            Terms of Service
+          </a>{" "}
+          and{" "}
+          <a href="/privacy" className="text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 underline">
+            Privacy Policy
+          </a>
+        </p>
         <p className="text-slate-600/80 dark:text-slate-400/80">
           Already have an account?{" "}
           <motion.button
@@ -805,7 +975,7 @@ export default function ModernAuthPage() {
               value={formData.email}
               onChange={(e) => handleInputChange("email", e.target.value)}
               disabled={isLoading}
-              className={`border border-gray-700 focus:border-purple-500 rounded-md p-3 pl-10 h-12 touch-target ${
+              className={`border border-slate-300 dark:border-slate-600 focus:border-indigo-500 dark:focus:border-indigo-400 rounded-md p-3 pl-10 h-12 ${
                 errors.email ? "border-red-400 focus:border-red-400" : ""
               }`}
             />
@@ -824,12 +994,12 @@ export default function ModernAuthPage() {
         <motion.button
           type="submit"
           disabled={isLoading}
-          className="w-full h-14 py-5 bg-gradient-to-r from-purple-500 to-indigo-600 hover:scale-105 hover:shadow-xl text-white font-semibold text-lg rounded-lg shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-          whileHover={{ scale: 1.05 }}
+          className="w-full h-[52px] bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold text-base rounded-xl shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+          whileHover={{ scale: 1.01 }}
           whileTap={{ scale: 0.98 }}
         >
           {isLoading ? (
-            <div className="flex items-center justify-center space-x-2">
+            <div className="flex items-center justify-center gap-2">
               <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               <span>Sending reset link...</span>
             </div>
@@ -860,49 +1030,149 @@ export default function ModernAuthPage() {
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.9 }}
       transition={{ duration: 0.3 }}
-      className="space-y-6 text-center"
+      className="text-center space-y-6"
     >
-      <div className="flex justify-center">
-        <div className="w-16 h-16 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center">
-          <CheckCircle className="w-8 h-8 text-green-600 dark:text-green-400" />
-        </div>
-      </div>
+      <motion.div
+        initial={{ scale: 0 }}
+        animate={{ scale: 1 }}
+        transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+        className="w-16 h-16 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto"
+      >
+        <CheckCircle className="w-8 h-8 text-green-600 dark:text-green-400" />
+      </motion.div>
 
-      <div className="space-y-3">
+      <div className="space-y-2">
         <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100" style={{ lineHeight: "1.2" }}>
           Check your email
         </h1>
-        <p className="text-slate-600 dark:text-slate-400">
-          We've sent a password reset link to <br />
-          <span className="font-medium text-slate-900 dark:text-slate-100">{formData.email}</span>
+        <p className="text-slate-600 dark:text-slate-400 -mt-1">
+          We've emailed you a reset link at
+          <br />
+          <span className="font-medium">{formData.email}</span>
         </p>
       </div>
 
       <div className="space-y-4">
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          onClick={() => setAuthMode("login")}
-          className="w-full h-12 bg-gradient-to-r from-purple-500 to-indigo-600 hover:shadow-lg text-white font-semibold rounded-lg transition-all duration-200 flex items-center justify-center"
-        >
-          Back to sign in
-        </motion.button>
-
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          Didn't receive the email? Check your spam folder or{" "}
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            onClick={() => setAuthMode("forgot-password")}
-            className="text-indigo-600 dark:text-indigo-400 hover:underline font-medium"
-          >
-            try again
-          </motion.button>
+        <p className="text-sm text-slate-500/80 dark:text-slate-400/80">
+          Didn't receive the email? Check your spam folder or try again.
         </p>
+
+        <div className="space-y-3">
+          <motion.button
+            onClick={() => setAuthMode("forgot-password")}
+            className="w-full h-12 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 font-semibold rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+          >
+            Resend Email
+          </motion.button>
+
+          <motion.button
+            onClick={() => setAuthMode("login")}
+            className="w-full h-[52px] bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold text-base rounded-xl shadow-md transition-all duration-200 flex items-center justify-center"
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.98 }}
+          >
+            Back to Sign In
+          </motion.button>
+        </div>
       </div>
     </motion.div>
   )
 
+  const renderVerificationPending = () => (
+    <motion.div
+      key="verification-pending"
+      initial={{ opacity: 0, x: 20 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -20 }}
+      transition={{ duration: 0.3 }}
+      className="text-center space-y-6"
+    >
+      <motion.div
+        initial={{ scale: 0 }}
+        animate={{ scale: 1 }}
+        transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+        className="w-16 h-16 bg-indigo-100 dark:bg-indigo-900/30 rounded-full flex items-center justify-center mx-auto"
+      >
+        <Mail className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />
+      </motion.div>
+
+      <div className="space-y-2">
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+          Check your inbox
+        </h1>
+        <p className="text-slate-600 dark:text-slate-400">
+          We've sent a verification link to
+          <br />
+          <span className="font-semibold text-slate-800 dark:text-slate-200">{pendingEmail}</span>
+        </p>
+        <p className="text-sm text-slate-500 dark:text-slate-400 pt-1">
+          It might take a minute to arrive. Check your spam folder if you don't see it.
+        </p>
+      </div>
+
+      <div className="space-y-3">
+        {verificationResent ? (
+          <p className="text-sm text-green-600 dark:text-green-400 font-medium">
+            Verification email sent again.
+            {resendCooldown > 0 && (
+              <span className="text-slate-400 font-normal"> (Resend in {resendCooldown}s)</span>
+            )}
+          </p>
+        ) : null}
+
+        <motion.button
+          type="button"
+          onClick={() => handleResendVerification(pendingEmail)}
+          disabled={isResendingVerification || resendCooldown > 0}
+          className="w-full h-12 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 font-medium rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          whileHover={{ scale: 1.01 }}
+          whileTap={{ scale: 0.98 }}
+        >
+          {isResendingVerification
+            ? 'Sending…'
+            : resendCooldown > 0
+            ? `Resend in ${resendCooldown}s`
+            : 'Resend verification email'}
+        </motion.button>
+
+        <motion.button
+          type="button"
+          onClick={() => { setVerificationPending(false); setAuthMode("login") }}
+          className="w-full h-12 text-slate-500 dark:text-slate-400 text-sm hover:underline"
+        >
+          Back to Sign In
+        </motion.button>
+      </div>
+    </motion.div>
+  )
+
+  // Already logged-in users are redirected immediately after all hooks have been called
+  if (isAuthenticated && user) {
+    return <Navigate to={user.has_completed_onboarding ? "/dashboard" : "/onboarding"} replace />
+  }
+
+  // Verification pending — show dedicated inbox screen (bypasses the card's AnimatePresence)
+  if (verificationPending) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <motion.div
+            className="bg-card rounded-2xl shadow-lg p-6 border border-border"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4 }}
+          >
+            {renderVerificationPending()}
+          </motion.div>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo with Animation */}
         <motion.div
@@ -945,22 +1215,13 @@ export default function ModernAuthPage() {
               >
                 FormIQ
               </motion.span>
-              <motion.div
-                className="text-xs text-slate-500 dark:text-slate-400 font-normal -mt-1"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.5 }}
-              >
-                Powered by FormIQ AI
-              </motion.div>
             </div>
           </div>
         </motion.div>
 
-        {/* Auth Form Container with Glassmorphism */}
+        {/* Auth Form Container */}
         <motion.div
-          className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-xl rounded-2xl shadow-2xl p-6 border border-slate-200/50 dark:border-slate-700/50"
-          style={{ padding: "24px" }}
+          className="bg-card rounded-2xl shadow-lg p-6 border border-border"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.2 }}
