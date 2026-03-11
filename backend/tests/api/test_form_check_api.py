@@ -15,8 +15,7 @@ from app.main import app
 from app.core.config import settings
 from app.core.security import create_access_token
 from app.models.user import User
-from app.models.exercise_template import ExerciseTemplate
-from app.models.exercise import ExerciseTemplate as ExerciseTemplateModel
+from app.models.exercise import ExerciseTemplate
 from app.models.form_check import FormCheck, FeedbackItem
 from app.models.video import Video
 from app.models.enums import (

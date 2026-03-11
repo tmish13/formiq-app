@@ -1,0 +1,9 @@
+{
+  "1865_good": {
+    "video_id": "1865",
+    "label": "good_form",
+    "frames": 73,
+    "source": "penn_action",
+    "note": "Out-of-domain: Penn Action dataset, different coordinate conventions from Squat More training data"
+  }
+}

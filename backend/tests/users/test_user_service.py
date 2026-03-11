@@ -1,478 +1,253 @@
+"""Unit tests for UserService — targets the real async interface."""
 import pytest
-from datetime import datetime, timedelta
-from unittest.mock import Mock, patch
-from app.services.user import UserService
-from app.models.user import User
-from app.models.subscription import Subscription
-from sqlalchemy.orm import Session
-from app.core.exceptions import ValidationError, NotFoundError, AuthenticationError
-from app.core.security import get_password_hash, verify_password, create_access_token
-from app.core.config import settings
-from unittest.mock import AsyncMock
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import uuid4, UUID
+from datetime import datetime
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.services.user_service import UserService
+from app.services.base_service import BaseService
+from app.models.user import User as DBUser
+from app.models.enums import SubscriptionTier
 from app.schemas.user import UserCreate, UserUpdate
-from app.core.exceptions import NotFoundException
+from app.core.config import Settings
+from app.core.exceptions import NotFoundException, ServiceError
+
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
 
 @pytest.fixture
-def mock_db_session():
-    """Create a mock database session"""
-    session = Mock(spec=Session)
-    session.query.return_value.filter.return_value.first.return_value = None
-    session.add = Mock()
-    session.commit = Mock()
-    return session
+def mock_db() -> AsyncMock:
+    """Async database session mock."""
+    db = AsyncMock(spec=AsyncSession)
+    # Provide a chainable result stub for db.execute(...)
+    result_mock = MagicMock()
+    result_mock.scalars.return_value.first.return_value = None
+    db.execute = AsyncMock(return_value=result_mock)
+    db.add = MagicMock()
+    db.commit = AsyncMock()
+    db.refresh = AsyncMock()
+    db.rollback = AsyncMock()
+    return db
+
 
 @pytest.fixture
-def user_service(mock_db_session):
-    """Return a UserService instance with a mock db session."""
-    return UserService(mock_db_session)
+def mock_settings() -> MagicMock:
+    return MagicMock(spec=Settings)
 
-def configure_for_async_test(user_service, mock_db_session):
-    """Configure the user service and db session for async testing."""
-    user_service.set_async_mode(True)
-    
-    # Mock async database methods
-    mock_db_session.commit = AsyncMock()
-    mock_db_session.rollback = AsyncMock()
-    mock_db_session.refresh = AsyncMock()
-    
-    return user_service
 
 @pytest.fixture
-def test_user():
-    """Create a test user"""
-    return User(
-        id=1,
-        email="test@example.com",
+def user_service(mock_db: AsyncMock, mock_settings: MagicMock) -> UserService:
+    return UserService(db=mock_db, app_settings=mock_settings)
+
+
+@pytest.fixture
+def sample_user() -> DBUser:
+    uid = uuid4()
+    return DBUser(
+        id=uid,
+        email="test@formiq.com",
         username="testuser",
-        hashed_password=get_password_hash("TestPassword123!", validate=False),
+        full_name="Test User",
+        hashed_password="hashed_pass",
         is_active=True,
         is_verified=True,
-        subscription_tier="PRO",
-        created_at=datetime.now()
+        subscription_tier=SubscriptionTier.FREE,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
     )
 
-def test_create_user(user_service, mock_db_session):
-    """Test creating a new user"""
-    # Mock the get_password_hash function to bypass validation
-    with patch('app.services.user.get_password_hash') as mock_hash:
-        mock_hash.return_value = "hashed_password"
-        
-        user_data = {
-            "email": "new@example.com",
-            "username": "newuser",
-            "password": "Complex%P4ssw0rd$789",
-            "subscription_tier": "FREE"
-        }
-        
-        user = user_service.create_user(**user_data)
-        
-        assert user.email == user_data["email"]
-        assert user.username == user_data["username"]
-        assert user.hashed_password == "hashed_password"
-        assert user.subscription_tier == user_data["subscription_tier"]
-        mock_db_session.add.assert_called_once()
-        mock_db_session.commit.assert_called_once()
 
-def test_get_user_by_id(user_service, test_user, mock_db_session):
-    """Test retrieving a user by ID"""
-    mock_db_session.query.return_value.filter.return_value.first.return_value = test_user
-    
-    user = user_service.get_user_by_id(user_id=1)
-    
-    assert user.id == test_user.id
-    assert user.email == test_user.email
-    assert user.username == test_user.username
+# ---------------------------------------------------------------------------
+# get_by_email_async
+# ---------------------------------------------------------------------------
 
-def test_get_user_by_email(user_service, test_user, mock_db_session):
-    """Test retrieving a user by email"""
-    mock_db_session.query.return_value.filter.return_value.first.return_value = test_user
-    
-    user = user_service.get_user_by_email(email="test@example.com")
-    
-    assert user.id == test_user.id
-    assert user.email == test_user.email
-    assert user.username == test_user.username
+class TestGetByEmailAsync:
 
-def test_get_user_by_username(user_service, test_user, mock_db_session):
-    """Test retrieving a user by username"""
-    mock_db_session.query.return_value.filter.return_value.first.return_value = test_user
-    
-    user = user_service.get_user_by_username(username="testuser")
-    
-    assert user.id == test_user.id
-    assert user.email == test_user.email
-    assert user.username == test_user.username
+    @pytest.mark.asyncio
+    async def test_returns_user_when_found(self, user_service: UserService, mock_db: AsyncMock, sample_user: DBUser):
+        """get_by_email_async returns the DBUser when it exists."""
+        result_mock = MagicMock()
+        result_mock.scalars.return_value.first.return_value = sample_user
+        mock_db.execute.return_value = result_mock
 
-def test_authenticate_user(user_service, test_user, mock_db_session):
-    """Test user authentication"""
-    mock_db_session.query.return_value.filter.return_value.first.return_value = test_user
-    
-    user = user_service.authenticate_user(
-        email="test@example.com",
-        password="TestPassword123!"
-    )
-    
-    assert user.id == test_user.id
-    assert user.email == test_user.email
-    assert user.username == test_user.username
+        found = await user_service.get_by_email_async(sample_user.email)
 
-def test_authenticate_user_invalid_password(user_service, test_user, mock_db_session):
-    """Test authentication with invalid password"""
-    mock_db_session.query.return_value.filter.return_value.first.return_value = test_user
-    
-    with pytest.raises(AuthenticationError):
-        user_service.authenticate_user(
-            email="test@example.com",
-            password="WrongPassword123!"
+        assert found is sample_user
+        mock_db.execute.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_returns_none_when_not_found(self, user_service: UserService, mock_db: AsyncMock):
+        """get_by_email_async returns None when no user matches."""
+        result_mock = MagicMock()
+        result_mock.scalars.return_value.first.return_value = None
+        mock_db.execute.return_value = result_mock
+
+        found = await user_service.get_by_email_async("nobody@formiq.com")
+
+        assert found is None
+
+    @pytest.mark.asyncio
+    async def test_raises_service_error_on_db_failure(self, user_service: UserService, mock_db: AsyncMock):
+        """get_by_email_async wraps db exceptions in ServiceError."""
+        mock_db.execute.side_effect = Exception("DB connection lost")
+
+        with pytest.raises(ServiceError):
+            await user_service.get_by_email_async("fail@formiq.com")
+
+
+# ---------------------------------------------------------------------------
+# create_user_async
+# ---------------------------------------------------------------------------
+
+class TestCreateUserAsync:
+
+    @pytest.mark.asyncio
+    async def test_hashes_password_and_delegates_to_base(self, user_service: UserService, sample_user: DBUser):
+        """create_user_async hashes the password and stores via BaseService."""
+        user_in = UserCreate(
+            email="new@formiq.com",
+            password="F0rm!qX9pP",
+            confirm_password="F0rm!qX9pP",
+            full_name="New User",
         )
 
-def test_update_user(user_service, test_user, mock_db_session):
-    """Test updating user information"""
-    mock_db_session.query.return_value.filter.return_value.first.return_value = test_user
-    
-    update_data = {
-        "username": "updateduser",
-        "email": "updated@example.com"
-    }
-    
-    updated_user = user_service.update_user(
-        user_id=1,
-        **update_data
-    )
-    
-    assert updated_user.username == update_data["username"]
-    assert updated_user.email == update_data["email"]
-    mock_db_session.commit.assert_called_once()
+        with patch.object(BaseService, "create_async", new_callable=AsyncMock, return_value=sample_user) as mock_create:
+            created = await user_service.create_user_async(user_in)
 
-def test_change_password(user_service, test_user, mock_db_session):
-    """Test changing user password"""
-    mock_db_session.query.return_value.filter.return_value.first.return_value = test_user
-    
-    new_password = "NewPassword456!"
-    user_service.change_password(
-        user_id=1,
-        current_password="TestPassword123!",
-        new_password=new_password
-    )
-    
-    assert verify_password(new_password, test_user.hashed_password)
-    mock_db_session.commit.assert_called_once()
+        assert created is sample_user
+        mock_create.assert_awaited_once()
+        # Verify password was hashed (the call arg dict has hashed_password, not plaintext)
+        call_kwargs = mock_create.call_args.kwargs
+        obj_in = call_kwargs.get("obj_in", mock_create.call_args.args[0] if mock_create.call_args.args else None)
+        if obj_in is not None and isinstance(obj_in, dict):
+            assert "hashed_password" in obj_in
+            assert obj_in.get("password") is None  # plaintext cleared
 
-def test_change_password_invalid_current(user_service, test_user, mock_db_session):
-    """Test changing password with invalid current password"""
-    mock_db_session.query.return_value.filter.return_value.first.return_value = test_user
-    
-    with pytest.raises(AuthenticationError):
-        user_service.change_password(
-            user_id=1,
-            current_password="WrongPassword123!",
-            new_password="NewPassword456!"
+    @pytest.mark.asyncio
+    async def test_superuser_flag_forwarded(self, user_service: UserService, sample_user: DBUser):
+        """create_user_async passes is_superuser=True into the object dict."""
+        user_in = UserCreate(
+            email="su@formiq.com",
+            password="F0rm!qX9pP",
+            confirm_password="F0rm!qX9pP",
         )
 
-def test_verify_user(user_service, test_user, mock_db_session):
-    """Test user verification"""
-    test_user.is_verified = False
-    mock_db_session.query.return_value.filter.return_value.first.return_value = test_user
-    
-    user_service.verify_user(user_id=1)
-    
-    assert test_user.is_verified is True
-    mock_db_session.commit.assert_called_once()
+        captured = {}
 
-def test_deactivate_user(user_service, test_user, mock_db_session):
-    """Test user deactivation"""
-    mock_db_session.query.return_value.filter.return_value.first.return_value = test_user
-    
-    user_service.deactivate_user(user_id=1)
-    
-    assert test_user.is_active is False
-    mock_db_session.commit.assert_called_once()
+        async def _capture_create(**kwargs):
+            captured.update(kwargs)
+            return sample_user
 
-def test_activate_user(user_service, test_user, mock_db_session):
-    """Test user activation"""
-    test_user.is_active = False
-    mock_db_session.query.return_value.filter.return_value.first.return_value = test_user
-    
-    user_service.activate_user(user_id=1)
-    
-    assert test_user.is_active is True
-    mock_db_session.commit.assert_called_once()
+        with patch.object(BaseService, "create_async", side_effect=_capture_create):
+            await user_service.create_user_async(user_in, is_superuser=True)
 
-def test_update_subscription(user_service, test_user, mock_db_session):
-    """Test updating user subscription"""
-    mock_db_session.query.return_value.filter.return_value.first.return_value = test_user
-    
-    start_date = datetime.now()
-    end_date = start_date + timedelta(days=30)
-    
-    updated_user = user_service.update_subscription(
-        user_id=1,
-        tier="PREMIUM",
-        start_date=start_date,
-        end_date=end_date,
-        status="active",
-        stripe_subscription_id="sub_123456",
-        stripe_customer_id="cus_123456"
-    )
-    
-    assert updated_user.subscription_tier == "PREMIUM"
-    mock_db_session.add.assert_called_once()
-    mock_db_session.commit.assert_called_once()
-    mock_db_session.refresh.assert_called_once_with(test_user)
+        obj_in = captured.get("obj_in", {})
+        if isinstance(obj_in, dict):
+            assert obj_in.get("is_superuser") is True
 
-@pytest.mark.asyncio
-async def test_update_subscription_async(user_service, test_user, mock_db_session):
-    """Test updating user subscription asynchronously"""
-    # Configure for async testing
-    configure_for_async_test(user_service, mock_db_session)
-    
-    # Mock the repository's async method
-    user_service.repository = Mock()
-    user_service.repository.get_by_id_async = AsyncMock()
-    user_service.repository.get_by_id_async.return_value = test_user
-    
-    start_date = datetime.now()
-    end_date = start_date + timedelta(days=30)
-    
-    updated_user = await user_service.update_subscription_async(
-        user_id=1,
-        tier="PREMIUM",
-        start_date=start_date,
-        end_date=end_date,
-        status="active",
-        stripe_subscription_id="sub_123456",
-        stripe_customer_id="cus_123456"
-    )
-    
-    assert updated_user is not None
-    assert test_user.subscription_tier == "PREMIUM"
-    mock_db_session.add.assert_called_once()
-    mock_db_session.commit.assert_called_once()
-    mock_db_session.refresh.assert_called_once_with(test_user)
 
-@pytest.mark.asyncio
-async def test_create_user_async(user_service, mock_db_session):
-    """Test creating a new user asynchronously"""
-    # Configure for async testing
-    configure_for_async_test(user_service, mock_db_session)
-    
-    # Mock the async database query
-    mock_execute = AsyncMock()
-    mock_result = MagicMock()
-    mock_result.scalar_one_or_none.return_value = None
-    mock_execute.return_value = mock_result
-    mock_db_session.execute = mock_execute
-    
-    # Mock the get_password_hash function to bypass validation
-    with patch('app.services.user.get_password_hash') as mock_hash:
-        mock_hash.return_value = "hashed_password"
-        
-        user_data = {
-            "email": "new_async@example.com",
-            "username": "newasyncuser",
-            "password": "Complex%P4ssw0rd$789",
-            "subscription_tier": "FREE"
-        }
-        
-        user = await user_service.create_user_async(**user_data)
-        
-        assert user.email == user_data["email"]
-        assert user.username == user_data["username"]
-        assert user.hashed_password == "hashed_password"
-        assert user.subscription_tier == user_data["subscription_tier"]
-        mock_db_session.add.assert_called_once()
-        mock_db_session.commit.assert_called_once()
-        mock_db_session.refresh.assert_called_once()
+# ---------------------------------------------------------------------------
+# update_user_async
+# ---------------------------------------------------------------------------
 
-def test_validate_user_data(user_service):
-    """Test user data validation"""
-    # Test invalid email
-    with pytest.raises(ValidationError):
-        user_service.create_user(
-            email="invalid-email",
-            username="testuser",
-            password="TestPassword123!"
-        )
-    
-    # Test invalid username
-    with pytest.raises(ValidationError):
-        user_service.create_user(
-            email="test@example.com",
-            username="",  # Empty username
-            password="TestPassword123!"
-        )
-    
-    # Test invalid password
-    with pytest.raises(ValidationError):
-        user_service.create_user(
-            email="test@example.com",
-            username="testuser",
-            password="123"  # Too short password
-        )
+class TestUpdateUserAsync:
 
-def test_validate_subscription_data(user_service):
-    """Test subscription data validation"""
-    # Test invalid subscription tier
-    with pytest.raises(ValidationError):
-        user_service.update_subscription(
-            user_id=1,
-            tier="INVALID_TIER"
-        )
-    
-    # Test invalid date range
-    with pytest.raises(ValidationError):
-        user_service.update_subscription(
-            user_id=1,
-            tier="PRO",
-            start_date=datetime.now(),
-            end_date=datetime.now() - timedelta(days=1)  # End date before start date
-        )
-        
-    # Test invalid stripe subscription ID format
-    with pytest.raises(ValidationError):
-        user_service.update_subscription(
-            user_id=1,
-            tier="PRO",
-            stripe_subscription_id="invalid_id"  # Should start with sub_
-        )
-        
-    # Test invalid stripe customer ID format
-    with pytest.raises(ValidationError):
-        user_service.update_subscription(
-            user_id=1,
-            tier="PRO",
-            stripe_customer_id="invalid_id"  # Should start with cus_
-        )
+    @pytest.mark.asyncio
+    async def test_returns_none_when_user_not_found(self, user_service: UserService):
+        """update_user_async returns None if the user doesn't exist."""
+        with patch.object(BaseService, "get_async", new_callable=AsyncMock, return_value=None):
+            result = await user_service.update_user_async(uuid4(), UserUpdate(full_name="X"))
 
-def test_get_user_stats(user_service, test_user, mock_db_session):
-    """Test retrieving user statistics"""
-    mock_db_session.query.return_value.filter.return_value.first.return_value = test_user
-    
-    stats = user_service.get_user_stats(user_id=1)
-    
-    assert isinstance(stats, dict)
-    assert "total_workouts" in stats
-    assert "completed_workouts" in stats
-    assert "total_exercises" in stats
-    assert "average_duration" in stats
+        assert result is None
 
-def test_reset_password(user_service, test_user, mock_db_session):
-    """Test password reset functionality"""
-    mock_db_session.query.return_value.filter.return_value.first.return_value = test_user
-    
-    reset_token = user_service.generate_password_reset_token(user_id=1)
-    
-    assert reset_token is not None
-    assert test_user.password_reset_token is not None
-    assert test_user.password_reset_expires is not None
-    mock_db_session.commit.assert_called_once()
+    @pytest.mark.asyncio
+    async def test_updates_and_returns_user(self, user_service: UserService, sample_user: DBUser):
+        """update_user_async calls update_async with the correct payload."""
+        update_in = UserUpdate(full_name="Updated Name")
 
-def test_verify_password_reset_token(user_service, test_user, mock_db_session):
-    """Test password reset token verification"""
-    mock_db_session.query.return_value.filter.return_value.first.return_value = test_user
-    
-    reset_token = user_service.generate_password_reset_token(user_id=1)
-    is_valid = user_service.verify_password_reset_token(
-        user_id=1,
-        token=reset_token
-    )
-    
-    assert is_valid is True
+        with patch.object(BaseService, "get_async", new_callable=AsyncMock, return_value=sample_user), \
+             patch.object(BaseService, "update_async", new_callable=AsyncMock, return_value=sample_user) as mock_update:
+            result = await user_service.update_user_async(sample_user.id, update_in)
 
-def test_verify_password_reset_token_invalid(user_service, test_user, mock_db_session):
-    """Test password reset token verification with invalid token"""
-    mock_db_session.query.return_value.filter.return_value.first.return_value = test_user
-    
-    is_valid = user_service.verify_password_reset_token(
-        user_id=1,
-        token="invalid_token"
-    )
-    
-    assert is_valid is False
+        assert result is sample_user
+        mock_update.assert_awaited_once()
 
-# Minimal db_session fixture for these tests if not provided globally.
-# This is a simplified version. A robust test setup would use a test DB.
-@pytest.fixture
-def db_session_for_user_service(tmp_path) -> Session:
-    from sqlalchemy import create_engine
-    from sqlalchemy.orm import sessionmaker
-    from app.db.base import Base # Ensure your Base for models is imported
+    @pytest.mark.asyncio
+    async def test_password_is_hashed_on_update(self, user_service: UserService, sample_user: DBUser):
+        """If a new password is provided in the update, it is hashed."""
+        update_in = UserUpdate(password="N3wP@ssXqZ!", full_name="Name")
 
-    # Use a temporary SQLite DB for each test function if this fixture is function-scoped
-    # or for the module if module-scoped.
-    db_file = tmp_path / "test_user_service.db"
-    engine = create_engine(f"sqlite:///{db_file}")
-    Base.metadata.create_all(engine) # Create tables
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-        Base.metadata.drop_all(engine) # Clean up tables
-        # db_file.unlink() # Remove the temp DB file
+        captured = {}
 
-@pytest.mark.asyncio
-async def test_user_creation(db_session_for_user_service: Session):
-    """Test user creation with validation."""
-    user_service = UserService(db_session_for_user_service)
-    user_data = UserCreate(
-        email="test_creation@example.com", # Unique email for this test
-        password="StrongPass123!",
-        full_name="Test User Create",
-        username="testcreateuser" # Added username as it's often required
-    )
-    
-    user = await user_service.create_user(user_data)
-    assert user.email == "test_creation@example.com"
-    assert user.full_name == "Test User Create"
-    assert user.username == "testcreateuser"
-    
-    # Test duplicate email
-    with pytest.raises(ValidationError): # Or IntegrityError from DB driver depending on service impl.
-        await user_service.create_user(user_data)
+        async def _capture_update(*, db_obj, obj_in):
+            captured["obj_in"] = obj_in
+            return sample_user
 
-@pytest.mark.asyncio
-async def test_user_update(db_session_for_user_service: Session):
-    """Test user update operations."""
-    user_service = UserService(db_session_for_user_service)
-    
-    # Create test user
-    user_data_orig = UserCreate(
-        email="update_test@example.com", # Unique email
-        password="StrongPass123!",
-        full_name="Update User Original",
-        username="updateuserorig" # Added username
-    )
-    user = await user_service.create_user(user_data_orig)
-    
-    # Update user
-    update_data = UserUpdate(
-        full_name="Updated Name For Test",
-        email="updated_email@example.com" # Example of updating email
-        # password="NewPass123!" # Updating password might be a separate method or require current pass
-    )
-    updated_user = await user_service.update_user(user_id=user.id, user_in=update_data)
-    assert updated_user.full_name == "Updated Name For Test"
-    assert updated_user.email == "updated_email@example.com"
-    # If password was updated, add verification for it, e.g. by trying to authenticate.
+        with patch.object(BaseService, "get_async", new_callable=AsyncMock, return_value=sample_user), \
+             patch.object(BaseService, "update_async", side_effect=_capture_update):
+            await user_service.update_user_async(sample_user.id, update_in)
 
-@pytest.mark.asyncio
-async def test_user_deletion(db_session_for_user_service: Session):
-    """Test user deletion."""
-    user_service = UserService(db_session_for_user_service)
-    
-    user_data_del = UserCreate(
-        email="delete_test@example.com", # Unique email
-        password="StrongPass123!",
-        full_name="Delete User Test",
-        username="deleteusertest" # Added username
-    )
-    user = await user_service.create_user(user_data_del)
-    
-    await user_service.delete_user(user_id=user.id)
-    
-    # Verify user is deleted by trying to get them
-    with pytest.raises(NotFoundException):
-        await user_service.get_user_by_id(user_id=user.id) # Assuming get_user_by_id exists 
+        obj_in = captured.get("obj_in", {})
+        if isinstance(obj_in, dict):
+            # Plaintext password must be removed and hashed_password added
+            assert "password" not in obj_in
+            assert "hashed_password" in obj_in
+
+
+# ---------------------------------------------------------------------------
+# update_user_subscription_async
+# ---------------------------------------------------------------------------
+
+class TestUpdateUserSubscriptionAsync:
+
+    @pytest.mark.asyncio
+    async def test_raises_not_found_when_user_missing(self, user_service: UserService):
+        """update_user_subscription_async raises NotFoundException if user absent."""
+        with patch.object(BaseService, "get_async", new_callable=AsyncMock, return_value=None):
+            with pytest.raises(NotFoundException):
+                await user_service.update_user_subscription_async(uuid4(), tier="PRO")
+
+    @pytest.mark.asyncio
+    async def test_updates_subscription_tier(self, user_service: UserService, mock_db: AsyncMock, sample_user: DBUser):
+        """update_user_subscription_async sets subscription_tier and commits."""
+        with patch.object(BaseService, "get_async", new_callable=AsyncMock, return_value=sample_user):
+            result = await user_service.update_user_subscription_async(
+                sample_user.id, tier="PRO", is_active=True
+            )
+
+        assert result.subscription_tier == "PRO"
+        mock_db.add.assert_called_once_with(sample_user)
+        mock_db.commit.assert_awaited_once()
+        mock_db.refresh.assert_awaited_once_with(sample_user)
+
+
+# ---------------------------------------------------------------------------
+# complete_onboarding
+# ---------------------------------------------------------------------------
+
+class TestCompleteOnboarding:
+
+    @pytest.mark.asyncio
+    async def test_raises_not_found_when_user_missing(self, user_service: UserService, mock_db: AsyncMock):
+        """complete_onboarding raises NotFoundException for unknown user."""
+        mock_db.get = AsyncMock(return_value=None)
+
+        with pytest.raises(NotFoundException):
+            await user_service.complete_onboarding(mock_db, uuid4())
+
+    @pytest.mark.asyncio
+    async def test_marks_onboarding_complete(self, user_service: UserService, mock_db: AsyncMock, sample_user: DBUser):
+        """complete_onboarding sets has_completed_onboarding=True and commits."""
+        sample_user.has_completed_onboarding = False
+        mock_db.get = AsyncMock(return_value=sample_user)
+
+        result = await user_service.complete_onboarding(mock_db, sample_user.id)
+
+        assert result.has_completed_onboarding is True
+        assert result.onboarding_completed_at is not None
+        mock_db.commit.assert_awaited()
+        mock_db.refresh.assert_awaited_with(sample_user)

@@ -34,7 +34,7 @@ from app.core.password import get_password_hash
 from app.core.security import create_access_token, get_password_hash
 from app.core.cache import cache_service
 from app.db.session import get_async_db as app_get_async_db
-from tests.test_utils import MockRedis
+from tests.utils.test_utils import MockRedis
 from datetime import datetime, timedelta
 from app.core import security
 from tests.mocks.mock_lifespan import mock_lifespan

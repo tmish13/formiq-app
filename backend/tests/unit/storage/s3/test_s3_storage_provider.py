@@ -20,26 +20,34 @@ class AsyncContextManagerMock:
 
 @pytest.fixture
 def s3_client_mock():
-    """Mock the S3 client."""
-    with patch('aiobotocore.session.get_session') as mock_session:
+    """Mock the S3 client.
+
+    Patches get_session where it is *used* (app.core.storage.s3) so that the
+    S3StorageProvider picks up the mock when it calls get_session() in __init__.
+    """
+    with patch('app.core.storage.s3.get_session') as mock_session:
         session_instance = mock_session.return_value
-        
+
         # Create a mock client
         mock_client = AsyncMock()
-        
+
         # Configure the mock session
         session_instance.create_client = Mock(return_value=AsyncContextManagerMock(mock_client))
-        
+
         yield mock_client
 
 @pytest.fixture
-def s3_storage_provider():
-    """Create an S3StorageProvider with test settings."""
+def s3_storage_provider(s3_client_mock):
+    """Create an S3StorageProvider with test settings.
+
+    Depends on s3_client_mock so the get_session patch is active when the
+    provider's __init__ runs and stores self.session.
+    """
     return S3StorageProvider(
         bucket_name="test-bucket",
-        aws_access_key="test-access-key",
-        aws_secret_key="test-secret-key",
-        region="us-east-1"
+        aws_access_key_id="test-access-key",
+        aws_secret_access_key="test-secret-key",
+        region_name="us-east-1"
     )
 
 @pytest.mark.asyncio
@@ -247,22 +255,20 @@ async def test_get_file_not_found(s3_storage_provider, s3_client_mock):
 
 def test_get_key_from_url():
     """Test extracting the key from different URL formats."""
-    # Setup the S3StorageProvider get_key_from_url static method with mocked settings
     with patch('app.core.config.settings') as mock_settings:
-        # Standard S3 URL
+        # Standard S3 URL — should return the full S3 key (path after the bucket domain)
         url = "https://bucket-name.s3.us-east-1.amazonaws.com/path/to/file.txt"
         key = S3StorageProvider.get_key_from_url(url)
-        assert key == "file.txt"  # According to the implementation, it returns the last part
-        
-        # Custom endpoint with proper settings
+        assert key == "path/to/file.txt"  # Full S3 key, not just the filename
+
+        # Custom endpoint — falls back to returning the last path component
         mock_settings.AWS_S3_ENDPOINT = "https://custom-s3.example.com"
         mock_settings.AWS_BUCKET_NAME = "bucket-name"
-        
         url = "https://custom-s3.example.com/bucket-name/path/to/file.txt"
         key = S3StorageProvider.get_key_from_url(url)
-        assert key == "file.txt"  # The implementation also returns the last part for custom endpoints
-        
-        # Presigned URL
+        assert key == "file.txt"  # Fallback: last path component for non-amazonaws URLs
+
+        # Presigned S3 URL — query string must be stripped, returning the full S3 key
         url = "https://bucket-name.s3.us-east-1.amazonaws.com/path/to/file.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=..."
         key = S3StorageProvider.get_key_from_url(url)
-        assert key == "file.txt"  # The implementation now correctly handles query parameters 
+        assert key == "path/to/file.txt"  # Query string stripped; full key returned

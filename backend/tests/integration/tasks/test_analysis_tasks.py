@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.integration
+
 from unittest.mock import AsyncMock, patch, MagicMock
 import uuid
 from typing import Optional, List, Dict, Any
@@ -13,6 +15,8 @@ from app.services.ai_service import AIService
 from app.services.form_check_service import FormCheckService
 from app.services.exercise_config_service import ExerciseConfigService
 from app.core.config import Settings
+
+
 
 # Dummy data for tests
 DUMMY_VIDEO_ID = uuid.uuid4()

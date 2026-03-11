@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.integration
+
 from unittest.mock import patch, MagicMock, AsyncMock, ANY, PropertyMock
 from uuid6 import uuid7
 from uuid import UUID
@@ -14,6 +16,8 @@ from app.tasks.ai_tasks import detect_pose_celery_task, calculate_angles_celery_
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker # Added async_sessionmaker
 from app.core.config import Settings # For mocking settings
 from celery.exceptions import Ignore, Retry as CeleryTaskRetryException # Added Ignore
+
+
 
 # Shared attempt_tracker for the retry test to ensure statefulness across calls
 # This is a module-level variable to ensure it's the same instance.

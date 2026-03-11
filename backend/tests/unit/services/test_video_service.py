@@ -36,8 +36,8 @@ def mock_app_settings() -> MagicMock:
     return settings
 
 @pytest.fixture
-def video_service(mock_db_session: AsyncMock, mock_storage_service: MagicMock, mock_settings: MagicMock) -> VideoService:
-    service = VideoService(db=mock_db_session, storage_service=mock_storage_service, app_settings=mock_settings)
+def video_service(mock_db_session: AsyncMock, mock_storage_service: MagicMock, mock_app_settings: MagicMock) -> VideoService:
+    service = VideoService(db=mock_db_session, storage_service=mock_storage_service, app_settings=mock_app_settings)
     return service
 
 @pytest.fixture
@@ -142,7 +142,7 @@ class TestVideoService:
         with patch.object(BaseService, 'create_async', side_effect=ServerErrorException("DB unique constraint failed")):
             with pytest.raises(ServerErrorException) as exc_info:
                 await video_service.create_upload_session(sample_user_id, "test.mp4", "video/mp4", {})
-        assert "Could not create video record" in exc_info.value.detail
+        assert "Could not create video record" in exc_info.value.message
         mock_storage_service.generate_presigned_upload_url.assert_not_called()
 
     @patch.object(VideoService, 'update_video_metadata_and_status', new_callable=AsyncMock)
