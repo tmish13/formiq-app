@@ -2,9 +2,23 @@
 from typing import Optional, List
 from datetime import datetime
 from uuid import UUID
-from pydantic import BaseModel, EmailStr, Field, field_validator, constr, UUID4, ConfigDict
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator, constr, UUID4, ConfigDict
 from app.core.validators import validate_password
 import re
+
+
+class OnboardingComplete(BaseModel):
+    """Payload accepted by POST /auth/complete-onboarding."""
+    fitness_goal: Optional[str] = Field(None, max_length=100)
+    preferred_exercises: Optional[List[str]] = None
+
+
+class OnboardingCompleteResponse(BaseModel):
+    """Response from POST /auth/complete-onboarding."""
+    message: str
+    user: "UserInDBBase"
+
+    model_config = ConfigDict(from_attributes=True)
 
 from app.core.config import settings
 
@@ -15,11 +29,10 @@ class UserBase(BaseModel):
         description="User's email address",
         example="user@example.com"
     )
-    full_name: str = Field(
-        ...,
+    full_name: Optional[str] = Field(
+        None,
         description="User's full name",
         example="John Doe",
-        min_length=1,
         max_length=100
     )
     is_active: bool = Field(
@@ -48,12 +61,11 @@ class UserCreate(UserBase):
         ...,
         description="""
         User's password. Must be:
-        * At least 8 characters long
+        * At least 8 characters long (max 100)
         * Contain at least one number
-        * Contain at least one uppercase letter
-        * Contain at least one lowercase letter
+        * Contain at least one special character (!@#$%^&*()_-+=[]{}|;:'\",.<>/?`~)
         """,
-        example="StrongPass123"
+        example="StrongPass123!"
     )
     username: Optional[constr(min_length=3, max_length=50)] = Field(
         None, 
@@ -68,14 +80,12 @@ class UserCreate(UserBase):
         max_length=100
     )
 
-    @field_validator("username")
-    @classmethod
-    def set_username_default(cls, v, values):
-        """Set username to email if not provided."""
-        if not v and "email" in values:
-            # Use part before @ as username if email is available
-            return values["email"].split("@")[0]
-        return v
+    @model_validator(mode="after")
+    def set_username_default(self):
+        """Set username to email prefix if not provided."""
+        if not self.username and self.email:
+            self.username = self.email.split("@")[0]
+        return self
 
     @field_validator("password")
     @classmethod
@@ -83,10 +93,6 @@ class UserCreate(UserBase):
         """Validate password strength."""
         if len(v) < 8:
             raise ValueError("Password must be at least 8 characters long")
-        if not any(c.isupper() for c in v):
-            raise ValueError("Password must contain at least one uppercase letter")
-        if not any(c.islower() for c in v):
-            raise ValueError("Password must contain at least one lowercase letter")
         if not any(c.isdigit() for c in v):
             raise ValueError("Password must contain at least one number")
         if not any(c in "!@#$%^&*()-_=+[]{}|;:'\",.<>/?`~" for c in v):
@@ -110,8 +116,13 @@ class UserCreate(UserBase):
             raise ValueError('Passwords do not match')
         return v
 
-class UserUpdate(UserBase):
-    """Schema for updating user information."""
+class UserUpdate(BaseModel):
+    """Schema for updating user information. All fields optional for partial updates."""
+    email: Optional[EmailStr] = Field(None, description="User's email address")
+    full_name: Optional[str] = Field(None, description="User's full name", max_length=100)
+    is_active: Optional[bool] = Field(None, description="Whether the user account is active")
+    username: Optional[constr(min_length=3, max_length=50)] = Field(None, description="Username")
+    is_verified: Optional[bool] = Field(None, description="Whether the user is verified")
     password: Optional[constr(min_length=8, max_length=100)] = Field(
         None,
         description="New password (must meet password requirements)",
@@ -120,6 +131,15 @@ class UserUpdate(UserBase):
     subscription_tier: Optional[str] = Field(None, description="User's subscription tier")
     is_superuser: Optional[bool] = Field(None, description="Whether user is a superuser")
     last_login: Optional[datetime] = Field(None, description="Timestamp of the last login")
+    fitness_goal: Optional[str] = Field(None, description="Primary fitness goal", max_length=100)
+    preferred_exercises: Optional[List[str]] = Field(None, description="Preferred exercise types")
+    fitness_level: Optional[str] = Field(None, description="Fitness level (beginner/intermediate/advanced)")
+    profile_image_url: Optional[str] = Field(None, description="URL to profile image")
+    has_completed_onboarding: Optional[bool] = Field(None, description="Whether onboarding is complete")
+    weight_kg: Optional[float] = Field(None, description="Body weight in kilograms")
+    age: Optional[int] = Field(None, description="User age in years")
+    height_cm: Optional[float] = Field(None, description="Height in centimetres")
+    training_experience: Optional[str] = Field(None, description="Training experience level", max_length=50)
 
     @field_validator("password")
     @classmethod
@@ -141,10 +161,12 @@ class UserUpdate(UserBase):
         """Validate subscription tier."""
         if v is None:
             return v
-        allowed_tiers = ["FREE", "BASIC", "PRO", "PREMIUM"]
-        if v not in allowed_tiers:
+        if hasattr(v, 'value'):
+            v = v.value.upper()
+        allowed_tiers = ["FREE", "BASIC", "PRO", "PREMIUM", "ENTERPRISE"]
+        if str(v).upper() not in allowed_tiers:
             raise ValueError(f"Subscription tier must be one of: {', '.join(allowed_tiers)}")
-        return v
+        return str(v).lower()
 
 class UserInDBBase(UserBase):
     """Base schema for user in database."""
@@ -180,6 +202,16 @@ class UserInDBBase(UserBase):
         example="2024-01-20T10:45:00Z"
     )
 
+    # Profile preference fields
+    fitness_goal: Optional[str] = Field(None, description="Primary fitness goal")
+    preferred_exercises: Optional[List[str]] = Field(None, description="Preferred exercise types")
+    fitness_level: Optional[str] = Field(None, description="Fitness level")
+    profile_image_url: Optional[str] = Field(None, description="URL to profile image")
+    weight_kg: Optional[float] = Field(None, description="Body weight in kilograms")
+    age: Optional[int] = Field(None, description="User age in years")
+    height_cm: Optional[float] = Field(None, description="Height in centimetres")
+    training_experience: Optional[str] = Field(None, description="Training experience level")
+
     model_config = ConfigDict(from_attributes=True)
 
 class User(UserInDBBase):
@@ -194,10 +226,12 @@ class User(UserInDBBase):
     @classmethod
     def validate_subscription_tier(cls, v):
         """Validate subscription tier."""
-        allowed_tiers = ["FREE", "BASIC", "PRO", "PREMIUM"]
-        if v not in allowed_tiers:
+        if hasattr(v, 'value'):
+            v = v.value.upper()
+        allowed_tiers = ["FREE", "BASIC", "PRO", "PREMIUM", "ENTERPRISE"]
+        if str(v).upper() not in allowed_tiers:
             raise ValueError(f"Subscription tier must be one of: {', '.join(allowed_tiers)}")
-        return v
+        return str(v).lower()
 
 class UserInDB(UserInDBBase):
     """Schema for user in database with hashed password."""
@@ -257,10 +291,12 @@ class UserFilter(BaseModel):
         """Validate subscription tier."""
         if v is None:
             return v
-        allowed_tiers = ["FREE", "BASIC", "PRO", "PREMIUM"]
-        if v not in allowed_tiers:
+        if hasattr(v, 'value'):
+            v = v.value.upper()
+        allowed_tiers = ["FREE", "BASIC", "PRO", "PREMIUM", "ENTERPRISE"]
+        if str(v).upper() not in allowed_tiers:
             raise ValueError(f"Subscription tier must be one of: {', '.join(allowed_tiers)}")
-        return v
+        return str(v).lower()
 
 class UserUpdatePassword(BaseModel):
     """User password update schema."""
@@ -269,29 +305,20 @@ class UserUpdatePassword(BaseModel):
         ...,
         description="New password",
         min_length=8,
-        max_length=128
+        max_length=100
     )
-    
+
     @field_validator("new_password")
     @classmethod
     def validate_password(cls, v):
         """Validate password."""
-        # Check for uppercase letters
-        if not re.search(r"[A-Z]", v):
-            raise ValueError("Password must contain at least one uppercase letter")
-        
-        # Check for lowercase letters
-        if not re.search(r"[a-z]", v):
-            raise ValueError("Password must contain at least one lowercase letter")
-        
-        # Check for digits
         if not re.search(r"\d", v):
             raise ValueError("Password must contain at least one number")
-        
-        # Check for special characters
-        if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", v):
+
+        special_chars = "!@#$%^&*()_-+=[]{}|;:'\",.<>/?`~"
+        if not any(c in special_chars for c in v):
             raise ValueError("Password must contain at least one special character")
-        
+
         return v
 
 class UserPasswordReset(BaseModel):
@@ -301,35 +328,26 @@ class UserPasswordReset(BaseModel):
         ...,
         description="New password",
         min_length=8,
-        max_length=128
+        max_length=100
     )
     confirm_password: str = Field(
         ...,
         description="Confirm the new password",
         min_length=8,
-        max_length=128
+        max_length=100
     )
-    
+
     @field_validator("new_password")
     @classmethod
     def validate_password(cls, v):
         """Validate password."""
-        # Check for uppercase letters
-        if not re.search(r"[A-Z]", v):
-            raise ValueError("Password must contain at least one uppercase letter")
-        
-        # Check for lowercase letters
-        if not re.search(r"[a-z]", v):
-            raise ValueError("Password must contain at least one lowercase letter")
-        
-        # Check for digits
         if not re.search(r"\d", v):
             raise ValueError("Password must contain at least one number")
-        
-        # Check for special characters
-        if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", v):
+
+        special_chars = "!@#$%^&*()_-+=[]{}|;:'\",.<>/?`~"
+        if not any(c in special_chars for c in v):
             raise ValueError("Password must contain at least one special character")
-        
+
         return v
 
     @field_validator('confirm_password')

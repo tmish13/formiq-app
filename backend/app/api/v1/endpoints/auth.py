@@ -13,12 +13,13 @@ from app.api import deps
 from app.core.config import settings
 from app.core.security import (
     verify_token_payload,
-    verify_session_token_and_get_payload
+    verify_session_token_and_get_payload,
+    blacklist_token
 )
 from app.core.exceptions import AuthenticationException, ValidationException, RateLimitExceededException, EmailError, NotFoundException
 from app.models.user import User
 from app.schemas.token import Token, TokenPayload, RefreshToken
-from app.schemas.user import User as UserSchema, UserCreate, UserPasswordReset, UserResponse, UserUpdate
+from app.schemas.user import User as UserSchema, UserCreate, UserPasswordReset, UserResponse, UserUpdate, OnboardingComplete, OnboardingCompleteResponse
 from app.schemas.auth import (
     PasswordResetRequest, 
     EmailVerificationRequest, 
@@ -145,6 +146,12 @@ async def register_admin(
     This endpoint is restricted and should be used only for initial
     admin account setup.
     """
+    if settings.ADMIN_REGISTRATION_CODE is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin registration disabled.",
+        )
+
     if admin_code != settings.ADMIN_REGISTRATION_CODE:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -256,18 +263,40 @@ async def login(
 
     if not user_db_obj.is_active:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, 
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail="Inactive user"
         )
 
-    token_data = await auth_service.generate_tokens(user_id=str(user_db_obj.id), user_role=user_db_obj.role.value if user_db_obj.role else None)
+    if not user_db_obj.is_email_verified:
+        if settings.BETA_ALLOW_UNVERIFIED:
+            # Beta mode: let unverified users through; they'll see an in-app banner.
+            logger.info(
+                "Unverified user logging in under BETA_ALLOW_UNVERIFIED",
+                extra={"user_id": str(user_db_obj.id), "email": user_db_obj.email},
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="EMAIL_NOT_VERIFIED",
+            )
 
-    session_id = await session_service.create_session(
-        user_id=str(user_db_obj.id),
-        user_agent=request.headers.get("User-Agent", "unknown"),
-        ip_address=request.client.host if request.client else "unknown",
-    )
-    track_session_start(request, str(user_db_obj.id))
+    user_role = getattr(user_db_obj, 'role', None)
+    token_data = await auth_service.generate_tokens(user_id=str(user_db_obj.id), user_role=user_role.value if user_role else None)
+
+    session_id = None
+    try:
+        session_id = await session_service.create_db_session_async(
+            session_id=token_data.get("access_token", "")[:32],
+            user_id=user_db_obj.id,
+            session_data=None,
+            jwt_token=token_data.get("access_token", ""),
+        )
+    except Exception as e_session:
+        logger.warning(f"Session creation failed (non-fatal): {e_session}")
+    try:
+        track_session_start(request, str(user_db_obj.id))
+    except Exception:
+        pass
 
     response.set_cookie(
         key="refresh_token",
@@ -278,7 +307,7 @@ async def login(
         expires=timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     )
     
-    user_schema = UserSchema.from_orm(user_db_obj)
+    user_schema = UserSchema.model_validate(user_db_obj)
 
     return {
         "access_token": token_data["access_token"],
@@ -286,7 +315,7 @@ async def login(
         "token_type": token_data["token_type"],
         "expires_in": token_data["expires_in"],
         "session_id": session_id,
-        "user": user_schema 
+        "user": user_schema.model_dump(mode="json"),
     }
 
 
@@ -386,24 +415,25 @@ async def logout(
     request: Request,
     response: Response,
     token: str = Depends(oauth2_scheme),
-    session_service: SessionService = Depends(deps.get_async_session_service)
+    session_service: SessionService = Depends(deps.get_async_session_service),
+    redis_client: Redis = Depends(deps.get_redis_client)
 ) -> Any:
     """
     Logout the current user.
-    
-    Deactivates the current session and clears the refresh token cookie.
-    The access token will still be valid until it expires, but it won't
-    be refreshable.
+
+    Blacklists the access token and deactivates the current session.
     """
     try:
-        session_data = verify_session_token_and_get_payload(token, deps.get_redis())
+        # Blacklist the current access token immediately
+        blacklist_token(token, redis_client)
+        session_data = verify_session_token_and_get_payload(token, redis_client)
         if session_data:
             await session_service.deactivate_session(session_data["session_id"])
-        
+
         response.delete_cookie(
             key="refresh_token",
-            path="/api/v1/auth/refresh",
-            secure=settings.ENVIRONMENT != "development",
+            path="/",
+            secure=settings.ENVIRONMENT != "local",
             httponly=True
         )
         
@@ -449,11 +479,11 @@ async def logout_all(
         
         response.delete_cookie(
             key="refresh_token",
-            path="/api/v1/auth/refresh",
-            secure=settings.ENVIRONMENT != "development",
+            path="/",
+            secure=settings.ENVIRONMENT != "local",
             httponly=True
         )
-        
+
         return {"message": "Successfully logged out from all devices"}
         
     except Exception as e:
@@ -523,19 +553,24 @@ async def request_password_reset(
 )
 async def confirm_password_reset(
     password_reset: UserPasswordReset,
-    auth_service: AuthService = Depends(deps.get_auth_service)
+    auth_service: AuthService = Depends(deps.get_auth_service),
+    redis_client: Redis = Depends(deps.get_redis_client)
 ) -> Any:
     """
     Confirm a password reset with token and new password.
-    
+
     Takes the token from the reset link and the new password,
     then resets the user's password if the token is valid.
+    The reset token is burned immediately after use.
     """
     await auth_service.confirm_password_reset(
         token=password_reset.token,
         new_password=password_reset.new_password
     )
-    
+
+    # Burn reset token after successful password change to prevent replay
+    blacklist_token(password_reset.token, redis_client)
+
     return {"message": "Password reset successful"}
 
 
@@ -859,7 +894,7 @@ async def apple_oauth_redirect():
 
 @router.post(
     "/complete-onboarding",
-    response_model=UserResponse,
+    response_model=OnboardingCompleteResponse,
     status_code=200,
     responses={
         200: {
@@ -889,19 +924,28 @@ async def apple_oauth_redirect():
     }
 )
 async def complete_onboarding(
+    body: Optional[OnboardingComplete] = None,
     current_user: User = Depends(deps.get_current_user),
     user_service: UserService = Depends(deps.get_user_service),
-    db: AsyncSession = Depends(deps.get_db)
+    db: AsyncSession = Depends(deps.get_async_db)
 ) -> Any:
     """
     Mark the current user's onboarding as completed.
-    
+
+    Accepts optional fitness_goal and preferred_exercises to persist user preferences.
     Updates the user's onboarding status and timestamp.
     """
     try:
-        # Update user's onboarding status
-        updated_user = await user_service.complete_onboarding(db, current_user.id)
-        
+        fitness_goal = body.fitness_goal if body else None
+        preferred_exercises = body.preferred_exercises if body else None
+
+        # Update user's onboarding status and preferences
+        updated_user = await user_service.complete_onboarding(
+            db, current_user.id,
+            fitness_goal=fitness_goal,
+            preferred_exercises=preferred_exercises,
+        )
+
         return {
             "message": "Onboarding completed successfully",
             "user": updated_user

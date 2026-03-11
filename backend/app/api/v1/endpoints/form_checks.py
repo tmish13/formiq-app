@@ -31,7 +31,7 @@ from app.models.video import Video
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/form-checks", tags=["Form Checks"])
+router = APIRouter(tags=["Form Checks"])
 
 @router.post(
     "/submit",
@@ -65,21 +65,54 @@ router = APIRouter(prefix="/form-checks", tags=["Form Checks"])
 )
 async def submit_form_check_for_analysis(
     video_upload: UploadFile = File(..., description="Exercise video file (MP4/MOV, max 100MB)."),
-    exercise_name: str = Query(..., description="Name of the exercise (e.g., 'Low Bar Squat'). Must match an existing ExerciseTemplate name."),
+    exercise_name: str = Query(..., description="Name of the exercise. Only squat variations are supported."),
     notes: Optional[str] = Query(None, description="Additional notes about the exercise session."),
-    # current_user: User = Depends(get_current_active_user), # Changed to deps.get_current_active_user
+    threshold_mode: Optional[str] = Query(None, description="Threshold mode for PostureV1: 'default', 'strict', or 'safety'."),
+    posture_v1_mode: Optional[str] = Query(None, description="PostureV1 run mode: 'active' (default) or 'shadow' (scores not applied)."),
+    weight_kg: Optional[float] = Query(None, description="Optional weight used in kg (e.g. barbell load)."),
+    reps: Optional[int] = Query(None, description="Optional number of reps performed."),
     current_user: User = Depends(deps.get_current_active_user),
     form_check_service: FormCheckService = Depends(deps.get_async_form_check_service)
 ):
     """
     Submit an exercise video for asynchronous form check analysis.
+    Only squat analysis is supported in this version.
     """
+    # Validate threshold_mode if provided
+    _ALLOWED_THRESHOLD_MODES = {"default", "strict", "safety"}
+    if threshold_mode is not None and threshold_mode not in _ALLOWED_THRESHOLD_MODES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid threshold_mode '{threshold_mode}'. Allowed: {sorted(_ALLOWED_THRESHOLD_MODES)}",
+        )
+
+    # Validate posture_v1_mode if provided
+    _ALLOWED_PV1_MODES = {"active", "shadow"}
+    if posture_v1_mode is not None and posture_v1_mode not in _ALLOWED_PV1_MODES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid posture_v1_mode '{posture_v1_mode}'. Allowed: {sorted(_ALLOWED_PV1_MODES)}",
+        )
+
+    # Squat-only guard: only squat variations are supported in V1
+    _SQUAT_NAMES = {"squat", "low bar squat", "high bar squat", "back squat", "front squat"}
+    if exercise_name.lower().strip() not in _SQUAT_NAMES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only squat analysis is supported in this version.",
+        )
+    exercise_type_enum = ExerciseType.SQUAT
+
     try:
         form_check_record = await form_check_service.submit_form_check(
             user_id=current_user.id,
-            exercise_name=exercise_name,
-            video_upload=video_upload,
-            notes=notes
+            video_file=video_upload,
+            exercise_type_enum=exercise_type_enum,
+            notes=notes,
+            threshold_mode=threshold_mode,
+            posture_v1_mode=posture_v1_mode,
+            weight_kg=weight_kg,
+            reps=reps,
         )
         return form_check_record
     except HTTPException as he:
@@ -92,7 +125,7 @@ async def submit_form_check_for_analysis(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(nfe))
     except ServerErrorException as se:
         logger.error(f"ServerErrorException during form check submission: {str(se)}", exc_info=True)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=se.detail)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(se))
     except Exception as e:
         logger.error(f"Unexpected error during form check submission: {str(e)}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An unexpected error occurred.")
@@ -147,7 +180,8 @@ async def get_form_check_history(
     try:
         form_checks = await form_check_service.list_user_form_checks_detailed(
             user_id=current_user.id, skip=offset, limit=limit,
-            exercise_id=exercise_id_filter, exercise_type=exercise_type_filter,
+            exercise_id_filter=exercise_id_filter,
+            exercise_type_filter=exercise_type_filter,
             start_date=start_date, end_date=end_date, status_filter=status_enum
         )
         return form_checks
@@ -235,21 +269,17 @@ async def delete_form_check(
 @router.get("/{video_id}", response_model=FormCheckDetailedResponse)
 async def get_form_check_by_video_id(
     video_id: UUID,
-    # db: AsyncSession = Depends(get_db), # OLD - Incorrect for async, and missing deps prefix
-    db: AsyncSession = Depends(deps.get_async_db), # NEW - Correct for async and uses deps prefix
-    # current_user: User = Depends(get_current_active_user) # OLD - Missing deps prefix
-    current_user: User = Depends(deps.get_current_active_user) # NEW - Corrected to use deps prefix
+    db: AsyncSession = Depends(deps.get_async_db),
+    current_user: User = Depends(deps.get_current_active_user),
+    video_service: VideoService = Depends(deps.get_video_service),
 ):
     """
     Retrieve a specific FormCheck and its feedback items by Video ID.
 
     Ensures that the requesting user owns the video associated with the FormCheck.
     """
-    form_check_service = FormCheckService(db_session=db)
-    video_service = VideoService(db_session=db) # Initialize VideoService
-
     # First, get the video to verify ownership and existence
-    video = await video_service.get_video_by_id_async(video_id)
+    video = await video_service.get_async(id=video_id)
     if not video:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
 
@@ -312,24 +342,81 @@ async def get_ml_analysis(
                 detail="Form check not found or access denied"
             )
         
-        # Return ML analysis data
+        # Extract posture_v1 results from the stored results JSON
+        results = form_check.results or {}
+        posture_v1 = results.get("posture_v1", {})
+        pv1_decision = posture_v1.get("decision", "unknown")
+
+        # Build detected_issues from posture_v1 decision
+        detected_issues = []
+        if pv1_decision == "fault":
+            detected_issues.append({
+                "type": "posture_fault",
+                "severity": "high" if posture_v1.get("prob_fault", 0) > 0.7 else "medium",
+                "description": "Posture fault detected by ML analysis",
+                "confidence": posture_v1.get("confidence", 0),
+            })
+        elif pv1_decision == "uncertain":
+            detected_issues.append({
+                "type": "uncertain",
+                "severity": "low",
+                "description": "Analysis quality insufficient for confident assessment",
+                "quality_flags": posture_v1.get("quality_flags", []),
+            })
+
+        # Include shadow results if present
+        posture_v1_shadow = results.get("posture_v1_shadow")
+
+        # Return real ML analysis data
         ml_analysis = {
             "ml_scores": {
-                "posture_score": getattr(form_check, 'posture_score', form_check.score * 0.9) if form_check.score else 75.0,
-                "stability_score": getattr(form_check, 'stability_score', form_check.score * 1.1) if form_check.score else 80.0,
-                "depth_score": getattr(form_check, 'depth_score', form_check.score * 0.95) if form_check.score else 78.0,
-                "confidence": 0.87
+                "posture_score": getattr(form_check, 'posture_score', None),
+                "stability_score": getattr(form_check, 'stability_score', None),
+                "depth_score": getattr(form_check, 'depth_score', None),
+                "confidence": getattr(form_check, 'confidence_score', None),
             },
-            "pose_data": form_check.pose_data if hasattr(form_check, 'pose_data') else [],
-            "detected_issues": [
-                {
-                    "type": "posture_fault",
-                    "severity": "medium",
-                    "description": "Slight forward lean detected",
-                    "timestamp": 2.5
-                }
-            ]
+            "posture_v1": posture_v1,
+            "detected_issues": detected_issues,
+            # Surface explanation data at top level for frontend convenience
+            "decision": posture_v1.get("decision"),
+            "confidence": posture_v1.get("confidence"),
+            "named_scores": posture_v1.get("named_scores", {}),
+            "component_scores": posture_v1.get("component_scores", {}),
+            "top_signals": posture_v1.get("top_signals", []),
+            "highlight_frame": posture_v1.get("highlight_frame"),
+            "calibrated_confidence": posture_v1.get("calibrated_confidence"),
+            "delta": posture_v1.get("delta"),
+            "level": posture_v1.get("level"),
+            "primary_limiter": posture_v1.get("primary_limiter"),
+            # Score Integrity Fix — additive fields
+            "score_exclusions": posture_v1.get("score_exclusions", []),
+            "weights_used": posture_v1.get("weights_used", {}),
+            # AI coaching feedback (populated when RAG is enabled and OPENAI_API_KEY is set)
+            "feedback_text": posture_v1.get("feedback_text"),
         }
+
+        # Build component_details (additive — never removes existing named_scores).
+        # Each entry indicates whether the component was scored or excluded.
+        _named = posture_v1.get("named_scores", {})
+        _exclusions = posture_v1.get("score_exclusions", [])
+        _component_details = {}
+        for _key, _value in _named.items():
+            if _key in _exclusions:
+                _component_details[_key] = {
+                    "value": None,
+                    "status": "insufficient_data",
+                    "reason": "Keypoint visibility too low",
+                }
+            else:
+                _component_details[_key] = {
+                    "value": _value,
+                    "status": "ok",
+                    "reason": None,
+                }
+        ml_analysis["component_details"] = _component_details
+
+        if posture_v1_shadow:
+            ml_analysis["posture_v1_shadow"] = posture_v1_shadow
         
         return ml_analysis
         
@@ -340,6 +427,45 @@ async def get_ml_analysis(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error getting ML analysis"
+        )
+
+
+@router.get("/{form_check_id}/highlight-frame", response_model=dict)
+async def get_highlight_frame(
+    form_check_id: UUID = Path(..., description="The ID of the form check"),
+    current_user: User = Depends(deps.get_current_active_user),
+    db: AsyncSession = Depends(deps.get_async_db),
+):
+    """Return pre-computed highlight frame metadata (deepest-squat frame)."""
+    try:
+        stmt = select(FormCheck).where(
+            FormCheck.id == form_check_id,
+            FormCheck.user_id == current_user.id,
+        )
+        result = await db.execute(stmt)
+        form_check = result.scalars().first()
+
+        if not form_check:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Form check not found or access denied",
+            )
+
+        highlight = (form_check.results or {}).get("posture_v1", {}).get("highlight_frame")
+        if highlight is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="highlight_frame not available",
+            )
+        return highlight
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting highlight frame: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error getting highlight frame",
         )
 
 
@@ -420,13 +546,17 @@ async def compare_form_checks(
         previous_score = previous_fc.score or 0
         overall_improvement = current_score - previous_score
         
-        # Calculate individual improvements (using mock values for now)
-        posture_improvement = (getattr(current_fc, 'posture_score', current_score * 0.9) - 
-                             getattr(previous_fc, 'posture_score', previous_score * 0.9))
-        stability_improvement = (getattr(current_fc, 'stability_score', current_score * 1.1) - 
-                               getattr(previous_fc, 'stability_score', previous_score * 1.1))
-        depth_improvement = (getattr(current_fc, 'depth_score', current_score * 0.95) - 
-                           getattr(previous_fc, 'depth_score', previous_score * 0.95))
+        # Calculate individual improvements from real ML scores (None if unavailable)
+        cur_posture = getattr(current_fc, 'posture_score', None)
+        prev_posture = getattr(previous_fc, 'posture_score', None)
+        cur_stability = getattr(current_fc, 'stability_score', None)
+        prev_stability = getattr(previous_fc, 'stability_score', None)
+        cur_depth = getattr(current_fc, 'depth_score', None)
+        prev_depth = getattr(previous_fc, 'depth_score', None)
+
+        posture_improvement = (cur_posture - prev_posture) if (cur_posture is not None and prev_posture is not None) else None
+        stability_improvement = (cur_stability - prev_stability) if (cur_stability is not None and prev_stability is not None) else None
+        depth_improvement = (cur_depth - prev_depth) if (cur_depth is not None and prev_depth is not None) else None
         
         comparison_data = {
             "current": {
@@ -442,9 +572,9 @@ async def compare_form_checks(
                 "exercise_type": previous_fc.exercise_type
             },
             "improvements": {
-                "posture_improvement": round(posture_improvement, 1),
-                "stability_improvement": round(stability_improvement, 1),
-                "depth_improvement": round(depth_improvement, 1),
+                "posture_improvement": round(posture_improvement, 1) if posture_improvement is not None else None,
+                "stability_improvement": round(stability_improvement, 1) if stability_improvement is not None else None,
+                "depth_improvement": round(depth_improvement, 1) if depth_improvement is not None else None,
                 "overall_improvement": round(overall_improvement, 1)
             }
         }
@@ -470,38 +600,56 @@ async def export_analysis_frame(
 ):
     """
     Export a specific analysis frame as an image.
-    
+
     Returns:
         Image file of the analysis frame
     """
     try:
-        # Get the form check
-        stmt = select(FormCheck).where(
-            FormCheck.id == form_check_id,
-            FormCheck.user_id == current_user.id
+        if frame_index < 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="frame_index must be non-negative"
+            )
+
+        # Get the form check with its video relationship
+        stmt = (
+            select(FormCheck)
+            .options(selectinload(FormCheck.video))
+            .where(
+                FormCheck.id == form_check_id,
+                FormCheck.user_id == current_user.id
+            )
         )
         result = await db.execute(stmt)
         form_check = result.scalars().first()
-        
+
         if not form_check:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Form check not found or access denied"
             )
-        
-        # For now, return a placeholder response
-        # In a real implementation, this would generate an image from video frame + analysis overlay
-        from fastapi.responses import Response
-        
-        # Mock image data (in reality, would generate from video + pose overlay)
-        placeholder_image = b"fake_image_data_placeholder"
-        
-        return Response(
-            content=placeholder_image,
-            media_type="image/png",
-            headers={"Content-Disposition": f"attachment; filename=frame_{frame_index}.png"}
+
+        video = form_check.video
+        frame_s3_keys = getattr(video, "frame_s3_keys", None) if video else None
+
+        if not video or not frame_s3_keys:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Frame image not available for this analysis"
+            )
+
+        if frame_index >= len(frame_s3_keys):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="frame_index out of range"
+            )
+
+        # S3 frame serving not yet implemented — fail gracefully
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Frame image not available for this analysis"
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -545,34 +693,3 @@ async def mark_form_check_complete(
             detail="Error marking form check complete"
         )
 
-
-@router.get("/history", response_model=List[FormCheckResponse])
-async def get_form_check_history(
-    current_user: User = Depends(deps.get_current_active_user),
-    form_check_service: FormCheckService = Depends(deps.get_async_form_check_service),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=100),
-    exercise_type: Optional[str] = Query(None, description="Filter by exercise type")
-):
-    """
-    Get form check history for the current user.
-    
-    Returns:
-        List of historical form checks
-    """
-    try:
-        form_checks = await form_check_service.get_user_history(
-            user_id=current_user.id,
-            skip=skip,
-            limit=limit,
-            exercise_type=exercise_type
-        )
-        
-        return form_checks
-        
-    except Exception as e:
-        logger.error(f"Error getting form check history: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error getting form check history"
-        ) 

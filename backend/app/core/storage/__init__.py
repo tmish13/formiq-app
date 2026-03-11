@@ -24,7 +24,25 @@ class LocalStorageProvider(StorageProvider):
     
     def __init__(self, base_dir=None, base_url=None):
         """Initialize the local storage provider."""
-        self.base_dir = base_dir or settings.UPLOAD_DIR
+        _raw_dir = base_dir or settings.UPLOAD_DIR
+        # Always use an absolute path so the storage provider works correctly
+        # regardless of the calling process's current working directory.
+        # Relative paths are resolved relative to the project backend root
+        # (the directory containing the 'app' package), not the CWD.
+        if os.path.isabs(_raw_dir):
+            self.base_dir = _raw_dir
+        else:
+            # __file__ is  backend/app/core/storage/__init__.py
+            # backend root = four dirname() calls up from __file__
+            _storage_file = os.path.abspath(__file__)
+            _backend_root = os.path.dirname(  # backend/
+                os.path.dirname(              # app/
+                    os.path.dirname(          # core/
+                        os.path.dirname(_storage_file)  # storage/
+                    )
+                )
+            )
+            self.base_dir = os.path.normpath(os.path.join(_backend_root, _raw_dir))
         self.base_url = base_url or settings.UPLOAD_URL
         # Ensure base_dir exists
         if not os.path.exists(self.base_dir):
@@ -82,17 +100,35 @@ class LocalStorageProvider(StorageProvider):
 
     # Add other required methods from StorageProvider if they are called by services
     # For now, get_key_from_url is used by StorageService.delete_file
-    def get_key_from_url(self, url: str) -> str:
-        """Extracts the file key from a local URL."""
-        if not url.startswith(self.base_url):
-            # This might be an S3 URL or an unexpected format
-            # Try to get the last part of the path, assuming it's the key
-            # This is a simplistic fallback
-            parsed_url = urlparse(url)
-            return os.path.basename(parsed_url.path)
+    def get_url_for_key(self, key: str) -> str:
+        """Return the HTTP URL for a given storage key."""
+        return f"{self.base_url.rstrip('/')}/{key.lstrip('/')}"
 
-        relative_path = url[len(self.base_url):]
-        return relative_path.lstrip('/')
+    def get_key_from_url(self, url: str) -> str:
+        """Extract the relative file key from a local URL.
+
+        For URLs whose prefix matches ``self.base_url``, returns the path
+        component that follows the base URL (preserving subdirectories).
+
+        Falls back to the full URL path (minus leading slash) when the URL
+        does not start with the configured base URL.  This fallback may lose
+        subdirectory structure if the URL was produced with a different
+        base_url, so the caller should log a warning and verify the result.
+        """
+        if url.startswith(self.base_url):
+            relative_path = url[len(self.base_url):]
+            return relative_path.lstrip('/')
+
+        # URL does not share our base_url prefix — try to strip the path root
+        # while preserving subdirectories (e.g. /uploads/form_check_videos/u/f.mp4).
+        parsed_url = urlparse(url)
+        full_path = parsed_url.path.lstrip('/')
+        logger.warning(
+            "get_key_from_url: URL %r does not start with base_url %r; "
+            "returning full path component %r (subdirectories preserved).",
+            url, self.base_url, full_path,
+        )
+        return full_path
 
 storage_provider = LocalStorageProvider()
 

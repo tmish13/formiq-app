@@ -86,12 +86,17 @@ class S3StorageProvider(StorageProvider):
             if public:
                 upload_args['ACL'] = 'public-read'
             
-            # Upload file using context manager
+            # Upload file using context manager; for private files also generate a presigned URL
             async with await self.get_client() as s3_client:
                 await s3_client.put_object(**upload_args)
-            
-            # Create URL
-            url = f"{self.base_url}/{object_name}"
+                if not public:
+                    url = await s3_client.generate_presigned_url(
+                        'get_object',
+                        Params={'Bucket': self.bucket_name, 'Key': object_name},
+                        ExpiresIn=3600,
+                    )
+                else:
+                    url = f"{self.base_url}/{object_name}"
             logger.info(f"Uploaded file to S3: {url}")
             
             return url
@@ -174,14 +179,35 @@ class S3StorageProvider(StorageProvider):
                 'content_length': response['ContentLength'],
                 'last_modified': response['LastModified'],
                 'content_type': response.get('ContentType'),
+                'metadata': response.get('Metadata', {}),
             }
             
             return data, metadata
             
+        except ClientError as e:
+            error_code = e.response.get('Error', {}).get('Code', '')
+            if error_code == 'NoSuchKey':
+                raise FileNotFoundError(f"File not found in S3: {object_name}") from e
+            logger.error(f"Failed to get file from S3: {str(e)}")
+            raise
         except Exception as e:
             logger.error(f"Failed to get file from S3: {str(e)}")
             raise
-    
+
+    def generate_presigned_url(self, key: str, expires_in: int = 3600) -> str:
+        """Generate a presigned URL for an S3 object using the sync boto3 client."""
+        s3_client = boto3.client(
+            's3',
+            aws_access_key_id=self.aws_access_key_id,
+            aws_secret_access_key=self.aws_secret_access_key,
+            region_name=self.region_name,
+        )
+        return s3_client.generate_presigned_url(
+            'get_object',
+            Params={'Bucket': self.bucket_name, 'Key': key},
+            ExpiresIn=expires_in,
+        )
+
     @staticmethod
     def get_key_from_url(url: str) -> str:
         """Extract the key from a URL.
@@ -198,7 +224,8 @@ class S3StorageProvider(StorageProvider):
         # Find the index of the bucket name
         if '.amazonaws.com' in url:
             aws_index = url.index('.amazonaws.com')
-            path = url[aws_index + 13:]  # Skip '.amazonaws.com/'
+            # '.amazonaws.com' is 14 chars; +1 for the trailing '/' = 15 total
+            path = url[aws_index + 15:].split('?')[0]  # Strip '.amazonaws.com/' and query string
             return path
         
         # Fallback - just return the last part

@@ -83,8 +83,13 @@ class BaseService(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         try:
             # For Pydantic V1, use .dict(). For V2, use .model_dump().
             # Assuming Pydantic V1 based on other logs (e.g., validator warnings).
-            obj_in_data = obj_in.dict()
+            import uuid as _uuid
+            obj_in_data = {k: v for k, v in obj_in.dict().items() if v is not None}
             db_obj = self.model(**obj_in_data)
+            # Async sessions don't always trigger Python-side column defaults.
+            # Ensure UUID primary key is set before flush.
+            if getattr(db_obj, 'id', None) is None:
+                db_obj.id = _uuid.uuid4()
             self.db.add(db_obj)
             await self.db.commit()
             await self.db.refresh(db_obj)
@@ -93,7 +98,7 @@ class BaseService(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             await self.db.rollback()
             logger.error(f"Database integrity error creating {self.model.__name__}: {str(e)}")
             # You might want to map this to a more specific HTTP error, e.g., 409 Conflict
-            raise ServiceError(f"Database error: {str(e)}", status_code=status.HTTP_409_CONFLICT)
+            raise ServiceError(f"Database integrity error: {str(e)}")
         except Exception as e:
             await self.db.rollback()
             logger.error(f"Error creating {self.model.__name__}: {str(e)}")

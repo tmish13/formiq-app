@@ -35,7 +35,26 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-4. Create a `.env` file in the backend directory with the following variables:
+4. Choose an auth mode and copy the matching env profile:
+
+```bash
+# Mode A — local beta (no email required, fastest to start):
+cp .env.beta-local .env
+
+# Mode B — real email verification (requires Gmail App Password or Resend.com):
+cp .env.beta-email .env
+# then edit .env and fill in real MAIL_* values
+```
+
+See `docs/beta-auth-modes.md` for the full QA checklist and SMTP setup guide.
+
+Confirm which mode is active (after starting the server):
+```bash
+curl http://localhost:8000/api/v1/health/health/auth-config
+# "deadlock": false → you're good. "deadlock": true → fix .env before inviting users.
+```
+
+5. (Legacy) Manual `.env` setup with the following variables:
 ```env
 POSTGRES_SERVER=localhost
 POSTGRES_USER=postgres

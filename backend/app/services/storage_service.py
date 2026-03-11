@@ -9,7 +9,8 @@ from app.core.config import settings
 from app.core.logging import get_logger
 from app.core.cache import cache_service
 from app.core.storage import storage_provider, StorageProvider
-from app.core.exceptions import StorageError
+from app.core.exceptions import StorageError, ExternalServiceError
+from app.core.circuit_breaker import circuit_breaker, CircuitBreakerConfig, circuit_registry
 
 logger = get_logger(__name__)
 
@@ -28,6 +29,17 @@ class StorageService:
         current_settings = app_settings if app_settings else settings
         self.max_upload_size = current_settings.MAX_CONTENT_LENGTH
         self.app_settings = current_settings # Store for potential future use
+        
+        # Configure circuit breaker for S3/storage operations
+        storage_config = CircuitBreakerConfig(
+            failure_threshold=3,      # Open after 3 failures  
+            recovery_timeout=90.0,    # Wait 90 seconds before retry
+            timeout=60.0,            # 60 second timeout for large uploads
+            max_retries=2,           # Retry twice for storage operations
+            initial_backoff=5.0      # Start with 5 second backoff
+        )
+        self.storage_breaker = circuit_registry.get_breaker("s3_storage", storage_config)
+        
         logger.info(f"Initialized storage service with provider: {self.provider.__class__.__name__}")
 
     async def upload_file(self, file: UploadFile, folder: str = "", user_id: str = None) -> str:
@@ -79,19 +91,130 @@ class StorageService:
             from io import BytesIO
             file_obj = BytesIO(file_content)
             
-            # Upload the file using storage provider
-            url = await self.provider.upload_file(
-                file_obj,
-                file_key,
-                content_type=content_type,
-                metadata=metadata,
-                public=True
-            )
+            # Upload the file using storage provider with circuit breaker protection
+            async def storage_upload():
+                return await self.provider.upload_file(
+                    file_obj,
+                    file_key,
+                    content_type=content_type,
+                    metadata=metadata,
+                    public=True
+                )
             
-            duration = time.time() - start_time
-            logger.info(f"Successfully uploaded file to {url} in {duration:.2f}s")
-            return url
+            def fallback_error():
+                error_msg = f"Storage service temporarily unavailable for file: {file.filename}"
+                logger.error(error_msg)
+                raise ExternalServiceError(
+                    message=error_msg,
+                    service_name="s3_storage",
+                    is_temporary=True,
+                    retry_after=90
+                )
+            
+            try:
+                url = await self.storage_breaker.call(
+                    storage_upload,
+                    fallback=fallback_error
+                )
                 
+                duration = time.time() - start_time
+                logger.info(f"Successfully uploaded file to {url} in {duration:.2f}s")
+                return url
+                
+            except ExternalServiceError:
+                raise  # Re-raise external service errors
+            except Exception as e:
+                logger.error(f"Storage upload failed: {e}")
+                raise StorageError(
+                    message=f"Failed to upload file: {file.filename}",
+                    operation="upload",
+                    file_path=file_key
+                )
+                
+        except Exception as e:
+            logger.error(f"Failed to upload file: {str(e)}")
+            raise StorageError(f"Failed to upload file: {str(e)}")
+
+    async def upload_file_and_get_key(self, file: UploadFile, folder: str = "", user_id: str = None) -> str:
+        """Upload a file and return its S3 object key (not the presigned URL).
+
+        Identical logic to upload_file() but returns file_key so callers can
+        store the permanent S3 key and generate fresh presigned URLs later.
+
+        Args:
+            file: File to upload
+            folder: Folder to store the file in
+            user_id: Optional user ID for organization
+
+        Returns:
+            str: S3 object key of the uploaded file
+
+        Raises:
+            StorageError: If upload fails
+        """
+        import time as _time
+        start_time = _time.time()
+        try:
+            timestamp = int(_time.time())
+            file_hash = hashlib.md5(f"{file.filename}_{timestamp}".encode()).hexdigest()[:10]
+            safe_filename = self._sanitize_filename(file.filename)
+
+            folder_path = f"{folder}/{user_id}" if user_id else folder
+            file_key = f"{folder_path}/{timestamp}_{file_hash}_{safe_filename}" if folder_path else f"{timestamp}_{file_hash}_{safe_filename}"
+
+            content_type = file.content_type
+            if not content_type or content_type == "application/octet-stream":
+                guessed_type, _ = mimetypes.guess_type(file.filename)
+                if guessed_type:
+                    content_type = guessed_type
+
+            metadata = {
+                "original_filename": file.filename,
+                "upload_timestamp": str(timestamp),
+                "user_id": str(user_id) if user_id else "anonymous"
+            }
+
+            file_content = await file.read()
+            await file.seek(0)
+
+            from io import BytesIO
+            file_obj = BytesIO(file_content)
+
+            async def storage_upload():
+                return await self.provider.upload_file(
+                    file_obj,
+                    file_key,
+                    content_type=content_type,
+                    metadata=metadata,
+                    public=True
+                )
+
+            def fallback_error():
+                error_msg = f"Storage service temporarily unavailable for file: {file.filename}"
+                logger.error(error_msg)
+                raise ExternalServiceError(
+                    message=error_msg,
+                    service_name="s3_storage",
+                    is_temporary=True,
+                    retry_after=90
+                )
+
+            try:
+                await self.storage_breaker.call(storage_upload, fallback=fallback_error)
+                duration = _time.time() - start_time
+                logger.info(f"Successfully uploaded file with key {file_key} in {duration:.2f}s")
+                return file_key
+
+            except ExternalServiceError:
+                raise
+            except Exception as e:
+                logger.error(f"Storage upload failed: {e}")
+                raise StorageError(
+                    message=f"Failed to upload file: {file.filename}",
+                    operation="upload",
+                    file_path=file_key
+                )
+
         except Exception as e:
             logger.error(f"Failed to upload file: {str(e)}")
             raise StorageError(f"Failed to upload file: {str(e)}")
@@ -230,9 +353,13 @@ class StorageService:
         try:
             if hasattr(self.provider, 'generate_presigned_url'):
                 return self.provider.generate_presigned_url(key, expires_in)
+            elif hasattr(self.provider, 'get_url_for_key'):
+                return self.provider.get_url_for_key(key)
             else:
-                # Return a direct URL if provider doesn't support presigned URLs
-                return f"{settings.STORAGE_URL}/{key}"
+                base = getattr(settings, 'STORAGE_URL', None) or ''
+                return f"{base.rstrip('/')}/{key}"
+        except StorageError:
+            raise
         except Exception as e:
             logger.error(f"Failed to generate file URL: {str(e)}")
             raise StorageError(f"Failed to generate file URL: {str(e)}")
@@ -284,7 +411,16 @@ class StorageService:
             if metadata:
                 default_metadata.update(metadata)
 
-            with open(local_file_path, 'rb') as file_obj:
+            # Use async file operations to avoid blocking
+            import aiofiles
+            async with aiofiles.open(local_file_path, 'rb') as async_file:
+                # Read file content asynchronously 
+                file_content = await async_file.read()
+                
+                # Create BytesIO object from content
+                from io import BytesIO
+                file_obj = BytesIO(file_content)
+                
                 # The provider.upload_file method expects a file-like object (BinaryIO)
                 # and the object_key directly.
                 returned_url_or_key = await self.provider.upload_file(
@@ -397,7 +533,11 @@ class StorageService:
             raise StorageError(f"Failed to generate public URL: {str(e)}")
 
     def get_file_metadata(self, file_url: str) -> Dict[str, Any]:
-        """Synchronous method to get file metadata (wrapper for get_file_info).
+        """
+        DEPRECATED: Synchronous wrapper for get_file_info.
+        
+        WARNING: This method blocks the event loop and should not be used in async contexts.
+        Use `await storage_service.get_file_info(file_url)` instead.
         
         Args:
             file_url: URL of the file
@@ -405,7 +545,12 @@ class StorageService:
         Returns:
             Dict[str, Any]: File metadata
         """
-        # This is a synchronous wrapper to support older code
+        logger.warning(
+            "get_file_metadata() is deprecated. Use async get_file_info() instead. "
+            "This synchronous wrapper blocks the event loop."
+        )
+        
+        # This is a synchronous wrapper to support older code - blocks event loop!
         import asyncio
         try:
             loop = asyncio.get_event_loop()

@@ -87,52 +87,27 @@ config = context.config
 
 # Check if sqlalchemy.url is already set (e.g., by programmatic call)
 # and if it's not the placeholder from alembic.ini
+# --- Resolve database URL from POSTGRES_* env vars (same source as app config) ---
 existing_url = config.get_main_option("sqlalchemy.url")
-# The placeholder_url should exactly match what's in alembic.ini initially
-# If alembic.ini might have a different placeholder or be empty for sqlalchemy.url, adjust this.
-placeholder_url_from_ini = "postgresql://user:password@host:port/dbname_placeholder" 
+placeholder_url_from_ini = "postgresql://user:password@host:port/dbname_placeholder"
 
 if not existing_url or existing_url.strip() == placeholder_url_from_ini.strip():
-    print(f"DEBUG: env.py - sqlalchemy.url ('{existing_url}') is not set or is placeholder. Attempting to load from .env for CLI.")
-    # --- .env loading logic for CLI Alembic runs ---
-    current_script_dir_for_env = os.path.dirname(os.path.abspath(__file__))
-    dotenv_path_for_cli = os.path.join(current_script_dir_for_env, "..", ".env") # Should point to backend/.env
-    
-    print(f"DEBUG: env.py (CLI context) - Attempting to load .env from: {dotenv_path_for_cli}")
-    if os.path.exists(dotenv_path_for_cli):
-        load_dotenv(dotenv_path_for_cli)
-        print(f"DEBUG: env.py (CLI context) - Successfully loaded .env from: {dotenv_path_for_cli}")
-    else:
-        print(f"DEBUG: env.py (CLI context) - .env file not found at {dotenv_path_for_cli}. Will use defaults or existing env vars.")
+    # Load .env for CLI runs (programmatic callers set sqlalchemy.url directly)
+    dotenv_path = os.path.join(project_backend_root, ".env")
+    if os.path.exists(dotenv_path):
+        load_dotenv(dotenv_path)
 
-    cli_db_user = os.getenv("POSTGRES_USER", "postgres")
-    cli_db_password = os.getenv("POSTGRES_PASSWORD", "postgres")
-    cli_env_postgres_server = os.getenv("POSTGRES_SERVER")
-    cli_db_server = "localhost" if cli_env_postgres_server == "db" else (cli_env_postgres_server or "localhost")
-    cli_db_port = os.getenv("POSTGRES_PORT", "5432")
-    cli_db_name = os.getenv("POSTGRES_DB", "formiq_db") # Ensure this matches the target
-    
-    cli_actual_database_url = f"postgresql://{cli_db_user}:{cli_db_password}@{cli_db_server}:{cli_db_port}/{cli_db_name}"
-    print(f"DEBUG: env.py (CLI context) - Constructed DATABASE_URL: postgresql://{cli_db_user}:<password_hidden>@{cli_db_server}:{cli_db_port}/{cli_db_name}")
-    
-    if cli_actual_database_url: # Ensure it was actually constructed
-        config.set_main_option("sqlalchemy.url", cli_actual_database_url)
-        db_password_to_print_cli = cli_db_password if cli_db_password else ""
-        url_for_print_cli = config.get_main_option('sqlalchemy.url').replace(db_password_to_print_cli, '**********') if db_password_to_print_cli else config.get_main_option('sqlalchemy.url')
-        print(f"DEBUG: env.py (CLI context) - Forcibly set config.sqlalchemy.url to: {url_for_print_cli}")
-    else:
-        print("DEBUG: env.py (CLI context) - Failed to construct DATABASE_URL from .env. alembic.ini placeholder might be used if not overridden by caller.")
-else:
-    # Attempt to hide password if it's postgres for printing existing_url
-    # This is a simple replacement; more robust parsing might be needed if URLs are complex
-    temp_url_for_print = existing_url
-    if "postgresql://" in temp_url_for_print and ":" in temp_url_for_print.split("@")[0]:
-        user_pass_part = temp_url_for_print.split("://")[1].split("@")[0]
-        if ":" in user_pass_part:
-            password_to_hide = user_pass_part.split(":")[1]
-            if password_to_hide: # ensure there is a password part
-                 temp_url_for_print = temp_url_for_print.replace(f':{password_to_hide}@', ':**********@')
-    print(f"DEBUG: env.py - sqlalchemy.url already set to a non-placeholder value by caller: '{temp_url_for_print}'. Using this URL.")
+    db_user = os.getenv("POSTGRES_USER", "postgres")
+    db_password = os.getenv("POSTGRES_PASSWORD", "postgres")
+    db_server = os.getenv("POSTGRES_SERVER", "localhost")
+    if db_server == "db":
+        db_server = "localhost"  # Docker alias → local dev
+    db_port = os.getenv("POSTGRES_PORT", "5432")
+    db_name = os.getenv("POSTGRES_DB", "formiq")
+
+    database_url = f"postgresql://{db_user}:{db_password}@{db_server}:{db_port}/{db_name}"
+    config.set_main_option("sqlalchemy.url", database_url)
+    print(f"DEBUG: env.py - Using POSTGRES_* vars → postgresql://{db_user}:***@{db_server}:{db_port}/{db_name}")
 
 
 # Interpret the config file for Python logging ONLY.
@@ -173,6 +148,7 @@ from app.models.form_check import FormCheck, FeedbackItem # Assuming FeedbackIte
 from app.models.exercise import ExerciseTemplate
 from app.models.exercise_config import ExerciseConfig
 from app.models.user_settings import UserSettings
+from app.models.telemetry import PostureV1InferenceLog
 
 # If you have other active models that define tables, import them too.
 # For example, if 'Subscription', 'Workout', etc., are still active, they should be here.

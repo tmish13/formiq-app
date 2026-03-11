@@ -1,6 +1,6 @@
 """User model module for managing user data and relationships."""
 from typing import Optional, List, Dict, Any
-from sqlalchemy import Column, Integer, String, Boolean, Enum, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Boolean, Enum, DateTime, ForeignKey, JSON, Float
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, validates
 from datetime import datetime
@@ -78,9 +78,24 @@ class User(BaseModel):
     is_superuser = Column(Boolean, default=False, nullable=False)
     verified_at = Column(DateTime)
     
+    # Social auth fields — set when user signs in via Google or Apple.
+    # Both nullable so existing email/password users are unaffected.
+    social_provider = Column(String(32), nullable=True, index=True)
+    social_id = Column(String(255), nullable=True, index=True)
+
     # Onboarding fields
     has_completed_onboarding = Column(Boolean, default=False, nullable=False)
     onboarding_completed_at = Column(DateTime, nullable=True)
+
+    # Profile preference fields (set during onboarding and editable from profile)
+    fitness_goal = Column(String(100), nullable=True)
+    preferred_exercises = Column(JSON, nullable=True)   # List[str]
+    fitness_level = Column(String(50), nullable=True)
+    profile_image_url = Column(String(512), nullable=True)
+    weight_kg = Column(Float, nullable=True)
+    age = Column(Integer, nullable=True)
+    height_cm = Column(Float, nullable=True)
+    training_experience = Column(String(50), nullable=True)
     
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -112,6 +127,7 @@ class User(BaseModel):
     sessions = relationship(UserSession, back_populates="user", cascade="all, delete-orphan")
     videos = relationship("Video", back_populates="user", cascade="all, delete-orphan")
     exercise_progress = relationship("ExerciseProgress", back_populates="user", cascade="all, delete-orphan", lazy="select")
+    squat_sessions = relationship("SquatSession", back_populates="user", cascade="all, delete-orphan", lazy="select")
 
     def __init__(self, **kwargs):
         """Initialize a new User instance.

@@ -21,7 +21,7 @@ import inspect
 
 from app.core.config import settings, get_settings, Settings
 from app.core.logging import get_logger
-from app.core.exceptions import DatabaseError
+from app.core.exceptions import DatabaseException
 from app.core.monitoring import track_db_operation, db_connections
 
 # Set up logging
@@ -57,10 +57,10 @@ def get_database_url() -> str:
         str: Database URL
         
     Raises:
-        DatabaseError: If database URL is not configured
+        DatabaseException: If database URL is not configured
     """
     if not settings.SQLALCHEMY_DATABASE_URI:
-        raise DatabaseError("Database URL not configured", status_code=500)
+        raise DatabaseException("Database URL not configured", status_code=500)
     return settings.SQLALCHEMY_DATABASE_URI
 
 def get_async_database_url() -> str:
@@ -71,7 +71,7 @@ def get_async_database_url() -> str:
         str: Async database URL
         
     Raises:
-        DatabaseError: If database URL is not configured
+        DatabaseException: If database URL is not configured
     """
     if settings.ENVIRONMENT == "test":
         return "sqlite+aiosqlite:///./test.db"
@@ -96,9 +96,13 @@ def get_engine_settings(url: str) -> Dict[str, Any]:
     is_sqlite = url.startswith("sqlite")
     is_test = settings.ENVIRONMENT == "test"
     
+    # Use NullPool only for tests and SQLite (no real DB server).
+    # asyncpg/PostgreSQL in production MUST use QueuePool so connections are
+    # reused across requests — NullPool creates a new TCP connection per query.
+    is_nullpool = is_test or is_sqlite
     engine_settings = {
         "echo": settings.DB_ECHO,
-        "poolclass": NullPool if is_test or is_sqlite or "asyncpg" in url else QueuePool,
+        "poolclass": NullPool if is_nullpool else QueuePool,
     }
     
     # Add connection arguments for SQLite
@@ -112,6 +116,7 @@ def get_engine_settings(url: str) -> Dict[str, Any]:
             "max_overflow": settings.DB_MAX_OVERFLOW,
             "pool_timeout": settings.DB_POOL_TIMEOUT,
             "pool_recycle": settings.DB_POOL_RECYCLE,
+            "pool_pre_ping": True,  # Verify connections before checkout
         })
     
     return engine_settings
@@ -201,7 +206,7 @@ def check_db_connection():
     Check if the database connection is working.
     
     Raises:
-        DatabaseError: If database connection fails
+        DatabaseException: If database connection fails
     """
     try:
         with get_db() as db:
@@ -211,7 +216,7 @@ def check_db_connection():
         connection_stats["connection_errors"] += 1
         connection_stats["last_error_time"] = time.time()
         connection_stats["last_error_message"] = str(e)
-        raise DatabaseError(f"Database connection failed: {str(e)}", status_code=500) from e
+        raise DatabaseException(f"Database connection failed: {str(e)}", status_code=500) from e
 
 async def get_async_db() -> AsyncGenerator[Union[AsyncSession, Session], None]:
     """
@@ -274,7 +279,7 @@ async def init_db():
         logger.info("Database tables initialized")
     except Exception as e:
         logger.error(f"Error initializing database: {str(e)}")
-        raise DatabaseError(f"Failed to initialize database: {str(e)}")
+        raise DatabaseException(f"Failed to initialize database: {str(e)}")
 
 async def close_db():
     """
@@ -314,7 +319,7 @@ def execute_raw_sql(query: str, params: Dict[str, Any] = None) -> List[Dict[str,
             return rows
     except Exception as e:
         logger.error(f"Error executing raw SQL: {str(e)}")
-        raise DatabaseError(f"Database query failed: {str(e)}", status_code=500) from e
+        raise DatabaseException(f"Database query failed: {str(e)}", status_code=500) from e
 
 async def execute_raw_sql_async(query: str, params: Dict[str, Any] = None) -> List[Dict[str, Any]]:
     """
@@ -346,7 +351,7 @@ async def execute_raw_sql_async(query: str, params: Dict[str, Any] = None) -> Li
                 return rows
     except Exception as e:
         logger.error(f"Error executing raw SQL asynchronously: {str(e)}")
-        raise DatabaseError(f"Database query failed: {str(e)}", status_code=500) from e
+        raise DatabaseException(f"Database query failed: {str(e)}", status_code=500) from e
 
 def get_db_stats() -> Dict[str, Any]:
     """

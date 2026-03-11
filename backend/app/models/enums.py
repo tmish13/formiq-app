@@ -141,6 +141,8 @@ class FeedbackType(str, Enum):
     BALANCE = "balance"
     JOINT_ANGLE = "joint_angle"
     ALIGNMENT = "alignment"
+    GUIDANCE = "guidance"
+    FORM_CORRECTION = "form_correction"
 
     @classmethod
     def get_color(cls, feedback_type: str) -> str:

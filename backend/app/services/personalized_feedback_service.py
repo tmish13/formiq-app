@@ -5,7 +5,11 @@ from sqlalchemy import select
 from app.core.config import Settings
 from app.models.form_check import FormCheck
 from app.models.exercise import ExerciseTemplate
-from app.services.rag_feedback_service import rag_feedback_service, FeedbackContext
+try:
+    from app.services.rag_feedback_service import rag_feedback_service, FeedbackContext
+except ImportError:
+    rag_feedback_service = None  # RAG dependencies not installed
+    FeedbackContext = None
 # from ..core.utils.pose_estimation import calculate_pose_metrics
 import logging
 import numpy as np

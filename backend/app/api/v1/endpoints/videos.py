@@ -12,7 +12,6 @@ from app.core.auth import get_current_admin_user
 from uuid import UUID
 import os
 import time
-from app.tasks.video_processing import process_uploaded_video
 from app.services.video_service import VideoService
 from app.core.exceptions import NotFoundException, PermissionDeniedException
 
@@ -71,19 +70,17 @@ async def get_presigned_upload_url(
             filename=filename,
             content_type=content_type,
             metadata=upload_metadata,
-            db_session=db
         )
-        
-        # Return data in format expected by frontend
-        return {
-            "uploadUrl": response_data.get("presigned_url"),
-            "videoId": response_data.get("video_id"),
-            "fields": response_data.get("fields", {})
-        }
-        
+
         logger.info(
             f"Generated presigned upload URL: user_id={current_user.id}, video_id={response_data.get('video_id')}, filename={filename}"
         )
+        # Return data in format expected by frontend
+        return {
+            "uploadUrl": response_data.get("upload_url"),
+            "videoId": response_data.get("video_id"),
+            "fields": response_data.get("fields", {})
+        }
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -129,7 +126,6 @@ async def confirm_upload(
             is_superuser=current_user.is_superuser,
             object_key=object_key,
             size=size,
-            db_session=db
         )
         logger.info(f"Video upload confirmed: id={updated_video_schema.id}, initiating processing task")
         return updated_video_schema
@@ -174,10 +170,9 @@ async def get_video(
     """
     try:
         video_schema = await video_service.get_video_details(
-            video_id=video_id, 
-            current_user_id=current_user.id, 
+            video_id=video_id,
+            current_user_id=current_user.id,
             is_superuser=current_user.is_superuser,
-            db_session=db
         )
         if not video_schema:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found or not authorized")
@@ -214,12 +209,15 @@ async def list_videos(
         List of videos
     """
     try:
+        try:
+            status_enum = VideoStatus(status) if status else None
+        except ValueError:
+            raise HTTPException(status_code=422, detail=f"Invalid status value: {status}")
         videos_list_schema = await video_service.list_videos_for_user(
-            user_id=current_user.id, 
-            skip=skip, 
-            limit=limit, 
-            status_filter_str=status,
-            db_session=db
+            user_id=current_user.id,
+            skip=skip,
+            limit=limit,
+            status_filter=status_enum,
         )
         return videos_list_schema
     except HTTPException as e:
@@ -248,10 +246,9 @@ async def delete_video(
     """
     try:
         await video_service.delete_video_by_id(
-            video_id=video_id, 
-            current_user_id=current_user.id, 
+            video_id=video_id,
+            current_user_id=current_user.id,
             is_superuser=current_user.is_superuser,
-            db_session=db
         )
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except HTTPException as e:
@@ -286,10 +283,9 @@ async def process_video(
     """
     try:
         video_schema = await video_service.request_video_processing(
-            video_id=video_id, 
-            current_user_id=current_user.id, 
+            video_id=video_id,
+            current_user_id=current_user.id,
             is_superuser=current_user.is_superuser,
-            db_session=db
         )
         return video_schema
     except HTTPException as e:
@@ -321,10 +317,9 @@ async def get_video_status(
     """
     try:
         video_schema = await video_service.get_video_details(
-            video_id=video_id, 
-            current_user_id=current_user.id, 
+            video_id=video_id,
+            current_user_id=current_user.id,
             is_superuser=current_user.is_superuser,
-            db_session=db
         )
         if not video_schema:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
@@ -368,8 +363,7 @@ async def get_video_statistics(
             user_id=current_user.id,
             skip=0,
             limit=1000,  # Get all videos for statistics
-            status_filter_str=None,
-            db_session=db
+            status_filter=None,
         )
         
         # Calculate statistics
@@ -440,10 +434,9 @@ async def get_processing_stats(
             user_id=current_user.id,
             skip=0,
             limit=1000,
-            status_filter_str=None,
-            db_session=db
+            status_filter=None,
         )
-        
+
         processing_success = sum(1 for v in videos if v.status == VideoStatus.READY.value)
         processing_failure = sum(1 for v in videos if v.status == VideoStatus.FAILED.value)
         processing_videos = sum(1 for v in videos if v.status == VideoStatus.PROCESSING.value)
@@ -500,13 +493,12 @@ async def get_conversion_metrics(
         Conversion metrics
     """
     try:
-        # Get user's videos 
+        # Get user's videos
         videos = await video_service.list_videos_for_user(
             user_id=current_user.id,
             skip=0,
             limit=1000,
-            status_filter_str=None,
-            db_session=db
+            status_filter=None,
         )
         
         videos_uploaded = len(videos)
@@ -552,8 +544,7 @@ async def get_quality_metrics(
             user_id=current_user.id,
             skip=0,
             limit=1000,
-            status_filter_str=None,
-            db_session=db
+            status_filter=None,
         )
         
         total_size = sum(v.size or 0 for v in videos)

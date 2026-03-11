@@ -1,8 +1,10 @@
 """Main application module."""
 import logging
+import os
 from fastapi import FastAPI, Depends, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
@@ -21,10 +23,16 @@ from app.api.v1.docs import custom_openapi
 
 # Middleware imports
 from app.core.middleware import setup_middleware, EnhancedRateLimiter
+from app.core.middleware.trace_context import TraceContextMiddleware
+from app.core.tracing import setup_tracing
+from app.core.exception_handlers import setup_exception_handlers
 
 # Initialize logging
 setup_logging()
 logger = get_logger(__name__)
+
+# Initialize OpenTelemetry tracing early
+setup_tracing()
 
 # Define API tags metadata
 tags_metadata = [
@@ -106,24 +114,36 @@ def create_application() -> FastAPI:
 
     # Configure middleware
     setup_middleware(app)
-    logger.info("CORS middleware configured")
+    
+    # Add trace context middleware
+    app.add_middleware(TraceContextMiddleware)
+    logger.info("Trace context middleware configured")
 
     # Add CORS middleware
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.BACKEND_CORS_ORIGINS,
+        allow_origins=settings.CORS_ORIGINS,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    logger.info("CORS middleware configured")
+
+    # Setup standardized exception handlers
+    setup_exception_handlers(app)
+    logger.info("Exception handlers configured")
 
     # Add API router
     app.include_router(api_router, prefix=settings.API_V1_STR)
     app.include_router(health_router)
 
+    # Serve locally-uploaded files (avatars, etc.)
+    os.makedirs("uploads", exist_ok=True)
+    app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
     # Set custom OpenAPI schema
     if settings.ENVIRONMENT != "production":
-        app.openapi = custom_openapi(app)
+        app.openapi = lambda: custom_openapi(app)
 
     # Request logging middleware
     @app.middleware("http")
@@ -138,29 +158,13 @@ def create_application() -> FastAPI:
         duration = time.time() - start_time
         
         # Log the request
+        client_host = request.client.host if request.client else "unknown"
         logger.info(
-            f"{request.client.host} - {request.method} {request.url.path} "
+            f"{client_host} - {request.method} {request.url.path} "
             f"- {response.status_code} - {duration:.4f}s"
         )
         
         return response
-
-    # Error handlers
-    @app.exception_handler(StarletteHTTPException)
-    async def http_exception_handler(request, exc):
-        """Handle HTTP exceptions."""
-        return JSONResponse(
-            status_code=exc.status_code,
-            content={"detail": str(exc.detail)}
-        )
-
-    @app.exception_handler(RequestValidationError)
-    async def validation_exception_handler(request, exc):
-        """Handle request validation errors."""
-        return JSONResponse(
-            status_code=422,
-            content={"detail": str(exc)}
-        )
 
     return app
 

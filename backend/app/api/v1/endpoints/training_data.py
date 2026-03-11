@@ -2,6 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, Body, UploadFile, File, B
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, Dict, Any, List
 import json
+import aiofiles
+import os
 
 # Potential: from app.api import deps # If get_api_key and get_db are moved to deps
 from app.core import deps # Add
@@ -84,21 +86,49 @@ async def submit_training_video(
                 detail="Exercise type is required in metadata"
             )
         
-        # Read video content
-        video_content = await video.read()
+        # Save video to temporary storage first (non-blocking)
+        import tempfile
+        import aiofiles
+        import os
         
-        # Process video in background
-        background_tasks.add_task(
-            process_training_video,
-            video_content,
-            metadata_dict,
-            video_processing_service
-        )
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
+        temp_file_path = temp_file.name
+        temp_file.close()
         
-        return {
-            "success": True,
-            "message": "Video accepted for processing"
-        }
+        try:
+            # Stream video to temp file without loading into memory
+            async with aiofiles.open(temp_file_path, 'wb') as f:
+                content = await video.read(8192)  # Read in chunks
+                while content:
+                    await f.write(content)
+                    content = await video.read(8192)
+            
+            # Get file size for response
+            file_size = os.path.getsize(temp_file_path)
+            
+            # Queue processing task with file path (Celery will handle the file)
+            from app.tasks.video_tasks import process_training_video_task
+            task = process_training_video_task.delay(
+                temp_file_path=temp_file_path,
+                filename=video.filename,
+                metadata=metadata_dict
+            )
+            
+            return {
+                "success": True,
+                "message": "Training video uploaded successfully. Processing in background.",
+                "filename": video.filename,
+                "size": file_size,
+                "task_id": task.id,
+                "status": "queued"
+            }
+            
+        except Exception as e:
+            # Clean up temp file on error
+            if os.path.exists(temp_file_path):
+                os.unlink(temp_file_path)
+            logger.error(f"Failed to stream video to temporary file: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Failed to process video: {str(e)}")
         
     except Exception as e:
         logger.error(f"Error processing training video: {str(e)}")

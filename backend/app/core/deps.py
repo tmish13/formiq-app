@@ -81,11 +81,13 @@ async def get_async_db() -> AsyncGenerator[AsyncSession, None]:
 #         db.close()
 
 # --- Authentication ---
+async def _get_user_repo(db: AsyncSession = Depends(get_async_db_session)):
+    from app.repositories.user_repository import UserRepository
+    return UserRepository(db)
+
 async def get_current_user(
     payload: Dict[str, Any] = Depends(get_current_user_payload),
-    # The lambda import for user_repo needs to be able to find get_async_user_repository
-    # Ensure get_async_user_repository in user_repository.py correctly imports its get_async_db from db_deps.
-    user_repo = Depends(lambda: __import__('app.repositories.user_repository', fromlist=['get_async_user_repository']).get_async_user_repository),
+    user_repo = Depends(_get_user_repo),
 ) -> User:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -103,7 +105,7 @@ async def get_current_user(
         logger.error(f"Invalid User ID format in token payload: {user_id_str}")
         raise credentials_exception
 
-    user = await user_repo.get_by_id_async(id=user_id)
+    user = await user_repo.get_by_id_async(user_id=str(user_id))
     if user is None:
         logger.warning(f"User with ID {user_id} not found in database.")
         raise credentials_exception

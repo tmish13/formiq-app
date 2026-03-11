@@ -120,6 +120,15 @@ class Settings(BaseSettings):
         default=os.getenv("DEBUG", "true").lower() == "true",
         description="Enable or disable debug mode"
     )
+    # Beta feature flags
+    BETA_ALLOW_UNVERIFIED: bool = Field(
+        default=os.getenv("BETA_ALLOW_UNVERIFIED", "false").lower() == "true",
+        description=(
+            "Beta mode: allow login without email verification. "
+            "MUST be false in production. Set to true during beta to unblock users "
+            "while email delivery is being configured."
+        ),
+    )
     SENTRY_DSN: Optional[str] = Field(
         default=None,
         description="Sentry DSN URL for error reporting"
@@ -177,12 +186,16 @@ class Settings(BaseSettings):
         description="If true, application will fail to start in production if ENCRYPTION_KEY is invalid or not set."
     )
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(
-        default=60 * 24,  # 24 hours
+        default=30,  # 30 minutes — industry standard
         description="Access token expiration time in minutes"
     )
     REFRESH_TOKEN_EXPIRE_DAYS: int = Field(
-        default=30,  # 30 days
+        default=14,  # 14 days
         description="Refresh token expiration time in days"
+    )
+    SESSION_EXPIRY_HOURS: int = Field(
+        default=24,
+        description="User session expiry time in hours"
     )
     ALGORITHM: str = Field(
         default="HS256",
@@ -202,9 +215,9 @@ class Settings(BaseSettings):
     )
 
     # Admin settings
-    ADMIN_REGISTRATION_CODE: str = Field(
-        default=os.getenv("ADMIN_REGISTRATION_CODE", secrets.token_urlsafe(16)),
-        description="Secret code required for admin account registration"
+    ADMIN_REGISTRATION_CODE: Optional[str] = Field(
+        default=os.getenv("ADMIN_REGISTRATION_CODE") or None,
+        description="Secret code required for admin account registration. Set via ADMIN_REGISTRATION_CODE env var. If unset, admin registration is disabled."
     )
 
     # CORS
@@ -555,6 +568,59 @@ class Settings(BaseSettings):
         default=(os.getenv("MAIL_VALIDATE_CERTS", "true").lower() == "true"),
         description="Validate certificates for fastapi-mail"
     )
+
+    # Substrings that identify placeholder SMTP credentials.
+    # Checked via substring match so partial placeholders (e.g. "your_email" inside a
+    # longer string) are caught even when the full value isn't an exact known placeholder.
+    _MAIL_PLACEHOLDER_FRAGMENTS: tuple = (
+        "your_email",
+        "your_app_password",
+        "your_smtp_password",
+        "your_16_char_app_password",
+        "re_xxxxxxxxxxxxxxxxxxxx",
+        "your_smtp_user",
+    )
+
+    @property
+    def emails_enabled(self) -> bool:
+        """
+        True only when SMTP credentials look like real values (not placeholders).
+
+        Uses substring matching so partial placeholders (e.g. MAIL_USERNAME set to
+        "your_email@gmail.com") are caught even if they aren't an exact known string.
+
+        Guards every email-send path so misconfigured environments fail loudly in
+        logs rather than silently producing SMTP auth errors.
+
+        To enable:
+          1. Set real credentials in backend/.env (see .env.example for options).
+          2. Restart the server (--reload does NOT re-read .env automatically).
+          3. Verify with:
+               curl -s -X POST http://localhost:8000/api/v1/debug/email-test \\
+                 -H 'Content-Type: application/json' \\
+                 -d '{"to":"your.real.email@gmail.com"}'
+             Expected: {"sent": true}
+        """
+        if not self.MAIL_SERVER or not self.MAIL_FROM_EMAIL:
+            logger.warning(
+                "Email sending DISABLED — MAIL_SERVER or MAIL_FROM_EMAIL is not set."
+            )
+            return False
+
+        username = self.MAIL_USERNAME or ""
+        password = str(self.MAIL_PASSWORD.get_secret_value()) if self.MAIL_PASSWORD else ""
+
+        for value in (username, password, self.MAIL_FROM_EMAIL or ""):
+            if any(fragment in value for fragment in self._MAIL_PLACEHOLDER_FRAGMENTS):
+                logger.warning(
+                    "SMTP credentials appear to be placeholders. Email sending is disabled. "
+                    "Set real values for MAIL_USERNAME, MAIL_PASSWORD, and MAIL_FROM_EMAIL "
+                    "in backend/.env, then restart the server."
+                )
+                return False
+
+        return True
+
     EMAIL_TEMPLATES_DIR: Path = Field(
         default="app/templates/email", # Default to relative, validator will absolutize
         description="Directory for email templates"
@@ -691,8 +757,8 @@ class Settings(BaseSettings):
         description="Path to AI model files"
     )
     AI_MODEL_COMPLEXITY: int = Field(
-        default=safe_int(os.getenv("AI_MODEL_COMPLEXITY"), 1),
-        description="MediaPipe Pose model complexity (0, 1, or 2)."
+        default=safe_int(os.getenv("AI_MODEL_COMPLEXITY"), 2),
+        description="MediaPipe Pose model complexity (0, 1, or 2). Default 2 matches PostureV1 training data extraction."
     )
     AI_MIN_DETECTION_CONFIDENCE: float = Field(
         default=float(os.getenv("AI_MIN_DETECTION_CONFIDENCE", "0.5")),
@@ -734,7 +800,11 @@ class Settings(BaseSettings):
         default=os.getenv("USE_ML_MODELS", "true").lower() == "true",
         description="Enable ML models for form analysis (squat XGBoost model). Falls back to rule-based analysis when disabled."
     )
-    
+    USE_POSTURE_V1: bool = Field(
+        default=os.getenv("USE_POSTURE_V1", "true").lower() == "true",
+        description="Enable PostureV1 CNN-LSTM model for posture fault classification. Falls back to sklearn ensemble when disabled."
+    )
+
     # GPU and Batch Processing Settings
     USE_GPU_POSE_DETECTION: bool = Field(
         default=os.getenv("USE_GPU_POSE_DETECTION", "true").lower() == "true",
@@ -747,6 +817,70 @@ class Settings(BaseSettings):
     POSE_MAX_CONCURRENT_BATCHES: int = Field(
         default=safe_int(os.getenv("POSE_MAX_CONCURRENT_BATCHES"), 2),
         description="Maximum number of concurrent batch processing tasks for pose detection"
+    )
+    
+    # RAG and LLM Settings
+    RAG_ENABLED: bool = Field(
+        default=os.getenv("RAG_ENABLED", "true").lower() == "true",
+        description="Enable RAG-powered feedback generation"
+    )
+    OPENAI_API_KEY: str = Field(
+        default=os.getenv("OPENAI_API_KEY", ""),
+        description="OpenAI API key for LLM-powered feedback generation"
+    )
+    RAG_MODEL_NAME: str = Field(
+        default=os.getenv("RAG_MODEL_NAME", "gpt-3.5-turbo"),
+        description="OpenAI model name for RAG feedback generation"
+    )
+    RAG_MAX_TOKENS: int = Field(
+        default=safe_int(os.getenv("RAG_MAX_TOKENS"), 500),
+        description="Maximum tokens for RAG feedback response"
+    )
+    RAG_TEMPERATURE: float = Field(
+        default=float(os.getenv("RAG_TEMPERATURE", "0.7")),
+        description="Temperature for RAG feedback generation"
+    )
+    VECTOR_STORE_PATH: str = Field(
+        default=os.getenv("VECTOR_STORE_PATH", "data/vector_store"),
+        description="Path to persistent vector store for biomechanical knowledge"
+    )
+    RAG_TOP_K_RESULTS: int = Field(
+        default=safe_int(os.getenv("RAG_TOP_K_RESULTS"), 3),
+        description="Number of top similar documents to retrieve for RAG context"
+    )
+    EMBEDDING_MODEL: str = Field(
+        default=os.getenv("EMBEDDING_MODEL", "text-embedding-ada-002"),
+        description="OpenAI embedding model for vectorization"
+    )
+    
+    # OpenTelemetry and Tracing Settings
+    OTEL_ENABLED: bool = Field(
+        default=os.getenv("OTEL_ENABLED", "true").lower() == "true",
+        description="Enable OpenTelemetry tracing"
+    )
+    OTEL_SERVICE_NAME: str = Field(
+        default=os.getenv("OTEL_SERVICE_NAME", "formiq-backend"),
+        description="Service name for OpenTelemetry tracing"
+    )
+    JAEGER_HOST: str = Field(
+        default=os.getenv("JAEGER_HOST", "localhost"),
+        description="Jaeger agent host for trace export"
+    )
+    JAEGER_PORT: int = Field(
+        default=safe_int(os.getenv("JAEGER_PORT"), 6831),
+        description="Jaeger agent port for trace export"
+    )
+    OTEL_EXPORTER_OTLP_ENDPOINT: Optional[str] = Field(
+        default=os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT"),
+        description="OTLP exporter endpoint (alternative to Jaeger)"
+    )
+    TRACE_SAMPLE_RATE: float = Field(
+        default=float(os.getenv("TRACE_SAMPLE_RATE", "0.1")),
+        description="Trace sampling rate (0.0 to 1.0)"
+    )
+    TRACE_CORRELATION_ENABLED: bool = Field(
+        default=os.getenv("TRACE_CORRELATION_ENABLED", "true").lower() == "true",
+        description="Enable trace correlation IDs in logs"
     )
     
     # Compression Settings for Storage Optimization
@@ -900,10 +1034,19 @@ class Settings(BaseSettings):
     AWS_SECRET_ACCESS_KEY: Optional[str] = None
     AWS_REGION: Optional[str] = None
     
-    # Admin
-    ADMIN_EMAIL: str = "admin@formiq.com"
-    ADMIN_PASSWORD: str = "admin"
-    ADMIN_REGISTRATION_CODE: str = "admin123"  # For initial admin setup
+    # Admin - All admin credentials must be provided via environment variables
+    ADMIN_EMAIL: str = Field(
+        default=os.getenv("ADMIN_EMAIL", ""),
+        description="Admin email address - must be set via ADMIN_EMAIL environment variable"
+    )
+    ADMIN_PASSWORD: str = Field(
+        default=os.getenv("ADMIN_PASSWORD", ""),
+        description="Admin password - must be set via ADMIN_PASSWORD environment variable"
+    )
+    ADMIN_REGISTRATION_CODE: Optional[str] = Field(
+        default=os.getenv("ADMIN_REGISTRATION_CODE") or None,
+        description="Admin registration code. Set via ADMIN_REGISTRATION_CODE env var. If unset, admin registration is disabled."
+    )
 
     # Video processing settings
     VIDEO_FRAME_RATE: int = int(os.getenv("VIDEO_FRAME_RATE", "30"))
@@ -1050,6 +1193,22 @@ class Settings(BaseSettings):
                 "severity": "high",
                 "message": "AWS_ACCESS_KEY_ID is not set in production",
                 "context": "File storage operations will fail"
+            })
+
+        # Social auth — warn if client IDs are missing in production.
+        # The app still starts; affected buttons are simply disabled on the frontend.
+        if self.ENVIRONMENT == Environment.PRODUCTION and not self.GOOGLE_CLIENT_ID:
+            issues.append({
+                "severity": "medium",
+                "message": "GOOGLE_CLIENT_ID is not configured (GOOGLE_CLIENT_ID empty)",
+                "context": "Google Sign-In will be unavailable"
+            })
+
+        if self.ENVIRONMENT == Environment.PRODUCTION and not self.APPLE_CLIENT_ID:
+            issues.append({
+                "severity": "medium",
+                "message": "APPLE_CLIENT_ID is not configured (APPLE_CLIENT_ID empty)",
+                "context": "Apple Sign-In will be unavailable"
             })
         
         # Check if SMTP settings are valid
