@@ -1,0 +1,282 @@
+# Recording rules for FormIQ monitoring
+# These rules pre-compute frequently used queries for better performance
+
+groups:
+  # =============================================================================
+  # API Performance Recording Rules
+  # =============================================================================
+  - name: formiq_api_performance
+    interval: 30s
+    rules:
+      # API success rate over different time windows
+      - record: formiq:api:success_rate_5m
+        expr: |
+          (
+            sum(rate(http_requests_total{status!~"5.."}[5m])) / 
+            sum(rate(http_requests_total[5m])) * 100
+          )
+      
+      - record: formiq:api:success_rate_1h
+        expr: |
+          (
+            sum(rate(http_requests_total{status!~"5.."}[1h])) / 
+            sum(rate(http_requests_total[1h])) * 100
+          )
+      
+      # API latency percentiles
+      - record: formiq:api:latency_p50_5m
+        expr: histogram_quantile(0.5, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))
+      
+      - record: formiq:api:latency_p95_5m
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))
+      
+      - record: formiq:api:latency_p99_5m
+        expr: histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))
+      
+      # Request rate
+      - record: formiq:api:request_rate_5m
+        expr: sum(rate(http_requests_total[5m]))
+      
+      # Error rate
+      - record: formiq:api:error_rate_5m
+        expr: sum(rate(http_requests_total{status=~"5.."}[5m]))
+
+  # =============================================================================
+  # Video Processing & AI Pipeline Recording Rules  
+  # =============================================================================
+  - name: formiq_ai_pipeline_performance
+    interval: 60s
+    rules:
+      # Frame processing performance
+      - record: formiq:frame_processing:avg_duration_5m
+        expr: |
+          sum(rate(video_frame_processing_duration_seconds_sum[5m])) / 
+          sum(rate(video_frame_processing_duration_seconds_count[5m]))
+      
+      - record: formiq:frame_processing:p95_duration_5m
+        expr: histogram_quantile(0.95, sum(rate(video_frame_processing_duration_seconds_bucket[5m])) by (le))
+      
+      # Frame processing success rate
+      - record: formiq:frame_processing:success_rate_10m
+        expr: |
+          (
+            sum(rate(video_frame_processing_total{status="success"}[10m])) / 
+            sum(rate(video_frame_processing_total[10m])) * 100
+          )
+      
+      # AI model inference performance
+      - record: formiq:ai_model:inference_duration_avg_5m
+        expr: |
+          sum(rate(model_inference_duration_seconds_sum[5m])) / 
+          sum(rate(model_inference_duration_seconds_count[5m]))
+      
+      - record: formiq:ai_model:confidence_avg_5m
+        expr: |
+          sum(rate(model_confidence_scores_sum[5m])) / 
+          sum(rate(model_confidence_scores_count[5m]))
+      
+      # Video processing throughput
+      - record: formiq:video_processing:completed_rate_1h
+        expr: sum(rate(video_processing_duration_seconds_count[1h]))
+
+  # =============================================================================
+  # Database Performance Recording Rules
+  # =============================================================================
+  - name: formiq_database_performance
+    interval: 30s
+    rules:
+      # Database query performance
+      - record: formiq:db:query_duration_p95_5m
+        expr: histogram_quantile(0.95, sum(rate(db_query_duration_seconds_bucket[5m])) by (le))
+      
+      - record: formiq:db:query_rate_5m
+        expr: sum(rate(db_query_duration_seconds_count[5m]))
+      
+      # Database connection utilization
+      - record: formiq:db:connection_utilization
+        expr: db_connections{state="active"} / db_connections{state="total"} * 100
+
+  # =============================================================================
+  # Circuit Breaker Health Recording Rules
+  # =============================================================================
+  - name: formiq_circuit_breaker_health
+    interval: 30s
+    rules:
+      # Circuit breaker failure rates
+      - record: formiq:circuit_breaker:failure_rate_5m
+        expr: sum(rate(circuit_breaker_failures_total[5m])) by (service_name)
+      
+      # Circuit breaker success rates
+      - record: formiq:circuit_breaker:success_rate_5m
+        expr: |
+          (
+            sum(rate(circuit_breaker_requests_total{status="success"}[5m])) by (service_name) /
+            sum(rate(circuit_breaker_requests_total[5m])) by (service_name) * 100
+          )
+      
+      # Blocked request rate
+      - record: formiq:circuit_breaker:blocked_rate_5m
+        expr: sum(rate(circuit_breaker_requests_total{status="blocked"}[5m])) by (service_name)
+
+  # =============================================================================
+  # System Resource Recording Rules
+  # =============================================================================
+  - name: formiq_system_resources
+    interval: 15s
+    rules:
+      # System utilization averages
+      - record: formiq:system:cpu_avg_5m
+        expr: avg_over_time(cpu_usage_percent[5m])
+      
+      - record: formiq:system:memory_avg_5m
+        expr: avg_over_time(memory_usage_bytes[5m])
+      
+      - record: formiq:system:disk_avg_5m
+        expr: avg_over_time(disk_usage_bytes[5m])
+
+  # =============================================================================
+  # Business Metrics Recording Rules
+  # =============================================================================
+  - name: formiq_business_metrics
+    interval: 300s  # 5 minutes
+    rules:
+      # Form analysis completion rate
+      - record: formiq:business:form_analysis_success_rate_1h
+        expr: |
+          (
+            sum(rate(form_checks_total{status="completed"}[1h])) / 
+            sum(rate(form_checks_total[1h])) * 100
+          )
+      
+      # Active user trends
+      - record: formiq:business:active_users_avg_1h
+        expr: avg_over_time(active_users[1h])
+      
+      # Video upload success rate
+      - record: formiq:business:video_upload_success_rate_1h
+        expr: |
+          (
+            (sum(rate(video_frame_processing_total[1h])) - sum(rate(video_processing_errors_total[1h]))) /
+            sum(rate(video_frame_processing_total[1h])) * 100
+          )
+      
+      # Workout completion rate
+      - record: formiq:business:workout_completion_rate_1h
+        expr: sum(rate(workouts_completed_total[1h]))
+
+  # =============================================================================
+  # Security & Authentication Recording Rules
+  # =============================================================================
+  - name: formiq_security_metrics
+    interval: 60s
+    rules:
+      # Authentication failure rates
+      - record: formiq:auth:failed_login_rate_5m
+        expr: sum(rate(auth_failed_login_attempts_total[5m]))
+      
+      - record: formiq:auth:failed_login_rate_by_user_5m
+        expr: sum(rate(auth_failed_login_attempts_total[5m])) by (user_email)
+      
+      # Rate limiting activity
+      - record: formiq:auth:rate_limit_hit_rate_5m
+        expr: sum(rate(auth_rate_limit_hits_total[5m]))
+      
+      # Session metrics
+      - record: formiq:auth:active_sessions_total
+        expr: sum(auth_active_sessions)
+      
+      - record: formiq:auth:avg_session_duration_1h
+        expr: |
+          sum(rate(auth_session_duration_seconds_sum[1h])) / 
+          sum(rate(auth_session_duration_seconds_count[1h]))
+
+  # =============================================================================
+  # Cache Performance Recording Rules
+  # =============================================================================
+  - name: formiq_cache_performance
+    interval: 60s
+    rules:
+      # Cache hit rates
+      - record: formiq:cache:hit_rate_5m
+        expr: |
+          (
+            sum(rate(cache_hits_total[5m])) / 
+            (sum(rate(cache_hits_total[5m])) + sum(rate(cache_misses_total[5m]))) * 100
+          )
+      
+      - record: formiq:cache:hit_rate_by_namespace_5m
+        expr: |
+          (
+            sum(rate(cache_hits_total[5m])) by (namespace) / 
+            (sum(rate(cache_hits_total[5m])) by (namespace) + sum(rate(cache_misses_total[5m])) by (namespace)) * 100
+          )
+      
+      # Cache usage
+      - record: formiq:cache:total_size_bytes
+        expr: sum(cache_size_bytes)
+
+  # =============================================================================
+  # SLA Compliance Recording Rules
+  # =============================================================================
+  - name: formiq_sla_compliance
+    interval: 300s  # 5 minutes
+    rules:
+      # Overall SLA compliance score
+      - record: formiq:sla:overall_score_5m
+        expr: |
+          (
+            (formiq:api:success_rate_5m >= 99.9) + 
+            (formiq:api:latency_p95_5m <= 1.0) +
+            (formiq:frame_processing:p95_duration_5m <= 0.3) +
+            (formiq:frame_processing:success_rate_10m >= 99.0)
+          ) / 4 * 100
+      
+      # API SLA compliance
+      - record: formiq:sla:api_compliance_5m
+        expr: |
+          (formiq:api:success_rate_5m >= 99.9) and bool
+          (formiq:api:latency_p95_5m <= 1.0)
+      
+      # AI Pipeline SLA compliance  
+      - record: formiq:sla:ai_pipeline_compliance_5m
+        expr: |
+          (formiq:frame_processing:p95_duration_5m <= 0.3) and bool
+          (formiq:frame_processing:success_rate_10m >= 99.0)
+      
+      # Database SLA compliance
+      - record: formiq:sla:database_compliance_5m
+        expr: |
+          (formiq:db:query_duration_p95_5m <= 2.0) and bool
+          (formiq:db:connection_utilization <= 80)
+
+  # =============================================================================
+  # Health & Availability Recording Rules
+  # =============================================================================
+  - name: formiq_health_availability
+    interval: 15s
+    rules:
+      # Service availability
+      - record: formiq:availability:uptime_5m
+        expr: avg_over_time(up[5m]) * 100
+      
+      - record: formiq:availability:uptime_1h
+        expr: avg_over_time(up[1h]) * 100
+      
+      - record: formiq:availability:uptime_24h
+        expr: avg_over_time(up[24h]) * 100
+      
+      # Component health scores
+      - record: formiq:health:api_score_5m
+        expr: |
+          (
+            (formiq:api:success_rate_5m / 100) * 0.4 +
+            (1 - formiq:api:latency_p95_5m / 5.0) * 0.4 +
+            (formiq:api:request_rate_5m / 100) * 0.2
+          ) * 100
+      
+      - record: formiq:health:ai_pipeline_score_5m
+        expr: |
+          (
+            (formiq:frame_processing:success_rate_10m / 100) * 0.6 +
+            (1 - formiq:frame_processing:p95_duration_5m / 1.0) * 0.4
+          ) * 100

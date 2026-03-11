@@ -1,0 +1,238 @@
+# backend-tests.yml
+#
+# Three-gate CI for the FormIQ backend:
+#
+#   Job 1 — unit_api_tests  (every push / PR, fast)
+#     pytest -m "not integration and not e2e and not slow"
+#
+#   Job 2 — integration_tests  (main branch + `run-integration` label)
+#     Spins up docker-compose services (Postgres :5434, Redis :6380) then
+#     pytest -m integration
+#
+#   Job 3 — e2e_tests  (manual dispatch OR staging branch only)
+#     Same docker-compose services, then pytest -m e2e
+
+name: Backend Tests
+
+on:
+  push:
+    branches: [main, staging]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-tests.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-tests.yml"
+  # Allow manual runs for any branch (e.g., to trigger e2e on demand)
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: backend
+
+# ---------------------------------------------------------------------------
+# Job 1 — Unit / API gate
+# Runs on every push and PR. No external services needed.
+# ---------------------------------------------------------------------------
+jobs:
+  unit_api_tests:
+    name: "Unit & API Tests"
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-test.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-test.txt
+
+      - name: Run unit / API tests
+        # Uses pytest.ini addopts but overrides marker filter to the unit gate.
+        env:
+          ENVIRONMENT: test
+          SECRET_KEY: ci-test-secret-key-not-real
+          # Provide dummy values so config doesn't error at import time
+          DATABASE_URL: "postgresql+asyncpg://noop:noop@localhost:5432/noop"
+          TEST_DATABASE_URL: "postgresql+asyncpg://noop:noop@localhost:5432/noop"
+          REDIS_URL: "redis://localhost:6379/0"
+          REDIS_HOST: "localhost"
+          REDIS_PORT: "6379"
+          AWS_ACCESS_KEY_ID: "dummy"
+          AWS_SECRET_ACCESS_KEY: "dummy"
+          AWS_REGION: "us-east-1"
+          S3_BUCKET_NAME: "dummy-bucket"
+        run: |
+          pytest -q \
+            -m "not integration and not e2e and not slow" \
+            --override-ini="addopts=-q --asyncio-mode=auto --no-cov -p no:cacheprovider"
+
+# ---------------------------------------------------------------------------
+# Job 2 — Integration gate
+# Runs on pushes to main, and on PRs that carry the `run-integration` label.
+# Uses docker-compose to spin up the same Postgres + Redis that local tests use.
+# ---------------------------------------------------------------------------
+  integration_tests:
+    name: "Integration Tests"
+    runs-on: ubuntu-latest
+
+    # Run on main-branch pushes, or PRs explicitly labelled `run-integration`
+    if: >
+      github.event_name == 'push' && github.ref == 'refs/heads/main'
+      || (github.event_name == 'pull_request'
+          && contains(github.event.pull_request.labels.*.name, 'run-integration'))
+      || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-test.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-test.txt
+
+      - name: Start docker-compose services
+        run: |
+          docker compose -f tests/docker-compose.test.yml up -d
+
+      - name: Wait for Postgres to be ready
+        run: |
+          for i in $(seq 1 30); do
+            if docker compose -f tests/docker-compose.test.yml exec -T db-test \
+                pg_isready -U formiq_test -d formiq_test_db; then
+              echo "Postgres is ready"; break
+            fi
+            echo "Waiting for Postgres ($i/30)..."; sleep 2
+          done
+
+      - name: Wait for Redis to be ready
+        run: |
+          for i in $(seq 1 20); do
+            if docker compose -f tests/docker-compose.test.yml exec -T redis-test \
+                redis-cli ping | grep -q PONG; then
+              echo "Redis is ready"; break
+            fi
+            echo "Waiting for Redis ($i/20)..."; sleep 2
+          done
+
+      - name: Run integration tests
+        env:
+          ENVIRONMENT: test
+          SECRET_KEY: ci-test-secret-key-not-real
+          TEST_DATABASE_URL: "postgresql+asyncpg://formiq_test:formiq_test@localhost:5434/formiq_test_db"
+          REDIS_URL: "redis://localhost:6380/0"
+          REDIS_HOST: "localhost"
+          REDIS_PORT: "6380"
+          AWS_ACCESS_KEY_ID: "dummy"
+          AWS_SECRET_ACCESS_KEY: "dummy"
+          AWS_REGION: "us-east-1"
+          S3_BUCKET_NAME: "dummy-bucket"
+        run: |
+          pytest -q \
+            -m integration \
+            --override-ini="addopts=-q --asyncio-mode=auto --no-cov -p no:cacheprovider" \
+            tests/integration/form_checks/ \
+            tests/integration/videos/
+
+      - name: Tear down docker-compose services
+        if: always()
+        run: |
+          docker compose -f tests/docker-compose.test.yml down -v
+
+# ---------------------------------------------------------------------------
+# Job 3 — E2E gate (scaffold)
+# Triggered only on manual dispatch OR pushes to the `staging` branch.
+# Not required to be green to merge PRs.
+# ---------------------------------------------------------------------------
+  e2e_tests:
+    name: "E2E Tests (golden path)"
+    runs-on: ubuntu-latest
+
+    # Only run manually or on staging branch
+    if: >
+      github.event_name == 'workflow_dispatch'
+      || (github.event_name == 'push' && github.ref == 'refs/heads/staging')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-test.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-test.txt
+
+      - name: Start docker-compose services
+        run: |
+          docker compose -f tests/docker-compose.test.yml up -d
+
+      - name: Wait for Postgres to be ready
+        run: |
+          for i in $(seq 1 30); do
+            if docker compose -f tests/docker-compose.test.yml exec -T db-test \
+                pg_isready -U formiq_test -d formiq_test_db; then
+              echo "Postgres is ready"; break
+            fi
+            echo "Waiting for Postgres ($i/30)..."; sleep 2
+          done
+
+      - name: Wait for Redis to be ready
+        run: |
+          for i in $(seq 1 20); do
+            if docker compose -f tests/docker-compose.test.yml exec -T redis-test \
+                redis-cli ping | grep -q PONG; then
+              echo "Redis is ready"; break
+            fi
+            echo "Waiting for Redis ($i/20)..."; sleep 2
+          done
+
+      - name: Run E2E tests
+        env:
+          ENVIRONMENT: test
+          SECRET_KEY: ci-test-secret-key-not-real
+          TEST_DATABASE_URL: "postgresql+asyncpg://formiq_test:formiq_test@localhost:5434/formiq_test_db"
+          REDIS_URL: "redis://localhost:6380/0"
+          REDIS_HOST: "localhost"
+          REDIS_PORT: "6380"
+          AWS_ACCESS_KEY_ID: "dummy"
+          AWS_SECRET_ACCESS_KEY: "dummy"
+          AWS_REGION: "us-east-1"
+          S3_BUCKET_NAME: "dummy-bucket"
+        run: |
+          pytest -q \
+            -m e2e \
+            --override-ini="addopts=-q --asyncio-mode=auto --no-cov -p no:cacheprovider" \
+            tests/e2e/test_full_flow.py
+
+      - name: Tear down docker-compose services
+        if: always()
+        run: |
+          docker compose -f tests/docker-compose.test.yml down -v
