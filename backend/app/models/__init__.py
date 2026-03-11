@@ -9,6 +9,7 @@ from app.models.video import Video
 from app.models.exercise import ExerciseTemplate
 from app.models.exercise_config import ExerciseConfig, ExerciseConfigSchema
 from app.models.progress import ExerciseProgress, ProgressSnapshot
+from app.models.squat_session import SquatSession
 from app.models.enums import (
     SubscriptionTier,
     FormCheckStatus,
@@ -34,6 +35,7 @@ __all__ = [
     'ExerciseConfigSchema',
     'ExerciseProgress',
     'ProgressSnapshot',
+    'SquatSession',
     'SubscriptionTier',
     'FormCheckStatus',
     'FeedbackType',

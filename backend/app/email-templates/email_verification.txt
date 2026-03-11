@@ -9,16 +9,9 @@ To get started, please verify your email address by visiting the link below:
 
 {{ verification_url }}
 
-If you prefer, you can also enter this verification code in the app:
-
-{{ verification_code }}
-
-This link and code will expire in 24 hours.
+This link will expire in 24 hours.
 
 If you didn't create an account with FormIQ, you can safely ignore this email.
 
 ---
-© {{ year }} FormIQ. All rights reserved.
-123 Fitness Street, Exercise City, FT 12345
-Terms of Service: https://formiq.com/terms
-Privacy Policy: https://formiq.com/privacy 
+© {{ year }} FormIQ. All rights reserved. 

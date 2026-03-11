@@ -83,7 +83,6 @@
 <body>
     <div class="container">
         <div class="header">
-            <img src="https://formiq.com/assets/logo.png" alt="FormIQ Logo" class="logo">
             <h1>Verify Your FormIQ Account</h1>
         </div>
         
@@ -99,23 +98,15 @@
             </p>
             
             <p>Or copy and paste this link into your browser:</p>
-            <p style="word-break: break-all; font-size: 14px;">{{ verification_url }}</p>
-            
-            <p>If you prefer, you can also enter this verification code in the app:</p>
-            <div class="verification-code">{{ verification_code }}</div>
-            
-            <p>This link and code will expire in 24 hours.</p>
+            <p style="word-break: break-all; font-size: 13px; color: #555;">{{ verification_url }}</p>
+
+            <p>This link will expire in 24 hours.</p>
             
             <p>If you didn't create an account with FormIQ, you can safely ignore this email.</p>
         </div>
         
         <div class="footer">
             <p>© {{ year }} FormIQ. All rights reserved.</p>
-            <p>123 Fitness Street, Exercise City, FT 12345</p>
-            <p>
-                <a href="https://formiq.com/terms">Terms of Service</a> | 
-                <a href="https://formiq.com/privacy">Privacy Policy</a>
-            </p>
         </div>
     </div>
 </body>
