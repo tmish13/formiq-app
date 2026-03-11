@@ -1,0 +1,29 @@
+{
+  "_comment": "Ground-truth label corrections. Maps filename -> true_label. Valid values: good_form | posture_fault | other_fault | messy. 'fault' also accepted as alias for posture_fault. Used only for evaluation metrics; never alters model inference.",
+  "_reviewed_by": "user visual review, Feb 2026",
+
+  "_section_messy": "Excluded from metrics — unusable videos",
+  "RClKKQqsvXA_good_rep_1.mp4": "messy",
+  "good_squat_01.mp4": "messy",
+  "1680_posture_fault_1.mp4": "messy",
+  "T6ad8Et3C5Q_good_rep_1.mp4": "messy",
+  "0o2LX-quNZk_good_rep_1.mp4": "messy",
+  "VFcZv4SOBJE_good_rep_1.mp4": "messy",
+  "l83R5PblSMA_good_rep_1.mp4": "messy",
+
+  "_section_mislabels_good": "Penn Action fault/ folder mislabels — confirmed good form by visual review",
+  "1663_posture_fault_1.mp4": "good_form",
+  "1664_posture_fault_1.mp4": "good_form",
+  "1673_posture_fault_1.mp4": "good_form",
+  "1677_good_rep_1.mp4": "good_form",
+  "1678_posture_fault_1.mp4": "good_form",
+  "1683_posture_fault_1.mp4": "good_form",
+  "1885_good_form_1.mp4": "good_form",
+
+  "_note_good_squat_01": "Not a real test — lifter not squatting real weight, invalid test video",
+  "_note_T6ad8Et3C5Q": "Body not fully in frame, squat not completed — invalid test",
+  "_note_0o2LX_VFcZv4_lR5P": "Bad camera angle and/or air squats — no barbell, not evaluable",
+  "_note_1680": "Filmed front-on — can't evaluate posture, bad filming angle (model needs side/back angle)",
+  "_note_1675": "Confirmed genuine major posture fault — real model miss",
+  "_note_valid_good": "Only valid good_form videos: bEv6CCg2BC8, i7J5h7BJ07g — proper side angle, real bar, good lighting"
+}
