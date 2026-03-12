@@ -622,7 +622,7 @@ class Settings(BaseSettings):
         return True
 
     EMAIL_TEMPLATES_DIR: Path = Field(
-        default="app/templates/email", # Default to relative, validator will absolutize
+        default="app/email-templates", # Default to relative, validator will absolutize
         description="Directory for email templates"
     )
     
