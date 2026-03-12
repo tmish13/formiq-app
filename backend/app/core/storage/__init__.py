@@ -134,19 +134,20 @@ storage_provider = LocalStorageProvider()
 
 async def init_storage():
     """Initialize storage system at application startup.
-    
+
     This function sets up the appropriate storage backend based on configuration
     and ensures all required resources are available.
     """
+    global storage_provider
     logger.info("Initializing storage system")
-    
+
     try:
         # Determine storage type
-        if settings.ENVIRONMENT == "production" and settings.USE_S3_STORAGE:
-            # In production, we use S3
+        if settings.USE_S3_STORAGE:
             # Verify S3 credentials and bucket access
             s3_available = await verify_s3_connection()
             if s3_available:
+                storage_provider = S3StorageProvider()
                 logger.info(f"S3 storage initialized using bucket: {settings.AWS_BUCKET_NAME}")
             else:
                 logger.error("Failed to connect to S3 - check credentials and bucket configuration")

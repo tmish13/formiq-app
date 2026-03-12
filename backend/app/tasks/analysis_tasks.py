@@ -45,7 +45,11 @@ def initialize_worker_services(**kwargs):
     try:
         settings_obj = get_settings() # Services might need settings
         _shared_ai_service = AIService(app_settings=settings_obj) # Pass settings
-        _shared_storage_service = StorageService(app_settings=settings_obj) # Pass settings
+        if settings_obj.USE_S3_STORAGE:
+            from app.core.storage.s3 import S3StorageProvider as _S3Provider
+            _shared_storage_service = StorageService(provider=_S3Provider(), app_settings=settings_obj)
+        else:
+            _shared_storage_service = StorageService(app_settings=settings_obj)
         # Initialize ExerciseConfigService and VideoService with db access needs to be handled carefully
         # For services requiring DB session for __init__, this pattern might not be ideal,
         # or they should be designed to be initializable without a session, deferring DB ops to methods.
