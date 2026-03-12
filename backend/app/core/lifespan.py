@@ -73,13 +73,6 @@ async def lifespan(app: FastAPI):
             await cache_service.connect()
             if cache_service.available:
                 logger.info("Redis connection successful")
-                
-                # Setup performance cache
-                # Preload common data, especially for form analysis endpoints
-                if settings.ENVIRONMENT in ["production", "staging"]:
-                    from app.core.preload import preload_caches
-                    await preload_caches()
-                    logger.info("Cache preloading complete")
             else:
                 logger.warning("Redis is not available - caching disabled")
         except Exception as redis_error:
