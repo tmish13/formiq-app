@@ -1,6 +1,24 @@
 """Celery configuration and initialization module."""
+import os
 from celery import Celery
 from app.core.config import settings
+
+# Setup OpenTelemetry tracing for Celery if available
+def _setup_celery_tracing():
+    """Setup OpenTelemetry tracing for Celery tasks."""
+    try:
+        from app.core.tracing import _safe_import
+        celery_instrumentor = _safe_import('opentelemetry.instrumentation.celery')
+        if celery_instrumentor:
+            instrumentor = celery_instrumentor.CeleryInstrumentor()
+            if not hasattr(instrumentor, '_is_instrumented') or not instrumentor._is_instrumented:
+                instrumentor.instrument()
+                print("Celery OpenTelemetry instrumentation configured")
+    except Exception as e:
+        print(f"Could not setup Celery tracing: {e}")
+
+# Setup Celery tracing
+_setup_celery_tracing()
 
 # Initialize Celery
 # The first argument is the name of the current module, useful for automatic naming of tasks.
@@ -30,7 +48,12 @@ celery_app.conf.update(
     enable_utc=True,
     task_track_started=True, # If you want tasks to report 'started' state
     worker_prefetch_multiplier=1, # Can be useful for long-running I/O bound tasks
-    # worker_concurrency=settings.CELERY_WORKER_CONCURRENCY if hasattr(settings, 'CELERY_WORKER_CONCURRENCY') else None, # Number of worker processes/threads
+    task_soft_time_limit=180,  # Raise SoftTimeLimitExceeded after 3 minutes
+    task_time_limit=300,       # Hard kill after 5 minutes
+    # Concurrency capped well below DB pool_size (default 20) so analysis tasks
+    # never exhaust PostgreSQL connections.  Override via CELERY_WORKER_CONCURRENCY
+    # env var or --concurrency flag at worker startup.
+    worker_concurrency=int(os.getenv("CELERY_WORKER_CONCURRENCY", "4")),
 )
 
 # Optional: If you want to use a custom Celery Task base class for all tasks

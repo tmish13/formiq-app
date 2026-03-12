@@ -71,6 +71,7 @@ class FormCheck(BaseModel):
     confidence_score = Column(Float, nullable=True)
     form_metadata = Column(JSON, nullable=True)  # For aggregated scores_by_rep, issues_by_rep, and summary stats for UI.
     results = Column(JSON, nullable=True)
+    details = Column(JSON, nullable=True)
     configuration_id = Column(SQLiteUUID(), ForeignKey("exercise_configs.id", ondelete="SET NULL"), nullable=True, index=True)
     reps_per_minute = Column(Float, nullable=True)
     reps_detected = Column(Integer, nullable=True)
@@ -83,7 +84,13 @@ class FormCheck(BaseModel):
     posture_score = Column(Float, nullable=True)
     stability_score = Column(Float, nullable=True)
     depth_score = Column(Float, nullable=True)
-    
+
+    # V1 Stabilization fields
+    video_key = Column(String, nullable=True)       # S3 object key for fresh URL generation
+    exercise_type = Column(String, nullable=True)    # denormalized ("squat"), default None
+    weight_kg = Column(Float, nullable=True)         # user-entered weight
+    reps = Column(Integer, nullable=True)            # user-entered reps
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     

@@ -156,12 +156,13 @@ class TestVideoProcessingService:
         assert metadata is None # Service code returns None for metadata here too
 
     def test_validate_video_resolution_too_low_width(self, video_processing_service: VideoProcessingService, mock_video_capture, tmp_path):
-        mock_cv_props = {cv2.CAP_PROP_FRAME_COUNT: 100, cv2.CAP_PROP_FPS: 30, cv2.CAP_PROP_FRAME_WIDTH: 319, cv2.CAP_PROP_FRAME_HEIGHT: 240}
-        mock_video_capture(True, [np.zeros((240,319,3), dtype=np.uint8)], mock_cv_props)
+        # width=239 so min(239, 480) = 239 < 240 triggers the resolution check
+        mock_cv_props = {cv2.CAP_PROP_FRAME_COUNT: 100, cv2.CAP_PROP_FPS: 30, cv2.CAP_PROP_FRAME_WIDTH: 239, cv2.CAP_PROP_FRAME_HEIGHT: 480}
+        mock_video_capture(True, [np.zeros((480, 239, 3), dtype=np.uint8)], mock_cv_props)
         video_path = str(tmp_path / "low_res_w.mp4")
         is_valid, message, metadata = video_processing_service._validate_video(video_path)
         assert is_valid is False
-        assert message == "Video resolution too low"
+        assert "Video resolution too low" in message
         assert metadata is not None
 
     def test_validate_video_resolution_too_low_height(self, video_processing_service: VideoProcessingService, mock_video_capture, tmp_path):
@@ -170,7 +171,7 @@ class TestVideoProcessingService:
         video_path = str(tmp_path / "low_res_h.mp4")
         is_valid, message, metadata = video_processing_service._validate_video(video_path)
         assert is_valid is False
-        assert message == "Video resolution too low"
+        assert "Video resolution too low" in message
         assert metadata is not None
 
     def test_validate_video_fps_too_low(self, video_processing_service: VideoProcessingService, mock_video_capture, tmp_path):
@@ -182,17 +183,19 @@ class TestVideoProcessingService:
         assert message == "Frame rate too low (less than 10 FPS)"
         assert metadata is not None
 
-    def test_validate_video_duration_too_long(self, video_processing_service: VideoProcessingService, mock_settings: MagicMock, mock_video_capture, tmp_path):
+    def test_validate_video_duration_too_long(self, video_processing_service: VideoProcessingService, mock_video_capture, tmp_path):
         fps_val = 30
-        # Duration = (MAX_VIDEO_DURATION + 1) seconds
-        num_frames = fps_val * (mock_settings.MAX_VIDEO_DURATION + 1)
+        # Duration = (MAX_DURATION + 1) seconds — uses the class constant, not a settings mock
+        num_frames = int(fps_val * (VideoProcessingService.MAX_DURATION + 1))
         mock_cv_props = {cv2.CAP_PROP_FRAME_COUNT: num_frames, cv2.CAP_PROP_FPS: fps_val, cv2.CAP_PROP_FRAME_WIDTH: 640, cv2.CAP_PROP_FRAME_HEIGHT: 480}
         mock_video_capture(True, [np.zeros((480,640,3), dtype=np.uint8)], mock_cv_props)
         video_path = str(tmp_path / "long_vid.mp4")
         is_valid, message, metadata = video_processing_service._validate_video(video_path)
         assert is_valid is False
-        assert message == f"Video duration exceeds {mock_settings.MAX_VIDEO_DURATION} seconds"
-        assert metadata is not None
+        # The duration error is raised as VideoValidationError, caught by the except block,
+        # and returned as str(e). metadata is None because the exception path returns None.
+        assert "is outside the acceptable range" in message
+        assert metadata is None
 
     def test_validate_video_metadata_collection(self, video_processing_service: VideoProcessingService, mock_video_capture, tmp_path):
         """Test _validate_video primarily for metadata collection even if validation passes."""
@@ -265,7 +268,7 @@ class TestVideoProcessingService:
         mock_subprocess_run.assert_called_once()
 
     @patch("subprocess.run")
-    def test_normalize_video_with_ffmpeg_failure(self, mock_subprocess_run: MagicMock, video_processing_service: VideoProcessingService, tmp_path, caplog):
+    def test_normalize_video_with_ffmpeg_failure(self, mock_subprocess_run: MagicMock, video_processing_service: VideoProcessingService, tmp_path):
         # Simulate FFmpeg command failure
         simulated_error = subprocess.CalledProcessError(returncode=1, cmd="ffmpeg ...", stderr="ffmpeg error")
         mock_subprocess_run.side_effect = simulated_error
@@ -273,17 +276,20 @@ class TestVideoProcessingService:
         output_path = str(tmp_path / "output.mp4")
         open(input_path, 'w').close()
 
-        with pytest.raises(VideoProcessingError) as exc_info:
-            video_processing_service._normalize_video_with_ffmpeg(input_path, output_path, 10)
-        
+        # Patch the logger directly on the service instance — avoids caplog/structlog
+        # ordering sensitivity caused by dictConfig replacing handlers at ASGI startup.
+        with patch.object(video_processing_service.logger, "error") as mock_log_error:
+            with pytest.raises(VideoProcessingError) as exc_info:
+                video_processing_service._normalize_video_with_ffmpeg(input_path, output_path, 10)
+
         assert f"Subprocess error during FFmpeg execution: {simulated_error}" in str(exc_info.value)
         assert exc_info.value.__cause__ is simulated_error
+        assert mock_subprocess_run.called  # Ensure subprocess.run was actually called
 
-        assert mock_subprocess_run.called # Ensure subprocess.run was actually called
-        # Verify logs (optional, as exception is the primary check)
-        # Example: assert "FFmpeg failed for" in caplog.text or "Subprocess error during FFmpeg" in caplog.text
-        # Depending on which log you want to confirm specifically, given the service logs before raising.
-        assert "Subprocess error during FFmpeg execution" in caplog.text # Check for the specific log before raising
+        # Assert the error was logged before the raise, with the exact message text.
+        mock_log_error.assert_called_once()
+        logged_msg = mock_log_error.call_args[0][0]
+        assert "Subprocess error during FFmpeg execution" in logged_msg
 
     @patch("subprocess.run")
     def test_normalize_video_with_ffmpeg_command_construction(self, mock_subprocess_run: MagicMock, video_processing_service: VideoProcessingService, tmp_path):
@@ -419,31 +425,27 @@ class TestVideoProcessingService:
         selected = video_processing_service._select_key_frames(input_frames, ExerciseType.SQUAT)
         assert len(selected) == 0
 
-    def test_select_key_frames_unknown_exercise_type(self, video_processing_service: VideoProcessingService, caplog):
+    def test_select_key_frames_unknown_exercise_type(self, video_processing_service: VideoProcessingService):
         input_frames = [np.random.rand(10,10,3) for _ in range(10)]
-        
-        # To robustly test the default path when an exercise_type is not in frame_selection_configs,
-        # we mock the .get() method of that dictionary for this specific test.
-        # The default config used by the service is {"frame_count": 1}
-        default_config_val = {"frame_count": 1} # This is what the service code uses as default
         unknown_exercise_type_key = "THIS_IS_A_TOTALLY_UNKNOWN_KEY"
 
-        with patch.dict(video_processing_service.frame_selection_configs, {}, clear=True): # Temporarily empty the dict
-            # Or, more targeted, mock the get method if the dict is complex / shared state
-            # For this case, an empty dict + ensuring the key isn't there is simpler.
-            # The service uses .get(exercise_type, {"frame_count": 1}), so if key not present, it uses the default.
-            
-            # Re-populate with a config that does NOT include our unknown_exercise_type_key
-            video_processing_service.frame_selection_configs[ExerciseType.SQUAT] = {"frame_count": 5} # Example
+        # Patch the logger directly on the service instance — avoids caplog/structlog
+        # ordering sensitivity caused by dictConfig replacing handlers at ASGI startup.
+        with patch.object(video_processing_service.logger, "info") as mock_log_info:
+            with patch.dict(video_processing_service.frame_selection_configs, {}, clear=True):
+                video_processing_service.frame_selection_configs[ExerciseType.SQUAT] = {"frame_count": 5}
+                selected = video_processing_service._select_key_frames(input_frames, unknown_exercise_type_key)
 
-            selected = video_processing_service._select_key_frames(input_frames, unknown_exercise_type_key) # Pass the string key
-            # If config is not found (service uses .get(key) without a default in current version for the primary lookup),
-            # it logs "No frame selection config for..." and returns all original frames.
-            assert f"No frame selection config for {unknown_exercise_type_key}, returning all frames." in caplog.text
-            assert len(selected) == len(input_frames) # Should return all input frames
-            if input_frames: # Ensure content check only if there are frames
-                 assert np.array_equal(selected[0], input_frames[0]) # First frame as a basic check
-                 assert np.array_equal(selected[-1], input_frames[-1]) # Last frame as a basic check
+        # Assert the info log was emitted with the exact message text.
+        mock_log_info.assert_called_once()
+        logged_msg = mock_log_info.call_args[0][0]
+        assert f"No frame selection config for {unknown_exercise_type_key}" in logged_msg
+        assert "returning all frames" in logged_msg
+
+        assert len(selected) == len(input_frames)
+        if input_frames:
+            assert np.array_equal(selected[0], input_frames[0])
+            assert np.array_equal(selected[-1], input_frames[-1])
 
     # Tests for _preprocess_frames
     @patch("cv2.resize")
@@ -479,16 +481,13 @@ class TestVideoProcessingService:
             assert np.array_equal(resize_call_args[0], original_frame) 
             assert resize_call_args[1] == (target_w, target_h)     
 
-            # Check the output frame properties
+            # Check the output frame properties.
+            # _preprocess_frames returns uint8 RGB; normalization is done downstream by the AI service.
             processed_frame = processed_frames[i]
             assert processed_frame.shape == (target_h, target_w, 3)
-            assert processed_frame.dtype == np.float32
-            assert np.all(processed_frame >= 0) and np.all(processed_frame <= 1.0) # Normalized
-            
-            # Check that the output frame came from the mocked resize output (after normalization)
-            # This means the mocked resized_frame_template (0-255) divided by 255.0 should match processed_frame
-            expected_normalized_frame = (resized_frame_template / 255.0).astype(np.float32)
-            assert np.allclose(processed_frame, expected_normalized_frame) 
+            assert processed_frame.dtype == np.uint8
+            # cvtColor mock is a passthrough (lambda frame, code: frame.copy()), so content matches resize output
+            assert np.array_equal(processed_frame, resized_frame_template)
 
     def test_preprocess_frames_empty_input(self, video_processing_service: VideoProcessingService):
         processed_frames = video_processing_service._preprocess_frames([])
@@ -792,22 +791,32 @@ class TestVideoProcessingService:
     def mock_video_capture(self, monkeypatch):
         # This single mock instance will be configured by the returned function
         mock_cap_instance = MagicMock(spec=cv2.VideoCapture)
-        
+
         # The actual VideoCapture constructor will return our single mock_cap_instance
         monkeypatch.setattr(cv2, "VideoCapture", lambda path_or_index: mock_cap_instance)
 
         def configure_mock(is_opened_val, frame_data_list, gets_map=None):
             mock_cap_instance.isOpened.return_value = is_opened_val
-            
+
             read_outputs = []
-            if frame_data_list: 
+            if frame_data_list:
                  for frame_np in frame_data_list:
                     read_outputs.append((True, frame_np))
             read_outputs.append((False, None)) # End of video or error signal
             # Reset and set side_effect each time configure_mock is called
             mock_cap_instance.read.side_effect = read_outputs
             mock_cap_instance.read.reset_mock() # Ensure previous call counts don't interfere
-            
+
+            # Patch _get_video_dimensions to avoid requiring ffprobe in unit tests.
+            # Extract width/height from gets_map so dimensions are consistent with cap.get() mocks.
+            width = int(gets_map.get(cv2.CAP_PROP_FRAME_WIDTH, 640)) if gets_map else 640
+            height = int(gets_map.get(cv2.CAP_PROP_FRAME_HEIGHT, 480)) if gets_map else 480
+            monkeypatch.setattr(
+                VideoProcessingService,
+                '_get_video_dimensions',
+                lambda self_inner, path: (width, height)
+            )
+
             # Configure .get() carefully
             def get_side_effect(prop_id):
                 if gets_map and prop_id in gets_map:
@@ -820,9 +829,9 @@ class TestVideoProcessingService:
                 if prop_id == cv2.CAP_PROP_FRAME_WIDTH: return 0
                 if prop_id == cv2.CAP_PROP_FRAME_HEIGHT: return 0
                 return 0 # Default for other props
-            
+
             mock_cap_instance.get.side_effect = get_side_effect
             mock_cap_instance.release = MagicMock()
             return mock_cap_instance # Return the instance for potential direct manipulation if needed, though not typical
 
-        return configure_mock # Return the configurator function 
+        return configure_mock # Return the configurator function

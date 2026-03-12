@@ -2,6 +2,7 @@
 
 import json
 import logging
+import threading
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple, List
 import joblib
@@ -43,6 +44,7 @@ class EnhancedSquatModelLoader:
         self._thresholds = {}  # {model_type: threshold}
         self._metadata = {}
         self._models_loaded = False
+        self._load_lock = threading.Lock()  # prevents double-load across Celery threads
         
         # Model types and their weights for ensemble prediction
         self.model_types = ['binary', 'posture', 'stability', 'depth']
@@ -59,113 +61,120 @@ class EnhancedSquatModelLoader:
     def _load_models(self) -> None:
         """
         Load all multi-model components from disk with adaptive feature selection.
-        
+        Thread-safe: double-checked locking prevents duplicate loads when multiple
+        Celery workers call predict_form_quality() concurrently on first request.
+        _models_loaded is only set to True INSIDE the lock and ONLY on success.
+
         Raises:
             ServerErrorException: If critical models cannot be loaded
         """
         if self._models_loaded:
             return
+        with self._load_lock:
+            if self._models_loaded:  # re-check after acquiring lock
+                return
+            # All model loading happens INSIDE the lock so only one thread loads.
+            try:
+                logger.info(f"Loading enhanced squat models from {self.model_path}")
             
-        try:
-            logger.info(f"Loading enhanced squat models from {self.model_path}")
-            
-            # Try to load adaptive feature sets (from notebook approach)
-            adaptive_features_path = self.model_path / "adaptive_feature_sets.json"
-            if adaptive_features_path.exists():
-                with open(adaptive_features_path, 'r') as f:
-                    self._feature_sets = json.load(f)
-                logger.info("Adaptive feature sets loaded successfully")
-            else:
-                # Fallback to single feature set for all models
-                feature_names_path = self.model_path / "feature_names.json"
-                if feature_names_path.exists():
-                    with open(feature_names_path, 'r') as f:
-                        default_features = json.load(f)
-                    for model_type in self.model_types:
-                        self._feature_sets[model_type] = default_features
-                    logger.info("Using default feature set for all models")
+                # Try to load adaptive feature sets (from notebook approach)
+                adaptive_features_path = self.model_path / "adaptive_feature_sets.json"
+                if adaptive_features_path.exists():
+                    with open(adaptive_features_path, 'r') as f:
+                        self._feature_sets = json.load(f)
+                    logger.info("Adaptive feature sets loaded successfully")
                 else:
-                    raise FileNotFoundError("No feature definitions found")
-            
-            # Load confidence thresholds
-            thresholds_path = self.model_path / "confidence_thresholds.json"
-            if thresholds_path.exists():
-                with open(thresholds_path, 'r') as f:
-                    self._thresholds = json.load(f)
-            else:
-                # Use default thresholds
-                default_threshold_path = self.model_path / "optimal_threshold.json" 
-                if default_threshold_path.exists():
-                    with open(default_threshold_path, 'r') as f:
-                        threshold_data = json.load(f)
-                        default_threshold = threshold_data.get('threshold', 0.35)
-                    for model_type in self.model_types:
-                        self._thresholds[model_type] = default_threshold
-                else:
-                    for model_type in self.model_types:
-                        self._thresholds[model_type] = 0.5
-            
-            # Load individual models and scalers
-            models_loaded = 0
-            for model_type in self.model_types:
-                try:
-                    logger.info(f"Processing {model_type} model...")
-                    # Try to load model-specific files first
-                    model_path = self.model_path / f"{model_type}_model.joblib"
-                    scaler_path = self.model_path / f"{model_type}_scaler.joblib"
-                    
-                    logger.debug(f"Checking specific model path: {model_path}")
-                    if model_path.exists():
-                        self._models[model_type] = joblib.load(model_path)
-                        models_loaded += 1
-                        logger.info(f"Loaded {model_type} model successfully")
+                    # Fallback to single feature set for all models
+                    feature_names_path = self.model_path / "feature_names.json"
+                    if feature_names_path.exists():
+                        with open(feature_names_path, 'r') as f:
+                            default_features = json.load(f)
+                        for model_type in self.model_types:
+                            self._feature_sets[model_type] = default_features
+                        logger.info("Using default feature set for all models")
                     else:
-                        # Fallback to binary model for all types
-                        binary_path = self.model_path / "binary_classification_model.joblib"
-                        logger.debug(f"Checking fallback binary path: {binary_path}")
-                        logger.debug(f"Binary path exists: {binary_path.exists()}")
-                        if binary_path.exists():
-                            logger.debug(f"Loading binary model for {model_type}...")
-                            self._models[model_type] = joblib.load(binary_path)
+                        raise FileNotFoundError("No feature definitions found")
+            
+                # Load confidence thresholds
+                thresholds_path = self.model_path / "confidence_thresholds.json"
+                if thresholds_path.exists():
+                    with open(thresholds_path, 'r') as f:
+                        self._thresholds = json.load(f)
+                else:
+                    # Use default thresholds
+                    default_threshold_path = self.model_path / "optimal_threshold.json" 
+                    if default_threshold_path.exists():
+                        with open(default_threshold_path, 'r') as f:
+                            threshold_data = json.load(f)
+                            default_threshold = threshold_data.get('threshold', 0.35)
+                        for model_type in self.model_types:
+                            self._thresholds[model_type] = default_threshold
+                    else:
+                        for model_type in self.model_types:
+                            self._thresholds[model_type] = 0.5
+            
+                # Load individual models and scalers
+                models_loaded = 0
+                for model_type in self.model_types:
+                    try:
+                        logger.info(f"Processing {model_type} model...")
+                        # Try to load model-specific files first
+                        model_path = self.model_path / f"{model_type}_model.joblib"
+                        scaler_path = self.model_path / f"{model_type}_scaler.joblib"
+                    
+                        logger.debug(f"Checking specific model path: {model_path}")
+                        if model_path.exists():
+                            self._models[model_type] = joblib.load(model_path)
                             models_loaded += 1
-                            logger.info(f"Using binary model for {model_type} (fallback)")
+                            logger.info(f"Loaded {model_type} model successfully")
                         else:
-                            logger.warning(f"Neither specific nor fallback model found for {model_type}")
+                            # Fallback to binary model for all types
+                            binary_path = self.model_path / "binary_classification_model.joblib"
+                            logger.debug(f"Checking fallback binary path: {binary_path}")
+                            logger.debug(f"Binary path exists: {binary_path.exists()}")
+                            if binary_path.exists():
+                                logger.debug(f"Loading binary model for {model_type}...")
+                                self._models[model_type] = joblib.load(binary_path)
+                                models_loaded += 1
+                                logger.info(f"Using binary model for {model_type} (fallback)")
+                            else:
+                                logger.warning(f"Neither specific nor fallback model found for {model_type}")
                     
-                    logger.debug(f"Checking scaler path: {scaler_path}")
-                    if scaler_path.exists():
-                        self._scalers[model_type] = joblib.load(scaler_path)
-                        logger.debug(f"Loaded specific scaler for {model_type}")
-                    else:
-                        # Try default scaler
-                        default_scaler_path = self.model_path / "feature_scaler.joblib"
-                        logger.debug(f"Checking default scaler path: {default_scaler_path}")
-                        if default_scaler_path.exists():
-                            self._scalers[model_type] = joblib.load(default_scaler_path)
-                            logger.debug(f"Loaded default scaler for {model_type}")
+                        logger.debug(f"Checking scaler path: {scaler_path}")
+                        if scaler_path.exists():
+                            self._scalers[model_type] = joblib.load(scaler_path)
+                            logger.debug(f"Loaded specific scaler for {model_type}")
                         else:
-                            self._scalers[model_type] = None
-                            logger.debug(f"No scaler found for {model_type}, using None")
+                            # Try default scaler
+                            default_scaler_path = self.model_path / "feature_scaler.joblib"
+                            logger.debug(f"Checking default scaler path: {default_scaler_path}")
+                            if default_scaler_path.exists():
+                                self._scalers[model_type] = joblib.load(default_scaler_path)
+                                logger.debug(f"Loaded default scaler for {model_type}")
+                            else:
+                                self._scalers[model_type] = None
+                                logger.debug(f"No scaler found for {model_type}, using None")
                             
-                except Exception as e:
-                    logger.error(f"Could not load {model_type} model: {e}", exc_info=True)
-                    continue
+                    except Exception as e:
+                        logger.error(f"Could not load {model_type} model: {e}", exc_info=True)
+                        continue
             
-            if models_loaded == 0:
-                raise ServerErrorException("No models could be loaded")
+                if models_loaded == 0:
+                    raise ServerErrorException("No models could be loaded")
             
-            # Load metadata
-            metadata_path = self.model_path / "production_metadata.json"
-            if metadata_path.exists():
-                with open(metadata_path, 'r') as f:
-                    self._metadata = json.load(f)
+                # Load metadata
+                metadata_path = self.model_path / "production_metadata.json"
+                if metadata_path.exists():
+                    with open(metadata_path, 'r') as f:
+                        self._metadata = json.load(f)
             
-            self._models_loaded = True
-            logger.info(f"Enhanced squat models loaded: {models_loaded}/{len(self.model_types)} model types")
+                self._models_loaded = True
+                logger.info(f"Enhanced squat models loaded: {models_loaded}/{len(self.model_types)} model types")
             
-        except Exception as e:
-            logger.error(f"Failed to load enhanced squat models: {e}", exc_info=True)
-            raise ServerErrorException(f"Enhanced ML model loading failed: {str(e)}")
+            except Exception as e:
+                self._models_loaded = False  # allow retry on next call
+                logger.error(f"Failed to load enhanced squat models: {e}", exc_info=True)
+                raise ServerErrorException(f"Enhanced ML model loading failed: {str(e)}")
     
     def predict_form_quality(self, features: Dict[str, float]) -> Tuple[bool, float, Dict[str, Any]]:
         """
@@ -468,21 +477,45 @@ class EnhancedSquatModelLoader:
 class MLModelService:
     """
     Main service for managing all ML models in the application.
-    
+
     Currently supports squat form analysis, can be extended for other exercises.
+    Manages both the legacy sklearn ensemble and the new PostureV1 CNN-LSTM.
     """
-    
+
     def __init__(self, settings: Settings):
         self.settings = settings
         self.squat_loader = EnhancedSquatModelLoader(settings)
-    
+
+        # PostureV1 CNN-LSTM (lazy-initialized)
+        self._posture_v1: Optional['PostureV1TorchLoader'] = None
+        self._use_posture_v1 = getattr(settings, 'USE_POSTURE_V1', True)
+
     def get_squat_model(self) -> EnhancedSquatModelLoader:
         """Get the squat model loader."""
         return self.squat_loader
-    
+
+    def get_posture_v1(self) -> Optional['PostureV1TorchLoader']:
+        """Get the PostureV1 CNN-LSTM loader (lazy init)."""
+        if not self._use_posture_v1:
+            return None
+        if self._posture_v1 is None:
+            from app.ml.posture_v1.loader import PostureV1TorchLoader
+            self._posture_v1 = PostureV1TorchLoader(self.settings)
+        return self._posture_v1
+
     def health_check(self) -> Dict[str, Any]:
         """Perform health check on all ML models."""
-        return {
+        result = {
             "squat_model_available": self.squat_loader.is_model_available(),
-            "squat_model_metadata": self.squat_loader.get_model_metadata() if self.squat_loader.is_model_available() else None
+            "squat_model_metadata": self.squat_loader.get_model_metadata() if self.squat_loader.is_model_available() else None,
         }
+
+        posture_v1 = self.get_posture_v1()
+        if posture_v1 is not None:
+            result["posture_v1_available"] = posture_v1.is_available()
+            result["posture_v1_metadata"] = posture_v1.get_metadata()
+        else:
+            result["posture_v1_available"] = False
+            result["posture_v1_metadata"] = None
+
+        return result

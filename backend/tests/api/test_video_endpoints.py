@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 # Assuming your main app is accessible for client creation.
 # Adjust the import path if your app instance is located elsewhere.
 # from app.main import app as fastapi_app # This might be backend.app.main
-from backend.app.main import app as fastapi_app # Corrected path
+from app.main import app as fastapi_app
 
 from app.api import deps
 from app.models.user import User
@@ -131,7 +131,7 @@ async def unauthenticated_async_client(
 # --- Test Classes ---
 
 class TestGetPresignedUploadUrl:
-    API_ENDPOINT = "/api/v1/videos/upload/signed-url"
+    API_ENDPOINT = "/api/v1/videos/upload-url"
 
     @pytest.mark.asyncio
     async def test_get_presigned_url_success(
@@ -148,19 +148,15 @@ class TestGetPresignedUploadUrl:
         
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
-        assert "video_id" in data
-        assert "upload_url" in data
+        assert "videoId" in data
+        assert "uploadUrl" in data
         assert "fields" in data
-        
-        # Retrieve the mock_db_sess instance used by this client
-        mock_db_session_instance = authenticated_async_client.mock_db_sess_ref # type: ignore
 
         mock_video_service_for_api.create_upload_session.assert_awaited_once_with(
             user_id=mock_user_id,
             filename=payload["filename"],
             content_type=payload["content_type"],
-            metadata=None, 
-            db_session=mock_db_session_instance
+            metadata={},
         )
 
     @pytest.mark.asyncio
@@ -171,7 +167,7 @@ class TestGetPresignedUploadUrl:
         response = await authenticated_async_client.post(self.API_ENDPOINT, json=payload)
         
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-        assert "Invalid content type" in response.json()["detail"]
+        assert "Invalid content type" in response.json()["message"]
         mock_video_service_for_api.create_upload_session.assert_not_called()
 
     @pytest.mark.asyncio
@@ -184,7 +180,7 @@ class TestGetPresignedUploadUrl:
         response = await authenticated_async_client.post(self.API_ENDPOINT, json=payload)
         
         assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
-        assert "Error generating presigned URL" in response.json()["detail"]
+        assert "Error generating presigned URL" in response.json()["message"]
         
     @pytest.mark.asyncio
     async def test_get_presigned_url_unauthenticated(
@@ -193,14 +189,8 @@ class TestGetPresignedUploadUrl:
         payload = {"filename": "test_video.mp4", "content_type": "video/mp4"}
         response = await unauthenticated_async_client.post(self.API_ENDPOINT, json=payload)
         
-        assert response.status_code == status.HTTP_401_UNAUTHORIZED # Or 403 depending on default behavior
-        # FastAPI typically returns 401 if the auth dependency itself fails before your code runs.
-        # If get_current_user raises HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Not authenticated"),
-        # then the detail might be "Not authenticated". Otherwise, it might be "Not authenticated"
-        # or "Unauthorized" from the security scheme. Let's assume a generic detail for now or check FastAPI's default.
-        # For a more specific check, you might need to know how your `deps.get_current_user` fails.
-        # A common detail is "Not authenticated" or "Unauthorized".
-        assert "Not authenticated" in response.json()["detail"] # Adjust if your auth failure detail is different
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+        assert "Not authenticated" in response.json()["message"]
         mock_video_service_for_api.create_upload_session.assert_not_called()
 
     @pytest.mark.asyncio
@@ -219,15 +209,16 @@ class TestGetPresignedUploadUrl:
         response = await authenticated_async_client.post(self.API_ENDPOINT, json=payload)
         
         assert response.status_code == status.HTTP_200_OK
-        assert response.json() == mock_response_data
-        
-        mock_db_session_instance = authenticated_async_client.mock_db_sess_ref # type: ignore
+        resp = response.json()
+        assert resp["uploadUrl"] == mock_response_data["upload_url"]
+        assert resp["videoId"] == mock_response_data["video_id"]
+        assert resp["fields"] == mock_response_data["fields"]
+
         mock_video_service_for_api.create_upload_session.assert_awaited_once_with(
             user_id=mock_user_id,
             filename=payload["filename"],
             content_type=payload["content_type"],
-            metadata=metadata_payload, 
-            db_session=mock_db_session_instance
+            metadata=metadata_payload,
         )
 
     @pytest.mark.parametrize(
@@ -250,37 +241,13 @@ class TestGetPresignedUploadUrl:
         
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
         data = response.json()
-        print(f"DEBUG test_get_presigned_url_missing_required_params data: {data}") # DEBUG
-        
-        detail_content = data.get("detail")
-        detail_list = []
-        if isinstance(detail_content, str):
-            try:
-                # Try ast.literal_eval for strings like "[{...}]"
-                detail_list = ast.literal_eval(detail_content)
-                if not isinstance(detail_list, list): # Ensure it evaluated to a list
-                    detail_list = []
-                    print(f"DEBUG: ast.literal_eval did not produce a list: {detail_content}")
-            except (ValueError, SyntaxError):
-                detail_list = [] 
-                print(f"DEBUG: Could not ast.literal_eval detail string: {detail_content}")
-        elif isinstance(detail_content, list):
-            detail_list = detail_content
-
-        found_error = False
-        for err in detail_list:
-            if isinstance(err, dict) and err.get("loc") and isinstance(err["loc"], (list, tuple)) and len(err["loc"]) > 0:
-                if err["loc"][-1] == missing_field and err.get("type") == "missing":
-                    found_error = True
-                    break
-            else:
-                print(f"DEBUG: Unexpected error structure in detail: {err}")
-        assert found_error, f"Expected validation error for missing field '{missing_field}' not found or has wrong type/loc."
+        assert data["code"] == "VALIDATION_ERROR"
+        assert missing_field in data["details"]["field_errors"]
         mock_video_service_for_api.create_upload_session.assert_not_called()
 
 
 class TestConfirmUpload:
-    API_ENDPOINT = "/api/v1/videos/upload/confirm"
+    API_ENDPOINT = "/api/v1/videos/upload-complete"
 
     @pytest.mark.asyncio
     async def test_confirm_upload_success(
@@ -320,7 +287,7 @@ class TestConfirmUpload:
         )
         mock_video_service_for_api.confirm_video_upload.return_value = mock_service_response_video
         
-        payload = {"video_id": str(video_id_to_confirm), "object_key": object_key_val, "size": 1024}
+        payload = {"videoId": str(video_id_to_confirm), "object_key": object_key_val, "size": 1024}
         response = await authenticated_async_client.post(self.API_ENDPOINT, json=payload)
         
         assert response.status_code == status.HTTP_200_OK
@@ -329,16 +296,12 @@ class TestConfirmUpload:
         assert data["object_key"] == object_key_val
         assert data["status"] == "PENDING_PROCESSING" # Verify expected status
 
-        # Retrieve the mock_db_sess instance used by this client
-        mock_db_session_instance = authenticated_async_client.mock_db_sess_ref # type: ignore
-
         mock_video_service_for_api.confirm_video_upload.assert_awaited_once_with(
             video_id=video_id_to_confirm,
             current_user_id=sample_auth_user.id,
             is_superuser=sample_auth_user.is_superuser,
             object_key=object_key_val,
             size=1024,
-            db_session=mock_db_session_instance
         )
 
     @pytest.mark.asyncio
@@ -348,11 +311,11 @@ class TestConfirmUpload:
         video_id_not_found = uuid4()
         mock_video_service_for_api.confirm_video_upload.side_effect = NotFoundException("Video not found")
         
-        payload = {"video_id": str(video_id_not_found), "object_key": "some/key.mp4"}
+        payload = {"videoId": str(video_id_not_found), "object_key": "some/key.mp4"}
         response = await authenticated_async_client.post(self.API_ENDPOINT, json=payload)
-        
+
         assert response.status_code == status.HTTP_404_NOT_FOUND
-        assert "Video not found" in response.json()["detail"]
+        assert "Video not found" in response.json()["message"]
 
     @pytest.mark.asyncio
     async def test_confirm_upload_permission_denied(
@@ -361,11 +324,11 @@ class TestConfirmUpload:
         video_id_perm_denied = uuid4()
         mock_video_service_for_api.confirm_video_upload.side_effect = PermissionDeniedException("Not authorized")
         
-        payload = {"video_id": str(video_id_perm_denied), "object_key": "some/key.mp4"}
+        payload = {"videoId": str(video_id_perm_denied), "object_key": "some/key.mp4"}
         response = await authenticated_async_client.post(self.API_ENDPOINT, json=payload)
-        
-        assert response.status_code == status.HTTP_403_FORBIDDEN # Assuming PermissionDeniedException maps to 403
-        assert "Not authorized" in response.json()["detail"]
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert "Not authorized" in response.json()["message"]
 
     @pytest.mark.asyncio
     async def test_confirm_upload_service_exception(
@@ -373,93 +336,46 @@ class TestConfirmUpload:
     ):
         mock_video_service_for_api.confirm_video_upload.side_effect = Exception("Service layer confirm boom!")
         
-        payload = {"video_id": str(uuid4()), "object_key": "some/key.mp4"}
+        payload = {"videoId": str(uuid4()), "object_key": "some/key.mp4"}
         response = await authenticated_async_client.post(self.API_ENDPOINT, json=payload)
-        
+
         assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
-        assert "Error confirming video upload" in response.json()["detail"]
+        assert "Error confirming video upload" in response.json()["message"]
         
     @pytest.mark.asyncio
     async def test_confirm_upload_unauthenticated(
         self, unauthenticated_async_client: httpx.AsyncClient, mock_video_service_for_api: MagicMock
     ):
-        payload = {"video_id": str(uuid4()), "object_key": "some/key.mp4"}
+        payload = {"videoId": str(uuid4()), "object_key": "some/key.mp4"}
         response = await unauthenticated_async_client.post(self.API_ENDPOINT, json=payload)
-        
+
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
-        assert "Not authenticated" in response.json()["detail"] # Adjust as needed
+        assert "Not authenticated" in response.json()["message"]
         mock_video_service_for_api.confirm_video_upload.assert_not_called()
 
-    @pytest.mark.parametrize(
-        "missing_field, payload_override",
-        [
-            ("video_id", {"object_key": "some/key.mp4"}),
-            ("object_key", {"video_id": str(uuid4())}),
-        ]
-    )
     @pytest.mark.asyncio
     async def test_confirm_upload_missing_required_params(
-        self, authenticated_async_client: httpx.AsyncClient, mock_video_service_for_api: MagicMock, missing_field: str, payload_override: dict
+        self, authenticated_async_client: httpx.AsyncClient, mock_video_service_for_api: MagicMock
     ):
-        response = await authenticated_async_client.post(self.API_ENDPOINT, json=payload_override)
-        
+        # videoId is required; object_key is Optional so only videoId produces a 422
+        response = await authenticated_async_client.post(self.API_ENDPOINT, json={"object_key": "some/key.mp4"})
+
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
         data = response.json()
-        print(f"DEBUG test_confirm_upload_missing_required_params data: {data}") # DEBUG
-
-        detail_content = data.get("detail")
-        if isinstance(detail_content, str):
-            try:
-                detail_list = ast.literal_eval(detail_content)
-            except (ValueError, SyntaxError):
-                detail_list = []
-                print(f"DEBUG: Could not ast.literal_eval detail string: {detail_content}")
-        elif isinstance(detail_content, list):
-            detail_list = detail_content
-        else:
-            detail_list = []
-
-        found_error = False
-        for err in detail_list:
-            if isinstance(err, dict) and err.get("loc") and isinstance(err["loc"], (list, tuple)) and len(err["loc"]) > 0:
-                if err["loc"][-1] == missing_field and err.get("type") == "missing":
-                    found_error = True
-                    break
-            else:
-                print(f"DEBUG: Unexpected error structure in detail: {err}")
-        assert found_error, f"Expected validation error for missing field '{missing_field}' not found or has wrong type/loc."
+        assert data["code"] == "VALIDATION_ERROR"
+        assert "videoId" in data["details"]["field_errors"]
         mock_video_service_for_api.confirm_video_upload.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_confirm_upload_invalid_video_id_format(
         self, authenticated_async_client: httpx.AsyncClient, mock_video_service_for_api: MagicMock
     ):
-        payload = {"video_id": "not-a-uuid", "object_key": "some/key.mp4"}
+        # Endpoint alias is "videoId"; sending an invalid UUID value triggers 422
+        payload = {"videoId": "not-a-uuid", "object_key": "some/key.mp4"}
         response = await authenticated_async_client.post(self.API_ENDPOINT, json=payload)
-        
+
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
         data = response.json()
-        print(f"DEBUG test_confirm_upload_invalid_video_id_format data: {data}") # DEBUG
-
-        detail_content = data.get("detail")
-        if isinstance(detail_content, str):
-            try:
-                detail_list = ast.literal_eval(detail_content)
-            except (ValueError, SyntaxError):
-                detail_list = []
-                print(f"DEBUG: Could not ast.literal_eval detail string: {detail_content}")
-        elif isinstance(detail_content, list):
-            detail_list = detail_content
-        else:
-            detail_list = []
-
-        found_error = False
-        for err in detail_list:
-            if isinstance(err, dict) and err.get("loc") and isinstance(err["loc"], (list, tuple)) and len(err["loc"]) > 0:
-                if err["loc"][-1] == "video_id" and isinstance(err.get("type"), str) and "uuid" in err["type"]:
-                    found_error = True
-                    break
-            else:
-                print(f"DEBUG: Unexpected error structure in detail: {err}")
-        assert found_error, "Expected validation error for invalid video_id format not found or has wrong type/loc."
+        assert data["code"] == "VALIDATION_ERROR"
+        assert "videoId" in data["details"]["field_errors"]
         mock_video_service_for_api.confirm_video_upload.assert_not_called() 

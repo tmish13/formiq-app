@@ -40,7 +40,7 @@ export type RoutePath = typeof ROUTES[keyof typeof ROUTES];
 
 // Helper function to generate route with parameters
 export const generatePath = (route: RoutePath, params: Record<string, string> = {}): string => {
-  let path = route;
+  let path: string = route;
   Object.entries(params).forEach(([key, value]) => {
     path = path.replace(`:${key}`, value);
   });

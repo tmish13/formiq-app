@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.integration
+
 from unittest.mock import patch, AsyncMock, MagicMock
 from uuid import uuid4, UUID
 
@@ -113,6 +115,8 @@ async def test_confirm_video_upload_object_key_mismatch(
     uploaded_file_size = 1024 * 1024
 
     from fastapi import HTTPException # Import locally for the test
+
+
 
     with pytest.raises(HTTPException) as exc_info:
         await video_service.confirm_video_upload(

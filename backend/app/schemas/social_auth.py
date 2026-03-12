@@ -19,8 +19,13 @@ class SocialAuthResponse(BaseModel):
 
 
 class SocialUserInfo(BaseModel):
-    """Social user information extracted from token."""
-    email: EmailStr
+    """Social user information extracted from a social provider token.
+
+    email is Optional because Apple identity tokens omit the email on repeat
+    sign-ins after the first login. authenticate_social_user() handles the
+    None case via (social_provider, social_id) lookup.
+    """
+    email: Optional[EmailStr] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     name: Optional[str] = None

@@ -1,5 +1,5 @@
 import { ExerciseType } from '../services/exerciseLibraryService';
-import { Keypoint } from '@tensorflow-models/pose-detection';
+import { Keypoint } from './exercise';
 import { MLScores, PoseData, PoseIssue } from './ml';
 
 export interface Point2D {

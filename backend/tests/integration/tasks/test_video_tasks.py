@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.integration
+
 from unittest.mock import patch, MagicMock, AsyncMock
 from uuid6 import uuid7
 import os
@@ -15,6 +17,8 @@ from app.tasks.video_tasks import process_video_celery_task
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.schemas.video_processing import VideoProcessResult # For VideoProcessingService mock
 from app.core.config import Settings # For mocking get_settings
+
+
 
 # Helper for retry mock side_effect
 # This is a generic helper. If a test needs to simulate Celery's Retry exception,

@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.declarative import DeclarativeMeta
 from app.models.base import Base
-from app.core.exceptions import NotFoundException, DatabaseError
+from app.core.exceptions import NotFoundException, DatabaseException
 
 # Define ModelType as bound to DeclarativeMeta instead of Base
 ModelType = TypeVar("ModelType", bound=DeclarativeMeta)
@@ -63,7 +63,7 @@ class BaseRepository(Generic[ModelType]):
             Optional[ModelType]: Found record or None
         """
         if self._is_async:
-            raise DatabaseError("Use get_async for async sessions")
+            raise DatabaseException("Use get_async for async sessions")
             
         id_column = self._mapper.primary_key[0]
         typed_id = self._convert_value(id_column.name, id)
@@ -80,7 +80,7 @@ class BaseRepository(Generic[ModelType]):
             Optional[ModelType]: Found record or None
         """
         if not self._is_async:
-            raise DatabaseError("Use get for sync sessions")
+            raise DatabaseException("Use get for sync sessions")
             
         id_column = self._mapper.primary_key[0]
         typed_id = self._convert_value(id_column.name, id)
@@ -108,7 +108,7 @@ class BaseRepository(Generic[ModelType]):
             List[ModelType]: List of found records
         """
         if self._is_async:
-            raise DatabaseError("Use get_multi_async for async sessions")
+            raise DatabaseException("Use get_multi_async for async sessions")
             
         query = self.db.query(self.model)
         
@@ -138,7 +138,7 @@ class BaseRepository(Generic[ModelType]):
             List[ModelType]: List of found records
         """
         if not self._is_async:
-            raise DatabaseError("Use get_multi for sync sessions")
+            raise DatabaseException("Use get_multi for sync sessions")
             
         stmt = select(self.model)
         
@@ -162,10 +162,10 @@ class BaseRepository(Generic[ModelType]):
             ModelType: Created record
             
         Raises:
-            DatabaseError: If creation fails
+            DatabaseException: If creation fails
         """
         if self._is_async:
-            raise DatabaseError("Use create_async for async sessions")
+            raise DatabaseException("Use create_async for async sessions")
             
         try:
             # Convert input values to correct types
@@ -182,7 +182,7 @@ class BaseRepository(Generic[ModelType]):
             return db_obj
         except SQLAlchemyError as e:
             self.db.rollback()
-            raise DatabaseError(f"Failed to create {self.model.__name__}: {str(e)}")
+            raise DatabaseException(f"Failed to create {self.model.__name__}: {str(e)}")
 
     async def create_async(self, *, obj_in: Dict[str, Any]) -> ModelType:
         """
@@ -195,10 +195,10 @@ class BaseRepository(Generic[ModelType]):
             ModelType: Created record
             
         Raises:
-            DatabaseError: If creation fails
+            DatabaseException: If creation fails
         """
         if not self._is_async:
-            raise DatabaseError("Use create for sync sessions")
+            raise DatabaseException("Use create for sync sessions")
             
         try:
             # Convert input values to correct types
@@ -215,7 +215,7 @@ class BaseRepository(Generic[ModelType]):
             return db_obj
         except SQLAlchemyError as e:
             await self.db.rollback()
-            raise DatabaseError(f"Failed to create {self.model.__name__}: {str(e)}")
+            raise DatabaseException(f"Failed to create {self.model.__name__}: {str(e)}")
 
     def update(
         self, 
@@ -234,10 +234,10 @@ class BaseRepository(Generic[ModelType]):
             ModelType: Updated record
             
         Raises:
-            DatabaseError: If update fails
+            DatabaseException: If update fails
         """
         if self._is_async:
-            raise DatabaseError("Use update_async for async sessions")
+            raise DatabaseException("Use update_async for async sessions")
             
         try:
             for field, value in obj_in.items():
@@ -251,7 +251,7 @@ class BaseRepository(Generic[ModelType]):
             return db_obj
         except SQLAlchemyError as e:
             self.db.rollback()
-            raise DatabaseError(f"Failed to update {self.model.__name__}: {str(e)}")
+            raise DatabaseException(f"Failed to update {self.model.__name__}: {str(e)}")
 
     async def update_async(
         self, 
@@ -270,10 +270,10 @@ class BaseRepository(Generic[ModelType]):
             ModelType: Updated record
             
         Raises:
-            DatabaseError: If update fails
+            DatabaseException: If update fails
         """
         if not self._is_async:
-            raise DatabaseError("Use update for sync sessions")
+            raise DatabaseException("Use update for sync sessions")
             
         try:
             for field, value in obj_in.items():
@@ -287,7 +287,7 @@ class BaseRepository(Generic[ModelType]):
             return db_obj
         except SQLAlchemyError as e:
             await self.db.rollback()
-            raise DatabaseError(f"Failed to update {self.model.__name__}: {str(e)}")
+            raise DatabaseException(f"Failed to update {self.model.__name__}: {str(e)}")
 
     def delete(self, *, id: Union[int, str, UUID]) -> ModelType:
         """
@@ -301,10 +301,10 @@ class BaseRepository(Generic[ModelType]):
             
         Raises:
             NotFoundException: If record doesn't exist
-            DatabaseError: If deletion fails
+            DatabaseException: If deletion fails
         """
         if self._is_async:
-            raise DatabaseError("Use delete_async for async sessions")
+            raise DatabaseException("Use delete_async for async sessions")
             
         try:
             id_column = self._mapper.primary_key[0]
@@ -319,7 +319,7 @@ class BaseRepository(Generic[ModelType]):
             return obj
         except SQLAlchemyError as e:
             self.db.rollback()
-            raise DatabaseError(f"Failed to delete {self.model.__name__}: {str(e)}")
+            raise DatabaseException(f"Failed to delete {self.model.__name__}: {str(e)}")
 
     async def delete_async(self, *, id: Union[int, str, UUID]) -> ModelType:
         """
@@ -333,10 +333,10 @@ class BaseRepository(Generic[ModelType]):
             
         Raises:
             NotFoundException: If record doesn't exist
-            DatabaseError: If deletion fails
+            DatabaseException: If deletion fails
         """
         if not self._is_async:
-            raise DatabaseError("Use delete for sync sessions")
+            raise DatabaseException("Use delete for sync sessions")
             
         try:
             id_column = self._mapper.primary_key[0]
@@ -354,7 +354,7 @@ class BaseRepository(Generic[ModelType]):
             return obj
         except SQLAlchemyError as e:
             await self.db.rollback()
-            raise DatabaseError(f"Failed to delete {self.model.__name__}: {str(e)}")
+            raise DatabaseException(f"Failed to delete {self.model.__name__}: {str(e)}")
 
     def exists(self, **filters: Any) -> bool:
         """
@@ -367,7 +367,7 @@ class BaseRepository(Generic[ModelType]):
             bool: True if record exists, False otherwise
         """
         if self._is_async:
-            raise DatabaseError("Use exists_async for async sessions")
+            raise DatabaseException("Use exists_async for async sessions")
             
         query = self.db.query(self.model)
         for field, value in filters.items():
@@ -387,7 +387,7 @@ class BaseRepository(Generic[ModelType]):
             bool: True if record exists, False otherwise
         """
         if not self._is_async:
-            raise DatabaseError("Use exists for sync sessions")
+            raise DatabaseException("Use exists for sync sessions")
             
         stmt = select(self.model)
         for field, value in filters.items():

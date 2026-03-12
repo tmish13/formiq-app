@@ -663,6 +663,24 @@ async def storage_health_check() -> Dict[str, Any]:
     
     return result
 
+@router.get("/auth-config", tags=["health"])
+async def auth_config():
+    """
+    Returns the current auth mode configuration.
+
+    Use this to instantly diagnose the BETA_ALLOW_UNVERIFIED + SMTP deadlock
+    before inviting beta testers:
+      - beta_allow_unverified: true  → Mode A (local beta, no email required)
+      - smtp_configured: true        → Mode B (real email verification)
+      - deadlock: true               → BROKEN: verification enforced but no SMTP
+    """
+    return {
+        "beta_allow_unverified": settings.BETA_ALLOW_UNVERIFIED,
+        "smtp_configured": settings.emails_enabled,
+        "deadlock": not settings.BETA_ALLOW_UNVERIFIED and not settings.emails_enabled,
+    }
+
+
 # Helper functions
 def get_uptime() -> str:
     """Get application uptime."""

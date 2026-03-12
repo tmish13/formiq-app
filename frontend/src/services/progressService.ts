@@ -1,5 +1,24 @@
 import apiService from './apiService';
-import type { ApiResponse } from '../types/api';
+
+export interface AnalyticsSession {
+  id: string;
+  date: string;
+  posture_score: number | null;
+  named_scores: Record<string, number | null> | null;
+  score_band: string | null;
+  decision: string | null;
+}
+
+export interface AnalyticsResponse {
+  sessions: AnalyticsSession[];
+  trend: 'Improving' | 'Plateau' | 'Declining';
+  best_score_ever: number | null;
+  avg_last_5: number | null;
+  improvement_since_first: number | null;
+  session_count: number;
+  weight_trend?: Array<{ date: string; weight_kg: number }>;
+  best_weight?: number | null;
+}
 
 export interface ProgressData {
   id: string;
@@ -18,6 +37,7 @@ export interface ProgressStats {
   totalAnalyses: number;
   exerciseTypeBreakdown: Record<string, number>;
   recentTrend: 'improving' | 'stable' | 'declining';
+  currentStreak: number;
 }
 
 export interface ProgressFilter {
@@ -37,14 +57,21 @@ class ProgressService {
    */
   async getProgressHistory(filter?: ProgressFilter): Promise<ProgressData[]> {
     const cacheKey = `history-${JSON.stringify(filter)}`;
-    
+
     // Check cache first
     const cached = this.getFromCache(cacheKey);
     if (cached) return cached;
-    
+
     try {
-      const response = await apiService.formAnalysis.getHistory();
-      const data = (response.data as ApiResponse<ProgressData[]>).data;
+      const params: Record<string, any> = {};
+      if (filter?.exerciseType) params.exercise_type = filter.exerciseType;
+      if (filter?.startDate) params.start_date = filter.startDate;
+      if (filter?.endDate) params.end_date = filter.endDate;
+      if (filter?.limit !== undefined) params.limit = filter.limit;
+      if (filter?.offset !== undefined) params.offset = filter.offset;
+
+      const response = await apiService.get<ProgressData[]>('/progress/history', { params });
+      const data = response.data;
       this.setCache(cacheKey, data);
       return data;
     } catch (error) {
@@ -56,16 +83,19 @@ class ProgressService {
   /**
    * Get progress statistics
    */
-  async getProgressStats(): Promise<ProgressStats> {
-    const cacheKey = 'stats';
-    
+  async getProgressStats(timeRange?: string): Promise<ProgressStats> {
+    const cacheKey = `stats-${timeRange ?? 'all'}`;
+
     // Check cache first
     const cached = this.getFromCache(cacheKey);
     if (cached) return cached;
-    
+
     try {
-      const response = await apiService.formAnalysis.getStats();
-      const data = (response.data as ApiResponse<ProgressStats>).data;
+      const params: Record<string, any> = {};
+      if (timeRange) params.time_range = timeRange;
+
+      const response = await apiService.get<ProgressStats>('/progress/stats', { params });
+      const data = response.data;
       this.setCache(cacheKey, data);
       return data;
     } catch (error) {
@@ -79,13 +109,28 @@ class ProgressService {
    */
   async saveProgress(data: Omit<ProgressData, 'id' | 'userId' | 'createdAt'>): Promise<ProgressData> {
     try {
-      const response = await apiService.formAnalysis.saveProgress(data);
-      const savedData = (response.data as ApiResponse<ProgressData>).data;
-      // Invalidate cache
+      const response = await apiService.post<ProgressData>('/progress/save', data);
+      const savedData = response.data;
       this.invalidateCache();
       return savedData;
     } catch (error) {
       console.error('Error saving progress:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get analytics data: last N sessions with trend via linear regression
+   */
+  async getAnalytics(exerciseType: string = 'squat', limit = 10): Promise<AnalyticsResponse> {
+    const params = new URLSearchParams({ limit: String(limit) });
+    // Always filter by exercise type — default to squat (the only supported exercise in V1)
+    params.set('exercise_type', exerciseType);
+    try {
+      const response = await apiService.get<AnalyticsResponse>(`/progress/analytics?${params}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching progress analytics:', error);
       throw error;
     }
   }
@@ -102,14 +147,14 @@ class ProgressService {
    */
   async getProgressTrends(days: number = 30): Promise<Record<string, number[]>> {
     const cacheKey = `trends-${days}`;
-    
+
     // Check cache first
     const cached = this.getFromCache(cacheKey);
     if (cached) return cached;
-    
+
     try {
-      const response = await apiService.formAnalysis.getTrends(days);
-      const data = (response.data as ApiResponse<Record<string, number[]>>).data;
+      const response = await apiService.get<Record<string, number[]>>('/progress/trends', { params: { days } });
+      const data = response.data;
       this.setCache(cacheKey, data);
       return data;
     } catch (error) {
@@ -135,7 +180,12 @@ class ProgressService {
     
     try {
       // Try to get from backend first
-      const response = await apiService.get('/progress/overview');
+      const response = await apiService.get<{
+        currentStreak: number;
+        averageScore: number;
+        totalSessions: number;
+        weeklyImprovement: number;
+      }>('/progress/overview');
       const data = response.data;
       this.setCache(cacheKey, data);
       return data;
@@ -224,6 +274,15 @@ class ProgressService {
   }
 
   private invalidateCache(): void {
+    this.cache.clear();
+  }
+
+  /**
+   * Clear all cached progress/analytics data.
+   * Call this immediately after a successful video analysis so that the next
+   * ProgressPage visit fetches fresh results instead of serving stale cache.
+   */
+  clearCache(): void {
     this.cache.clear();
   }
 }

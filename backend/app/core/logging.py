@@ -22,6 +22,18 @@ LOG_DIR = os.path.join(os.getcwd(), "logs")
 LOG_FILE = os.path.join(LOG_DIR, "app.log")
 ERROR_LOG_FILE = os.path.join(LOG_DIR, "error.log")
 
+# Custom processor to add trace context to logs
+def add_trace_context(logger, method_name, event_dict):
+    """Add OpenTelemetry trace context to log records."""
+    try:
+        from app.core.tracing import get_trace_context
+        trace_context = get_trace_context()
+        event_dict.update(trace_context)
+    except Exception:
+        # Gracefully handle cases where tracing is not available
+        pass
+    return event_dict
+
 # Structlog configuration for JSON output
 structlog.configure(
     processors=[
@@ -32,6 +44,7 @@ structlog.configure(
         structlog.dev.set_exc_info, # Sets exc_info correctly for format_exc_info
         structlog.processors.format_exc_info, # Formats the exception
         structlog.processors.TimeStamper(fmt="iso", key="timestamp"), # Adds timestamp
+        add_trace_context,  # Add OpenTelemetry trace context
         # Add environment to the log output if needed by all logs
         structlog.processors.dict_tracebacks, # For better tracebacks in JSON
         structlog.processors.JSONRenderer()  # Renders the final dict to JSON string

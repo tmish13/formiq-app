@@ -16,11 +16,16 @@ export interface User {
   created_at: string;
   updated_at?: string;
   last_login?: string;
+  has_completed_onboarding: boolean;
+  // Profile preference fields (set during onboarding, editable from profile)
   profile_image_url?: string;
-  fitness_goals?: string[];
-  fitness_level?: 'beginner' | 'intermediate' | 'advanced';
-  weight?: number;
-  height?: number;
+  fitness_goal?: string;
+  preferred_exercises?: string[];
+  fitness_level?: string;
+  weight_kg?: number;
+  age?: number;
+  height_cm?: number;
+  training_experience?: string;
 }
 
 // Credentials for user login
@@ -71,4 +76,17 @@ export interface AuthState {
 // CSRF token response
 export interface CSRFTokenResponse {
   csrf_token: string;
-} 
+}
+
+export interface UserSettingsNotifications {
+  email_updates: boolean;
+  workout_reminders: boolean;
+  progress_reports: boolean;
+}
+
+export interface UserSettings {
+  notifications: UserSettingsNotifications;
+  privacy: { profile_public: boolean; share_progress: boolean };
+  ui: { theme: string; language: string };
+  exercise: { fitness_level: string | null; fitness_goal: string | null; preferred_exercises: string[] };
+}

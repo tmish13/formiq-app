@@ -165,7 +165,7 @@ class VideoProcessingService:
                 )
                 # Ensure validation_message is not None before raising
                 error_msg = validation_message if validation_message else "Video validation failed due to an unspecified reason."
-                raise VideoValidationError(error_msg)
+                raise VideoValidationError(error_msg, validation_type="video_validation")
 
             try:
                 # Note: _extract_frames will now operate on video_to_validate_path,
@@ -507,7 +507,7 @@ class VideoProcessingService:
             if not (self.MIN_DURATION <= duration <= self.MAX_DURATION):
                 error_msg = f"Video duration {duration:.2f}s is outside the acceptable range of {self.MIN_DURATION}-{self.MAX_DURATION}s."
                 self.logger.warning(error_msg)
-                raise VideoValidationError(error_msg)
+                raise VideoValidationError(error_msg, validation_type="duration")
             
             return True, None, video_metadata
             

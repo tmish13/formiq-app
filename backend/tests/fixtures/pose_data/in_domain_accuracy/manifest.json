@@ -1,0 +1,302 @@
+{
+  "33499_1_good_form": {
+    "video_id": "33499_1",
+    "label": "good_form",
+    "frames": 72,
+    "source": "squat_more"
+  },
+  "47534_1_good_form": {
+    "video_id": "47534_1",
+    "label": "good_form",
+    "frames": 109,
+    "source": "squat_more"
+  },
+  "1865_good_form": {
+    "video_id": "1865",
+    "label": "good_form",
+    "frames": 73,
+    "source": "penn_action"
+  },
+  "50860_2_good_form": {
+    "video_id": "50860_2",
+    "label": "good_form",
+    "frames": 118,
+    "source": "squat_more"
+  },
+  "50844_1_good_form": {
+    "video_id": "50844_1",
+    "label": "good_form",
+    "frames": 82,
+    "source": "squat_more"
+  },
+  "50829_11_good_form": {
+    "video_id": "50829_11",
+    "label": "good_form",
+    "frames": 66,
+    "source": "squat_more"
+  },
+  "49295_2_good_form": {
+    "video_id": "49295_2",
+    "label": "good_form",
+    "frames": 103,
+    "source": "squat_more"
+  },
+  "50862_1_good_form": {
+    "video_id": "50862_1",
+    "label": "good_form",
+    "frames": 97,
+    "source": "squat_more"
+  },
+  "50551_10_good_form": {
+    "video_id": "50551_10",
+    "label": "good_form",
+    "frames": 157,
+    "source": "squat_more"
+  },
+  "1793_good_form": {
+    "video_id": "1793",
+    "label": "good_form",
+    "frames": 89,
+    "source": "penn_action"
+  },
+  "38108_4_good_form": {
+    "video_id": "38108_4",
+    "label": "good_form",
+    "frames": 133,
+    "source": "squat_more"
+  },
+  "49204_2_good_form": {
+    "video_id": "49204_2",
+    "label": "good_form",
+    "frames": 83,
+    "source": "squat_more"
+  },
+  "50838_1_good_form": {
+    "video_id": "50838_1",
+    "label": "good_form",
+    "frames": 135,
+    "source": "squat_more"
+  },
+  "1724_good_form": {
+    "video_id": "1724",
+    "label": "good_form",
+    "frames": 65,
+    "source": "penn_action"
+  },
+  "1782_good_form": {
+    "video_id": "1782",
+    "label": "good_form",
+    "frames": 87,
+    "source": "penn_action"
+  },
+  "49618_2_good_form": {
+    "video_id": "49618_2",
+    "label": "good_form",
+    "frames": 150,
+    "source": "squat_more"
+  },
+  "49351_1_good_form": {
+    "video_id": "49351_1",
+    "label": "good_form",
+    "frames": 138,
+    "source": "squat_more"
+  },
+  "50833_2_good_form": {
+    "video_id": "50833_2",
+    "label": "good_form",
+    "frames": 103,
+    "source": "squat_more"
+  },
+  "46881_1_good_form": {
+    "video_id": "46881_1",
+    "label": "good_form",
+    "frames": 150,
+    "source": "squat_more"
+  },
+  "37812_2_good_form": {
+    "video_id": "37812_2",
+    "label": "good_form",
+    "frames": 149,
+    "source": "squat_more"
+  },
+  "1709_good_form": {
+    "video_id": "1709",
+    "label": "good_form",
+    "frames": 85,
+    "source": "penn_action"
+  },
+  "47459_1_good_form": {
+    "video_id": "47459_1",
+    "label": "good_form",
+    "frames": 90,
+    "source": "squat_more"
+  },
+  "33793_6_good_form": {
+    "video_id": "33793_6",
+    "label": "good_form",
+    "frames": 77,
+    "source": "squat_more"
+  },
+  "50865_2_good_form": {
+    "video_id": "50865_2",
+    "label": "good_form",
+    "frames": 131,
+    "source": "squat_more"
+  },
+  "49509_2_good_form": {
+    "video_id": "49509_2",
+    "label": "good_form",
+    "frames": 83,
+    "source": "squat_more"
+  },
+  "45959_1_posture_fault": {
+    "video_id": "45959_1",
+    "label": "posture_fault",
+    "frames": 120,
+    "source": "squat_more"
+  },
+  "50852_1_posture_fault": {
+    "video_id": "50852_1",
+    "label": "posture_fault",
+    "frames": 230,
+    "source": "squat_more"
+  },
+  "33838_3_posture_fault": {
+    "video_id": "33838_3",
+    "label": "posture_fault",
+    "frames": 101,
+    "source": "squat_more"
+  },
+  "50489_2_posture_fault": {
+    "video_id": "50489_2",
+    "label": "posture_fault",
+    "frames": 130,
+    "source": "squat_more"
+  },
+  "46187_1_posture_fault": {
+    "video_id": "46187_1",
+    "label": "posture_fault",
+    "frames": 110,
+    "source": "squat_more"
+  },
+  "46579_1_posture_fault": {
+    "video_id": "46579_1",
+    "label": "posture_fault",
+    "frames": 190,
+    "source": "squat_more"
+  },
+  "36049_2_posture_fault": {
+    "video_id": "36049_2",
+    "label": "posture_fault",
+    "frames": 244,
+    "source": "squat_more"
+  },
+  "48621_2_posture_fault": {
+    "video_id": "48621_2",
+    "label": "posture_fault",
+    "frames": 106,
+    "source": "squat_more"
+  },
+  "46921_1_posture_fault": {
+    "video_id": "46921_1",
+    "label": "posture_fault",
+    "frames": 216,
+    "source": "squat_more"
+  },
+  "33503_2_posture_fault": {
+    "video_id": "33503_2",
+    "label": "posture_fault",
+    "frames": 121,
+    "source": "squat_more"
+  },
+  "49646_5_posture_fault": {
+    "video_id": "49646_5",
+    "label": "posture_fault",
+    "frames": 93,
+    "source": "squat_more"
+  },
+  "49387_1_posture_fault": {
+    "video_id": "49387_1",
+    "label": "posture_fault",
+    "frames": 212,
+    "source": "squat_more"
+  },
+  "46239_5_posture_fault": {
+    "video_id": "46239_5",
+    "label": "posture_fault",
+    "frames": 99,
+    "source": "squat_more"
+  },
+  "49125_1_posture_fault": {
+    "video_id": "49125_1",
+    "label": "posture_fault",
+    "frames": 193,
+    "source": "squat_more"
+  },
+  "50320_1_posture_fault": {
+    "video_id": "50320_1",
+    "label": "posture_fault",
+    "frames": 145,
+    "source": "squat_more"
+  },
+  "49599_1_posture_fault": {
+    "video_id": "49599_1",
+    "label": "posture_fault",
+    "frames": 101,
+    "source": "squat_more"
+  },
+  "49733_1_posture_fault": {
+    "video_id": "49733_1",
+    "label": "posture_fault",
+    "frames": 110,
+    "source": "squat_more"
+  },
+  "47305_1_posture_fault": {
+    "video_id": "47305_1",
+    "label": "posture_fault",
+    "frames": 172,
+    "source": "squat_more"
+  },
+  "47808_1_posture_fault": {
+    "video_id": "47808_1",
+    "label": "posture_fault",
+    "frames": 124,
+    "source": "squat_more"
+  },
+  "48375_3_posture_fault": {
+    "video_id": "48375_3",
+    "label": "posture_fault",
+    "frames": 103,
+    "source": "squat_more"
+  },
+  "46466_3_posture_fault": {
+    "video_id": "46466_3",
+    "label": "posture_fault",
+    "frames": 126,
+    "source": "squat_more"
+  },
+  "47537_2_posture_fault": {
+    "video_id": "47537_2",
+    "label": "posture_fault",
+    "frames": 126,
+    "source": "squat_more"
+  },
+  "48727_8_posture_fault": {
+    "video_id": "48727_8",
+    "label": "posture_fault",
+    "frames": 92,
+    "source": "squat_more"
+  },
+  "33072_1_posture_fault": {
+    "video_id": "33072_1",
+    "label": "posture_fault",
+    "frames": 122,
+    "source": "squat_more"
+  },
+  "48816_4_posture_fault": {
+    "video_id": "48816_4",
+    "label": "posture_fault",
+    "frames": 151,
+    "source": "squat_more"
+  }
+}

@@ -1,4 +1,10 @@
-import { Keypoint } from '@tensorflow-models/pose-detection';
+// Local minimal Keypoint definition — avoids dependency on @tensorflow-models/pose-detection
+export interface Keypoint {
+  x: number;
+  y: number;
+  score?: number;
+  name?: string;
+}
 
 export interface FeedbackItem {
   type: 'success' | 'warning' | 'error';

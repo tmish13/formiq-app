@@ -177,7 +177,26 @@ VIDEO_UPLOAD_SIZE = Histogram(
     'video_upload_size_bytes',
     'Size of uploaded videos in bytes',
     ['exercise_type'],
-    buckets=(1e6, 5e6, 10e6, 50e6, 100e6)  # 1MB, 5MB, 10MB, 50MB, 100MB
+    buckets=[1e5, 1e6, 5e6, 10e6, 50e6]  # 100KB to 50MB
+)
+
+# Frame processing metrics for performance tracking
+FRAME_PROCESSING_DURATION = Histogram(
+    'video_frame_processing_duration_seconds',
+    'Duration to process individual video frames',
+    ['exercise_type', 'processing_stage'],
+    buckets=[0.001, 0.01, 0.05, 0.1, 0.2, 0.3, 0.5, 1.0]  # 1ms to 1s
+)
+
+FRAME_PROCESSING_COUNT = Counter(
+    'video_frame_processing_total',
+    'Total number of frames processed',
+    ['exercise_type', 'status']  # status: success, error, skipped
+)
+
+CONCURRENT_UPLOADS = Gauge(
+    'video_concurrent_uploads_active',
+    'Number of currently active video uploads'
 )
 
 # TODO: Review the distinction between model_errors_total and MODEL_INFERENCE_ERRORS.
@@ -286,18 +305,21 @@ def setup_monitoring(app: FastAPI) -> None:
     try:
         # Initialize Prometheus instrumentator
         Instrumentator().instrument(app).expose(app)
-        
+
         # Add custom metrics endpoint
         @app.get("/metrics")
         async def metrics():
-            # Update system metrics
-            update_system_metrics()
-            
+            # psutil.cpu_percent / virtual_memory are blocking syscalls.
+            # Run them off the event loop to avoid stalling other requests.
+            import asyncio
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(None, update_system_metrics)
+
             # Generate metrics response
             return Response(generate_latest(), media_type="text/plain")
-        
+
         logger.info("Monitoring configured successfully")
-        
+
     except Exception as e:
         logger.error(f"Failed to configure monitoring: {str(e)}")
         raise
@@ -528,6 +550,43 @@ def track_websocket_error(error_type: str) -> None:
     WEBSOCKET_ERRORS.labels(
         error_type=error_type
     ).inc()
+
+# Circuit breaker metrics
+CIRCUIT_BREAKER_STATE = Gauge(
+    "circuit_breaker_state",
+    "Circuit breaker state (0=closed, 1=half_open, 2=open)",
+    ["service_name"]
+)
+
+CIRCUIT_BREAKER_FAILURES = Counter(
+    "circuit_breaker_failures_total",
+    "Total number of circuit breaker failures",
+    ["service_name"]
+)
+
+CIRCUIT_BREAKER_REQUESTS = Counter(
+    "circuit_breaker_requests_total", 
+    "Total number of circuit breaker requests",
+    ["service_name", "status"]  # status: success, failure, blocked
+)
+
+def track_circuit_breaker_state(service_name: str, state: str) -> None:
+    """Track circuit breaker state changes."""
+    state_map = {"closed": 0, "half_open": 1, "open": 2}
+    CIRCUIT_BREAKER_STATE.labels(service_name=service_name).set(state_map.get(state, 0))
+
+def track_circuit_breaker_failure(service_name: str) -> None:
+    """Track circuit breaker failures."""
+    CIRCUIT_BREAKER_FAILURES.labels(service_name=service_name).inc()
+    CIRCUIT_BREAKER_REQUESTS.labels(service_name=service_name, status="failure").inc()
+
+def track_circuit_breaker_success(service_name: str) -> None:
+    """Track circuit breaker successes."""
+    CIRCUIT_BREAKER_REQUESTS.labels(service_name=service_name, status="success").inc()
+
+def track_circuit_breaker_blocked(service_name: str) -> None:
+    """Track circuit breaker blocked requests."""
+    CIRCUIT_BREAKER_REQUESTS.labels(service_name=service_name, status="blocked").inc()
 
 def track_progress_update(
     user_id: int,

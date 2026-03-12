@@ -1,5 +1,7 @@
 # backend/tests/integration/services/test_auth_service_integration.py
+
 import pytest
+pytestmark = pytest.mark.integration
 from sqlalchemy.orm import Session # Assuming Session is used by db_session fixture
 from fastapi import HTTPException # For the rate limiting test
 from datetime import datetime, timedelta # Added for subscription test
@@ -194,6 +196,8 @@ async def test_get_current_user_token_without_sub_integration(auth_service_for_i
     # A more direct way: craft a token with jose.jwt that has no 'sub'
     from jose import jwt as jose_jwt
     from app.core.config import settings as app_settings
+
+
 
     no_sub_payload = {"exp": datetime.utcnow() + timedelta(minutes=5), "iat": datetime.utcnow()}
     no_sub_token = jose_jwt.encode(no_sub_payload, app_settings.JWT_SECRET_KEY, algorithm=app_settings.JWT_ALGORITHM)

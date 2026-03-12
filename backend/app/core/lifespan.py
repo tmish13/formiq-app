@@ -2,6 +2,7 @@
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from sqlalchemy import text
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -49,7 +50,7 @@ async def lifespan(app: FastAPI):
         
         # Test database connection
         async with engine.connect() as conn:
-            result = await conn.execute("SELECT 1")
+            result = await conn.execute(text("SELECT 1"))
             logger.info(f"Database connection successful: {result.scalar()}")
         
         # Initialize database tables if needed (dev/test environments)
@@ -89,6 +90,42 @@ async def lifespan(app: FastAPI):
         # Register API dependencies to fix circular imports
         register_deps()
         logger.info("API dependencies registered")
+
+        # Beta / config warnings
+        if settings.BETA_ALLOW_UNVERIFIED:
+            logger.warning(
+                "BETA_ALLOW_UNVERIFIED=true — unverified users can log in. "
+                "This MUST be disabled before production launch."
+            )
+        if settings.emails_enabled:
+            logger.info(
+                "Email sending ENABLED via %s (username: %s).",
+                settings.MAIL_SERVER,
+                settings.MAIL_USERNAME or "(not set)",
+            )
+        else:
+            logger.warning(
+                "Email sending DISABLED — SMTP credentials are missing or still placeholder values. "
+                "Verification emails will be skipped (no silent SMTP failures). "
+                "Option A (Gmail): set MAIL_USERNAME=you@gmail.com and "
+                "MAIL_PASSWORD=<16-char App Password from myaccount.google.com/apppasswords>. "
+                "Option B (Resend, recommended): set MAIL_SERVER=smtp.resend.com, "
+                "MAIL_USERNAME=resend, MAIL_PASSWORD=re_<api_key>, "
+                "MAIL_FROM_EMAIL=you@yourdomain.com. "
+                "After editing .env, restart the server (--reload does NOT re-read .env) and verify: "
+                "curl -X POST http://localhost:8000/api/v1/debug/email-test "
+                "-H 'Content-Type: application/json' -d '{\"to\":\"you@example.com\"}'"
+            )
+
+        # Deadlock guard: BETA_ALLOW_UNVERIFIED=false + no SMTP = nobody can ever log in.
+        if not settings.BETA_ALLOW_UNVERIFIED and not settings.emails_enabled:
+            logger.critical(
+                "CONFIGURATION DEADLOCK: BETA_ALLOW_UNVERIFIED=false but SMTP is not configured. "
+                "New users cannot verify their email, so NO ONE can log in. "
+                "Fix: set BETA_ALLOW_UNVERIFIED=true in .env (use .env.beta-local) "
+                "or configure real MAIL_* credentials (use .env.beta-email) and restart. "
+                "Status: curl http://localhost:8000/api/v1/health/health/auth-config"
+            )
             
     except Exception as e:
         logger.error(f"Startup error: {str(e)}")

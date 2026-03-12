@@ -10,7 +10,7 @@ from app.api import deps
 from app.models.user import User
 from app.models.form_check import FormCheck
 from app.core.logging import get_logger
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, or_
 
 # Initialize logger
 logger = get_logger(__name__)
@@ -23,17 +23,25 @@ router = APIRouter(prefix="/progress", tags=["progress"])
 async def get_progress_overview(
     *,
     db: AsyncSession = Depends(deps.get_async_db),
-    current_user: User = Depends(deps.get_current_user)
+    current_user: User = Depends(deps.get_current_user),
+    exercise_type: Optional[str] = Query(None, description="Filter by exercise type (e.g. 'squat')")
 ) -> Dict[str, Any]:
     """
     Get progress overview with streaks and key metrics.
-    
+
     Returns:
         Progress overview data including streaks and statistics
     """
     try:
         # Get user's form checks for calculations
         query = select(FormCheck).filter(FormCheck.user_id == current_user.id)
+        if exercise_type:
+            query = query.filter(
+                or_(
+                    FormCheck.exercise_type == exercise_type,
+                    FormCheck.classified_exercise_slug == exercise_type,
+                )
+            )
         result = await db.execute(query)
         form_checks = result.scalars().all()
         
@@ -148,25 +156,34 @@ async def get_progress_stats(
     *,
     db: AsyncSession = Depends(deps.get_async_db),
     current_user: User = Depends(deps.get_current_user),
-    time_range: Optional[str] = Query(None, description="Time range (7d, 30d, 90d, 1y)")
+    time_range: Optional[str] = Query(None, description="Time range (7d, 30d, 90d, 1y)"),
+    exercise_type: Optional[str] = Query(None, description="Filter by exercise type (e.g. 'squat')")
 ) -> Dict[str, Any]:
     """
     Get progress statistics and metrics.
-    
+
     Args:
         time_range: Time range filter
-        
+        exercise_type: Optional exercise type filter
+
     Returns:
         Progress statistics
     """
     try:
         # Calculate time filter
         cutoff_date = _get_cutoff_date(time_range)
-        
+
         # Get user's form checks
         query = select(FormCheck).filter(FormCheck.user_id == current_user.id)
         if cutoff_date:
             query = query.filter(FormCheck.created_at >= cutoff_date)
+        if exercise_type:
+            query = query.filter(
+                or_(
+                    FormCheck.exercise_type == exercise_type,
+                    FormCheck.classified_exercise_slug == exercise_type,
+                )
+            )
         
         result = await db.execute(query)
         form_checks = result.scalars().all()
@@ -184,9 +201,10 @@ async def get_progress_stats(
         # Calculate exercise type breakdown
         exercise_breakdown = {}
         for fc in completed_checks:
-            if fc.exercise_type not in exercise_breakdown:
-                exercise_breakdown[fc.exercise_type] = 0
-            exercise_breakdown[fc.exercise_type] += 1
+            key = fc.classified_exercise_slug or "unknown"
+            if key not in exercise_breakdown:
+                exercise_breakdown[key] = 0
+            exercise_breakdown[key] += 1
         
         # Calculate improvement rate
         improvement_rate = await _calculate_improvement_rate(current_user.id, db)
@@ -194,14 +212,18 @@ async def get_progress_stats(
         # Determine recent trend
         recent_trend = _determine_recent_trend(improvement_rate)
         
+        # Include streak so callers can avoid a second round-trip
+        current_streak = await _calculate_streak(current_user.id, db)
+
         return {
             "averageScore": round(average_score, 1),
             "improvementRate": round(improvement_rate, 1),
             "totalAnalyses": total_analyses,
             "exerciseTypeBreakdown": exercise_breakdown,
-            "recentTrend": recent_trend
+            "recentTrend": recent_trend,
+            "currentStreak": current_streak,
         }
-        
+
     except Exception as e:
         logger.error(f"Error getting progress stats: {str(e)}", exc_info=True)
         raise HTTPException(
@@ -210,28 +232,32 @@ async def get_progress_stats(
         )
 
 
-@router.get("/trends", response_model=Dict[str, List[float]])
+@router.get("/trends", response_model=Dict[str, Any])
 async def get_progress_trends(
     *,
     db: AsyncSession = Depends(deps.get_async_db),
     current_user: User = Depends(deps.get_current_user),
     days: int = Query(30, ge=7, le=365, description="Number of days to analyze")
-) -> Dict[str, List[float]]:
+) -> Dict[str, Any]:
     """
-    Get progress trends over time.
-    
+    Get progress trends grouped by ISO week.
+
     Args:
-        days: Number of days to analyze
-        
+        days: Number of days to look back (default 30).
+
     Returns:
-        Trend data for different metrics
+        {
+            "weekly_progress": [
+                {"week_start": "2026-02-10", "avg_score": 82.5, "sessions": 3},
+                ...
+            ],
+            "improvement_rate": 8.97   # % change first→last week; 0 if <2 weeks of data
+        }
     """
     try:
-        # Calculate date range
         end_date = datetime.now()
         start_date = end_date - timedelta(days=days)
-        
-        # Get form checks within date range
+
         query = select(FormCheck).filter(
             and_(
                 FormCheck.user_id == current_user.id,
@@ -241,35 +267,135 @@ async def get_progress_trends(
                 FormCheck.score.isnot(None)
             )
         ).order_by(FormCheck.created_at)
-        
+
         result = await db.execute(query)
         form_checks = result.scalars().all()
-        
-        # Calculate trends
-        overall_scores = []
-        posture_scores = []
-        stability_scores = []
-        depth_scores = []
-        
+
+        # Group by ISO week (Monday = start of week)
+        weekly: Dict[str, Dict[str, Any]] = {}
         for fc in form_checks:
-            overall_scores.append(fc.score)
-            # Use actual ML scores when available, fallback for legacy records without ML scores
-            posture_scores.append(getattr(fc, 'posture_score', fc.score * 0.9))
-            stability_scores.append(getattr(fc, 'stability_score', fc.score * 1.1))
-            depth_scores.append(getattr(fc, 'depth_score', fc.score * 0.95))
-        
+            # Monday of the week containing fc.created_at
+            iso_monday = fc.created_at.date() - timedelta(days=fc.created_at.weekday())
+            key = iso_monday.isoformat()
+            if key not in weekly:
+                weekly[key] = {"week_start": key, "scores": [], "sessions": 0}
+            weekly[key]["scores"].append(fc.score)
+            weekly[key]["sessions"] += 1
+
+        weekly_progress = []
+        for key in sorted(weekly):
+            entry = weekly[key]
+            avg_score = sum(entry["scores"]) / len(entry["scores"])
+            weekly_progress.append({
+                "week_start": entry["week_start"],
+                "avg_score": round(avg_score, 1),
+                "sessions": entry["sessions"],
+            })
+
+        # Improvement rate: % change from first week avg to last week avg
+        improvement_rate = 0.0
+        if len(weekly_progress) >= 2:
+            first_avg = weekly_progress[0]["avg_score"]
+            last_avg = weekly_progress[-1]["avg_score"]
+            if first_avg > 0:
+                improvement_rate = round(((last_avg - first_avg) / first_avg) * 100, 2)
+
         return {
-            "overall": overall_scores,
-            "posture": posture_scores,
-            "stability": stability_scores,
-            "depth": depth_scores
+            "weekly_progress": weekly_progress,
+            "improvement_rate": improvement_rate,
         }
-        
+
     except Exception as e:
         logger.error(f"Error getting progress trends: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error getting progress trends: {str(e)}"
+        )
+
+
+@router.get("/analytics", response_model=Dict[str, Any])
+async def get_progress_analytics(
+    *,
+    db: AsyncSession = Depends(deps.get_async_db),
+    current_user: User = Depends(deps.get_current_user),
+    exercise_type: Optional[str] = Query(None),
+    limit: int = Query(10, ge=3, le=20),
+) -> Dict[str, Any]:
+    """Last N sessions with component scores, trend via linear regression."""
+    try:
+        query = (
+            select(FormCheck)
+            .where(
+                FormCheck.user_id == current_user.id,
+                FormCheck.status == "completed",
+                FormCheck.posture_score.isnot(None),
+            )
+        )
+        if exercise_type:
+            query = query.where(
+                or_(
+                    FormCheck.exercise_type == exercise_type,
+                    FormCheck.classified_exercise_slug == exercise_type,
+                )
+            )
+        query = query.order_by(FormCheck.created_at.desc()).limit(limit)
+        result = await db.execute(query)
+        checks = list(reversed(result.scalars().all()))  # chronological order
+
+        sessions = []
+        for fc in checks:
+            pv1 = (fc.results or {}).get("posture_v1", {})
+            sessions.append({
+                "id": str(fc.id),
+                "date": fc.created_at.isoformat(),
+                "posture_score": fc.posture_score,
+                "named_scores": pv1.get("named_scores"),
+                "score_band": pv1.get("score_band"),
+                "decision": pv1.get("decision"),
+            })
+
+        scores = [s["posture_score"] for s in sessions if s["posture_score"] is not None]
+        trend_label = "Plateau"
+        if len(scores) >= 3:
+            xs = list(range(len(scores)))
+            n = len(xs)
+            sx, sy = sum(xs), sum(scores)
+            sxy = sum(x * y for x, y in zip(xs, scores))
+            sxx = sum(x * x for x in xs)
+            denom = n * sxx - sx * sx
+            slope = (n * sxy - sx * sy) / denom if denom != 0 else 0.0
+            if slope > 0.5:
+                trend_label = "Improving"
+            elif slope < -0.5:
+                trend_label = "Declining"
+
+        best_score = max(scores) if scores else None
+        avg_last_5 = round(sum(scores[-5:]) / min(len(scores), 5), 1) if scores else None
+        improvement = round(scores[-1] - scores[0], 1) if len(scores) >= 2 else None
+
+        # Weight trend (only sessions where user entered weight)
+        weight_data = [
+            {"date": fc.created_at.isoformat(), "weight_kg": fc.weight_kg}
+            for fc in checks
+            if getattr(fc, 'weight_kg', None) is not None
+        ]
+        best_weight = max((w["weight_kg"] for w in weight_data), default=None)
+
+        return {
+            "sessions": sessions,
+            "trend": trend_label,
+            "best_score_ever": best_score,
+            "avg_last_5": avg_last_5,
+            "improvement_since_first": improvement,
+            "session_count": len(sessions),
+            "weight_trend": weight_data,
+            "best_weight": best_weight,
+        }
+    except Exception as e:
+        logger.error(f"Error getting progress analytics: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error getting progress analytics: {str(e)}",
         )
 
 

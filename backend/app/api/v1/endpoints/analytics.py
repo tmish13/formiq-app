@@ -1,6 +1,7 @@
 """Analytics endpoints for form analysis insights and statistics."""
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Dict, Any, List, Optional
 from uuid import UUID
@@ -49,9 +50,10 @@ async def get_analytics_overview(
         result = await db.execute(query)
         form_checks = result.scalars().all()
         
-        # Calculate basic stats
-        total_sessions = len(form_checks)
+        # Calculate basic stats — only count sessions with a real score (valid sessions).
+        # Uncertain/invalid analyses have score=None and must not inflate session counts.
         completed_checks = [fc for fc in form_checks if fc.status == 'completed' and fc.score is not None]
+        total_sessions = len(completed_checks)
         
         # Calculate average score
         if completed_checks:
@@ -212,11 +214,12 @@ async def get_time_series_data(
                 }
             
             day_data = daily_data[date_str]
-            day_data["session_count"] += 1
-            
+
+            # Only count valid sessions (score is not None) in session_count and scores.
+            # Uncertain/invalid sessions (score=None) are excluded from all metrics.
             if fc.score is not None:
+                day_data["session_count"] += 1
                 day_data["scores"].append(fc.score)
-            # Note: Need to add these columns to FormCheck model if they don't exist
             if hasattr(fc, 'posture_score') and fc.posture_score is not None:
                 day_data["posture_scores"].append(fc.posture_score)
             if hasattr(fc, 'stability_score') and fc.stability_score is not None:
@@ -224,9 +227,12 @@ async def get_time_series_data(
             if hasattr(fc, 'depth_score') and fc.depth_score is not None:
                 day_data["depth_scores"].append(fc.depth_score)
         
-        # Convert to time series format
+        # Convert to time series format — skip days with no valid sessions
+        # (i.e. days where every recorded session was uncertain/invalid).
         time_series = []
         for date_str, day_data in sorted(daily_data.items()):
+            if day_data["session_count"] == 0:
+                continue
             time_series.append({
                 "date": date_str,
                 "overall_score": round(sum(day_data["scores"]) / len(day_data["scores"]), 1) if day_data["scores"] else 0,
@@ -347,7 +353,7 @@ async def get_performance_metrics(
         )
 
 
-@router.get("/export", response_class=bytes)
+@router.get("/export", response_class=Response)
 async def export_analytics_data(
     *,
     db: AsyncSession = Depends(deps.get_async_db),

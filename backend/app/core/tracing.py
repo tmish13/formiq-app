@@ -1,122 +1,247 @@
-"""OpenTelemetry tracing configuration."""
-from typing import Any, Optional, Protocol, runtime_checkable
-from types import ModuleType
+"""OpenTelemetry tracing configuration with enhanced error handling."""
+import logging
+from typing import Any, Optional, Dict
+import os
 
-# Core imports that should always be available
 from app.core.config import settings
-from app.core.logging import get_logger
-from app.core.exceptions import ConfigurationException
 
-# Type definitions for static type checking
-@runtime_checkable
-class Tracer(Protocol):
-    def start_span(self, name: str, **kwargs: Any) -> Any: ...
-    def get_current_span(self) -> Any: ...
+logger = logging.getLogger(__name__)
 
-class TracerProvider(Protocol):
-    def get_tracer(self, name: str, **kwargs: Any) -> Tracer: ...
-
-# Global state with proper type hints
+# Global tracing state
 _tracer_provider: Optional[Any] = None
-_trace_module: Optional[ModuleType] = None
+_tracer: Optional[Any] = None
+_is_initialized: bool = False
 
-logger = get_logger(__name__)
 
-def _import_module(module_path: str) -> Optional[ModuleType]:
+def _safe_import(module_name: str) -> Optional[Any]:
     """Safely import a module and return None if import fails."""
     try:
-        module_parts = module_path.split('.')
-        if len(module_parts) == 1:
-            return __import__(module_path)
-        
-        return __import__(module_path, fromlist=[module_parts[-1]])
+        import importlib
+        return importlib.import_module(module_name)
     except ImportError as e:
-        logger.debug(f"Could not import {module_path}: {str(e)}")
+        logger.debug(f"Could not import {module_name}: {e}")
         return None
 
-def setup_tracing() -> None:
-    """Configure OpenTelemetry tracing with proper error handling."""
-    global _tracer_provider, _trace_module
 
-    # Import core OpenTelemetry modules
-    trace_module = _import_module('opentelemetry.trace')
-    trace_provider = _import_module('opentelemetry.sdk.trace')
-    batch_processor = _import_module('opentelemetry.sdk.trace.export')
-    jaeger = _import_module('opentelemetry.exporter.jaeger.thrift')
-
-    if not all([trace_module, trace_provider, batch_processor, jaeger]):
+def setup_tracing() -> bool:
+    """
+    Configure OpenTelemetry tracing with comprehensive error handling.
+    
+    Returns:
+        bool: True if tracing was successfully configured, False otherwise
+    """
+    global _tracer_provider, _tracer, _is_initialized
+    
+    # Check if tracing is enabled
+    if not settings.OTEL_ENABLED:
+        logger.info("OpenTelemetry tracing disabled via configuration")
+        return False
+    
+    # Check if already initialized
+    if _is_initialized:
+        logger.debug("OpenTelemetry already initialized")
+        return True
+    
+    # Import OpenTelemetry modules
+    trace_module = _safe_import('opentelemetry.trace')
+    trace_provider_module = _safe_import('opentelemetry.sdk.trace')
+    trace_export = _safe_import('opentelemetry.sdk.trace.export')
+    resource_module = _safe_import('opentelemetry.sdk.resources')
+    
+    if not all([trace_module, trace_provider_module, trace_export, resource_module]):
         logger.warning("Core OpenTelemetry modules not available. Tracing disabled.")
-        return
-
+        return False
+    
     try:
-        # Initialize tracer provider
-        provider = trace_provider.TracerProvider()  # type: ignore
-        trace_module.set_tracer_provider(provider)  # type: ignore
-        
-        # Configure Jaeger exporter
-        jaeger_exporter = jaeger.JaegerExporter(  # type: ignore
-            agent_host_name=settings.JAEGER_HOST,
-            agent_port=settings.JAEGER_PORT,
-            service_name=settings.PROJECT_NAME,
+        # Create resource with service information
+        resource = resource_module.Resource(
+            attributes={
+                resource_module.SERVICE_NAME: settings.OTEL_SERVICE_NAME,
+                resource_module.SERVICE_VERSION: "1.0.0",
+                "environment": settings.ENVIRONMENT
+            }
         )
         
-        # Set up batch processor
-        span_processor = batch_processor.BatchSpanProcessor(jaeger_exporter)  # type: ignore
-        provider.add_span_processor(span_processor)
+        # Initialize tracer provider with sampling
+        sampler = None
+        if hasattr(trace_provider_module, 'TraceIdRatioBasedSampler'):
+            sampler = trace_provider_module.TraceIdRatioBasedSampler(settings.TRACE_SAMPLE_RATE)
         
-        # Store globals
+        provider = trace_provider_module.TracerProvider(
+            resource=resource,
+            sampler=sampler
+        )
+        
+        # Configure exporters
+        exporters = []
+        
+        # OTLP Exporter (preferred)
+        if settings.OTEL_EXPORTER_OTLP_ENDPOINT:
+            otlp_module = _safe_import('opentelemetry.exporter.otlp.proto.grpc.trace_exporter')
+            if otlp_module:
+                try:
+                    exporter = otlp_module.OTLPSpanExporter(
+                        endpoint=settings.OTEL_EXPORTER_OTLP_ENDPOINT
+                    )
+                    exporters.append(exporter)
+                    logger.info(f"OTLP exporter configured: {settings.OTEL_EXPORTER_OTLP_ENDPOINT}")
+                except Exception as e:
+                    logger.warning(f"Failed to configure OTLP exporter: {e}")
+        
+        # Jaeger Exporter (fallback)
+        if not exporters:
+            jaeger_module = _safe_import('opentelemetry.exporter.jaeger.thrift')
+            if jaeger_module:
+                try:
+                    exporter = jaeger_module.JaegerExporter(
+                        agent_host_name=settings.JAEGER_HOST,
+                        agent_port=settings.JAEGER_PORT,
+                    )
+                    exporters.append(exporter)
+                    logger.info(f"Jaeger exporter configured: {settings.JAEGER_HOST}:{settings.JAEGER_PORT}")
+                except Exception as e:
+                    logger.warning(f"Failed to configure Jaeger exporter: {e}")
+        
+        # Add span processors for each exporter
+        for exporter in exporters:
+            span_processor = trace_export.BatchSpanProcessor(exporter)
+            provider.add_span_processor(span_processor)
+        
+        # Set global tracer provider
+        trace_module.set_tracer_provider(provider)
+        
+        # Store references
         _tracer_provider = provider
-        _trace_module = trace_module
+        _tracer = trace_module.get_tracer(__name__)
         
-        # Set up instrumentations
-        _setup_instrumentation('fastapi')
-        _setup_instrumentation('sqlalchemy')
-        _setup_instrumentation('redis')
-        _setup_instrumentation('httpx')
+        # Setup automatic instrumentation
+        _setup_instrumentation()
         
-        logger.info("Tracing configured successfully")
+        _is_initialized = True
+        logger.info(f"OpenTelemetry tracing configured successfully with {len(exporters)} exporter(s)")
+        return True
         
     except Exception as e:
-        logger.error(f"Failed to configure tracing: {str(e)}")
-        raise ConfigurationException(f"Failed to configure tracing: {str(e)}")
+        logger.error(f"Failed to configure OpenTelemetry tracing: {e}")
+        return False
 
-def _setup_instrumentation(name: str) -> None:
-    """Set up a specific instrumentation by name."""
-    module = _import_module(f'opentelemetry.instrumentation.{name}')
-    if module is None:
-        logger.warning(f"{name.title()} instrumentation not available")
-        return
 
-    try:
-        if name == 'fastapi':
-            module.FastAPIInstrumentor.instrument()  # type: ignore
-        elif name == 'sqlalchemy':
-            module.SQLAlchemyInstrumentor().instrument()  # type: ignore
-        elif name == 'redis':
-            module.RedisInstrumentor().instrument()  # type: ignore
-        elif name == 'httpx':
-            module.HTTPXClientInstrumentor().instrument()  # type: ignore
-        
-        logger.info(f"{name.title()} instrumentation successful")
-    except Exception as e:
-        logger.warning(f"Failed to set up {name} instrumentation: {str(e)}")
+def _setup_instrumentation() -> None:
+    """Set up automatic instrumentation for common libraries."""
+    instrumentations = [
+        ('opentelemetry.instrumentation.fastapi', 'FastAPIInstrumentor'),
+        ('opentelemetry.instrumentation.sqlalchemy', 'SQLAlchemyInstrumentor'),
+        ('opentelemetry.instrumentation.redis', 'RedisInstrumentor'),
+        ('opentelemetry.instrumentation.httpx', 'HTTPXClientInstrumentor'),
+        ('opentelemetry.instrumentation.requests', 'RequestsInstrumentor'),
+        ('opentelemetry.instrumentation.logging', 'LoggingInstrumentor'),
+    ]
+    
+    for module_name, instrumentor_name in instrumentations:
+        module = _safe_import(module_name)
+        if module and hasattr(module, instrumentor_name):
+            try:
+                instrumentor_class = getattr(module, instrumentor_name)
+                instrumentor = instrumentor_class()
+                
+                # Check if already instrumented
+                if not hasattr(instrumentor, '_is_instrumented') or not instrumentor._is_instrumented:
+                    instrumentor.instrument()
+                    logger.debug(f"Successfully instrumented {instrumentor_name}")
+                    
+            except Exception as e:
+                logger.warning(f"Failed to instrument {instrumentor_name}: {e}")
 
-def get_tracer(name: str) -> Optional[Tracer]:
+
+def get_tracer(name: str = __name__) -> Any:
     """
-    Get a tracer instance with proper type checking.
+    Get a tracer instance.
     
     Args:
         name: Name of the tracer
         
     Returns:
-        Tracer instance if OpenTelemetry is available, None otherwise
+        Tracer instance if available, otherwise a no-op tracer
     """
-    if _trace_module is None or _tracer_provider is None:
-        logger.warning("OpenTelemetry is not available. Returning None for tracer.")
-        return None
+    if _tracer:
+        return _tracer
+    
+    # Return a no-op tracer if tracing is not available
+    trace_module = _safe_import('opentelemetry.trace')
+    if trace_module:
+        return trace_module.get_tracer(name)
+    
+    # Fallback to no-op tracer
+    return NoOpTracer()
 
+
+def get_current_span() -> Any:
+    """Get the current active span."""
+    trace_module = _safe_import('opentelemetry.trace')
+    if trace_module:
+        return trace_module.get_current_span()
+    return None
+
+
+def get_trace_context() -> Dict[str, str]:
+    """Get current trace context information for logging."""
+    context = {}
+    
+    if not settings.TRACE_CORRELATION_ENABLED:
+        return context
+    
     try:
-        return _trace_module.get_tracer(name)  # type: ignore
+        span = get_current_span()
+        if span and hasattr(span, 'get_span_context'):
+            span_context = span.get_span_context()
+            if hasattr(span_context, 'trace_id') and hasattr(span_context, 'span_id'):
+                # Convert to hex strings for logging
+                trace_id = f"{span_context.trace_id:032x}"
+                span_id = f"{span_context.span_id:016x}"
+                
+                context.update({
+                    'trace_id': trace_id,
+                    'span_id': span_id,
+                    'correlation_id': trace_id[:16]  # Shorter correlation ID
+                })
     except Exception as e:
-        logger.error(f"Failed to get tracer {name}: {str(e)}")
-        raise ConfigurationException(f"Failed to get tracer {name}: {str(e)}") 
+        logger.debug(f"Failed to extract trace context: {e}")
+    
+    return context
+
+
+def is_tracing_enabled() -> bool:
+    """Check if tracing is properly configured and enabled."""
+    return _is_initialized and _tracer_provider is not None
+
+
+class NoOpTracer:
+    """No-operation tracer for when OpenTelemetry is not available."""
+    
+    def start_span(self, name: str, **kwargs) -> 'NoOpSpan':
+        return NoOpSpan()
+    
+    def start_as_current_span(self, name: str, **kwargs):
+        return NoOpSpan()
+
+
+class NoOpSpan:
+    """No-operation span for when OpenTelemetry is not available."""
+    
+    def __enter__(self):
+        return self
+    
+    def __exit__(self, *args):
+        pass
+    
+    def set_attribute(self, key: str, value: Any) -> None:
+        pass
+    
+    def set_status(self, status: Any) -> None:
+        pass
+    
+    def record_exception(self, exception: Exception) -> None:
+        pass
+    
+    def end(self) -> None:
+        pass

@@ -6,11 +6,30 @@ export interface User {
   id: string;
   email: string;
   name: string;
-  role: string;
+  role?: string;
+  // Auth & identity fields returned by the backend
+  username?: string;
+  full_name?: string;
+  is_active?: boolean;
+  is_verified?: boolean;
+  is_superuser?: boolean;
+  has_completed_onboarding: boolean;
+  // Subscription
   subscription_tier: SubscriptionTier;
-  subscription_end_date: string | null;
+  subscription_end_date?: string | null;
+  // Timestamps
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
+  // Optional profile fields
+  profile_image_url?: string;
+  fitness_level?: 'beginner' | 'intermediate' | 'advanced';
+  fitness_goal?: string;
+  preferred_exercises?: string[];
+  // Body metrics — set during onboarding/profile edit, used for strength scoring
+  weight_kg?: number;
+  age?: number;
+  height_cm?: number;
+  training_experience?: string;
 }
 
 export interface ApiRequestConfig {

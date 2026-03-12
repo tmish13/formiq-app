@@ -7,7 +7,7 @@ import hashlib
 import cv2
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import delete as sqlalchemy_delete
+from sqlalchemy import delete as sqlalchemy_delete, func, or_
 from fastapi import UploadFile, HTTPException, status, Depends
 from enum import Enum
 from datetime import datetime, timedelta
@@ -112,60 +112,119 @@ class FormCheckService(BaseService[FormCheck, FormCheckCreate, FormCheckUpdate])
         user_id: UUID,
         video_file: UploadFile,
         exercise_type_enum: ExerciseType,
-        notes: Optional[str] = None
+        notes: Optional[str] = None,
+        threshold_mode: Optional[str] = None,
+        posture_v1_mode: Optional[str] = None,
+        weight_kg: Optional[float] = None,
+        reps: Optional[int] = None,
+        **kwargs,
     ) -> FormCheckResponse:
         logger.info(f"Submitting form check for user {user_id}, exercise: {exercise_type_enum.value}, video: {video_file.filename}")
-        video_cloud_url: Optional[str] = None # Initialize to None
+        file_key: Optional[str] = None  # S3 object key
+        video_cloud_url: Optional[str] = None  # presigned URL for initial use
 
         try:
-            # 1. Upload video using StorageService to cloud storage
+            # 1. Upload video using StorageService to cloud storage; capture the S3 key
             logger.info(f"Uploading video '{video_file.filename}' to cloud storage.")
             folder = f"form_check_videos/{user_id}"
-            
-            video_cloud_url = await self.storage_service.upload_file(
+
+            file_key = await self.storage_service.upload_file_and_get_key(
                 file=video_file,
                 folder=folder,
-                user_id=str(user_id) 
+                user_id=str(user_id)
             )
-            logger.info(f"Video uploaded to: {video_cloud_url}")
+            video_cloud_url = self.storage_service.get_file_url(file_key, expires_in=3600)
+            logger.info(f"Video uploaded. Key: {file_key}")
 
-            # 2. Get Exercise ID from ExerciseType enum
-            exercise_template_stmt = select(ExerciseTemplate).where(ExerciseTemplate.name == exercise_type_enum.value)
+            # 2. Get Exercise ID from ExerciseType enum.
+            # Case-insensitive match: DB may store "Squat" while the enum value is "squat".
+            _exercise_name_lower = exercise_type_enum.value.lower()
+            exercise_template_stmt = select(ExerciseTemplate).where(
+                func.lower(ExerciseTemplate.name) == _exercise_name_lower
+            )
             exercise_template_result = await self.db.execute(exercise_template_stmt)
             exercise_template = exercise_template_result.scalars().first()
-            
+
             if not exercise_template:
                 if video_cloud_url: # If video was uploaded, try to delete it
                     try:
-                        logger.warning(f"ExerciseTemplate for type '{exercise_type_enum.value}' not found. Deleting uploaded video: {video_cloud_url}")
+                        logger.warning(
+                            f"ExerciseTemplate for type '{exercise_type_enum.value}' not found "
+                            f"(searched lower-case: '{_exercise_name_lower}'). "
+                            f"Deleting uploaded video: {video_cloud_url}"
+                        )
                         await self.storage_service.delete_file(video_cloud_url)
                     except Exception as e_del:
                         logger.error(f"Failed to delete orphaned video {video_cloud_url} after ExerciseTemplate not found: {e_del}")
                 raise NotFoundException(f"ExerciseTemplate for type '{exercise_type_enum.value}' not found.")
             actual_exercise_id: UUID = exercise_template.id
 
-            # 3. Create initial FormCheck record with PENDING status
+            # 3. Create Video record.
+            # exercise_type is stored on Video so that the Celery task can
+            # route to PostureV1 even when the ExerciseTemplate lookup inside
+            # the task returns None (e.g. race between template deletion and task).
+            import uuid as _uuid
+            from app.models.video import Video
+            video_record = Video(
+                id=_uuid.uuid4(),
+                user_id=user_id,
+                filename=video_file.filename or "unknown.mp4",
+                url=video_cloud_url,
+                object_key=file_key,  # store the actual S3 key, not the presigned URL
+                mime_type=video_file.content_type or "video/mp4",
+                status="UPLOADED",
+                exercise_type=exercise_type_enum.value,  # fallback for _is_squat routing
+            )
+            self.db.add(video_record)
+            await self.db.flush()
+            logger.info(f"Created Video record ID {video_record.id}")
+
+            # 4. Create initial FormCheck record with PENDING status
+            # Store s3:// URI as video_url — permanent reference; fresh presigned URLs
+            # are generated on-demand from video_key (avoids 1-hr expiry problem).
+            from app.core.config import settings as _settings
+            s3_video_uri = f"s3://{_settings.S3_BUCKET_NAME}/{file_key}"
             form_check_create_schema = FormCheckCreate(
                 user_id=user_id,
                 exercise_id=actual_exercise_id,
-                video_url=video_cloud_url, # Store the cloud URL
+                video_url=s3_video_uri,
                 notes=notes,
-                status=FormCheckStatus.PENDING 
+                status=FormCheckStatus.PENDING,
+                video_key=file_key,
+                weight_kg=weight_kg,
+                reps=reps,
             )
             db_form_check = await super().create_async(obj_in=form_check_create_schema)
-            logger.info(f"Created FormCheck record ID {db_form_check.id} with PENDING status.")
+            db_form_check.video_id = video_record.id
+            db_form_check.exercise_type = exercise_type_enum.value
+            await self.db.flush()
+            await self.db.commit()  # Persist video_id linkage (create_async committed without it)
+            logger.info(f"Created FormCheck record ID {db_form_check.id} with PENDING status, video_id={video_record.id}")
+
+            # Store threshold_mode and posture_v1_mode in details JSON if provided
+            if threshold_mode or posture_v1_mode:
+                existing_details = db_form_check.details or {}
+                if threshold_mode:
+                    existing_details["threshold_mode"] = threshold_mode
+                if posture_v1_mode:
+                    existing_details["posture_v1_mode"] = posture_v1_mode
+                db_form_check.details = existing_details
+                await self.db.flush()
 
             # 4. Dispatch background task for analysis
             try:
                 from app.tasks.analysis_tasks import process_form_check_task
-                process_form_check_task.delay(form_check_id_str=str(db_form_check.id))
+                process_form_check_task.delay(
+                    video_id_str=str(video_record.id),
+                    form_check_id_str=str(db_form_check.id),
+                )
                 logger.info(f"Successfully dispatched analysis task for FormCheck ID {db_form_check.id}.")
             except Exception as e_task_dispatch:
                 logger.error(f"Failed to dispatch Celery task for FormCheck ID {db_form_check.id}: {e_task_dispatch}", exc_info=True)
                 # Critical error: FormCheck created but analysis not started. Update status to ERROR.
                 # This requires db_form_check to be an actual ORM object that can be updated.
                 if db_form_check: # Ensure db_form_check is not None
-                    error_update_payload = {"status": FormCheckStatus.ERROR, "error_details": f"Failed to dispatch analysis task: {str(e_task_dispatch)}"}
+                    error_update_payload = {"status": FormCheckStatus.FAILED, "error_details": f"Failed to dispatch analysis task: {str(e_task_dispatch)}"}
                     await super().update_async(db_obj=db_form_check, obj_in=error_update_payload) # Use db_obj if get_async was called prior, or id if not
                     await self.db.commit() # Ensure error status is saved
                 # Re-raise or raise a specific HTTPException to inform the client of the dispatch failure.
@@ -232,7 +291,7 @@ class FormCheckService(BaseService[FormCheck, FormCheckCreate, FormCheckUpdate])
             "depth_score": analysis_results.get("depth_score")
         }
         
-        if status == FormCheckStatus.ERROR:
+        if status == FormCheckStatus.FAILED:
             update_payload["error_details"] = analysis_results.get("error_message", "Analysis failed due to an unknown error.")
 
         updated_form_check = await super().update_async(db_obj=form_check, obj_in=update_payload)
@@ -304,18 +363,28 @@ class FormCheckService(BaseService[FormCheck, FormCheckCreate, FormCheckUpdate])
         skip: int = 0,
         limit: int = 10
     ) -> List[FormCheckResponse]:
-        filters = [FormCheck.user_id == user_id]
+        # Build filter conditions
+        conditions = [FormCheck.user_id == user_id]
         if status_filter:
-            filters.append(FormCheck.status == status_filter)
+            conditions.append(FormCheck.status == status_filter)
         if exercise_id_filter:
-            filters.append(FormCheck.exercise_id == exercise_id_filter)
-        
-        form_checks_db = await super().get_multi_async(
-            filters=filters,
-            skip=skip,
-            limit=limit,
-            order_by=FormCheck.created_at.desc()
+            conditions.append(FormCheck.exercise_id == exercise_id_filter)
+
+        # Use a direct query with selectinload so related objects (exercise,
+        # feedback_items) are fetched in 2 extra queries instead of N queries.
+        stmt = (
+            select(FormCheck)
+            .where(and_(*conditions))
+            .options(
+                selectinload(FormCheck.exercise),
+                selectinload(FormCheck.feedback_items),
+            )
+            .order_by(FormCheck.created_at.desc())
+            .offset(skip)
+            .limit(limit)
         )
+        result = await self.db.execute(stmt)
+        form_checks_db = result.scalars().all()
         return [self.response_schema.from_orm(fc) for fc in form_checks_db]
 
     async def create_form_check_with_url(
@@ -942,8 +1011,15 @@ class FormCheckService(BaseService[FormCheck, FormCheckCreate, FormCheckUpdate])
             selectinload(self.model.feedback_items) # Eager load FeedbackItems
         ]
 
-        query = select(self.model).where(and_(*filter_conditions)).order_by(self.model.created_at.desc()).offset(skip).limit(limit)
-        
+        query = (
+            select(self.model)
+            .where(and_(*filter_conditions))
+            .options(*eager_loading_options)
+            .order_by(self.model.created_at.desc())
+            .offset(skip)
+            .limit(limit)
+        )
+
         result = await self.db.execute(query)
         return result.scalars().all()
 
@@ -1025,12 +1101,20 @@ class FormCheckService(BaseService[FormCheck, FormCheckCreate, FormCheckUpdate])
             if form_check.user_id != user_id:
                 raise PermissionDeniedException("Not authorized to view this form check.")
             
+            # Generate a fresh presigned URL if a video_key is stored.
+            # Fallback to the stored video_url for legacy rows that only have
+            # a presigned https:// URL (may be expired).
+            if getattr(form_check, 'video_key', None):
+                fresh_video_url = self.storage_service.get_file_url(form_check.video_key, expires_in=3600)
+            else:
+                fresh_video_url = form_check.video_url
+
             # Convert to dict for easier manipulation
             form_check_dict = {
                 "id": str(form_check.id),
                 "user_id": str(form_check.user_id),
                 "exercise_id": str(form_check.exercise_id),
-                "video_url": form_check.video_url,
+                "video_url": fresh_video_url,
                 "status": form_check.status.value if hasattr(form_check.status, 'value') else str(form_check.status),
                 "score": form_check.score,
                 "overall_feedback": form_check.overall_feedback,
@@ -1039,6 +1123,7 @@ class FormCheckService(BaseService[FormCheck, FormCheckCreate, FormCheckUpdate])
                 "configuration_id": str(form_check.configuration_id) if form_check.configuration_id else None,
                 "classified_exercise_slug": form_check.classified_exercise_slug,
                 "classification_confidence": form_check.classification_confidence,
+                "exercise_type": form_check.exercise_type,
                 "form_metadata": form_check.form_metadata,
                 # Add ML scores from XGBoost model
                 "posture_score": form_check.posture_score,
@@ -1136,6 +1221,56 @@ class FormCheckService(BaseService[FormCheck, FormCheckCreate, FormCheckUpdate])
         except Exception as e:
             logger.error(f"Error getting form check details with reference: {e}", exc_info=True)
             return None
+
+    async def get_previous_completed_form_check(
+        self,
+        user_id: UUID,
+        exercise_slug: str,
+        exclude_form_check_id: UUID,
+        db: AsyncSession,
+    ) -> Optional[FormCheck]:
+        """Return the most recent completed FormCheck before exclude_form_check_id."""
+        query = (
+            select(FormCheck)
+            .where(
+                FormCheck.user_id == user_id,
+                FormCheck.status == FormCheckStatus.COMPLETED,
+                FormCheck.id != exclude_form_check_id,
+                or_(
+                    FormCheck.exercise_type == exercise_slug,
+                    FormCheck.classified_exercise_slug == exercise_slug,
+                ),
+            )
+            .order_by(FormCheck.created_at.desc())
+            .limit(1)
+        )
+        result = await db.execute(query)
+        return result.scalar_one_or_none()
+
+    async def get_user_best_score(
+        self,
+        user_id: UUID,
+        exercise_slug: str,
+        exclude_form_check_id: UUID,
+        db: AsyncSession,
+    ) -> Optional[float]:
+        """Return highest posture_score across all previous completed sessions."""
+        query = (
+            select(func.max(FormCheck.posture_score))
+            .where(
+                FormCheck.user_id == user_id,
+                FormCheck.status == FormCheckStatus.COMPLETED,
+                FormCheck.id != exclude_form_check_id,
+                FormCheck.posture_score.isnot(None),
+                or_(
+                    FormCheck.exercise_type == exercise_slug,
+                    FormCheck.classified_exercise_slug == exercise_slug,
+                ),
+            )
+        )
+        result = await db.execute(query)
+        return result.scalar_one_or_none()
+
 
 async def get_async_form_check_service(
     # db: AsyncSession = Depends(get_async_db), # MODIFIED: Removed Depends from signature

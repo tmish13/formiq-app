@@ -5,6 +5,7 @@ import { setUser, setToken, setRefreshToken, setError, setLoading, logout as log
 import type { User } from '../types';
 import apiService from '../services/apiService';
 import { logError } from '../utils/logger';
+import { setUserPrefs } from '../utils/userPrefs';
 
 /**
  * Custom hook for authentication
@@ -58,6 +59,7 @@ export const useAuth = () => {
               token: savedAuthToken,
               refreshToken: savedRefreshToken || ''
             }));
+            dispatch(setLoading(false)); // unblock ProtectedRoute immediately; checkAuth runs in background
             // Token will trigger the other useEffect to fetch user data
           } else {
             // No saved token, user is not authenticated
@@ -77,12 +79,20 @@ export const useAuth = () => {
   useEffect(() => {
     const checkAuth = async () => {
       if (!token || user) return;
-      
+
       try {
-        dispatch(setLoading(true));
         const response = await apiService.validateSession();
         const currentUser = response.data;
         dispatch(setUser(currentUser));
+        // Seed localStorage prefs from backend — only non-null values overwrite existing ones
+        setUserPrefs({
+          ...(currentUser.fitness_goal != null && { fitnessGoal: currentUser.fitness_goal }),
+          ...(currentUser.fitness_level != null && { fitnessLevel: currentUser.fitness_level }),
+          ...(currentUser.weight_kg != null && { weightKg: currentUser.weight_kg }),
+          ...(currentUser.age != null && { age: currentUser.age }),
+          ...(currentUser.height_cm != null && { heightCm: currentUser.height_cm }),
+          ...(currentUser.training_experience != null && { trainingExperience: currentUser.training_experience as any }),
+        });
       } catch (error: any) {
         dispatch(setError(error.message));
         // Clear invalid token
@@ -126,23 +136,30 @@ export const useAuth = () => {
       }
     } catch (error: any) {
       let errorMessage = 'Invalid email or password';
-      
-      if (error.response?.data?.detail) {
-        errorMessage = error.response.data.detail;
-      } else if (error.response?.data?.message) {
-        errorMessage = error.response.data.message;
-      } else if (error.response?.status === 401) {
+
+      // apiService.handleApiError converts Axios errors to plain ApiError objects
+      // { message, status, code, details } — error.response is never set on these.
+      // Read status from error.status first, fall back to error.response?.status for safety.
+      const httpStatus: number | undefined = error.status ?? error.response?.status;
+      const detail: string | undefined =
+        error.response?.data?.detail ?? error.response?.data?.message;
+
+      if (detail) {
+        errorMessage = detail;
+      } else if (httpStatus === 401) {
         errorMessage = 'Invalid email or password. Please check your credentials and try again.';
-      } else if (error.response?.status === 422) {
+      } else if (httpStatus === 422) {
         errorMessage = 'Please check your email and password format.';
-      } else if (error.response?.status >= 500) {
+      } else if (httpStatus != null && httpStatus >= 500) {
         errorMessage = 'Server error. Please try again later.';
-      } else if (error.code === 'NETWORK_ERROR' || !error.response) {
+      } else if (!httpStatus) {
         errorMessage = 'Network error. Please check your connection and try again.';
+      } else if (error.message && error.message !== 'An unknown error occurred') {
+        errorMessage = error.message;
       }
-      
+
       dispatch(setError(errorMessage));
-      logError(error.message || error, { context: 'login' });
+      logError(errorMessage, { context: 'login' });
       throw new Error(errorMessage);
     } finally {
       dispatch(setLoading(false));
@@ -165,25 +182,18 @@ export const useAuth = () => {
       return { success: true, message: 'Account created successfully! Please sign in with your new credentials.' };
       
     } catch (error: any) {
-      let errorMessage = 'Registration failed';
-      
-      if (error.response?.data?.detail) {
-        errorMessage = error.response.data.detail;
-      } else if (error.response?.data?.message) {
-        errorMessage = error.response.data.message;
-      } else if (error.response?.data?.email) {
-        // Handle field-specific errors
-        errorMessage = Array.isArray(error.response.data.email) 
-          ? error.response.data.email[0] 
-          : error.response.data.email;
-      } else if (error.response?.data?.password) {
-        errorMessage = Array.isArray(error.response.data.password) 
-          ? error.response.data.password[0] 
-          : error.response.data.password;
-      }
-      
+      // apiService.handleApiError transforms all errors into plain ApiError objects
+      // { message, status, code, details } — so error.response is never set.
+      // Read error.message directly; fall back through legacy Axios shape just in case.
+      const errorMessage =
+        error.message && error.message !== 'An unknown error occurred'
+          ? error.message
+          : error.response?.data?.detail
+          ?? error.response?.data?.message
+          ?? 'Registration failed';
+
       dispatch(setError(errorMessage));
-      logError(error.message || error, { context: 'register' });
+      logError(errorMessage, { context: 'register' });
       throw new Error(errorMessage);
     } finally {
       dispatch(setLoading(false));
@@ -232,7 +242,7 @@ export const useAuth = () => {
     } catch (error) {
       const errorMessage = (error as Error).message || 'Token refresh failed';
       dispatch(setError(errorMessage));
-      logError(error as Error, { context: 'refreshAccessToken' });
+      logError(errorMessage, { context: 'refreshAccessToken' });
       logout();
       throw error;
     }
@@ -248,7 +258,7 @@ export const useAuth = () => {
     } catch (error) {
       const errorMessage = (error as Error).message || 'Profile update failed';
       dispatch(setError(errorMessage));
-      logError(error as Error, { context: 'updateProfile' });
+      logError(errorMessage, { context: 'updateProfile' });
       throw error;
     } finally {
       dispatch(setLoading(false));
@@ -262,7 +272,7 @@ export const useAuth = () => {
     } catch (error) {
       const errorMessage = (error as Error).message || 'Password change failed';
       dispatch(setError(errorMessage));
-      logError(error as Error, { context: 'changePassword' });
+      logError(errorMessage, { context: 'changePassword' });
       throw error;
     } finally {
       dispatch(setLoading(false));
@@ -276,7 +286,7 @@ export const useAuth = () => {
     } catch (error) {
       const errorMessage = (error as Error).message || 'Password reset request failed';
       dispatch(setError(errorMessage));
-      logError(error as Error, { context: 'requestPasswordReset' });
+      logError(errorMessage, { context: 'requestPasswordReset' });
       throw error;
     } finally {
       dispatch(setLoading(false));
@@ -290,7 +300,7 @@ export const useAuth = () => {
     } catch (error) {
       const errorMessage = (error as Error).message || 'Password reset failed';
       dispatch(setError(errorMessage));
-      logError(error as Error, { context: 'resetPassword' });
+      logError(errorMessage, { context: 'resetPassword' });
       throw error;
     } finally {
       dispatch(setLoading(false));
@@ -304,7 +314,7 @@ export const useAuth = () => {
     } catch (error) {
       const errorMessage = (error as Error).message || 'Email verification request failed';
       dispatch(setError(errorMessage));
-      logError(error as Error, { context: 'requestEmailVerification' });
+      logError(errorMessage, { context: 'requestEmailVerification' });
       throw error;
     } finally {
       dispatch(setLoading(false));
@@ -318,7 +328,7 @@ export const useAuth = () => {
     } catch (error) {
       const errorMessage = (error as Error).message || 'Email verification failed';
       dispatch(setError(errorMessage));
-      logError(error as Error, { context: 'confirmEmailVerification' });
+      logError(errorMessage, { context: 'confirmEmailVerification' });
       throw error;
     } finally {
       dispatch(setLoading(false));
@@ -368,21 +378,24 @@ export const useAuth = () => {
     }
   }, [dispatch, navigate]);
 
-  const completeOnboarding = useCallback(async () => {
+  const completeOnboarding = useCallback(async (preferences?: {
+    fitness_goal?: string;
+    preferred_exercises?: string[];
+  }) => {
     try {
       dispatch(setLoading(true));
       dispatch(setError(null));
-      
-      const response = await apiService.completeOnboarding();
+
+      const response = await apiService.completeOnboarding(preferences);
       const { user: updatedUser } = response.data;
-      
+
       // Update user in Redux store
       dispatch(setUser(updatedUser));
-      
+
       // Navigate to dashboard
       navigate('/dashboard');
     } catch (error: any) {
-      const errorMessage = error.response?.data?.detail || 'Failed to complete onboarding';
+      const errorMessage = error.message || error.response?.data?.detail || 'Failed to complete onboarding';
       dispatch(setError(errorMessage));
       logError(error, { context: 'completeOnboarding' });
       throw error;

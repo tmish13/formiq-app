@@ -1,17 +1,41 @@
 """Feedback item endpoints."""
-from typing import List
+from typing import List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from pydantic import BaseModel
 
 from app.api import deps
 from app.core.deps import get_db, get_current_user, validate_feedback_access
 from app.services.form_check_service import FormCheckService
+try:
+    from app.services.rag_feedback_service import rag_feedback_service, FeedbackContext
+except ImportError:
+    rag_feedback_service = None
+    FeedbackContext = None
 from app.core.logging import logger
 from app.schemas.form_check import FeedbackItemResponse, FeedbackItemUpdate
 from app.core.validators import ValidationException
 from app.models.user import User
 
 router = APIRouter()
+
+
+class RAGFeedbackRequest(BaseModel):
+    exercise_name: str
+    exercise_type: str
+    posture_score: float
+    stability_score: float
+    depth_score: float
+    identified_faults: List[str] = []
+    user_level: str = "intermediate"
+    additional_context: str = None
+
+
+class RAGFeedbackResponse(BaseModel):
+    feedback_text: str
+    rag_enabled: bool
+    exercise_name: str
+    exercise_type: str
 
 
 @router.get("/{feedback_id}", response_model=FeedbackItemResponse)
@@ -74,6 +98,46 @@ async def update_feedback(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while updating the feedback item"
+        )
+
+
+@router.post("/rag/generate", response_model=RAGFeedbackResponse)
+async def generate_rag_feedback(
+    *,
+    request: RAGFeedbackRequest,
+    current_user: User = Depends(deps.get_current_active_user)
+) -> RAGFeedbackResponse:
+    """Generate RAG-powered exercise feedback."""
+    try:
+        # Prepare feedback context
+        feedback_context = FeedbackContext(
+            exercise_name=request.exercise_name,
+            exercise_type=request.exercise_type,
+            form_scores={
+                "posture_score": request.posture_score,
+                "stability_score": request.stability_score,
+                "depth_score": request.depth_score
+            },
+            identified_faults=request.identified_faults,
+            user_level=request.user_level,
+            additional_context=request.additional_context
+        )
+        
+        # Generate feedback
+        feedback_text = rag_feedback_service.generate_feedback(feedback_context)
+        
+        return RAGFeedbackResponse(
+            feedback_text=feedback_text,
+            rag_enabled=rag_feedback_service.is_available(),
+            exercise_name=request.exercise_name,
+            exercise_type=request.exercise_type
+        )
+        
+    except Exception as e:
+        logger.error(f"Error generating RAG feedback: {str(e)}", exc_info=e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while generating feedback"
         )
 
 

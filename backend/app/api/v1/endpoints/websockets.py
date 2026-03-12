@@ -32,7 +32,7 @@ async def form_analysis_websocket(
         await websocket.accept()
         
         # Track connection
-        track_websocket_connection(analysis_id=analysis_id, is_connected=True)
+        track_websocket_connection(exercise_type="form_analysis", is_connected=True)
         
         try:
             # Subscribe to feedback updates
@@ -57,7 +57,7 @@ async def form_analysis_websocket(
         except WebSocketDisconnect:
             # Handle normal disconnection
             await feedback_service.unsubscribe_from_feedback(analysis_id, websocket)
-            track_websocket_connection(analysis_id=analysis_id, is_connected=False)
+            track_websocket_connection(exercise_type="form_analysis", is_connected=False)
             
         except Exception as e:
             # Handle other errors
@@ -91,7 +91,7 @@ async def exercise_session_websocket(
         await websocket.accept()
         
         # Track connection
-        track_websocket_connection(session_id=session_id, is_connected=True)
+        track_websocket_connection(exercise_type="exercise_session", is_connected=True)
         
         try:
             # Subscribe to session updates
@@ -131,7 +131,7 @@ async def exercise_session_websocket(
         except WebSocketDisconnect:
             # Handle normal disconnection
             await feedback_service.unsubscribe_from_session(session_id, websocket)
-            track_websocket_connection(session_id=session_id, is_connected=False)
+            track_websocket_connection(exercise_type="exercise_session", is_connected=False)
             
         except Exception as e:
             # Handle other errors

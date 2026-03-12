@@ -95,19 +95,15 @@ async def get_auth_service(
     db: AsyncSession = Depends(get_async_db),
     user_service: UserService = Depends(get_user_service),
     email_service: EmailService = Depends(get_email_service),
-    app_settings: Settings = Depends(get_settings)
+    redis_client=Depends(get_redis_client),
 ) -> AuthService:
     """Dependency for getting the authentication service."""
-    # AuthService constructor does not take settings currently.
-    # If it needs settings, its __init__ must be updated first.
-    return AuthService(db=db, user_service=user_service, email_service=email_service)
+    return AuthService(db=db, user_service=user_service, email_service=email_service, redis_client=redis_client)
 
 async def get_video_service(db: AsyncSession = Depends(get_async_db), app_settings: Settings = Depends(get_settings)) -> VideoService:
     """Dependency for getting the video service."""
     storage_service = StorageService()
-    # VideoService constructor does not take settings currently.
-    # If it needs settings, its __init__ must be updated first.
-    return VideoService(db=db, storage_service=storage_service)
+    return VideoService(db=db, storage_service=storage_service, app_settings=app_settings)
 
 async def get_async_storage_service(): # Placeholder if get_storage_service is not async already
     # This should actually return an instance of StorageService, possibly async initialized
@@ -119,7 +115,7 @@ async def get_async_video_service(
     storage_service: StorageService = Depends(StorageService),
     settings: Settings = Depends(get_settings)
 ) -> VideoService:
-    return VideoService(db=db, storage_service=storage_service, settings=settings)
+    return VideoService(db=db, storage_service=storage_service, app_settings=settings)
 
 # Placeholder for CacheService provider
 async def get_cache_service() -> Optional[CacheService]:

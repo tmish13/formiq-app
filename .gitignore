@@ -123,3 +123,26 @@ docker-compose.override.yml
 
 # Local development
 .local/
+
+# ML model artifacts (large binary files)
+*.pt
+*.joblib
+
+# Generated coverage artifacts
+coverage.xml
+.coverage
+
+# Generated script outputs
+backend/scripts/output/
+backend/data/
+backend/perf/
+
+# Root-level generated dev files
+processing_log.txt
+squat_processing_summary.txt
+squat_videos_summary.txt
+squat_video_processing_report.md
+test_single_squat_video.py
+batch_process_squat_videos.py
+process_videos_with_updates.py
+update_summary.py

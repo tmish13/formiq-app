@@ -86,20 +86,16 @@ async def is_password_pwned(password: str) -> bool:
         logger.error(f"General error in is_password_pwned for prefix {api_request_prefix_for_logging}: {e}", exc_info=True)
         return False
 
-async def get_password_hash(password: str) -> str:
+def get_password_hash(password: str) -> str:
     """
     Hash a password using bcrypt.
-    Validates strength and checks if pwned (asynchronously and blocking).
+    Validates strength before hashing.
     Args:
         password: Plain text password
     Returns:
         str: Hashed password
     Raises:
-        ValueError: If password doesn't meet security requirements or is pwned.
+        ValueError: If password doesn't meet security requirements.
     """
-    validate_password_strength(password) # This can raise ValueError
-    
-    if await is_password_pwned(password):
-        raise ValueError("Password has been found in a data breach and cannot be used. Please choose a different password.")
-
-    return pwd_context.hash(password) 
+    validate_password_strength(password)
+    return pwd_context.hash(password)

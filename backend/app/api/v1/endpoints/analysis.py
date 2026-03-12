@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import logging
 from uuid import UUID
 
-from app.db.session import get_db
+from app.api import deps
 from app.services.video_service import VideoService
 # Import the Celery task
 try:
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 @router.post("/analyze-form/{video_id}", status_code=status.HTTP_202_ACCEPTED)
 async def trigger_form_analysis(
     video_id: UUID,
-    db: AsyncSession = Depends(get_db)
+    video_service: VideoService = Depends(deps.get_video_service),
 ):
     """
     Triggers dynamic form analysis for a given video ID.
@@ -30,8 +30,7 @@ async def trigger_form_analysis(
     The analysis is performed asynchronously. This endpoint will return
     a 202 Accepted response immediately after queueing the analysis task.
     """
-    video_service = VideoService(db_session=db)
-    video = await video_service.get_video_by_id_async(video_id)
+    video = await video_service.get_async(id=video_id)
     if not video:
         logger.warning(f"Trigger analysis: Video with ID {video_id} not found.")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")

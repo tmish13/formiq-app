@@ -1,0 +1,425 @@
+groups:
+  # =============================================================================
+  # API Layer Alerts
+  # =============================================================================
+  - name: formiq_api_alerts
+    rules:
+      - alert: HighAPIErrorRate
+        expr: (
+          sum(rate(http_requests_total{status=~"5.."}[5m])) / 
+          sum(rate(http_requests_total[5m])) * 100
+        ) > 5
+        for: 2m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "High API error rate detected"
+          description: "API error rate is {{ $value }}% over the last 5 minutes (threshold: 5%)"
+          runbook_url: "https://docs.formiq.com/runbooks/high-api-error-rate"
+      
+      - alert: CriticalAPIErrorRate
+        expr: (
+          sum(rate(http_requests_total{status=~"5.."}[5m])) / 
+          sum(rate(http_requests_total[5m])) * 100
+        ) > 10
+        for: 1m
+        labels:
+          severity: critical
+          component: api
+        annotations:
+          summary: "Critical API error rate detected"
+          description: "API error rate is {{ $value }}% over the last 5 minutes (threshold: 10%)"
+          runbook_url: "https://docs.formiq.com/runbooks/critical-api-error-rate"
+      
+      - alert: HighAPILatencyP95
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 1.0
+        for: 3m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "High API latency P95 detected"
+          description: "API P95 latency is {{ $value }}s over the last 5 minutes (threshold: 1.0s)"
+          runbook_url: "https://docs.formiq.com/runbooks/high-api-latency"
+      
+      - alert: CriticalAPILatencyP95
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 3.0
+        for: 1m
+        labels:
+          severity: critical
+          component: api
+        annotations:
+          summary: "Critical API latency P95 detected"
+          description: "API P95 latency is {{ $value }}s over the last 5 minutes (threshold: 3.0s)"
+          runbook_url: "https://docs.formiq.com/runbooks/critical-api-latency"
+
+  # =============================================================================
+  # Video Processing & AI Pipeline Alerts  
+  # =============================================================================
+  - name: formiq_ai_pipeline_alerts
+    rules:
+      - alert: HighVideoProcessingFailures
+        expr: (
+          sum(rate(video_processing_errors_total[10m])) / 
+          sum(rate(video_frame_processing_total[10m])) * 100
+        ) > 10
+        for: 5m
+        labels:
+          severity: warning
+          component: ai_pipeline
+        annotations:
+          summary: "High video processing failure rate"
+          description: "Video processing failure rate is {{ $value }}% over the last 10 minutes (threshold: 10%)"
+          runbook_url: "https://docs.formiq.com/runbooks/video-processing-failures"
+      
+      - alert: SlowFrameProcessing
+        expr: histogram_quantile(0.95, sum(rate(video_frame_processing_duration_seconds_bucket[5m])) by (le)) > 0.3
+        for: 5m
+        labels:
+          severity: warning
+          component: ai_pipeline
+        annotations:
+          summary: "Slow frame processing detected"
+          description: "Frame processing P95 is {{ $value }}s over the last 5 minutes (threshold: 0.3s)"
+          runbook_url: "https://docs.formiq.com/runbooks/slow-frame-processing"
+      
+      - alert: AIModelInferenceErrors
+        expr: sum(rate(model_inference_errors_total[5m])) > 0.1
+        for: 3m
+        labels:
+          severity: warning
+          component: ai_pipeline
+        annotations:
+          summary: "AI model inference errors detected"
+          description: "AI model is experiencing {{ $value }} errors per second over the last 5 minutes"
+          runbook_url: "https://docs.formiq.com/runbooks/ai-model-errors"
+      
+      - alert: ExcessiveModelFallbacks
+        expr: sum(rate(model_fallbacks_total[10m])) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          component: ai_pipeline
+        annotations:
+          summary: "Excessive AI model fallbacks"
+          description: "Model fallback rate is {{ $value }} per second over the last 10 minutes (threshold: 0.05/s)"
+          runbook_url: "https://docs.formiq.com/runbooks/model-fallbacks"
+
+  # =============================================================================
+  # Database Alerts
+  # =============================================================================
+  - name: formiq_database_alerts
+    rules:
+      - alert: SlowDatabaseQueries
+        expr: histogram_quantile(0.95, sum(rate(db_query_duration_seconds_bucket[5m])) by (le)) > 2.0
+        for: 5m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "Slow database queries detected"
+          description: "Database query P95 is {{ $value }}s over the last 5 minutes (threshold: 2.0s)"
+          runbook_url: "https://docs.formiq.com/runbooks/slow-database-queries"
+      
+      - alert: HighDatabaseConnectionUsage
+        expr: (db_connections{state="active"} / db_connections{state="total"}) > 0.8
+        for: 3m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "High database connection usage"
+          description: "Database connection usage is {{ $value }} (threshold: 80%)"
+          runbook_url: "https://docs.formiq.com/runbooks/high-db-connections"
+      
+      - alert: DatabaseConnectionExhaustion
+        expr: (db_connections{state="active"} / db_connections{state="total"}) > 0.95
+        for: 1m
+        labels:
+          severity: critical
+          component: database
+        annotations:
+          summary: "Database connection pool nearly exhausted"
+          description: "Database connection usage is {{ $value }} (threshold: 95%)"
+          runbook_url: "https://docs.formiq.com/runbooks/db-connection-exhaustion"
+
+  # =============================================================================
+  # Circuit Breaker Alerts
+  # =============================================================================
+  - name: formiq_circuit_breaker_alerts
+    rules:
+      - alert: CircuitBreakerOpen
+        expr: circuit_breaker_state > 1
+        for: 0m  # Alert immediately
+        labels:
+          severity: critical
+          component: external_services
+        annotations:
+          summary: "Circuit breaker is open for service {{ $labels.service_name }}"
+          description: "Circuit breaker for {{ $labels.service_name }} has been open, indicating service unavailability"
+          runbook_url: "https://docs.formiq.com/runbooks/circuit-breaker-open"
+      
+      - alert: HighCircuitBreakerFailures
+        expr: sum(rate(circuit_breaker_failures_total[5m])) by (service_name) > 0.1
+        for: 3m
+        labels:
+          severity: warning
+          component: external_services
+        annotations:
+          summary: "High circuit breaker failures for {{ $labels.service_name }}"
+          description: "Service {{ $labels.service_name }} is experiencing {{ $value }} failures per second"
+          runbook_url: "https://docs.formiq.com/runbooks/circuit-breaker-failures"
+      
+      - alert: ExcessiveCircuitBreakerBlocked
+        expr: sum(rate(circuit_breaker_requests_total{status="blocked"}[5m])) by (service_name) > 0.5
+        for: 2m
+        labels:
+          severity: warning
+          component: external_services
+        annotations:
+          summary: "Circuit breaker blocking many requests for {{ $labels.service_name }}"
+          description: "{{ $value }} requests per second are being blocked by circuit breaker for {{ $labels.service_name }}"
+          runbook_url: "https://docs.formiq.com/runbooks/circuit-breaker-blocked"
+
+  # =============================================================================
+  # System Resource Alerts
+  # =============================================================================
+  - name: formiq_system_alerts
+    rules:
+      - alert: HighCPUUsage
+        expr: cpu_usage_percent > 80
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage is {{ $value }}% (threshold: 80%)"
+          runbook_url: "https://docs.formiq.com/runbooks/high-cpu-usage"
+      
+      - alert: CriticalCPUUsage
+        expr: cpu_usage_percent > 95
+        for: 2m
+        labels:
+          severity: critical
+          component: system
+        annotations:
+          summary: "Critical CPU usage detected"
+          description: "CPU usage is {{ $value }}% (threshold: 95%)"
+          runbook_url: "https://docs.formiq.com/runbooks/critical-cpu-usage"
+      
+      - alert: HighMemoryUsage
+        expr: (memory_usage_bytes / (memory_usage_bytes + 1e9)) * 100 > 85  # Assuming we add total memory metric
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage is {{ $value }}% (threshold: 85%)"
+          runbook_url: "https://docs.formiq.com/runbooks/high-memory-usage"
+      
+      - alert: HighDiskUsage
+        expr: (disk_usage_bytes / (disk_usage_bytes + 1e10)) * 100 > 90  # Assuming we add total disk metric
+        for: 10m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High disk usage detected"
+          description: "Disk usage is {{ $value }}% (threshold: 90%)"
+          runbook_url: "https://docs.formiq.com/runbooks/high-disk-usage"
+
+  # =============================================================================
+  # Authentication & Security Alerts
+  # =============================================================================
+  - name: formiq_security_alerts
+    rules:
+      - alert: HighFailedLoginRate
+        expr: sum(rate(auth_failed_login_attempts_total[5m])) > 1.0
+        for: 3m
+        labels:
+          severity: warning
+          component: security
+        annotations:
+          summary: "High failed login rate detected"
+          description: "Failed login rate is {{ $value }} attempts per second over the last 5 minutes"
+          runbook_url: "https://docs.formiq.com/runbooks/high-failed-logins"
+      
+      - alert: SuspiciousLoginActivity
+        expr: sum(rate(auth_failed_login_attempts_total[1m])) by (user_email) > 0.5
+        for: 1m
+        labels:
+          severity: critical
+          component: security
+        annotations:
+          summary: "Suspicious login activity for user {{ $labels.user_email }}"
+          description: "User {{ $labels.user_email }} has {{ $value }} failed login attempts per second"
+          runbook_url: "https://docs.formiq.com/runbooks/suspicious-login-activity"
+      
+      - alert: HighRateLimitHits
+        expr: sum(rate(auth_rate_limit_hits_total[5m])) > 2.0
+        for: 3m
+        labels:
+          severity: warning
+          component: security
+        annotations:
+          summary: "High rate limit hits detected"
+          description: "Rate limit hit rate is {{ $value }} per second over the last 5 minutes"
+          runbook_url: "https://docs.formiq.com/runbooks/high-rate-limit-hits"
+
+  # =============================================================================
+  # Business Logic Alerts
+  # =============================================================================
+  - name: formiq_business_alerts
+    rules:
+      - alert: LowFormAnalysisSuccessRate
+        expr: (
+          sum(rate(form_checks_total{status="completed"}[10m])) / 
+          sum(rate(form_checks_total[10m])) * 100
+        ) < 95
+        for: 10m
+        labels:
+          severity: warning
+          component: business
+        annotations:
+          summary: "Low form analysis success rate"
+          description: "Form analysis success rate is {{ $value }}% over the last 10 minutes (threshold: 95%)"
+          runbook_url: "https://docs.formiq.com/runbooks/low-form-analysis-success"
+      
+      - alert: UnusuallyLowUserActivity
+        expr: active_users < 5
+        for: 15m
+        labels:
+          severity: info
+          component: business
+        annotations:
+          summary: "Unusually low user activity"
+          description: "Only {{ $value }} active users (normal baseline varies by time)"
+          runbook_url: "https://docs.formiq.com/runbooks/low-user-activity"
+      
+      - alert: VideoUploadFailures
+        expr: sum(rate(video_processing_errors_total[10m])) > 0.2
+        for: 5m
+        labels:
+          severity: warning
+          component: business
+        annotations:
+          summary: "Video upload failures detected"
+          description: "Video upload failure rate is {{ $value }} per second over the last 10 minutes"
+          runbook_url: "https://docs.formiq.com/runbooks/video-upload-failures"
+
+  # =============================================================================
+  # Cache Performance Alerts
+  # =============================================================================  
+  - name: formiq_cache_alerts
+    rules:
+      - alert: LowCacheHitRate
+        expr: (
+          sum(rate(cache_hits_total[5m])) / 
+          (sum(rate(cache_hits_total[5m])) + sum(rate(cache_misses_total[5m]))) * 100
+        ) < 70
+        for: 10m
+        labels:
+          severity: warning
+          component: cache
+        annotations:
+          summary: "Low cache hit rate detected"
+          description: "Cache hit rate is {{ $value }}% over the last 5 minutes (threshold: 70%)"
+          runbook_url: "https://docs.formiq.com/runbooks/low-cache-hit-rate"
+      
+      - alert: HighCacheMemoryUsage
+        expr: cache_size_bytes > 500e6  # 500MB
+        for: 5m
+        labels:
+          severity: warning
+          component: cache
+        annotations:
+          summary: "High cache memory usage"
+          description: "Cache is using {{ $value | humanizeBytes }} (threshold: 500MB)"
+          runbook_url: "https://docs.formiq.com/runbooks/high-cache-memory"
+
+  # =============================================================================
+  # Email & Communication Alerts
+  # =============================================================================
+  - name: formiq_communication_alerts
+    rules:
+      - alert: HighEmailFailureRate
+        expr: (
+          sum(rate(emails_sent_total{email_type=~".*_failed"}[10m])) / 
+          sum(rate(emails_sent_total[10m])) * 100
+        ) > 10
+        for: 5m
+        labels:
+          severity: warning
+          component: communication
+        annotations:
+          summary: "High email failure rate detected"
+          description: "Email failure rate is {{ $value }}% over the last 10 minutes"
+          runbook_url: "https://docs.formiq.com/runbooks/email-failures"
+      
+      - alert: WebSocketConnectionsDown
+        expr: sum(active_websocket_connections) < 1
+        for: 5m
+        labels:
+          severity: info
+          component: communication
+        annotations:
+          summary: "No active WebSocket connections"
+          description: "WebSocket connections are down or no users are connected"
+          runbook_url: "https://docs.formiq.com/runbooks/websocket-connections-down"
+
+  # =============================================================================
+  # Error Tracking Alerts
+  # =============================================================================
+  - name: formiq_error_tracking_alerts
+    rules:
+      - alert: HighGeneralErrorRate
+        expr: sum(rate(error_details_total[5m])) > 1.0
+        for: 3m
+        labels:
+          severity: warning
+          component: application
+        annotations:
+          summary: "High general error rate detected"
+          description: "Application error rate is {{ $value }} errors per second over the last 5 minutes"
+          runbook_url: "https://docs.formiq.com/runbooks/high-error-rate"
+      
+      - alert: RepeatedServiceErrors
+        expr: sum(rate(error_details_total[5m])) by (service, error_type) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: application
+        annotations:
+          summary: "Repeated errors in service {{ $labels.service }}"
+          description: "Service {{ $labels.service }} is experiencing {{ $value }} {{ $labels.error_type }} errors per second"
+          runbook_url: "https://docs.formiq.com/runbooks/repeated-service-errors"
+
+  # =============================================================================
+  # Availability & Health Alerts
+  # =============================================================================
+  - name: formiq_availability_alerts
+    rules:
+      - alert: ServiceUnavailable
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: availability
+        annotations:
+          summary: "FormIQ service is unavailable"
+          description: "FormIQ backend service is down and not responding to health checks"
+          runbook_url: "https://docs.formiq.com/runbooks/service-unavailable"
+      
+      - alert: HealthCheckFailure
+        expr: absent(up{job="formiq-backend"}) or up{job="formiq-backend"} == 0
+        for: 30s
+        labels:
+          severity: critical
+          component: availability
+        annotations:
+          summary: "FormIQ health check failing"
+          description: "Health check endpoint is not responding or returning failure"
+          runbook_url: "https://docs.formiq.com/runbooks/health-check-failure"

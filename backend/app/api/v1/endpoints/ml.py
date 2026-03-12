@@ -4,6 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, Path, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Dict, Any, Optional
 from uuid import UUID
+from pathlib import Path as FilePath
+import json
 
 from app.api import deps
 from app.models.user import User
@@ -12,6 +14,22 @@ from app.core.logging import get_logger
 from app.core.exceptions import NotFoundException
 from sqlalchemy import select
 from datetime import datetime
+
+_MANIFEST_PATH = (
+    FilePath(__file__).resolve().parent.parent.parent.parent
+    / "ml" / "posture_v1" / "artifacts" / "posture_v1_manifest.json"
+)
+
+
+def _load_manifest() -> dict:
+    try:
+        with open(_MANIFEST_PATH) as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+_MANIFEST = _load_manifest()  # loaded once at import time
 
 # Initialize logger
 logger = get_logger(__name__)
@@ -32,40 +50,13 @@ async def get_model_info(
         Model information including version, supported exercises, etc.
     """
     try:
-        # In a real implementation, this would come from the ML service
         model_info = {
-            "version": "v1.2.1",
-            "supported_exercises": [
-                "squat",
-                "deadlift",
-                "bench_press",
-                "overhead_press",
-                "row",
-                "pushup",
-                "plank"
-            ],
-            "confidence_threshold": 0.75,
-            "last_updated": "2024-01-15T10:30:00Z",
-            "model_type": "XGBoost Classification",
-            "features": [
-                "pose_detection",
-                "angle_calculation", 
-                "movement_analysis",
-                "fault_detection"
-            ],
-            "accuracy_metrics": {
-                "overall_accuracy": 0.92,
-                "precision": 0.89,
-                "recall": 0.94,
-                "f1_score": 0.91
-            },
-            "training_data": {
-                "dataset_size": 15000,
-                "last_training_date": "2024-01-10T00:00:00Z",
-                "validation_split": 0.2
-            }
+            "version": _MANIFEST.get("version", "v1"),
+            "supported_exercises": ["squat"],
+            "confidence_threshold": _MANIFEST.get("threshold", 0.525),
+            "last_updated": _MANIFEST.get("created_at", "2026-02-01T00:00:00Z"),
         }
-        
+
         logger.info(f"Provided ML model info to user {current_user.id}")
         return model_info
         
@@ -108,50 +99,38 @@ async def get_ml_scores(
                 detail="Form check not found or access denied"
             )
         
-        # In a real implementation, this would come from the ML analysis
-        # For now, we'll generate realistic ML scores based on the form check
+        # Read real ML scores from the form check record
+        results = form_check.results or {}
+        posture_v1 = results.get("posture_v1", {})
+        pv1_decision = posture_v1.get("decision")
+
+        # Build detected_faults from real posture_v1 data
+        detected_faults = []
+        if pv1_decision == "fault":
+            detected_faults.append({
+                "type": "posture_fault",
+                "severity": "high" if posture_v1.get("prob_fault", 0) > 0.7 else "medium",
+                "description": "Posture fault detected by ML analysis",
+                "confidence": posture_v1.get("confidence", 0),
+            })
+        elif pv1_decision == "uncertain":
+            detected_faults.append({
+                "type": "uncertain",
+                "severity": "low",
+                "description": "Analysis quality insufficient for confident assessment",
+                "quality_flags": posture_v1.get("quality_flags", []),
+            })
+
         ml_scores = {
-            "overall_score": form_check.score or 75.0,
-            "posture_score": getattr(form_check, 'posture_score', None) or 78.0,
-            "stability_score": getattr(form_check, 'stability_score', None) or 72.0,
-            "depth_score": getattr(form_check, 'depth_score', None) or 80.0,
-            "confidence": 0.87,
-            "analysis_timestamp": form_check.updated_at.isoformat(),
-            "model_version": "v1.2.1",
-            "detected_faults": [
-                {
-                    "type": "posture_fault",
-                    "severity": "medium",
-                    "description": "Slight forward lean detected",
-                    "timestamp": 2.5,
-                    "confidence": 0.82
-                },
-                {
-                    "type": "depth_fault", 
-                    "severity": "low",
-                    "description": "Could achieve slightly greater depth",
-                    "timestamp": 3.2,
-                    "confidence": 0.76
-                }
-            ],
-            "movement_quality": {
-                "smoothness": 0.85,
-                "consistency": 0.79,
-                "range_of_motion": 0.88,
-                "timing": 0.82
-            },
-            "rep_analysis": {
-                "total_reps": 12,
-                "valid_reps": 10,
-                "rep_quality_scores": [85, 82, 88, 76, 90, 85, 79, 92, 86, 81],
-                "average_rep_duration": 3.2,
-                "rep_consistency": 0.84
-            },
-            "recommendations": [
-                "Focus on maintaining neutral spine throughout the movement",
-                "Work on achieving consistent depth across all repetitions",
-                "Consider reducing weight to improve form quality"
-            ]
+            "overall_score": form_check.score,
+            "posture_score": getattr(form_check, 'posture_score', None),
+            "stability_score": getattr(form_check, 'stability_score', None),
+            "depth_score": getattr(form_check, 'depth_score', None),
+            "confidence": getattr(form_check, 'confidence_score', None),
+            "analysis_timestamp": form_check.updated_at.isoformat() if form_check.updated_at else None,
+            "model_version": posture_v1.get("model_version", "unknown"),
+            "detected_faults": detected_faults,
+            "posture_v1": posture_v1,
         }
         
         logger.info(f"Provided ML scores for form check {form_check_id} to user {current_user.id}")

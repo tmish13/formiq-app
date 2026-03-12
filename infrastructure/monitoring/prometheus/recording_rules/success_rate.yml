@@ -1,0 +1,110 @@
+# Prometheus recording rules for API success rate calculations
+groups:
+  - name: api_success_rate
+    interval: 30s
+    rules:
+      # Overall API success rate (2xx and 3xx responses)
+      - record: formiq:api_success_rate_5m
+        expr: |
+          sum(rate(http_requests_total{status=~"[23].."}[5m])) /
+          sum(rate(http_requests_total[5m])) * 100
+
+      # API success rate by endpoint
+      - record: formiq:api_success_rate_by_endpoint_5m
+        expr: |
+          sum(rate(http_requests_total{status=~"[23].."}[5m])) by (endpoint) /
+          sum(rate(http_requests_total[5m])) by (endpoint) * 100
+
+      # Error rate (4xx and 5xx responses)
+      - record: formiq:api_error_rate_5m
+        expr: |
+          sum(rate(http_requests_total{status=~"[45].."}[5m])) /
+          sum(rate(http_requests_total[5m])) * 100
+
+      # Requests per second
+      - record: formiq:api_requests_per_second
+        expr: sum(rate(http_requests_total[5m]))
+
+      # P95 latency
+      - record: formiq:api_p95_latency_seconds
+        expr: |
+          histogram_quantile(0.95, 
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (le)
+          )
+
+      # P99 latency  
+      - record: formiq:api_p99_latency_seconds
+        expr: |
+          histogram_quantile(0.99, 
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (le)
+          )
+
+      # SLA compliance indicator (success rate >= 99.9%)
+      - record: formiq:sla_success_rate_compliant
+        expr: formiq:api_success_rate_5m >= 99.9
+
+      # SLA compliance indicator (P95 latency <= 300ms)
+      - record: formiq:sla_p95_latency_compliant  
+        expr: formiq:api_p95_latency_seconds <= 0.3
+
+      # Overall SLA compliance (both success rate and latency)
+      - record: formiq:sla_overall_compliant
+        expr: |
+          formiq:sla_success_rate_compliant *
+          formiq:sla_p95_latency_compliant
+
+  - name: api_success_rate_hourly
+    interval: 5m
+    rules:
+      # Hourly success rate for trending
+      - record: formiq:api_success_rate_1h
+        expr: |
+          sum(rate(http_requests_total{status=~"[23].."}[1h])) /
+          sum(rate(http_requests_total[1h])) * 100
+
+      # Daily success rate for SLA reporting
+      - record: formiq:api_success_rate_24h
+        expr: |
+          sum(rate(http_requests_total{status=~"[23].."}[24h])) /
+          sum(rate(http_requests_total[24h])) * 100
+
+  - name: video_processing_metrics
+    interval: 30s
+    rules:
+      # Frame processing success rate
+      - record: formiq:frame_processing_success_rate_5m
+        expr: |
+          sum(rate(video_frame_processing_total{status="success"}[5m])) /
+          sum(rate(video_frame_processing_total[5m])) * 100
+
+      # Average frame processing duration
+      - record: formiq:frame_processing_duration_avg_5m
+        expr: |
+          sum(rate(video_frame_processing_duration_seconds_sum[5m])) /
+          sum(rate(video_frame_processing_duration_seconds_count[5m]))
+
+      # P95 frame processing duration
+      - record: formiq:frame_processing_p95_duration_5m
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(video_frame_processing_duration_seconds_bucket[5m])) by (le)
+          )
+
+  - name: alert_thresholds
+    interval: 1m  
+    rules:
+      # Alert when success rate drops below 99.9% for 2 minutes
+      - record: formiq:success_rate_alert_threshold
+        expr: formiq:api_success_rate_5m < 99.9
+
+      # Alert when P95 latency exceeds 300ms for 2 minutes
+      - record: formiq:p95_latency_alert_threshold
+        expr: formiq:api_p95_latency_seconds > 0.3
+
+      # Alert when error rate exceeds 0.1% for 2 minutes  
+      - record: formiq:error_rate_alert_threshold
+        expr: formiq:api_error_rate_5m > 0.1
+
+      # Alert when frame processing P95 exceeds 300ms
+      - record: formiq:frame_processing_alert_threshold
+        expr: formiq:frame_processing_p95_duration_5m > 0.3

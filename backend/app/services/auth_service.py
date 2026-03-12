@@ -24,26 +24,30 @@ from app.services.email_service import EmailService # Correctly imported, method
 from app.core.security import create_email_verification_token, verify_email_verification_token_and_get_email, create_password_reset_token, verify_password_reset_token
 from app.core.security import (
     verify_password,
-    track_login_attempt, # For login rate limiting / account locking
+    track_login_attempt,
     create_access_token,
     create_refresh_token,
-    verify_token_payload, # Added: For verifying refresh tokens
+    verify_token_payload,
     is_token_blacklisted,
-    get_password_hash, # Added for hashing new password
-    # ALGORITHM is referenced via settings.JWT_ALGORITHM usually
+    blacklist_token,
+    get_password_hash,
 )
 
 # oauth2_scheme = OAuth2PasswordBearer(
 # tokenUrl=f"{settings.API_V1_STR}/auth/login"
 # ) # This is for endpoint dependency, not directly for service class
 
+from app.schemas.user import UserUpdate
+
+
 class AuthService:
     """Enhanced authentication service with security features."""
 
-    def __init__(self, db: AsyncSession, user_service: UserService, email_service: EmailService):
+    def __init__(self, db: AsyncSession, user_service: UserService, email_service: EmailService, redis_client=None):
         self.db = db
         self.user_service = user_service
         self.email_service = email_service
+        self.redis_client = redis_client
 
     async def authenticate_user(
         self, request: Request, email: str, password: str
@@ -54,8 +58,12 @@ class AuthService:
         """
         client_ip = request.client.host if request.client else "unknown"
 
-        account_locked = track_login_attempt(email.lower(), success=False) # This likely uses Redis or similar, not DB session
-        if account_locked:
+        from app.core.redis import get_redis
+        from app.core.security import is_account_locked
+        redis_client = get_redis()
+
+        # Read-only lockout check — does NOT increment failed attempts
+        if is_account_locked(email.lower(), redis_client):
             logger.warning(
                 "Account locked due to too many failed attempts",
                 extra={
@@ -70,6 +78,8 @@ class AuthService:
         user: Optional[DBUser] = result.scalars().first()
 
         if not user:
+            # Track failed attempt AFTER we know it's a failure
+            track_login_attempt(email.lower(), success=False, redis_client=redis_client)
             logger.warning(
                 "Login attempt with non-existent user",
                 extra={
@@ -80,6 +90,8 @@ class AuthService:
             return None, False, False
 
         if not verify_password(password, user.hashed_password):
+            # Track failed attempt AFTER we know password is wrong
+            track_login_attempt(email.lower(), success=False, redis_client=redis_client)
             logger.warning(
                 "Failed login attempt",
                 extra={
@@ -88,8 +100,8 @@ class AuthService:
                 }
             )
             return None, False, False
-        
-        track_login_attempt(email.lower(), success=True) # Reset failed attempts
+
+        track_login_attempt(email.lower(), success=True, redis_client=redis_client) # Reset failed attempts
 
         logger.info(
             "Successful login",
@@ -116,7 +128,7 @@ class AuthService:
     async def get_current_user(self, token: str) -> DBUser:
         """Get the current authenticated user from a token."""
         try:
-            if is_token_blacklisted(token): # Assumes is_token_blacklisted is an independent function
+            if is_token_blacklisted(token, self.redis_client):
                 raise AuthenticationException("Token is blacklisted or revoked")
 
             payload = jwt.decode(
@@ -184,7 +196,7 @@ class AuthService:
 
         access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         access_token = create_access_token(
-            subject=str(user_id), expires_delta=access_token_expires, data=additional_data
+            subject=str(user_id), expires_delta=access_token_expires
         )
         refresh_token = create_refresh_token(subject=str(user_id))
 
@@ -197,39 +209,58 @@ class AuthService:
 
     async def send_verification_email(self, email: str) -> None:
         """Sends an email verification link to the user if not already verified."""
-        user_db_obj = await self.user_service.get_by_email_async(email) # This returns a DBUser like object
+        # Early-exit when SMTP is not configured — avoids a silent SMTP auth failure.
+        if not settings.emails_enabled:
+            logger.warning(
+                "Skipping verification email — SMTP credentials are missing or still "
+                "placeholder values. Set MAIL_USERNAME / MAIL_PASSWORD in backend/.env. "
+                "For Gmail use an App Password (myaccount.google.com/apppasswords). "
+                "For Resend set MAIL_SERVER=smtp.resend.com, MAIL_USERNAME=resend, "
+                "MAIL_PASSWORD=re_<your_key>.",
+                extra={"email": email},
+            )
+            return
+
+        user_db_obj = await self.user_service.get_by_email_async(email)
         if not user_db_obj:
-            logger.info(f"Request to send verification email to non-existent user: {email}")
+            logger.debug("Verification email requested for unknown address")
             return
 
         if user_db_obj.is_email_verified:
-            logger.info(f"Email {email} is already verified.")
+            logger.debug("Verification email requested but address already verified")
             return
 
         token = create_email_verification_token(email)
-        verify_url = f"{settings.FRONTEND_URL}/verify-email?token={token}" 
+        verify_url = f"{settings.FRONTEND_URL}/verify-email?token={token}"
 
         try:
-            # Call the static method on EmailService, passing necessary data for its template
-            # EmailService.send_verification_email expects user, verification_url, verification_code (token)
-            await EmailService.send_verification_email(
-                user=user_db_obj, # Pass the DBUser object
+            sent = await EmailService.send_verification_email(
+                user=user_db_obj,
                 verification_url=verify_url,
-                verification_code=token # The token itself can serve as the code
+                verification_code=token,
             )
-            logger.info(f"Verification email sent to {email}")
-        except Exception as e: 
-            logger.error(f"Failed to send verification email to {email}: {str(e)}")
+            if sent:
+                logger.info(f"Verification email sent to {email}")
+            else:
+                # EmailService.send_email caught the SMTP error and returned False.
+                # The detailed error (server, username, hint) is already in the log from there.
+                logger.warning(
+                    "Verification email was NOT delivered — SMTP returned False. "
+                    "Check earlier log lines for the SMTP error details.",
+                    extra={"email": email},
+                )
+        except Exception as e:
+            logger.error(f"Unexpected error sending verification email to {email}: {str(e)}")
             raise EmailError(f"Failed to send verification email: {str(e)}")
 
 
-    async def verify_email(self, token: str) -> User:
+    async def verify_email(self, token: str) -> None:
         """Verifies a user's email address using a verification token."""
         try:
-            email_from_token = verify_email_verification_token_and_get_email(token) # Can raise JWTError or custom TokenError
-            if not email_from_token: # Should not happen if verify_email_token raises on error
-                 raise ValidationException("Invalid verification token: no email")
-        except (JWTError, ValidationException) as e: # Catch specific errors from token verification
+            email_from_token = verify_email_verification_token_and_get_email(token, self.redis_client)  # Bug 3 fixed: pass redis_client
+            if not email_from_token:
+                raise ValidationException("Invalid verification token: no email")
+        except (JWTError, ValidationException) as e:
             logger.warning(f"Email verification failed: Invalid token. Error: {str(e)}")
             raise ValidationException(f"Invalid or expired verification token: {str(e)}")
 
@@ -238,32 +269,42 @@ class AuthService:
             logger.warning(f"Email verification failed: User not found for email {email_from_token}")
             raise NotFoundException("User not found from verification token.")
 
-        if user.is_email_verified: # Check actual field, e.g. is_email_verified
+        if user.is_email_verified:
             logger.info(f"Email {user.email} already verified.")
-            return User.from_orm(user) # Return user, already verified
+            # Burn the token even if already verified — prevent any future reuse
+            blacklist_token(token, self.redis_client)
+            return
 
         try:
-            # Ensure the update_data keys match the User model fields UserService expects
-            updated_user_data = await self.user_service.update_async(
-                user_id=str(user.id), 
-                data={"is_email_verified": True, "email_verified_at": datetime.utcnow()}
+            await self.user_service.update_async(
+                db_obj=user,
+                obj_in={"is_email_verified": True}
             )
-            if not updated_user_data:
-                 logger.error(f"Failed to update user {user.email} after email verification.")
-                 raise ValidationException("Failed to update user status after verification.")
+            # Burn the token after successful verification — one-time use
+            blacklist_token(token, self.redis_client)
             logger.info(f"Email {user.email} successfully verified.")
-            return updated_user_data # UserService.update_async should return the updated User schema
-        except Exception as e: # Catch potential errors from user_service.update_async
+        except Exception as e:
             logger.error(f"Email verification: failed to update user {user.email}. Error: {str(e)}")
-            # This could be a database error or other issue in UserService
             raise ValidationException(f"Could not update user during email verification: {str(e)}")
+
+    async def verify_email_with_token(self, token: str) -> None:
+        """Called by POST /verify-email/confirm. Delegates to verify_email()."""
+        await self.verify_email(token)
+
+    async def request_email_verification(self, email: str) -> None:
+        """
+        Unauthenticated resend of verification email.
+        Always returns silently — does not reveal whether email exists.
+        send_verification_email() handles non-existent + already-verified silently.
+        """
+        await self.send_verification_email(email)
 
     async def request_password_reset(self, email: str) -> None:
         """Handles a request to reset a user's password."""
         user_db_obj = await self.user_service.get_by_email_async(email)
         if not user_db_obj:
-            logger.info(f"Password reset requested for non-existent user email: {email}")
-            return 
+            logger.debug("Password reset requested for unknown address")
+            return
 
         token = create_password_reset_token(email=user_db_obj.email) 
         reset_url = f"{settings.FRONTEND_URL}/reset-password?token={token}"
@@ -286,14 +327,17 @@ class AuthService:
     async def confirm_password_reset(self, token: str, new_password: str) -> User:
         """Confirms a password reset attempt using a token and sets a new password."""
         try:
-            email_from_token = verify_password_reset_token(token)
+            email_from_token = verify_password_reset_token(token, self.redis_client)
             if not email_from_token:
                 raise ValidationException("Invalid password reset token: no email")
         except (JWTError, ValidationException) as e:
             logger.warning(f"Password reset failed: Invalid token. Error: {str(e)}")
             raise ValidationException(f"Invalid or expired password reset token: {str(e)}")
 
-        user_db_obj = await self.user_service.get_by_email_async(email_from_token) # DBUser object
+        # Burn the token immediately — prevent replay before the password write commits
+        blacklist_token(token, self.redis_client)
+
+        user_db_obj = await self.user_service.get_by_email_async(email_from_token)
         if not user_db_obj:
             logger.warning(f"Password reset failed: User not found for email {email_from_token} from token.")
             raise NotFoundException("User not found from password reset token.")
@@ -305,8 +349,8 @@ class AuthService:
         hashed_password = get_password_hash(new_password)
         try:
             updated_user = await self.user_service.update_async(
-                user_id=str(user_db_obj.id),
-                data={"hashed_password": hashed_password} # Ensure UserService handles this key
+                db_obj=user_db_obj,
+                obj_in={"hashed_password": hashed_password}
             )
             if not updated_user:
                  logger.error(f"Failed to update password for user {user_db_obj.email}.")
@@ -324,65 +368,59 @@ class AuthService:
             # Use verify_token_payload for refresh tokens
             payload = verify_token_payload(
                 token=refresh_token_str,
-                redis_client=self.user_service.redis_client, # Assuming user_service has redis_client
+                redis_client=self.redis_client,
                 expected_token_type="refresh"
             )
             if not payload:
                 logger.warning("Refresh token verification failed or token is invalid/blacklisted.")
-                raise AuthenticationException(
-                    "Invalid refresh token", error_code="INVALID_TOKEN"
-                )
+                raise AuthenticationException("Invalid refresh token")
 
             user_id = payload.get("sub")
             if not user_id:
                 logger.error("User ID (sub) not found in refresh token payload.")
-                raise AuthenticationException(
-                    "Invalid refresh token payload", error_code="INVALID_TOKEN"
-                )
+                raise AuthenticationException("Invalid refresh token payload")
 
             # Check if the user account is still valid and active
             user = await self.user_service.get_by_id_async(user_id)
             if not user:
                 logger.warning(f"User {user_id} from refresh token not found.")
-                raise AuthenticationException("User not found", error_code="USER_NOT_FOUND")
+                raise AuthenticationException("User not found")
             if not user.is_active:
                 logger.warning(f"User {user_id} from refresh token is inactive.")
-                raise AuthenticationException("User account is inactive", error_code="ACCOUNT_INACTIVE")
+                raise AuthenticationException("User account is inactive")
 
-            # Generate new access token
+            # Rotate: issue new access + refresh tokens, blacklist the old refresh token
             access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-            
-            # Optionally, include session ID if it was part of the refresh token's claims
-            # and is used for session-bound refresh tokens.
-            session_id = payload.get("sid") 
-            additional_claims = {}
-            if session_id:
-                additional_claims["sid"] = session_id
-
             new_access_token = create_access_token(
-                subject=str(user_id), 
+                subject=str(user_id),
                 expires_delta=access_token_expires,
-                # Pass additional_claims if new create_access_token supports it, or manage claims internally
-                # Assuming create_access_token in security.py can handle additional_claims or this is not needed.
-                # For now, not passing additional_claims to create_access_token as per current security.py structure.
+            )
+            new_refresh_token = create_refresh_token(subject=str(user_id))
+
+            # Blacklist the consumed refresh token — prevents reuse
+            blacklist_token(
+                refresh_token_str,
+                self.redis_client,
+                expires_in_seconds=settings.REFRESH_TOKEN_EXPIRE_DAYS * 86400,
             )
 
-            logger.info(f"Access token refreshed for user {user_id}")
+            logger.info(f"Tokens rotated for user {user_id}")
             return {
                 "access_token": new_access_token,
+                "refresh_token": new_refresh_token,
                 "token_type": "bearer",
                 "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-                "user_id": str(user_id), # Include user_id for client convenience
+                "user_id": str(user_id),
             }
 
         except AuthenticationException: # Re-raise specific auth exceptions
             raise
         except (JWTError, ValidationError) as e:
             logger.error(f"Error refreshing access token: {str(e)}", exc_info=True)
-            raise AuthenticationException("Invalid refresh token", error_code="INVALID_TOKEN")
+            raise AuthenticationException("Invalid refresh token")
         except Exception as e:
             logger.error(f"Unexpected error refreshing access token: {str(e)}", exc_info=True)
-            raise AuthenticationException("Could not refresh access token", error_code="TOKEN_REFRESH_FAILED")
+            raise AuthenticationException("Could not refresh access token")
 
 # Note: Further steps involve updating dependencies (deps.py) and calling code (endpoints/auth.py)
 # and then deleting the old core/auth.py file.

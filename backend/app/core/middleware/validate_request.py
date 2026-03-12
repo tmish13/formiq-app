@@ -36,8 +36,8 @@ class EnhancedValidateRequestMiddleware(BaseHTTPMiddleware):
         }
         self.custom_validators = self._load_custom_validators()
         self.skip_paths = [
-            "/api/v1/health", # Assuming health check path
-            # "/api/v1/metrics", # If you have a metrics endpoint
+            "/api/",  # Skip validation for all API routes — FastAPI/Pydantic handles it
+            "/health",
             "/docs",
             "/redoc",
             "/openapi.json"

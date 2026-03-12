@@ -1,0 +1,44 @@
+{
+  "1865_good": {
+    "video_id": "1865",
+    "label": "good_form",
+    "frames": 73,
+    "source": "penn_action"
+  },
+  "50852_1_posture_fault": {
+    "video_id": "50852_1",
+    "label": "posture_fault",
+    "frames": 230,
+    "source": "squat_more"
+  },
+  "33499_1_good": {
+    "video_id": "33499_1",
+    "label": "good_form",
+    "frames": 72,
+    "source": "squat_more"
+  },
+  "45959_1_posture_fault": {
+    "video_id": "45959_1",
+    "label": "posture_fault",
+    "frames": 120,
+    "source": "squat_more"
+  },
+  "47534_1_good": {
+    "video_id": "47534_1",
+    "label": "good_form",
+    "frames": 109,
+    "source": "squat_more"
+  },
+  "33742_1_depth_fault": {
+    "video_id": "33742_1",
+    "label": "depth_fault",
+    "frames": 93,
+    "source": "squat_more"
+  },
+  "33316_1_depth_fault": {
+    "video_id": "33316_1",
+    "label": "depth_fault",
+    "frames": 115,
+    "source": "squat_more"
+  }
+}

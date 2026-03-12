@@ -31,13 +31,36 @@ class AIService:
         logger.info("Initializing AIService...")
         self.settings = app_settings or global_settings # Use provided or global settings
 
-        # Initialize MediaPipe Pose with optimized settings for batch processing
-        self.pose = mp.solutions.pose.Pose(
-            static_image_mode=False,
-            model_complexity=self.settings.AI_MODEL_COMPLEXITY, # Use self.settings
-            min_detection_confidence=self.settings.AI_MIN_DETECTION_CONFIDENCE, # Use self.settings
-            min_tracking_confidence=self.settings.AI_MIN_TRACKING_CONFIDENCE # Use self.settings
-        )
+        # Initialize MediaPipe Pose — complexity=2 matches PostureV1 training data.
+        # Fallback to complexity=1 only on init failure (e.g. resource constraints).
+        self._pose_complexity_used = self.settings.AI_MODEL_COMPLEXITY
+        self._pose_complexity_fallback = False
+        try:
+            self.pose = mp.solutions.pose.Pose(
+                static_image_mode=False,
+                model_complexity=self.settings.AI_MODEL_COMPLEXITY,
+                min_detection_confidence=self.settings.AI_MIN_DETECTION_CONFIDENCE,
+                min_tracking_confidence=self.settings.AI_MIN_TRACKING_CONFIDENCE,
+            )
+            logger.info(
+                "MediaPipe Pose initialized: model_complexity=%d, det_conf=%.2f, track_conf=%.2f",
+                self.settings.AI_MODEL_COMPLEXITY,
+                self.settings.AI_MIN_DETECTION_CONFIDENCE,
+                self.settings.AI_MIN_TRACKING_CONFIDENCE,
+            )
+        except Exception as e:
+            logger.warning(
+                "MediaPipe Pose init failed at complexity=%d (%s), falling back to complexity=1",
+                self.settings.AI_MODEL_COMPLEXITY, e,
+            )
+            self._pose_complexity_used = 1
+            self._pose_complexity_fallback = True
+            self.pose = mp.solutions.pose.Pose(
+                static_image_mode=False,
+                model_complexity=1,
+                min_detection_confidence=self.settings.AI_MIN_DETECTION_CONFIDENCE,
+                min_tracking_confidence=self.settings.AI_MIN_TRACKING_CONFIDENCE,
+            )
         
         # Initialize GPU-accelerated pose model if available
         self._init_gpu_pose_model()
@@ -139,41 +162,11 @@ class AIService:
             return None
 
     async def classify_exercise_from_keypoints(
-        self, 
+        self,
         keypoint_sequence: Optional[List[List[Optional[Dict[str, float]]]]]
     ) -> Tuple[Optional[str], Optional[float]]:
-        """Classify exercise from a sequence of keypoints (placeholder)."""
-        if keypoint_sequence is None:
-            logger.warning("AIService.classify_exercise_from_keypoints: Received None for keypoint_sequence. Skipping classification.")
-            return None, 0.0 # Or raise an error if this should not happen
-        
-        if not isinstance(keypoint_sequence, list):
-            logger.error(f"AIService.classify_exercise_from_keypoints: keypoint_sequence is not a list, but type {type(keypoint_sequence)}. Skipping classification.")
-            return None, 0.0
-
-        if not keypoint_sequence: # Empty list
-            logger.warning("AIService.classify_exercise_from_keypoints: Received an empty list for keypoint_sequence. Skipping classification.")
-            return None, 0.0
-        
-        # Further check if the list contains only None or empty inner lists (if that's considered invalid)
-        # Example: if not any(frame_kps for frame_kps in keypoint_sequence if frame_kps):
-        # For now, the original check `any(frame_kps for frame_kps in keypoint_sequence)` is good for detecting list of Nones or list of empty lists.
-        if not any(frame_kps for frame_kps in keypoint_sequence):
-            logger.warning("AIService.classify_exercise_from_keypoints: keypoint_sequence contains only None frames or empty frame lists. Skipping classification.")
-            return None, 0.0
-
-        # Placeholder logic
-        logger.info(f"AIService.classify_exercise_from_keypoints: Placeholder: Simulating exercise classification for sequence of {len(keypoint_sequence)} frames.")
-        # In a real scenario, this would involve:
-        # 1. Preprocessing keypoint_sequence into a format suitable for the model (e.g., tensor).
-        # 2. Running inference: `output = self.exercise_classification_model(processed_input)`
-        # 3. Postprocessing output to get slug and confidence.
-        
-        # Simulate finding a squat with high confidence for demonstration
-        simulated_slug = "squat"
-        simulated_confidence = 0.95
-        logger.info(f"Placeholder: Classified exercise as '{simulated_slug}' with confidence {simulated_confidence:.2f}")
-        return simulated_slug, simulated_confidence
+        """Exercise classification stub — not implemented."""
+        raise NotImplementedError("classify_exercise_from_keypoints is not implemented")
             
     def detect_pose(self, frame: np.ndarray) -> Tuple[List[Dict[str, float]], float]:
         """Detect pose landmarks in a frame."""
@@ -1284,7 +1277,18 @@ class AIService:
                 all_frame_results.append(None)
         
         processed_count = sum(1 for lm_list in all_frame_results if lm_list is not None)
-        logger.info(f"AIService: Finished pose processing. Successfully processed {processed_count}/{len(frames_data_np)} frames outputting structured landmark lists.")
+        total_frames = len(frames_data_np)
+        missing_ratio = round(1.0 - (processed_count / total_frames), 4) if total_frames > 0 else 1.0
+
+        logger.info(
+            "AIService pose_extraction: model_complexity=%d total_frames=%d "
+            "frames_detected=%d missing_ratio=%.4f pose_complexity_fallback=%s",
+            self._pose_complexity_used,
+            total_frames,
+            processed_count,
+            missing_ratio,
+            self._pose_complexity_fallback,
+        )
         return all_frame_results
 
     # Helper function for linear interpolation of landmark data
@@ -1714,9 +1718,20 @@ class AIService:
         processing_time = time.time() - start_time
         valid_detections = sum(1 for result in all_frame_pose_data if result is not None)
         
-        logger.info(f"Pose detection completed: {valid_detections}/{len(frames)} frames processed "
-                   f"in {processing_time:.2f}s ({len(frames)/processing_time:.1f} fps)")
-        
+        total_frames = len(frames)
+        missing_ratio = round(1.0 - (valid_detections / total_frames), 4) if total_frames > 0 else 1.0
+        logger.info(
+            "AIService pose_extraction: model_complexity=%d total_frames=%d "
+            "frames_detected=%d missing_ratio=%.4f pose_extraction_ms=%.1f "
+            "pose_complexity_fallback=%s",
+            self._pose_complexity_used,
+            total_frames,
+            valid_detections,
+            missing_ratio,
+            processing_time * 1000,
+            self._pose_complexity_fallback,
+        )
+
         return all_frame_pose_data
 
     async def _process_frames_batch_cpu(
@@ -2250,64 +2265,3 @@ class AIService:
 
         return all_frames_angles
 
-    # TODO (Future for Task 1.3): 
-    # If smoothing/interpolation is to be done on angles, it would happen after 
-    # `calculate_angles_for_pose_sequence` produces `all_frames_angles` (List[Optional[Dict[str, float]]]).
-    # A new method like `smooth_angle_trajectories(all_frames_angles, smoothing_window, max_gap)` would be needed.
-    # This method would iterate through each angle type (e.g., 'left_knee') across frames,
-    # extract its trajectory (a List[Optional[float]]), and then apply 1D smoothing/interpolation to that list.
-    # The existing `smooth_and_interpolate_poses` is designed for landmark dicts (x,y,z,vis) and would need adaptation.
-
-    async def analyze_exercise_form_ml(
-        self,
-        keypoint_data: List[List[Dict[str, float]]], # Or appropriate type for sequence
-        angle_data: List[Dict[str, float]],        # Or appropriate type for sequence
-        exercise_id: Union[str, uuid.UUID] # Can be str or UUID depending on how it's passed
-    ) -> Dict[str, float]:
-        """
-        Perform comprehensive ML-driven form analysis for a given exercise.
-
-        This method will eventually use a sophisticated ML model to analyze
-        keypoint and angle data in the context of a specific exercise_id to
-        output scores for posture, hypertrophy-related form, and stability.
-
-        Args:
-            keypoint_data: A sequence of keyframes, where each keyframe contains
-                           a list of detected landmarks with their coordinates.
-            angle_data: A sequence of calculated joint angles for each relevant frame.
-            exercise_id: The unique identifier of the exercise being performed.
-
-        Returns:
-            A dictionary containing the calculated scores:
-            {
-                "posture_score": float,
-                "hypertrophy_form_score": float,
-                "stability_score": float
-            }
-        """
-        logger.info(
-            f"AIService.analyze_exercise_form_ml called for exercise_id: {exercise_id} "
-            f"with {len(keypoint_data)} keypoint frames and {len(angle_data)} angle frames."
-        )
-
-        # Placeholder logic: Return dummy scores
-        # In a real implementation, this would involve:
-        # 1. Preprocessing keypoint_data and angle_data.
-        # 2. Loading/accessing the comprehensive ML model.
-        # 3. Running inference with the model, potentially using exercise_id to guide
-        #    exercise-specific aspects of the model.
-        # 4. Postprocessing model output to derive the three scores.
-
-        dummy_scores = {
-            "posture_score": 0.75,
-            "hypertrophy_form_score": 0.75,
-            "stability_score": 0.75
-        }
-        
-        logger.info(f"AIService.analyze_exercise_form_ml: Returning dummy scores: {dummy_scores}")
-        return dummy_scores
-
-# END OF AIService class
-# Ensure this class definition ends correctly if more methods are outside or this is the true end.
-# For example, if there's an AIServiceError class after, make sure it's preserved.
-# Based on previous read_file, process_np_frames_for_pose was the last method, this is added after. 

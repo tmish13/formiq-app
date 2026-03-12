@@ -91,18 +91,39 @@ class EmailService:
                 alternative_body=text_content
             )
             
+            # Log the attempt before hitting the network so any failure is traceable.
+            # Never log MAIL_PASSWORD.
+            logger.info(
+                "Attempting SMTP send via %s as %s",
+                f"{settings.MAIL_SERVER}:{settings.MAIL_PORT}",
+                settings.MAIL_USERNAME or "(not set)",
+                extra={"recipients": recipients, "subject": subject},
+            )
+
             # Send email
             await fast_mail.send_message(message)
-            
+
             # Track email sent
-            for recipient in recipients:
-                track_email_sent(str(recipient), subject)
-                
-            logger.info(f"Email sent to {', '.join(recipients)}")
+            track_email_sent("outbound")
+
+            logger.info(
+                "Email sent successfully.",
+                extra={"recipients": recipients, "subject": subject},
+            )
             return True
-            
-        except Exception as e:
-            logger.error(f"Failed to send email: {str(e)}")
+
+        except Exception:
+            # logger.exception captures the full traceback without needing to pass the error.
+            # Never log MAIL_PASSWORD.
+            logger.exception(
+                "SMTP send failed.",
+                extra={
+                    "smtp_server": f"{settings.MAIL_SERVER}:{settings.MAIL_PORT}",
+                    "smtp_username": settings.MAIL_USERNAME or "(not set)",
+                    "recipients": recipients,
+                    "subject": subject,
+                },
+            )
             return False
     
     @staticmethod
@@ -119,7 +140,7 @@ class EmailService:
             bool: True if email sent successfully
         """
         subject = "Verify Your FormIQ Account"
-        recipients = [EmailStr(user.email)]
+        recipients = [str(user.email)]
         
         template_data = {
             "user": user,
@@ -150,7 +171,7 @@ class EmailService:
             bool: True if email sent successfully
         """
         subject = "Reset Your FormIQ Password"
-        recipients = [EmailStr(user.email)]
+        recipients = [str(user.email)]
         
         template_data = {
             "user": user,
@@ -179,7 +200,7 @@ class EmailService:
             bool: True if email sent successfully
         """
         subject = "Welcome to FormIQ!"
-        recipients = [EmailStr(user.email)]
+        recipients = [str(user.email)]
         
         template_data = {
             "user": user,
@@ -207,7 +228,7 @@ class EmailService:
             bool: True if email sent successfully
         """
         subject = "Your Video Analysis is Complete"
-        recipients = [EmailStr(user.email)]
+        recipients = [str(user.email)]
         
         view_url = f"{settings.FRONTEND_URL}/videos/{video.id}"
         

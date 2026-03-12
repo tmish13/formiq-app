@@ -1,0 +1,370 @@
+name: Performance Testing
+
+on:
+  workflow_dispatch:
+    inputs:
+      users:
+        description: 'Number of concurrent users'
+        required: true
+        default: '100'
+        type: string
+      duration:
+        description: 'Test duration (e.g., 2m, 5m)'
+        required: true
+        default: '3m'
+        type: string
+      target_host:
+        description: 'Target host URL'
+        required: false
+        default: 'http://localhost:8000'
+        type: string
+  schedule:
+    - cron: '0 3 * * 1'  # Weekly on Mondays at 3 AM UTC
+
+env:
+  PYTHON_VERSION: '3.11'
+  
+jobs:
+  performance-test:
+    name: Run Performance Tests
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: formiq_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+          
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg postgresql-client redis-tools
+
+      - name: Install Python dependencies
+        run: |
+          cd backend
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install locust pytest
+
+      - name: Setup environment
+        run: |
+          cd backend
+          
+          # Create test environment file
+          cat > .env.test << EOF
+          ENVIRONMENT=testing
+          DATABASE_URL=postgresql://postgres:postgres@localhost:5432/formiq_test
+          REDIS_URL=redis://localhost:6379/0
+          
+          # Disable external services for testing
+          OTEL_ENABLED=false
+          RAG_ENABLED=false
+          SENTRY_DSN=""
+          
+          # Test configuration
+          JWT_SECRET=test_jwt_secret_for_performance_testing_only
+          API_V1_STR=/api/v1
+          
+          # Video processing optimization for testing
+          VIDEO_FRAME_RATE=30
+          MAX_VIDEO_FRAMES=150
+          FFMPEG_TIMEOUT=30
+          EOF
+
+      - name: Setup database
+        run: |
+          cd backend
+          export $(cat .env.test | xargs)
+          
+          # Run database migrations
+          alembic upgrade head
+          
+          # Create test user for load testing
+          python -c "
+          import asyncio
+          from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+          from sqlalchemy.orm import sessionmaker
+          from app.models.user import User
+          from app.core.security import get_password_hash
+          import uuid
+          
+          async def create_test_user():
+              engine = create_async_engine('${{ env.DATABASE_URL }}')
+              async_session = sessionmaker(engine, class_=AsyncSession)
+              async with async_session() as session:
+                  # Create admin user for metrics access
+                  admin_user = User(
+                      id=uuid.uuid4(),
+                      email='admin@formiq.com',
+                      hashed_password=get_password_hash('admin123'),
+                      first_name='Admin',
+                      last_name='User',
+                      is_active=True,
+                      is_superuser=True
+                  )
+                  session.add(admin_user)
+                  await session.commit()
+                  print('Test admin user created')
+              await engine.dispose()
+          
+          asyncio.run(create_test_user())
+          "
+
+      - name: Create sample videos
+        run: |
+          cd backend/perf/test_fixtures
+          python create_sample_video.py
+
+      - name: Start FormIQ services
+        run: |
+          cd backend
+          export $(cat .env.test | xargs)
+          
+          # Start FastAPI server in background
+          uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+          echo $! > fastapi.pid
+          
+          # Start Celery worker in background
+          celery -A app.core.celery_app worker --loglevel=info &
+          echo $! > celery.pid
+          
+          # Wait for services to be ready
+          sleep 10
+          
+          # Health check
+          for i in {1..30}; do
+            if curl -f http://localhost:8000/health > /dev/null 2>&1; then
+              echo "Services are ready"
+              break
+            fi
+            echo "Waiting for services... (attempt $i/30)"
+            sleep 2
+          done
+
+      - name: Verify services
+        run: |
+          # Check FastAPI health
+          curl -f http://localhost:8000/health
+          
+          # Check database connection
+          curl -f http://localhost:8000/health/db
+          
+          # Check Redis connection  
+          curl -f http://localhost:8000/health/cache
+
+      - name: Run performance test
+        id: perf_test
+        run: |
+          cd backend/perf
+          
+          # Set test parameters
+          USERS="${{ github.event.inputs.users || '100' }}"
+          DURATION="${{ github.event.inputs.duration || '3m' }}"
+          HOST="${{ github.event.inputs.target_host || 'http://localhost:8000' }}"
+          
+          echo "Running performance test with $USERS users for $DURATION"
+          
+          # Run Locust test
+          locust -f locustfile_video_uploads.py \
+            --host="$HOST" \
+            --users="$USERS" \
+            --spawn-rate=10 \
+            --run-time="$DURATION" \
+            --headless \
+            --html=performance_report.html \
+            --csv=performance_results \
+            --logfile=locust.log \
+            --loglevel=INFO
+
+      - name: Collect performance metrics
+        if: always()
+        run: |
+          # Get admin token for metrics access
+          cd backend
+          export $(cat .env.test | xargs)
+          
+          TOKEN=$(curl -s -X POST "http://localhost:8000/api/v1/auth/login" \
+            -H "Content-Type: application/json" \
+            -d '{"email":"admin@formiq.com","password":"admin123"}' | \
+            jq -r '.access_token')
+          
+          if [ "$TOKEN" != "null" ] && [ -n "$TOKEN" ]; then
+            # Collect API metrics
+            echo "=== API Success Rate ===" > metrics_summary.txt
+            curl -s -H "Authorization: Bearer $TOKEN" \
+              "http://localhost:8000/api/v1/metrics-analysis/success-rate" | \
+              jq '.' >> metrics_summary.txt
+            
+            echo -e "\n=== SLA Compliance ===" >> metrics_summary.txt
+            curl -s -H "Authorization: Bearer $TOKEN" \
+              "http://localhost:8000/api/v1/metrics-analysis/sla-compliance" | \
+              jq '.' >> metrics_summary.txt
+            
+            echo -e "\n=== Latency Percentiles ===" >> metrics_summary.txt
+            curl -s -H "Authorization: Bearer $TOKEN" \
+              "http://localhost:8000/api/v1/metrics-analysis/latency-percentiles" | \
+              jq '.' >> metrics_summary.txt
+            
+            echo -e "\n=== Health Summary ===" >> metrics_summary.txt
+            curl -s -H "Authorization: Bearer $TOKEN" \
+              "http://localhost:8000/api/v1/metrics-analysis/health-summary" | \
+              jq '.' >> metrics_summary.txt
+          else
+            echo "Failed to get auth token for metrics collection" > metrics_summary.txt
+          fi
+
+      - name: Analyze results
+        if: always()
+        run: |
+          cd backend/perf
+          
+          # Parse Locust results
+          if [ -f "performance_results_stats.csv" ]; then
+            echo "=== Performance Test Results ===" >> test_analysis.txt
+            echo "Users: ${{ github.event.inputs.users || '100' }}" >> test_analysis.txt
+            echo "Duration: ${{ github.event.inputs.duration || '3m' }}" >> test_analysis.txt
+            echo "Timestamp: $(date)" >> test_analysis.txt
+            echo "" >> test_analysis.txt
+            
+            # Extract key metrics from CSV
+            python3 << 'EOF'
+          import csv
+          import sys
+          
+          try:
+              with open('performance_results_stats.csv', 'r') as f:
+                  reader = csv.DictReader(f)
+                  for row in reader:
+                      if row['Type'] == 'Aggregated':
+                          print(f"Total Requests: {row['Request Count']}")
+                          print(f"Failure Rate: {row['Failure Count']} ({float(row['Failure Count'])/float(row['Request Count'])*100:.2f}%)")
+                          print(f"Average Response Time: {row['Average Response Time']} ms")
+                          print(f"95th Percentile: {row['95%']} ms")
+                          print(f"Max Response Time: {row['Max Response Time']} ms")
+                          print(f"Requests per Second: {row['Requests/s']}")
+                          
+                          # Check SLA compliance
+                          failure_rate = float(row['Failure Count'])/float(row['Request Count'])*100
+                          success_rate = 100 - failure_rate
+                          
+                          print(f"\n=== SLA Assessment ===")
+                          print(f"Success Rate: {success_rate:.3f}%")
+                          print(f"Success Rate SLA (≥99.9%): {'✅ PASS' if success_rate >= 99.9 else '❌ FAIL'}")
+                          print(f"95th Percentile SLA (≤2000ms): {'✅ PASS' if float(row['95%']) <= 2000 else '❌ FAIL'}")
+                          
+                          break
+          except Exception as e:
+              print(f"Error parsing results: {e}")
+              sys.exit(1)
+          EOF
+            
+          else
+            echo "No performance results file found" >> test_analysis.txt
+          fi
+
+      - name: Upload performance results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-test-results-${{ github.run_number }}
+          path: |
+            backend/perf/performance_report.html
+            backend/perf/performance_results*.csv
+            backend/perf/locust.log
+            backend/perf/test_analysis.txt
+            backend/metrics_summary.txt
+          retention-days: 30
+
+      - name: Comment on PR (if triggered by PR)
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let comment = '## 🚀 Performance Test Results\n\n';
+            
+            try {
+              const analysis = fs.readFileSync('backend/perf/test_analysis.txt', 'utf8');
+              comment += '### Test Summary\n```\n' + analysis + '\n```\n\n';
+            } catch (e) {
+              comment += '⚠️ Could not read test analysis\n\n';
+            }
+            
+            try {
+              const metrics = fs.readFileSync('backend/metrics_summary.txt', 'utf8');
+              comment += '### API Metrics\n```json\n' + metrics + '\n```\n\n';
+            } catch (e) {
+              comment += '⚠️ Could not read API metrics\n\n';
+            }
+            
+            comment += `### Artifacts\n- [Performance Report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})\n`;
+            comment += `- Test completed at: ${new Date().toISOString()}\n`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+      - name: Cleanup services
+        if: always()
+        run: |
+          cd backend
+          
+          # Kill services if PID files exist
+          if [ -f fastapi.pid ]; then
+            kill $(cat fastapi.pid) || true
+            rm fastapi.pid
+          fi
+          
+          if [ -f celery.pid ]; then
+            kill $(cat celery.pid) || true
+            rm celery.pid
+          fi
+          
+          # Cleanup any remaining processes
+          pkill -f uvicorn || true
+          pkill -f celery || true
+
+      - name: Set job status
+        if: always()
+        run: |
+          if [ -f "backend/perf/test_analysis.txt" ]; then
+            # Simple check for obvious failures
+            if grep -q "FAIL" backend/perf/test_analysis.txt; then
+              echo "Performance test failed SLA requirements"
+              exit 1
+            fi
+          fi
+          echo "Performance test completed successfully"

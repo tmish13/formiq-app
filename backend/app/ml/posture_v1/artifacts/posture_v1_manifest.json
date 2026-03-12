@@ -1,0 +1,72 @@
+{
+  "model_name": "posture_v1",
+  "version": "v1",
+  "threshold": 0.525,
+  "created_at": "2026-02-12T19:27:21.698690+00:00",
+  "source_checkpoint": "best_cnn_lstm_binary_enhanced_cw_f0.5_0.736.pt",
+  "input_spec": {
+    "keypoints_shape": [
+      300,
+      33,
+      3
+    ],
+    "feature_dim": 151,
+    "sequence_policy": "first_300_truncate_zero_pad_tail",
+    "uses_sequence_length": true,
+    "visibility_dropped": true,
+    "keypoint_normalization": "none_raw_mediapipe_0_1",
+    "feature_normalization": "standard_scaler_train_only"
+  },
+  "feature_order_version": "truth_spec_151d_v1",
+  "feature_order": {
+    "0_32": "joint{0..32}_x_mean",
+    "33_65": "joint{0..32}_x_std",
+    "66_86": "joint{0..6}_{x,y,z}_range (7*3=21)",
+    "87_146": "4_angles_x_15_stats (left_knee, right_knee, trunk, left_hip)",
+    "147_150": "bottom_trunk_wobble, knee_asymmetry_mean, bottom_knee_asymmetry, trunk_forward_lean"
+  },
+  "model_config": {
+    "sequence_length": 300,
+    "num_joints": 33,
+    "joint_dim": 3,
+    "feature_dim": 151,
+    "cnn_channels": [
+      32,
+      64
+    ],
+    "lstm_hidden": 96,
+    "mlp_dims": [
+      256,
+      128
+    ],
+    "output_dim": 2,
+    "cnn_dropout": 0.4,
+    "mlp_dropout": 0.4
+  },
+  "training_metrics": {
+    "val_f0_5": 0.7362637362637363,
+    "test_precision": 0.7432432432432432,
+    "test_recall": 0.7051282051282052,
+    "test_f1": 0.7236842105263158,
+    "test_f0_5": 0.7352941176470589,
+    "test_samples": 162,
+    "training_epochs": 21
+  },
+  "split_sizes": {
+    "train": 809,
+    "val": 244,
+    "test": 244
+  },
+  "scaler_file": "posture_v1_scaler.joblib",
+  "scaler_stats": {
+    "n_training_videos_used": 767,
+    "mean_range": [
+      -0.025551434277330382,
+      175.50432687135222
+    ],
+    "std_range": [
+      0.026816585489101073,
+      33.92105597991595
+    ]
+  }
+}

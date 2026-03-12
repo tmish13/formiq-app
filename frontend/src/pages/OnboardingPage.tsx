@@ -1,77 +1,98 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronRight, ChevronLeft, Check, Camera, Target, Dumbbell, CheckCircle, User } from 'lucide-react';
+import {
+  ChevronRight,
+  ChevronLeft,
+  Check,
+  Camera,
+  Target,
+  Dumbbell,
+  CheckCircle,
+  User,
+  TrendingUp,
+  Zap,
+  Layers,
+} from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Progress } from '../components/ui/progress';
 import { useSelector } from 'react-redux';
 import { RootState } from '../store';
 import { useAuth } from '../hooks/useAuth';
+import { logEvent } from '../utils/logEvent';
+import { getUserPrefs, setUserPrefs } from '../utils/userPrefs';
 
 interface OnboardingStep {
   id: number;
   title: string;
   description: string;
-  icon: React.ReactNode;
   content: React.ReactNode;
 }
+
+const TRAINING_STYLE_OPTIONS = [
+  'Barbell & Free Weights',
+  'Machines',
+  'Dumbbells',
+  'Mixed Equipment',
+  'Bodyweight',
+] as const;
 
 export default function OnboardingPage() {
   const [currentStep, setCurrentStep] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedGoal, setSelectedGoal] = useState<string | null>(null);
-  const [selectedExercises, setSelectedExercises] = useState<string[]>([]);
+  const [selectedTrainingStyle, setSelectedTrainingStyle] = useState<string | null>(null);
+  const [selectedExercises] = useState<string[]>(['Squats']);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const isReplay = searchParams.get('replay') === 'true';
   const user = useSelector((state: RootState) => state.auth.user);
   const isAuthenticated = useSelector((state: RootState) => state.auth.isAuthenticated);
   const { completeOnboarding } = useAuth();
 
   useEffect(() => {
-    // Check authentication
     if (!isAuthenticated) {
       navigate('/auth');
       return;
     }
-
-    // Check if onboarding is already complete
-    if (user?.has_completed_onboarding) {
+    if (user?.has_completed_onboarding && !isReplay) {
       navigate('/dashboard');
       return;
     }
-
     setIsLoading(false);
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, user, navigate, isReplay]);
+
+  // Prefill from saved data when replaying
+  useEffect(() => {
+    if (isReplay && user) {
+      if (user.fitness_goal) setSelectedGoal(user.fitness_goal);
+      const prefs = getUserPrefs();
+      if (prefs.trainingStyle) setSelectedTrainingStyle(prefs.trainingStyle);
+    }
+  }, [isReplay, user]);
 
   const handleNext = () => {
-    if (currentStep < steps.length - 1) {
-      setCurrentStep(currentStep + 1);
-    }
+    if (currentStep < steps.length - 1) setCurrentStep(currentStep + 1);
   };
 
   const handlePrevious = () => {
-    if (currentStep > 0) {
-      setCurrentStep(currentStep - 1);
-    }
+    if (currentStep > 0) setCurrentStep(currentStep - 1);
   };
 
   const handleComplete = async () => {
     try {
       setIsLoading(true);
-      
-      // Save onboarding preferences locally
-      const preferences = {
-        goal: selectedGoal,
-        exercises: selectedExercises,
-        completedAt: new Date().toISOString(),
-      };
-      localStorage.setItem('formiq-onboarding-preferences', JSON.stringify(preferences));
-      
-      // Complete onboarding via API
-      await completeOnboarding();
-      
+      // Persist training style to localStorage (backend doesn't have this field yet)
+      if (selectedTrainingStyle) {
+        setUserPrefs({ trainingStyle: selectedTrainingStyle });
+      }
+      await completeOnboarding({
+        fitness_goal: selectedGoal ?? undefined,
+        preferred_exercises: selectedExercises.length > 0 ? selectedExercises : undefined,
+      });
+      logEvent('onboarding_completed', { replay: isReplay });
     } catch (error) {
       console.error('Failed to complete onboarding:', error);
-      // Fallback: still allow navigation on error
       navigate('/dashboard');
     } finally {
       setIsLoading(false);
@@ -81,37 +102,32 @@ export default function OnboardingPage() {
   const handleSkip = async () => {
     try {
       setIsLoading(true);
-      
-      // Complete onboarding via API even when skipped
       await completeOnboarding();
-      
+      logEvent('onboarding_skipped', { replay: isReplay });
     } catch (error) {
       console.error('Failed to complete onboarding:', error);
-      // Fallback: still allow navigation on error
       navigate('/dashboard');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleGoalSelect = (goal: string) => {
-    setSelectedGoal(goal);
-  };
+  const displayName: string | null = user
+    ? user.full_name?.trim()
+      ? user.full_name.trim().split(' ')[0]
+      : user.email
+      ? user.email.split('@')[0]
+      : null
+    : null;
 
-  const handleExerciseToggle = (exercise: string) => {
-    setSelectedExercises(prev => 
-      prev.includes(exercise) 
-        ? prev.filter(e => e !== exercise)
-        : [...prev, exercise]
-    );
-  };
+  // ── Step definitions ──────────────────────────────────────────────────────
 
   const steps: OnboardingStep[] = [
+    // ── Step 1: Welcome ─────────────────────────────────────────────────────
     {
       id: 1,
-      title: `Welcome${user?.firstName ? `, ${user.firstName}` : ''}`,
-      description: "Let's get you started with FormIQ and perfect your exercise form with AI.",
-      icon: <User className="w-8 h-8 text-blue-600" />,
+      title: displayName ? `Welcome, ${displayName}` : 'Welcome to FormIQ',
+      description: 'Your AI training partner',
       content: (
         <div className="text-center space-y-6">
           <motion.div
@@ -122,271 +138,370 @@ export default function OnboardingPage() {
           >
             <User className="w-12 h-12 text-white" />
           </motion.div>
-          <div className="space-y-4">
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-white text-center">
-              Ready to transform your workouts?
+
+          <div className="space-y-3">
+            <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
+              Your AI training partner
             </h3>
-            <p className="text-gray-600 dark:text-gray-400 max-w-md mx-auto">
-              FormIQ uses advanced AI to analyze your exercise form in real-time, providing instant feedback to help you
-              train safer and more effectively.
+            <p className="text-gray-600 dark:text-gray-400 max-w-sm mx-auto">
+              Plan workouts, track strength, and improve your form with smarter training guidance.
             </p>
-            <div className="grid grid-cols-3 gap-4 mt-8">
+          </div>
+
+          <div className="grid grid-cols-3 gap-4 mt-6">
+            {[
+              { icon: <Layers className="w-6 h-6 text-blue-600" />, bg: 'bg-blue-100 dark:bg-blue-900/20', label: 'AI Training Plan' },
+              { icon: <TrendingUp className="w-6 h-6 text-green-600" />, bg: 'bg-green-100 dark:bg-green-900/20', label: 'Strength Progress' },
+              { icon: <Camera className="w-6 h-6 text-purple-600" />, bg: 'bg-purple-100 dark:bg-purple-900/20', label: 'Form Analysis' },
+            ].map(({ icon, bg, label }, i) => (
               <motion.div
+                key={label}
                 className="text-center"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 }}
+                transition={{ delay: 0.35 + i * 0.1 }}
               >
-                <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center mx-auto mb-2">
-                  <Camera className="w-6 h-6 text-blue-600" />
+                <div className={`w-12 h-12 ${bg} rounded-xl flex items-center justify-center mx-auto mb-2`}>
+                  {icon}
                 </div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">AI Analysis</p>
+                <p className="text-xs font-medium text-gray-600 dark:text-gray-400 leading-tight">{label}</p>
               </motion.div>
-              <motion.div
-                className="text-center"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5 }}
-              >
-                <div className="w-12 h-12 bg-green-100 dark:bg-green-900/20 rounded-lg flex items-center justify-center mx-auto mb-2">
-                  <Target className="w-6 h-6 text-green-600" />
-                </div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Track Progress</p>
-              </motion.div>
-              <motion.div
-                className="text-center"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.6 }}
-              >
-                <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/20 rounded-lg flex items-center justify-center mx-auto mb-2">
-                  <Dumbbell className="w-6 h-6 text-purple-600" />
-                </div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Get Stronger</p>
-              </motion.div>
-            </div>
+            ))}
           </div>
         </div>
       ),
     },
+
+    // ── Step 2: Primary Goal ─────────────────────────────────────────────────
     {
       id: 2,
-      title: 'Set Your Goals',
-      description: 'Tell us what you want to achieve so we can personalize your experience.',
-      icon: <Target className="w-8 h-8 text-green-600" />,
+      title: 'Set Your Goal',
+      description: 'FormIQ will tailor your training guidance to your goal.',
       content: (
-        <div className="space-y-6">
+        <div className="space-y-5">
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
-            className="w-24 h-24 bg-gradient-to-br from-green-600 to-blue-600 rounded-full flex items-center justify-center mx-auto shadow-lg"
+            className="w-20 h-20 bg-gradient-to-br from-green-600 to-blue-600 rounded-full flex items-center justify-center mx-auto shadow-lg"
           >
-            <Target className="w-12 h-12 text-white" />
+            <Target className="w-10 h-10 text-white" />
           </motion.div>
-          <div className="space-y-4">
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-white text-center">
-              What's your primary fitness goal?
+
+          <div className="text-center">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+              What's your primary goal?
             </h3>
-            <p className="text-base text-gray-600 dark:text-gray-400 text-center mb-6">
-              Select the goal that best matches your current fitness journey
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+              FormIQ will tailor your training guidance to your goal.
             </p>
-            <div className="grid gap-3">
-              {[
-                { title: 'Build Strength', desc: 'Focus on progressive overload and muscle building' },
-                { title: 'Improve Endurance', desc: 'Enhance cardiovascular fitness and stamina' },
-                { title: 'Lose Weight', desc: 'Burn calories and improve body composition' },
-                { title: 'Perfect Form', desc: 'Master proper technique and prevent injuries' },
-              ].map((goal, index) => (
-                <motion.button
-                  key={index}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => handleGoalSelect(goal.title)}
-                  className={`p-4 border-2 rounded-lg transition-all duration-200 text-left group ${
-                    selectedGoal === goal.title
-                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                      : 'border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-400'
-                  }`}
-                >
-                  <div className="flex items-center space-x-3">
-                    <div className="flex-1">
-                      <h4 className={`font-medium ${
-                        selectedGoal === goal.title
-                          ? 'text-blue-600 dark:text-blue-400'
-                          : 'text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400'
-                      }`}>
-                        {goal.title}
-                      </h4>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">{goal.desc}</p>
-                    </div>
-                    {selectedGoal === goal.title && (
-                      <Check className="w-5 h-5 text-blue-600" />
-                    )}
+          </div>
+
+          <div className="grid gap-3">
+            {[
+              { title: 'Build Strength', desc: 'Progressive overload and muscle building' },
+              { title: 'Improve Endurance', desc: 'Cardiovascular fitness and stamina' },
+              { title: 'Lose Weight', desc: 'Burn calories and improve body composition' },
+              { title: 'Perfect Form', desc: 'Master technique and prevent injuries' },
+            ].map((goal, index) => (
+              <motion.button
+                key={goal.title}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: index * 0.08 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setSelectedGoal(goal.title)}
+                className={`p-4 border-2 rounded-xl transition-all duration-200 text-left group ${
+                  selectedGoal === goal.title
+                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                    : 'border-gray-200 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-500'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className={`font-semibold text-sm ${
+                      selectedGoal === goal.title
+                        ? 'text-blue-600 dark:text-blue-400'
+                        : 'text-gray-900 dark:text-white'
+                    }`}>
+                      {goal.title}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{goal.desc}</p>
                   </div>
-                </motion.button>
-              ))}
-            </div>
+                  {selectedGoal === goal.title && (
+                    <Check className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                  )}
+                </div>
+              </motion.button>
+            ))}
           </div>
         </div>
       ),
     },
+
+    // ── Step 3: Training Style Setup (NEW) ───────────────────────────────────
     {
       id: 3,
-      title: 'Choose Your Focus',
-      description: 'Select the exercises you want to improve with AI-powered form analysis.',
-      icon: <Dumbbell className="w-8 h-8 text-purple-600" />,
+      title: 'How do you train?',
+      description: 'Choose the setup that best matches how you log your workouts.',
       content: (
-        <div className="space-y-6">
+        <div className="space-y-5">
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
-            className="w-24 h-24 bg-gradient-to-br from-purple-600 to-pink-600 rounded-full flex items-center justify-center mx-auto shadow-lg"
+            className="w-20 h-20 bg-gradient-to-br from-indigo-600 to-blue-600 rounded-full flex items-center justify-center mx-auto shadow-lg"
           >
-            <Dumbbell className="w-12 h-12 text-white" />
+            <Dumbbell className="w-10 h-10 text-white" />
           </motion.div>
-          <div className="space-y-4">
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-white text-center">
-              Which exercises interest you most?
+
+          <div className="text-center">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+              How do you usually train?
             </h3>
-            <p className="text-base text-gray-600 dark:text-gray-400 text-center mb-6">
-              Pick exercises you'd like to master with AI-powered form analysis
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+              Choose the setup that best matches how you log your workouts.
             </p>
-            <div className="grid grid-cols-2 gap-3">
-              {[
-                { name: 'Squats' },
-                { name: 'Deadlifts' },
-                { name: 'Push-ups' },
-                { name: 'Pull-ups' },
-                { name: 'Bench Press' },
-                { name: 'Planks' },
-              ].map((exercise, index) => (
-                <motion.button
-                  key={index}
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: index * 0.1 }}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => handleExerciseToggle(exercise.name)}
-                  className={`p-3 border-2 rounded-lg transition-all duration-200 text-center group ${
-                    selectedExercises.includes(exercise.name)
-                      ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
-                      : 'border-gray-200 dark:border-gray-700 hover:border-purple-500 dark:hover:border-purple-400'
-                  }`}
-                >
-                  <div className="space-y-2">
-                    <span className={`text-sm font-medium ${
-                      selectedExercises.includes(exercise.name)
-                        ? 'text-purple-600 dark:text-purple-400'
-                        : 'text-gray-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400'
-                    }`}>
-                      {exercise.name}
-                    </span>
-                    {selectedExercises.includes(exercise.name) && (
-                      <Check className="w-4 h-4 text-purple-600 mx-auto" />
-                    )}
-                  </div>
-                </motion.button>
-              ))}
-            </div>
+          </div>
+
+          <div className="grid gap-2.5">
+            {TRAINING_STYLE_OPTIONS.map((style, index) => (
+              <motion.button
+                key={style}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: index * 0.07 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setSelectedTrainingStyle(style)}
+                className={`p-4 border-2 rounded-xl transition-all duration-200 text-left ${
+                  selectedTrainingStyle === style
+                    ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
+                    : 'border-gray-200 dark:border-gray-700 hover:border-indigo-400 dark:hover:border-indigo-500'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className={`font-semibold text-sm ${
+                    selectedTrainingStyle === style
+                      ? 'text-indigo-600 dark:text-indigo-400'
+                      : 'text-gray-900 dark:text-white'
+                  }`}>
+                    {style}
+                  </span>
+                  {selectedTrainingStyle === style && (
+                    <Check className="w-4 h-4 text-indigo-600 flex-shrink-0" />
+                  )}
+                </div>
+              </motion.button>
+            ))}
           </div>
         </div>
       ),
     },
+
+    // ── Step 4: AI Training Guidance (NEW) ───────────────────────────────────
     {
       id: 4,
-      title: 'Setup Complete',
-      description: "You're all set! Here's what you can do next to get the most out of FormIQ.",
-      icon: <CheckCircle className="w-8 h-8 text-green-600" />,
+      title: 'AI Training Guidance',
+      description: 'FormIQ learns from your sessions to guide your progression.',
       content: (
         <div className="space-y-6">
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
-            className="w-24 h-24 bg-gradient-to-br from-green-600 to-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-lg"
+            className="w-20 h-20 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-full flex items-center justify-center mx-auto shadow-lg"
           >
-            <CheckCircle className="w-12 h-12 text-white" />
+            <TrendingUp className="w-10 h-10 text-white" />
           </motion.div>
-          <div className="space-y-6">
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-white text-center">
-              Ready to start your journey
+
+          <div className="text-center">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+              AI Training Guidance
             </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 max-w-xs mx-auto">
+              Log your sets with exercise, equipment, weight, and reps in reserve — FormIQ does the rest.
+            </p>
+          </div>
 
-            {/* Professional Setup Guide */}
-            <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-xl p-6 border border-blue-200 dark:border-blue-800">
-              <h4 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-                <Camera className="w-5 h-5 mr-2 text-blue-600" />
-                Quick Setup Guide
-              </h4>
-
-              <div className="space-y-4">
-                <div className="flex items-start space-x-3">
-                  <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="text-white text-xs font-bold">1</span>
-                  </div>
-                  <div>
-                    <p className="font-medium text-gray-900 dark:text-white">Position your camera</p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      Place your device 6-8 feet away at chest height
-                    </p>
-                  </div>
+          {/* What you log */}
+          <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-3">
+              What you log per set
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                'Exercise type',
+                'Equipment used',
+                'Working weight',
+                'Reps in reserve (RIR)',
+              ].map(item => (
+                <div key={item} className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
+                  <span className="text-xs text-gray-700 dark:text-gray-300">{item}</span>
                 </div>
-
-                <div className="flex items-start space-x-3">
-                  <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="text-white text-xs font-bold">2</span>
-                  </div>
-                  <div>
-                    <p className="font-medium text-gray-900 dark:text-white">Ensure good lighting</p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      Natural light works best, avoid backlighting
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start space-x-3">
-                  <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="text-white text-xs font-bold">3</span>
-                  </div>
-                  <div>
-                    <p className="font-medium text-gray-900 dark:text-white">Clear your space</p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">Make sure you have room to move freely</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Camera positioning placeholder */}
-              <div className="mt-6 bg-white dark:bg-gray-800 rounded-lg p-4 border-2 border-dashed border-gray-300 dark:border-gray-600">
-                <div className="text-center space-y-2">
-                  <Camera className="w-8 h-8 text-gray-400 mx-auto" />
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Camera positioning guide image will appear here
-                  </p>
-                </div>
-              </div>
+              ))}
             </div>
+          </div>
 
-            {/* Next Steps */}
-            <div className="grid gap-3">
-              <div className="flex items-center space-x-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                <Check className="w-5 h-5 text-green-600 flex-shrink-0" />
-                <span className="text-sm text-gray-600 dark:text-gray-400">Record your first exercise</span>
-              </div>
-              <div className="flex items-center space-x-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                <Check className="w-5 h-5 text-green-600 flex-shrink-0" />
-                <span className="text-sm text-gray-600 dark:text-gray-400">Get AI-powered form analysis</span>
-              </div>
-              <div className="flex items-center space-x-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                <Check className="w-5 h-5 text-green-600 flex-shrink-0" />
-                <span className="text-sm text-gray-600 dark:text-gray-400">Track your progress over time</span>
-              </div>
+          {/* What FormIQ guides */}
+          <div className="grid gap-3">
+            {[
+              {
+                icon: <Zap className="w-5 h-5 text-amber-500" />,
+                bg: 'bg-amber-100 dark:bg-amber-900/20',
+                title: 'Smart Progression',
+                desc: 'Knows when to add load, reps, or hold steady',
+              },
+              {
+                icon: <TrendingUp className="w-5 h-5 text-emerald-600" />,
+                bg: 'bg-emerald-100 dark:bg-emerald-900/20',
+                title: 'Progress Intelligence',
+                desc: 'Surfaces trends across sessions automatically',
+              },
+              {
+                icon: <Layers className="w-5 h-5 text-blue-600" />,
+                bg: 'bg-blue-100 dark:bg-blue-900/20',
+                title: 'Exercise Tracking',
+                desc: 'Equipment-aware history for every lift',
+              },
+            ].map(({ icon, bg, title, desc }, i) => (
+              <motion.div
+                key={title}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 + i * 0.1 }}
+                className="flex items-start gap-3 p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+              >
+                <div className={`w-9 h-9 ${bg} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                  {icon}
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">{title}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{desc}</p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      ),
+    },
+
+    // ── Step 5: AI Form Analysis ─────────────────────────────────────────────
+    {
+      id: 5,
+      title: 'AI Form Analysis',
+      description: 'Record one rep to get a detailed form score and movement feedback.',
+      content: (
+        <div className="space-y-5">
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
+            className="w-20 h-20 bg-gradient-to-br from-purple-600 to-pink-600 rounded-full flex items-center justify-center mx-auto shadow-lg"
+          >
+            <Camera className="w-10 h-10 text-white" />
+          </motion.div>
+
+          <div className="text-center">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+              AI Form Analysis
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 max-w-xs mx-auto">
+              Record one rep to get a detailed squat form score and movement feedback.
+            </p>
+          </div>
+
+          {/* Currently supported */}
+          <div className="rounded-xl border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20 p-4 flex items-start gap-3">
+            <Check className="w-5 h-5 text-purple-600 dark:text-purple-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-sm text-gray-900 dark:text-white">
+                Squat — available now
+              </p>
+              <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+                AI scores depth, trunk stability, knee symmetry, and forward lean. Side or back angle, full body in frame.
+              </p>
             </div>
+          </div>
+
+          {/* Coming later */}
+          <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1.5">
+              Coming later
+            </p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Deadlift · Bench Press · Overhead Press · Barbell Row · and more
+            </p>
+          </div>
+        </div>
+      ),
+    },
+
+    // ── Step 6: Setup Complete ───────────────────────────────────────────────
+    {
+      id: 6,
+      title: 'Setup Complete',
+      description: "You're ready to train smart.",
+      content: (
+        <div className="space-y-6">
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
+            className="w-20 h-20 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-lg"
+          >
+            <CheckCircle className="w-10 h-10 text-white" />
+          </motion.div>
+
+          <div className="text-center">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+              You're ready to train smart
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+              Here's how to get the most out of FormIQ.
+            </p>
+          </div>
+
+          {/* Checklist */}
+          <div className="grid gap-3">
+            {[
+              {
+                icon: <Layers className="w-4 h-4 text-blue-600" />,
+                bg: 'bg-blue-50 dark:bg-blue-900/20',
+                text: 'Log your workouts and working sets',
+              },
+              {
+                icon: <Zap className="w-4 h-4 text-amber-500" />,
+                bg: 'bg-amber-50 dark:bg-amber-900/20',
+                text: 'Use RIR to guide your progression each session',
+              },
+              {
+                icon: <Camera className="w-4 h-4 text-purple-600" />,
+                bg: 'bg-purple-50 dark:bg-purple-900/20',
+                text: 'Record one squat rep when you want form feedback',
+              },
+            ].map(({ icon, bg, text }) => (
+              <div
+                key={text}
+                className="flex items-center gap-3 p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+              >
+                <div className={`w-8 h-8 ${bg} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                  {icon}
+                </div>
+                <span className="text-sm text-gray-700 dark:text-gray-300">{text}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Squat recording tip */}
+          <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-xl p-4 border border-blue-200 dark:border-blue-800">
+            <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-1.5">
+              <Camera className="w-3.5 h-3.5 text-blue-600" />
+              Squat form analysis tip
+            </p>
+            <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+              Side or back angle · full body visible · 3–6 seconds · one rep · steady camera · good lighting
+            </p>
           </div>
         </div>
       ),
@@ -402,10 +517,12 @@ export default function OnboardingPage() {
   }
 
   const progress = ((currentStep + 1) / steps.length) * 100;
+  const isLastStep = currentStep === steps.length - 1;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center p-4">
       <div className="w-full max-w-2xl">
+
         {/* Header */}
         <motion.div className="text-center mb-8" initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}>
           <div className="inline-flex items-center space-x-3 mb-4">
@@ -424,20 +541,20 @@ export default function OnboardingPage() {
             <span className="text-2xl font-bold text-gray-900 dark:text-white">FormIQ</span>
           </div>
 
-          <div className="space-y-2">
-            <Progress value={progress} className="w-full h-3" />
-            <p className="text-sm text-gray-600 dark:text-gray-400">
+          <div className="space-y-1.5">
+            <Progress value={progress} className="w-full h-2" />
+            <p className="text-xs text-gray-500 dark:text-gray-400">
               Step {currentStep + 1} of {steps.length}
             </p>
           </div>
         </motion.div>
 
-        {/* Main Content */}
+        {/* Main Card */}
         <motion.div
           className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-xl rounded-2xl shadow-2xl p-8"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
+          transition={{ duration: 0.5, delay: 0.15 }}
         >
           <AnimatePresence mode="wait">
             <motion.div
@@ -445,15 +562,16 @@ export default function OnboardingPage() {
               initial={{ opacity: 0, x: 30 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -30 }}
-              transition={{
-                duration: 0.4,
-                ease: 'easeInOut',
-                type: 'tween',
-              }}
+              transition={{ duration: 0.3, ease: 'easeInOut' }}
             >
+              {/* Step header */}
               <div className="text-center mb-6">
-                <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">{steps[currentStep].title}</h2>
-                <p className="text-sm text-gray-600 dark:text-gray-400">{steps[currentStep].description}</p>
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
+                  {steps[currentStep].title}
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  {steps[currentStep].description}
+                </p>
               </div>
 
               <div className="mb-8">{steps[currentStep].content}</div>
@@ -463,53 +581,48 @@ export default function OnboardingPage() {
 
         {/* Navigation */}
         <motion.div
-          className="flex items-center justify-between mt-8"
+          className="flex items-center justify-between mt-6"
+          style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 16px)' }}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: 0.6, delay: 0.4 }}
+          transition={{ duration: 0.5, delay: 0.3 }}
         >
-          <div className="flex space-x-3">
+          <div className="flex items-center gap-3">
             {currentStep > 0 && (
-              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                <Button
-                  onClick={handlePrevious}
-                  variant="outline"
-                  className="flex items-center space-x-2 h-12 px-6 bg-transparent"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                  <span>Previous</span>
-                </Button>
-              </motion.div>
+              <Button
+                onClick={handlePrevious}
+                variant="outline"
+                className="flex items-center gap-1.5 h-11 px-5 bg-transparent"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                Back
+              </Button>
             )}
-
-            <motion.button
-              whileHover={{ scale: 1.02 }}
+            <button
               onClick={handleSkip}
-              className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-sm underline underline-offset-2"
+              className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 text-sm underline underline-offset-2 transition-colors"
             >
-              Skip for now
-            </motion.button>
+              Skip
+            </button>
           </div>
 
-          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-            {currentStep === steps.length - 1 ? (
-              <Button
-                onClick={handleComplete}
-                className="bg-gradient-to-r from-purple-500 to-indigo-600 hover:scale-105 hover:shadow-xl flex items-center space-x-2 h-12 px-8 rounded-lg"
-              >
-                <span>Get Started</span>
-                <CheckCircle className="w-4 h-4" />
-              </Button>
-            ) : (
-              <Button
-                onClick={handleNext}
-                className="bg-gradient-to-r from-purple-500 to-indigo-600 hover:scale-105 hover:shadow-xl flex items-center space-x-2 h-12 px-6 rounded-lg"
-              >
-                <span>Next</span>
-                <ChevronRight className="w-4 h-4" />
-              </Button>
-            )}
-          </motion.div>
+          {isLastStep ? (
+            <Button
+              onClick={handleComplete}
+              className="bg-gradient-to-r from-purple-500 to-indigo-600 hover:opacity-90 flex items-center gap-2 h-11 px-8 rounded-xl"
+            >
+              Start Training
+              <CheckCircle className="w-4 h-4" />
+            </Button>
+          ) : (
+            <Button
+              onClick={handleNext}
+              className="bg-gradient-to-r from-purple-500 to-indigo-600 hover:opacity-90 flex items-center gap-2 h-11 px-6 rounded-xl"
+            >
+              Next
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          )}
         </motion.div>
       </div>
     </div>

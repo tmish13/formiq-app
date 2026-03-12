@@ -23,6 +23,8 @@ from app.core.logging import get_logger
 import time # Still needed for track_login_attempt
 import json # Still needed for track_login_attempt
 
+logger = get_logger(__name__)
+
 # Import password functions from app.core.password
 from app.core.password import verify_password, get_password_hash
 
@@ -253,12 +255,28 @@ def is_token_blacklisted(token: str, redis_client: Redis) -> bool:
         return redis_client.exists(key) > 0
     except Exception as e:
         logger.error(f"Failed to check token blacklist in Redis: {token[:20]}... - {e}", exc_info=True)
-        # Fail-safe consideration: If Redis is down, should we deny all tokens or allow?
-        # Current: allow (returns False if not confirmed blacklisted).
-        # For higher security, if Redis check fails, could return True (treat as blacklisted).
-        return False 
+        # Fail-secure: treat token as blacklisted if Redis is unavailable.
+        return True
 
 # --- Login Attempt Throttling (remains) ---
+def is_account_locked(username: str, redis_client: Redis) -> bool:
+    """Read-only check: is the account currently locked? Does NOT increment attempts."""
+    now = time.time()
+    redis_key = f"{LOGIN_ATTEMPT_KEY_PREFIX}{username}"
+    try:
+        record_str = redis_client.get(redis_key)
+    except Exception as e:
+        logger.error(f"Failed to read login attempt key from Redis for {username}: {e}", exc_info=True)
+        return False  # fail open
+    if not record_str:
+        return False
+    try:
+        record = json.loads(record_str)
+    except (json.JSONDecodeError, TypeError):
+        return False
+    return float(record.get("locked_until", 0.0)) > now
+
+
 def track_login_attempt(username: str, success: bool, redis_client: Redis) -> bool:
     # ... (existing code - ensure settings are used for MAX_ATTEMPTS, LOCKOUT_TIME, LOGIN_ATTEMPT_KEY_TTL)
     now = time.time()

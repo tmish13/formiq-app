@@ -1,4 +1,6 @@
 import pytest
+pytestmark = pytest.mark.integration
+
 from unittest.mock import MagicMock, patch, AsyncMock
 from uuid6 import uuid7
 import os
@@ -9,6 +11,8 @@ from app.tasks.video_tasks import process_video_celery_task
 from app.tasks.ai_tasks import detect_pose_celery_task
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import Settings # For mocking settings
+
+
 
 # Assume task_always_eager=True is set for Celery in the test environment.
 

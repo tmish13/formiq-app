@@ -90,18 +90,23 @@ async def update_user_me(
     current_user: User = Depends(deps.get_current_active_user),
     user_service: UserService = Depends(deps.get_user_service),
 ) -> Any:
-    """Update current user.
+    """Update current user (full replacement)."""
+    return await user_service.update_async(db_obj=current_user, obj_in=user_in)
 
-    Args:
-        db: Database session
-        user_in: User update schema
-        current_user: Current user
-        user_service: User service instance
 
-    Returns:
-        Updated user
+@router.patch("/me", response_model=UserSchema)
+async def patch_user_me(
+    *,
+    db: AsyncSession = Depends(deps.get_async_db),
+    user_in: UserUpdate,
+    current_user: User = Depends(deps.get_current_active_user),
+    user_service: UserService = Depends(deps.get_user_service),
+) -> Any:
+    """Partially update the current user's profile.
+
+    Accepts any subset of UserUpdate fields. Only supplied fields are changed.
     """
-    return await user_service.update_async(current_user, user_in)
+    return await user_service.update_async(db_obj=current_user, obj_in=user_in)
 
 
 @router.get("/{user_id}", response_model=UserSchema)
@@ -239,11 +244,12 @@ async def update_profile(
     *,
     db: AsyncSession = Depends(deps.get_async_db),
     current_user: User = Depends(deps.get_current_user),
+    user_service: UserService = Depends(deps.get_user_service),
     profile_data: UserUpdate = Body(...)
 ) -> Any:
     """
     Update the current user's profile information.
-    
+
     Allows updating:
     - Full name
     - Email (requires verification)
@@ -251,8 +257,6 @@ async def update_profile(
     - Avatar
     - Preferences
     """
-    user_service: UserService = deps.get_user_service()
-    
     # If email is being changed, verify it's not already taken
     if profile_data.email and profile_data.email != current_user.email:
         if await user_service.get_by_email_async(profile_data.email):
@@ -260,8 +264,8 @@ async def update_profile(
                 status_code=400,
                 detail="Email already registered"
             )
-    
-    updated_user = await user_service.update_async(current_user, profile_data)
+
+    updated_user = await user_service.update_async(db_obj=current_user, obj_in=profile_data)
     return updated_user
 
 @router.get("/me/settings", response_model=Dict[str, Any])

@@ -1,0 +1,136 @@
+# Prometheus configuration for FormIQ Backend Monitoring
+# This configuration defines scrape targets, alert rules, and recording rules
+
+global:
+  scrape_interval: 15s      # Default scrape interval
+  evaluation_interval: 15s  # Evaluate rules every 15 seconds
+  external_labels:
+    cluster: 'formiq-production'
+    environment: 'prod'
+
+# Alert manager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+
+# Load alert rules
+rule_files:
+  - "alert_rules.yml"
+  - "recording_rules.yml"
+
+# Scrape configurations
+scrape_configs:
+  # FormIQ Backend Application
+  - job_name: 'formiq-backend'
+    static_configs:
+      - targets: ['localhost:8000']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    honor_labels: true
+    scheme: http
+    params:
+      format: ['prometheus']
+    
+    # Relabeling to add instance information
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: localhost:8000
+
+  # System metrics (node_exporter if available)
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['localhost:9100']
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    honor_labels: true
+
+  # Database metrics (postgres_exporter if available)  
+  - job_name: 'postgres-exporter'
+    static_configs:
+      - targets: ['localhost:9187']
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    honor_labels: true
+
+  # Redis metrics (redis_exporter if available)
+  - job_name: 'redis-exporter'
+    static_configs:
+      - targets: ['localhost:9121']
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    honor_labels: true
+
+  # Celery metrics (if celery-prometheus-exporter is used)
+  - job_name: 'celery-exporter'
+    static_configs:
+      - targets: ['localhost:9540']
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    honor_labels: true
+
+  # Self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+    scrape_interval: 15s
+    honor_labels: true
+
+  # FormIQ Health Check (separate endpoint for availability monitoring)
+  - job_name: 'formiq-health'
+    static_configs:
+      - targets: ['localhost:8000']
+    metrics_path: '/health'
+    scrape_interval: 5s
+    scrape_timeout: 3s
+    honor_labels: true
+    
+    # Convert health check response to metric
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'up'
+        target_label: health_status
+        replacement: 'healthy'
+
+# Storage configuration
+storage:
+  tsdb:
+    path: '/prometheus-data'
+    retention.time: '30d'
+    retention.size: '10GB'
+    
+    # Performance tuning
+    min-block-duration: '2h'
+    max-block-duration: '25h'
+    wal-compression: true
+
+# Logging configuration
+log_level: info
+log_format: json
+
+# Web configuration
+web:
+  console.libraries: '/etc/prometheus/console_libraries'
+  console.templates: '/etc/prometheus/consoles'
+  enable-lifecycle: true
+  enable-admin-api: true
+  max-connections: 512
+
+# Remote read/write (if using remote storage)
+# remote_write:
+#   - url: "https://prometheus-remote-write.example.com/api/v1/write"
+#     basic_auth:
+#       username: "formiq"
+#       password_file: "/etc/prometheus/remote-write-password"
+
+# remote_read:
+#   - url: "https://prometheus-remote-read.example.com/api/v1/read"
+#     basic_auth:
+#       username: "formiq"
+#       password_file: "/etc/prometheus/remote-read-password"

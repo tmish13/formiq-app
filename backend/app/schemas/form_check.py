@@ -72,6 +72,9 @@ class FormCheckCreate(BaseModel):
     video_url: str = Field(..., description="URL to the uploaded video")
     notes: Optional[str] = Field(None, description="Optional user notes for the form check")
     status: FormCheckStatus = Field(FormCheckStatus.PENDING, description="Initial status of the form check")
+    video_key: Optional[str] = Field(None, description="S3 object key for fresh URL generation")
+    weight_kg: Optional[float] = Field(None, description="User-entered weight in kg")
+    reps: Optional[int] = Field(None, description="User-entered rep count")
     
     model_config = ConfigDict(
         json_schema_extra={
@@ -106,10 +109,10 @@ class FormCheckResponse(BaseModel):
     """
     Schema for form check response.
     """
-    id: str = Field(..., description="Form check ID")
-    user_id: str = Field(..., description="User ID")
-    exercise_id: str = Field(..., description="Exercise ID")
-    video_url: str = Field(..., description="URL to the uploaded video")
+    id: Union[str, UUID] = Field(..., description="Form check ID")
+    user_id: Union[str, UUID] = Field(..., description="User ID")
+    exercise_id: Union[str, UUID] = Field(..., description="Exercise ID")
+    video_url: Optional[str] = Field(None, description="URL to the uploaded video")
     status: str = Field(..., description="Processing status")
     created_at: datetime = Field(..., description="Creation timestamp")
     classified_exercise_slug: Optional[str] = Field(None, description="AI-classified exercise slug")
@@ -117,6 +120,9 @@ class FormCheckResponse(BaseModel):
     form_metadata: Optional[Dict[str, Any]] = Field(None, description="Aggregated scores, issues, and summary stats for UI.")
     feedback: Optional[str] = Field(None, description="DEPRECATED: Use overall_feedback and FeedbackItem.details_payload")
     issues: Optional[Any] = Field(None, description="DEPRECATED: Use FeedbackItem.details_payload")
+    video_key: Optional[str] = Field(None, description="S3 object key for fresh URL generation")
+    weight_kg: Optional[float] = Field(None, description="User-entered weight in kg")
+    reps: Optional[int] = Field(None, description="User-entered rep count")
     
     model_config = ConfigDict(
         from_attributes=True,
@@ -152,9 +158,9 @@ class FormCheckListResponse(BaseModel):
     """
     Schema for form check list response, includes summary information.
     """
-    id: str = Field(..., description="Form check ID")
-    user_id: str = Field(..., description="User ID")
-    exercise_id: str = Field(..., description="Exercise ID")
+    id: Union[str, UUID] = Field(..., description="Form check ID")
+    user_id: Union[str, UUID] = Field(..., description="User ID")
+    exercise_id: Union[str, UUID] = Field(..., description="Exercise ID")
     video_url: str = Field(..., description="URL to the uploaded video")
     status: str = Field(..., description="Processing status")
     score: Optional[float] = Field(None, description="Overall form score (0-100)")
@@ -165,9 +171,10 @@ class FormCheckListResponse(BaseModel):
     configuration_name: Optional[str] = Field(None, description="Name of the configuration used")
     classified_exercise_slug: Optional[str] = Field(None, description="AI-classified exercise slug")
     classification_confidence: Optional[float] = Field(None, description="Confidence of AI exercise classification")
+    exercise_type: Optional[str] = Field(None, description="Exercise type slug (e.g. 'squat')")
     form_metadata: Optional[Dict[str, Any]] = Field(None, description="Aggregated scores, issues, and summary stats for UI.")
     issues: Optional[Any] = Field(None, description="DEPRECATED: Use FeedbackItem.details_payload")
-    
+
     model_config = ConfigDict(
         from_attributes=True,
         json_schema_extra={
@@ -291,8 +298,8 @@ class FormCheckDetailedResponse(FormCheckListResponse):
                     }
                 ],
                 "reference_pose_data": {
-                    "pose_sequence": [...],
-                    "key_poses": {"setup": {...}, "bottom": {...}},
+                    "pose_sequence": [],
+                    "key_poses": {"setup": {}, "bottom": {}},
                     "metadata": {"exercise_type": "squat"}
                 },
                 "visual_overlay_data": {

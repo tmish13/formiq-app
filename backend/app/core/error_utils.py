@@ -5,7 +5,7 @@ from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.exc import SQLAlchemyError
 from app.core.exceptions import (
     ValidationError,
-    DatabaseError,
+    DatabaseException,
     BusinessError,
     ResourceNotFoundError
 )
@@ -23,26 +23,26 @@ def handle_validation_error(error: PydanticValidationError) -> ValidationError:
         })
     return ValidationError(message="Validation error", details=errors)
 
-def handle_database_error(error: SQLAlchemyError, operation: str) -> DatabaseError:
-    """Convert SQLAlchemy error to our custom DatabaseError."""
+def handle_database_error(error: SQLAlchemyError, operation: str) -> DatabaseException:
+    """Convert SQLAlchemy error to our custom DatabaseException."""
     error_message = str(error)
     error_type = type(error).__name__
     
     # Map common database errors to user-friendly messages
     if "duplicate key" in error_message.lower():
-        return DatabaseError(
+        return DatabaseException(
             message="A record with this data already exists",
             error_code="DB_DUPLICATE_KEY",
             details={"operation": operation}
         )
     elif "foreign key" in error_message.lower():
-        return DatabaseError(
+        return DatabaseException(
             message="Referenced record does not exist",
             error_code="DB_FOREIGN_KEY_ERROR",
             details={"operation": operation}
         )
     
-    return DatabaseError(
+    return DatabaseException(
         message=f"Database error during {operation}",
         error_code="DB_ERROR",
         details={"error_type": error_type}

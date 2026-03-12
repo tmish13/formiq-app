@@ -1,6 +1,37 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, Component, ReactNode } from 'react';
 import { BrowserRouter } from 'react-router-dom';
+
+// Error Boundary — catches runtime React render errors that would otherwise
+// cause a blank white screen with no feedback.
+class ErrorBoundary extends Component<
+  { children: ReactNode },
+  { error: Error | null }
+> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ padding: 24, fontFamily: 'monospace', color: '#c00' }}>
+          <strong>Something went wrong.</strong>
+          <pre style={{ marginTop: 8, whiteSpace: 'pre-wrap', fontSize: 12 }}>
+            {this.state.error.message}
+            {'\n'}
+            {this.state.error.stack}
+          </pre>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 import { Provider, useSelector } from 'react-redux';
+import { GoogleOAuthProvider } from '@react-oauth/google';
 import { store, RootState } from './store';
 import { AppRoutes } from './routes';
 import { ModernThemeProvider } from './contexts/ModernThemeContext';
@@ -73,6 +104,13 @@ const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }
   return <>{children}</>;
 };
 
+// TODO(sentry): Wrap AppContent with Sentry.ErrorBoundary once @sentry/react is added.
+// Integration steps:
+//   1. npm install @sentry/react
+//   2. Call Sentry.init({ dsn: process.env.REACT_APP_SENTRY_DSN }) before ReactDOM.render
+//   3. Replace this comment with: import * as Sentry from '@sentry/react';
+//      and wrap: <Sentry.ErrorBoundary fallback={<p>Something went wrong.</p>}>
+
 // Main App component
 const AppContent: React.FC = () => {
   return (
@@ -87,15 +125,30 @@ const AppContent: React.FC = () => {
 };
 
 export const App: React.FC = () => {
+  const googleClientId = process.env.REACT_APP_GOOGLE_CLIENT_ID;
+
   useEffect(() => {
     console.log('App mounted');
+    if (!googleClientId) {
+      console.error(
+        'Missing REACT_APP_GOOGLE_CLIENT_ID. Google Sign-In will be disabled.'
+      );
+    }
   }, []);
 
   return (
-    <Provider store={store}>
-      <ModernThemeProvider>
-        <AppContent />
-      </ModernThemeProvider>
-    </Provider>
+    <ErrorBoundary>
+      <Provider store={store}>
+        <ModernThemeProvider>
+          {googleClientId ? (
+            <GoogleOAuthProvider clientId={googleClientId}>
+              <AppContent />
+            </GoogleOAuthProvider>
+          ) : (
+            <AppContent />
+          )}
+        </ModernThemeProvider>
+      </Provider>
+    </ErrorBoundary>
   );
 };
