@@ -127,6 +127,15 @@ export class StorageService {
     );
   }
 
+  public async keys(): Promise<string[]> {
+    try {
+      return Object.keys(localStorage);
+    } catch {
+      const { keys } = await Preferences.keys();
+      return keys;
+    }
+  }
+
   // Authentication data
   async setAuthToken(token: string): Promise<void> {
     await this.set(KEYS.AUTH_TOKEN, token);
