@@ -12,7 +12,7 @@ def _decode_jwt_payload(token: str) -> Optional[Dict[str, Any]]:
         return payload
     except JWTError as e:
         logger = get_logger(__name__)
-        logger.debug(f"JWT decoding error: {e}", exc_info=True)
+        logger.warning(f"JWT decoding error: {e}", exc_info=True)
         return None
 
 # --- Token Verification & Payload Retrieval ---

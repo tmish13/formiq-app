@@ -980,66 +980,13 @@ class Settings(BaseSettings):
         description="Number of backup log files to keep"
     )
 
-    # Application
-    PROJECT_NAME: str = "FormIQ API"
-    VERSION: str = "1.0.0"
-    API_V1_STR: str = "/api/v1"
-    ENVIRONMENT: str = "development"
-    DEBUG: bool = True
-    
-    # Security
-    SECRET_KEY: str = secrets.token_urlsafe(32)
-    ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60  # 1 hour
-    REFRESH_TOKEN_EXPIRE_DAYS: int = 30  # 30 days
-    SESSION_EXPIRE_DAYS: int = 7  # 7 days
-    PASSWORD_RESET_TOKEN_EXPIRE_HOURS: int = 24  # 24 hours
-    EMAIL_VERIFICATION_TOKEN_EXPIRE_HOURS: int = 24  # 24 hours
-    
-    # Rate Limiting
-    RATE_LIMIT_REQUESTS: int = 60  # Default requests per window
-    RATE_LIMIT_WINDOW: int = 60  # Default window in seconds
-    RATE_LIMIT_BURST: int = 100  # Default burst limit
-    
-    # Session Management
-    MAX_FAILED_LOGIN_ATTEMPTS: int = 5  # Max failed attempts before lockout
-    ACCOUNT_LOCKOUT_MINUTES: int = 15  # Lockout duration after max failed attempts
-    MAX_SESSIONS_PER_USER: int = 5  # Maximum concurrent sessions per user
-    SESSION_REFRESH_GRACE_PERIOD: int = 300  # 5 minutes grace period for refresh
-    
-    # Frontend
-    FRONTEND_URL: str = "http://localhost:3000"
-    
-    # Email (This block will be removed)
-    # SMTP_TLS: bool = True
-    # SMTP_PORT: Optional[int] = None
-    # SMTP_HOST: Optional[str] = None
-    # SMTP_USER: Optional[str] = None
-    # SMTP_PASSWORD: Optional[str] = None
-    # EMAILS_FROM_EMAIL: Optional[str] = None
-    # EMAILS_FROM_NAME: Optional[str] = None
-    # EMAIL_TEMPLATES_DIR: str = "app/email-templates"
-    
-    # Database
-    POSTGRES_SERVER: str = "localhost"
-    POSTGRES_USER: str = "postgres"
-    POSTGRES_PASSWORD: str = "postgres"
-    POSTGRES_DB: str = "formiq"
-    SQLALCHEMY_DATABASE_URI: Optional[str] = None
-    
-    # Redis
-    REDIS_HOST: str = "localhost"
-    REDIS_PORT: int = 6379
-    REDIS_PASSWORD: Optional[str] = None
-    REDIS_DB: int = 0
-    
-    # Storage
+    SESSION_EXPIRE_DAYS: int = 7  # 7 days — first definition, referenced in security.py
+    PASSWORD_RESET_TOKEN_EXPIRE_HOURS: int = 24  # 24 hours — first definition, referenced in security.py + auth_service.py
+    EMAIL_VERIFICATION_TOKEN_EXPIRE_HOURS: int = 24  # 24 hours — first definition, referenced in security.py
+
+    # Storage (first definitions — referenced in storage_utils.py and form_check_service.py)
     STORAGE_TYPE: str = "local"  # "local" or "s3"
-    UPLOAD_DIR: str = "uploads"
     S3_BUCKET_NAME: Optional[str] = None
-    AWS_ACCESS_KEY_ID: Optional[str] = None
-    AWS_SECRET_ACCESS_KEY: Optional[str] = None
-    AWS_REGION: Optional[str] = None
     
     # Admin - All admin credentials must be provided via environment variables
     ADMIN_EMAIL: str = Field(

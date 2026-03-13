@@ -28,7 +28,7 @@ class TestModelComplexityConfig:
             from app.core.config import Settings
             # Create a fresh Settings instance (not cached singleton)
             settings = Settings(
-                SECRET_KEY="test-secret-key",
+                SECRET_KEY="test-secret-key-for-unit-testing",
                 POSTGRES_USER="test",
                 POSTGRES_PASSWORD="test",
                 POSTGRES_DB="test",
@@ -44,7 +44,7 @@ class TestModelComplexityConfig:
         with patch.dict(os.environ, {"AI_MODEL_COMPLEXITY": "1"}):
             from app.core.config import Settings
             settings = Settings(
-                SECRET_KEY="test-secret-key",
+                SECRET_KEY="test-secret-key-for-unit-testing",
                 POSTGRES_USER="test",
                 POSTGRES_PASSWORD="test",
                 POSTGRES_DB="test",
@@ -60,7 +60,7 @@ class TestModelComplexityConfig:
         with patch.dict(os.environ, {"AI_MODEL_COMPLEXITY": "0"}):
             from app.core.config import Settings
             settings = Settings(
-                SECRET_KEY="test-secret-key",
+                SECRET_KEY="test-secret-key-for-unit-testing",
                 POSTGRES_USER="test",
                 POSTGRES_PASSWORD="test",
                 POSTGRES_DB="test",
@@ -87,7 +87,7 @@ class TestAIServicePoseInit:
 
         from app.core.config import Settings
         settings = Settings(
-            SECRET_KEY="test-secret-key",
+            SECRET_KEY="test-secret-key-for-unit-testing",
             POSTGRES_USER="test",
             POSTGRES_PASSWORD="test",
             POSTGRES_DB="test",
@@ -129,7 +129,7 @@ class TestAIServicePoseInit:
 
         from app.core.config import Settings
         settings = Settings(
-            SECRET_KEY="test-secret-key",
+            SECRET_KEY="test-secret-key-for-unit-testing",
             POSTGRES_USER="test",
             POSTGRES_PASSWORD="test",
             POSTGRES_DB="test",
@@ -165,7 +165,7 @@ class TestAIServicePoseInit:
 
         from app.core.config import Settings
         settings = Settings(
-            SECRET_KEY="test-secret-key",
+            SECRET_KEY="test-secret-key-for-unit-testing",
             POSTGRES_USER="test",
             POSTGRES_PASSWORD="test",
             POSTGRES_DB="test",
