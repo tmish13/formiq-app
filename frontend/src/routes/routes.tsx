@@ -2,6 +2,11 @@ import React, { lazy, Suspense } from 'react';
 import { RouteObject, Navigate } from 'react-router-dom';
 import { ProtectedRoute } from '../components/auth/ProtectedRoute';
 import { PageLoader } from '../components/common/PageLoader';
+import { ResetPasswordForm } from '../components/auth/ResetPasswordForm';
+import { ConfirmPasswordResetForm } from '../components/auth/ConfirmPasswordResetForm';
+import { RequestEmailVerificationForm } from '../components/auth/RequestEmailVerificationForm';
+import { ConfirmEmailVerification } from '../components/auth/ConfirmEmailVerification';
+import AuthenticatedRoot from '../components/auth/AuthenticatedRoot';
 
 // Route constants
 export const ROUTES = {
@@ -49,13 +54,6 @@ const BetaChecklistPage = lazy(() => import('../pages/BetaChecklistPage'));
 const ModernProcessingPage = lazy(() => import('../pages/ModernProcessingPage'));
 const ModernResultsPage = lazy(() => import('../pages/ModernResultsPage'));
 const ModernNotFoundPage = lazy(() => import('../pages/ModernNotFoundPage'));
-
-// Import auth components directly (these are small and don't need lazy loading)
-import { ResetPasswordForm } from '../components/auth/ResetPasswordForm';
-import { ConfirmPasswordResetForm } from '../components/auth/ConfirmPasswordResetForm';
-import { RequestEmailVerificationForm } from '../components/auth/RequestEmailVerificationForm';
-import { ConfirmEmailVerification } from '../components/auth/ConfirmEmailVerification';
-import AuthenticatedRoot from '../components/auth/AuthenticatedRoot';
 
 // Route configuration with Suspense
 const withSuspense = (Component: React.LazyExoticComponent<any>) => (

@@ -1,5 +1,13 @@
 import React, { useEffect, Component, ReactNode } from 'react';
 import { BrowserRouter } from 'react-router-dom';
+import { Provider, useSelector } from 'react-redux';
+import { GoogleOAuthProvider } from '@react-oauth/google';
+import { store, RootState } from './store';
+import { AppRoutes } from './routes';
+import { ModernThemeProvider } from './contexts/ModernThemeContext';
+import { NetworkStatusProvider } from './contexts/NetworkStatusProvider';
+import { websocketService } from './services/websocketService';
+import './styles/globals.css';
 
 // Error Boundary — catches runtime React render errors that would otherwise
 // cause a blank white screen with no feedback.
@@ -30,14 +38,6 @@ class ErrorBoundary extends Component<
     return this.props.children;
   }
 }
-import { Provider, useSelector } from 'react-redux';
-import { GoogleOAuthProvider } from '@react-oauth/google';
-import { store, RootState } from './store';
-import { AppRoutes } from './routes';
-import { ModernThemeProvider } from './contexts/ModernThemeContext';
-import { NetworkStatusProvider } from './contexts/NetworkStatusProvider';
-import { websocketService } from './services/websocketService';
-import './styles/globals.css';
 
 // WebSocket provider component that runs inside Redux Provider
 const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
