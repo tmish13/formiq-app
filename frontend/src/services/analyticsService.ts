@@ -105,8 +105,19 @@ export class AnalyticsService {
    */
   async getOverview(filters?: AnalyticsFilters): Promise<AnalyticsOverview> {
     try {
-      // Try backend analytics first
-      return await apiService.getAnalyticsOverview(filters?.timeRange);
+      // Try backend analytics first. The API returns only 5 fields; normalize to the
+      // full AnalyticsOverview shape with safe defaults for the two frontend-computed
+      // fields (consistency, weakestArea) that the backend does not provide.
+      const raw = await apiService.getAnalyticsOverview(filters?.timeRange);
+      return {
+        totalSessions: raw.totalSessions,
+        averageScore: raw.averageScore,
+        bestExercise: raw.bestExercise as ExerciseType | null,
+        weeklyProgress: raw.weeklyProgress,
+        improvementRate: raw.improvementRate,
+        consistency: 0,
+        weakestArea: null,
+      };
     } catch (error) {
       console.warn('Backend analytics unavailable, using client-side calculation');
       return await this.calculateOverviewFromFormChecks(filters);
