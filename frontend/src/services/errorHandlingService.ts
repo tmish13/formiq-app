@@ -30,7 +30,7 @@ export class ErrorHandlingService {
   private errorListeners: Array<(error: ErrorDetails) => void> = [];
 
   private constructor() {
-    this.storage = new StorageService();
+    this.storage = StorageService.getInstance();
     this.monitoring = MonitoringService.getInstance();
     this.initializeErrorHandlers();
   }

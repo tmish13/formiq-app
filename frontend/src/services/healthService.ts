@@ -26,7 +26,7 @@ export class HealthService {
   private health: typeof Health;
 
   private constructor() {
-    this.storage = new StorageService();
+    this.storage = StorageService.getInstance();
     this.health = Health;
   }
 
