@@ -6,6 +6,7 @@ import type { User } from '../types';
 import apiService from '../services/apiService';
 import { logError } from '../utils/logger';
 import { setUserPrefs } from '../utils/userPrefs';
+import { progressService } from '../services/progressService';
 
 /**
  * Custom hook for authentication
@@ -208,13 +209,30 @@ export const useAuth = () => {
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
-      // Clear local storage
+      // Clear auth tokens
       localStorage.removeItem('formiq_auth_token');
       localStorage.removeItem('formiq_refresh_token');
-      
+
+      // Clear user-scoped data so next user starts with a clean slate
+      localStorage.removeItem('formiq-squat-sessions-v1');
+      localStorage.removeItem('formiq-user-prefs-v1');
+      localStorage.removeItem('formiq-training-sessions-v1');
+      localStorage.removeItem('formiq-equipment-recents-v1');
+      // Clear all formiq-training-v1 keys (sessions, setLogs, equipmentProfiles, nextTargets, gyms, lastEquip:*)
+      Object.keys(localStorage)
+        .filter((k) => k.startsWith('formiq-training-v1:'))
+        .forEach((k) => localStorage.removeItem(k));
+      // Clear storageService user-scoped keys
+      localStorage.removeItem('formiq_user_profile');
+      localStorage.removeItem('formiq_analysis_cache');
+      localStorage.removeItem('formiq_settings');
+
+      // Invalidate in-memory progress cache so next user doesn't see stale analytics
+      progressService.clearCache();
+
       // Clear Redux state
       dispatch(logoutAction());
-      
+
       // Navigate to auth page
       navigate('/auth');
     }
