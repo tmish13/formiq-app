@@ -40,7 +40,7 @@ const formCheckSlice = createSlice({
         state.currentFormCheck = action.payload;
       }
     },
-    deleteFormCheck: (state, action: PayloadAction<number>) => {
+    deleteFormCheck: (state, action: PayloadAction<string>) => {
       state.formChecks = state.formChecks.filter(fc => fc.id !== action.payload);
       if (state.currentFormCheck?.id === action.payload) {
         state.currentFormCheck = null;
@@ -48,7 +48,7 @@ const formCheckSlice = createSlice({
     },
     updateFormCheckStatus: (
       state,
-      action: PayloadAction<{ id: number; status: FormCheckStatus }>
+      action: PayloadAction<{ id: string; status: FormCheckStatus }>
     ) => {
       const { id, status } = action.payload;
       const formCheck = state.formChecks.find(fc => fc.id === id) as FormCheck;

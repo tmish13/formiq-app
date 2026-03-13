@@ -79,7 +79,7 @@ export const useFormCheck = () => {
     }
   }, [dispatch]);
 
-  const deleteFormCheckById = useCallback(async (id: number) => {
+  const deleteFormCheckById = useCallback(async (id: string) => {
     dispatch(setLoading(true));
     dispatch(setError(null));
     try {
