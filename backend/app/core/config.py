@@ -756,6 +756,13 @@ class Settings(BaseSettings):
         default=os.getenv("AI_MODEL_PATH", "models"),
         description="Path to AI model files"
     )
+    POSTURE_V1_MODEL_S3_KEY: str = Field(
+        default=os.getenv("POSTURE_V1_MODEL_S3_KEY", "models/posture_v1.pt"),
+        description=(
+            "S3 object key for the PostureV1 model artifact. "
+            "Used to download posture_v1.pt from S3 if the file is not found locally in production."
+        ),
+    )
     AI_MODEL_COMPLEXITY: int = Field(
         default=safe_int(os.getenv("AI_MODEL_COMPLEXITY"), 2),
         description="MediaPipe Pose model complexity (0, 1, or 2). Default 2 matches PostureV1 training data extraction."

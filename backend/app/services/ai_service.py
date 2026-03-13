@@ -139,7 +139,20 @@ class AIService:
                 model.eval() # Set model to evaluation mode
                 logger.info("Form analysis model loaded successfully.")
                 return model
-            logger.warning(f"Form analysis model not found at {model_path}. Using default rules.")
+            is_production = (
+                str(getattr(self.settings, "ENVIRONMENT", "development")).lower()
+                == "production"
+            )
+            if is_production:
+                logger.info(
+                    "Legacy form_analysis_model.pt not present at %s — "
+                    "this file is not used for squat inference (PostureV1 handles that).",
+                    model_path,
+                )
+            else:
+                logger.warning(
+                    f"Form analysis model not found at {model_path}. Using default rules."
+                )
             return None
         except Exception as e:
             logger.error(f"Error loading form analysis model: {str(e)}", exc_info=True)

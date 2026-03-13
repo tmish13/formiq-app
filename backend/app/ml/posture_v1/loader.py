@@ -154,6 +154,50 @@ class PostureV1TorchLoader:
                     env_threshold,
                 )
 
+    def _download_model_from_s3(self, dest_path: Path) -> bool:
+        """Download posture_v1.pt from S3. Returns True on success, False on any failure."""
+        try:
+            import boto3  # already in requirements.txt
+
+            bucket = getattr(self.settings, "AWS_BUCKET_NAME", None)
+            region = getattr(self.settings, "AWS_REGION", "us-east-1")
+            key = getattr(self.settings, "POSTURE_V1_MODEL_S3_KEY", "models/posture_v1.pt")
+            access_key = getattr(self.settings, "AWS_ACCESS_KEY_ID", None)
+            secret_key = getattr(self.settings, "AWS_SECRET_ACCESS_KEY", None)
+
+            if not bucket:
+                logger.error(
+                    "AWS_BUCKET_NAME not set — cannot download PostureV1 model from S3."
+                )
+                return False
+
+            logger.info(
+                "Downloading PostureV1 model from s3://%s/%s ...", bucket, key
+            )
+            s3 = boto3.client(
+                "s3",
+                region_name=region,
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
+            )
+            dest_path.parent.mkdir(parents=True, exist_ok=True)
+            s3.download_file(bucket, key, str(dest_path))
+
+            if not dest_path.exists():
+                logger.error(
+                    "S3 download completed but file not found at %s.", dest_path
+                )
+                return False
+
+            logger.info(
+                "PostureV1 model downloaded from S3 successfully (%d bytes).",
+                dest_path.stat().st_size,
+            )
+            return True
+        except Exception as exc:
+            logger.error("Failed to download PostureV1 model from S3: %s", exc)
+            return False
+
     def _load_model(self) -> None:
         """
         Load the PyTorch checkpoint dict and construct model.
@@ -167,13 +211,33 @@ class PostureV1TorchLoader:
         """
         model_path = self._artifacts_dir / _MODEL_FILENAME
         if not model_path.exists():
-            logger.warning(
-                "PostureV1 model not found at %s. "
-                "predict_posture() will return uncertain results. "
-                "Place posture_v1.pt in %s to enable inference.",
-                model_path, self._artifacts_dir,
+            is_production = (
+                str(getattr(self.settings, "ENVIRONMENT", "development")).lower()
+                == "production"
             )
-            return
+            if is_production:
+                logger.warning(
+                    "PostureV1 model not found at %s — attempting S3 download.",
+                    model_path,
+                )
+                if not self._download_model_from_s3(model_path):
+                    raise RuntimeError(
+                        f"PostureV1 model required in production but not found at "
+                        f"{model_path} and S3 download failed. "
+                        f"Ensure posture_v1.pt is deployed via Git LFS or upload it "
+                        f"to S3 at the key set by POSTURE_V1_MODEL_S3_KEY "
+                        f"(default: models/posture_v1.pt)."
+                    )
+                # Fall through to loading after successful download
+            else:
+                logger.warning(
+                    "PostureV1 model not found at %s. "
+                    "predict_posture() will return uncertain results. "
+                    "Place posture_v1.pt in %s to enable inference.",
+                    model_path,
+                    self._artifacts_dir,
+                )
+                return
 
         try:
             from app.ml.posture_v1.model import PostureV1Model
