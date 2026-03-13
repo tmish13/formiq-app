@@ -129,8 +129,19 @@ export class AnalyticsService {
    */
   async getExerciseStatistics(filters?: AnalyticsFilters): Promise<ExerciseStatistics[]> {
     try {
-      // Try backend analytics first
-      return await apiService.getExerciseStats(filters?.timeRange);
+      // Backend returns 6 fields; normalize to full ExerciseStatistics shape with
+      // safe defaults for last_session and consistency_score which the backend omits.
+      const raw = await apiService.getExerciseStats(filters?.timeRange);
+      return raw.map(item => ({
+        exercise_type: item.exercise_type as ExerciseType,
+        count: item.count,
+        avg_score: item.avg_score,
+        best_score: item.best_score,
+        improvement: item.improvement,
+        trend: item.trend,
+        last_session: '',
+        consistency_score: 0,
+      }));
     } catch (error) {
       console.warn('Backend exercise stats unavailable, using client-side calculation');
       return await this.calculateExerciseStatsFromFormChecks(filters);
