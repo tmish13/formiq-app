@@ -80,8 +80,8 @@ export class ErrorHandlingService {
       handled: options.handled || false
     };
 
-    // Track error in monitoring
-    this.monitoring.trackError(errorDetails);
+    // Track error in monitoring (trackError accepts string | Error; pass message + context)
+    this.monitoring.trackError(errorDetails.message, errorDetails.context);
 
     // Store error for later analysis
     this.storeError(errorDetails);
@@ -156,7 +156,8 @@ export class ErrorHandlingService {
     this.monitoring.sendAlert({
       type: 'critical_error',
       message: error.message,
-      details: error
+      severity: 'error',
+      details: { ...error },
     });
 
     // Attempt recovery
