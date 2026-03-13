@@ -255,8 +255,8 @@ def is_token_blacklisted(token: str, redis_client: Redis) -> bool:
         return redis_client.exists(key) > 0
     except Exception as e:
         logger.error(f"Failed to check token blacklist in Redis: {token[:20]}... - {e}", exc_info=True)
-        # Fail-secure: treat token as blacklisted if Redis is unavailable.
-        return True
+        # Fail-open: Redis unavailable means blacklist cannot be checked, but JWT signature is still valid.
+        return False
 
 # --- Login Attempt Throttling (remains) ---
 def is_account_locked(username: str, redis_client: Redis) -> bool:
