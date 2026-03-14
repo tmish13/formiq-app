@@ -119,15 +119,8 @@ def create_application() -> FastAPI:
     app.add_middleware(TraceContextMiddleware)
     logger.info("Trace context middleware configured")
 
-    # Add CORS middleware
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.CORS_ORIGINS,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-    logger.info("CORS middleware configured")
+    # CORS middleware is already registered by setup_middleware() above (main_setup.py).
+    # Do not add it again here — duplicate CORSMiddleware causes double-processing of headers.
 
     # Setup standardized exception handlers
     setup_exception_handlers(app)

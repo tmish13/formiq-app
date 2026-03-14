@@ -22,14 +22,19 @@ def setup_middleware(app: FastAPI) -> None:
         app: The FastAPI application instance
     """
     # 1. CORS Middleware (must be first)
+    effective_origins = settings.CORS_ORIGINS if isinstance(settings.CORS_ORIGINS, list) else []
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.CORS_ORIGINS if isinstance(settings.CORS_ORIGINS, list) else [],
+        allow_origins=effective_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    logger.info(f"CORS middleware configured for origins: {settings.CORS_ORIGINS}")
+    logger.info(f"[CORS] Effective allow_origins: {effective_origins}")
+    if settings.ENVIRONMENT == "production":
+        localhost_origins = [o for o in effective_origins if "localhost" in o or "127.0.0.1" in o]
+        if localhost_origins:
+            logger.warning(f"[CORS] Production environment has localhost origins allowed: {localhost_origins}")
 
     # 2. Compression Middleware
     app.add_middleware(

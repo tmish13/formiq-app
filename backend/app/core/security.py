@@ -383,12 +383,25 @@ def init_security():
     logger = get_logger(__name__)
     logger.info("Initializing security systems (token, blacklist, throttling config)")
     
+    import os as _os
     try:
         # Validate required security settings for JWT
         if not settings.JWT_SECRET or len(settings.JWT_SECRET) < 32:
             logger.warning("JWT_SECRET is too short or not set - security risk!")
             if settings.ENVIRONMENT == "production":
                 raise ValueError("JWT_SECRET must be at least 32 characters in production")
+
+        # CRITICAL: In production with multiple Uvicorn workers, each worker generates
+        # a different random JWT_SECRET at import time if the env var is not set.
+        # Tokens signed by Worker A are rejected by Worker B → 401 on all protected routes.
+        if settings.ENVIRONMENT == "production" and not _os.getenv("JWT_SECRET"):
+            raise ValueError(
+                "JWT_SECRET env var is not set. With multiple Uvicorn workers each process "
+                "generates a different random secret at startup, breaking cross-worker token "
+                "validation. Generate a value with: "
+                "python3 -c \"import secrets; print(secrets.token_urlsafe(32))\" "
+                "and set it as JWT_SECRET in your Render environment variables."
+            )
         
         # SECRET_KEY is often used for other things like CSRF, session cookies (non-JWT)
         # If it's also used for some JWTs (like email verification in old code), ensure it's strong.
@@ -417,8 +430,9 @@ def init_security():
             if settings.DEBUG:
                 logger.warning("DEBUG mode is enabled in production - security risk!")
             
-            # Ensure BACKEND_CORS_ORIGINS is used, not CORS_ORIGINS directly if they differ
-            if not settings.BACKEND_CORS_ORIGINS or "*" in settings.BACKEND_CORS_ORIGINS:
+            # CORS_ORIGINS is the field used by CORSMiddleware (BACKEND_CORS_ORIGINS is unused).
+            # Warn only when the effective allow-list actually contains "*".
+            if "*" in settings.CORS_ORIGINS:
                 logger.warning("CORS is configured to allow all origins (*) in production - security risk!")
         
         logger.info("Security systems configuration validated successfully.")
