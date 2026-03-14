@@ -1,11 +1,10 @@
-import { 
-  configureStore, 
-  combineReducers, 
-  Middleware, 
+import {
+  configureStore,
+  combineReducers,
+  Middleware,
   AnyAction,
   Action,
-  ThunkAction,
-  ThunkMiddleware
+  ThunkAction
 } from '@reduxjs/toolkit';
 import { persistStore, persistReducer, FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER } from 'redux-persist';
 import storage from 'redux-persist/lib/storage';
@@ -53,9 +52,9 @@ const rootReducer = combineReducers({
 const persistedReducer = persistReducer(persistConfig, rootReducer);
 
 // Cache middleware for optimistic updates
-const cacheMiddleware: Middleware<{}, RootState> = 
-  store => 
-  next => 
+const cacheMiddleware: Middleware =
+  store =>
+  next =>
   (action: AnyAction) => {
     // Handle optimistic updates
     if (action.meta?.optimistic) {
@@ -91,9 +90,9 @@ const cacheMiddleware: Middleware<{}, RootState> =
 };
 
 // Error handling middleware
-const errorMiddleware: Middleware<{}, RootState> = 
-  () => 
-  next => 
+const errorMiddleware: Middleware =
+  () =>
+  next =>
   (action: AnyAction) => {
     if (action.error) {
       console.error('Error in action:', action);
@@ -103,9 +102,9 @@ const errorMiddleware: Middleware<{}, RootState> =
   };
 
 // Analytics middleware
-const analyticsMiddleware: Middleware<{}, RootState> = 
-  () => 
-  next => 
+const analyticsMiddleware: Middleware =
+  () =>
+  next =>
   (action: AnyAction) => {
     // Track specific actions for analytics
     if (action.meta?.track) {
@@ -117,9 +116,9 @@ const analyticsMiddleware: Middleware<{}, RootState> =
 };
 
 // Performance middleware
-const performanceMiddleware: Middleware<{}, RootState> = 
-  () => 
-  next => 
+const performanceMiddleware: Middleware =
+  () =>
+  next =>
   (action: AnyAction) => {
     const start = performance.now();
     const result = next(action);
@@ -159,14 +158,14 @@ export const store = configureStore({
     });
 
     if (process.env.NODE_ENV === 'development') {
-      middleware.push(logger as ThunkMiddleware<RootState>);
+      middleware.push(logger as Middleware);
     }
 
     return middleware.concat(
-      cacheMiddleware as ThunkMiddleware<RootState>,
-      errorMiddleware as ThunkMiddleware<RootState>,
-      analyticsMiddleware as ThunkMiddleware<RootState>,
-      performanceMiddleware as ThunkMiddleware<RootState>
+      cacheMiddleware,
+      errorMiddleware,
+      analyticsMiddleware,
+      performanceMiddleware
     );
   },
   devTools: process.env.NODE_ENV !== 'production',
