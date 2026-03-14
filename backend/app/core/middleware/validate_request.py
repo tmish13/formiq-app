@@ -139,6 +139,11 @@ class EnhancedValidateRequestMiddleware(BaseHTTPMiddleware):
     
     def _validate_content_type(self, request: Request) -> bool:
         """Validate the content type of the request."""
+        # GET, HEAD, OPTIONS never carry a request body — Content-Type is irrelevant.
+        # Blocking these causes platform health probes and browser pre-flight to return 400.
+        if request.method in ("GET", "HEAD", "OPTIONS"):
+            return True
+
         content_type = request.headers.get("content-type", "")
         if not content_type and (request.method in ["POST", "PUT", "PATCH"]):
              # If there's a body expected, content-type should be present.
