@@ -1,11 +1,20 @@
 import * as poseDetection from '@tensorflow-models/pose-detection';
-import { FeedbackItem } from '../types/exercise';
+
+// Exercise-domain feedback item — distinct from the UI-display FeedbackItem in types/exercise.ts
+interface ExerciseFeedbackItem {
+  message: string;
+  severity: 'high' | 'medium' | 'low';
+  type: 'form' | 'alignment' | 'range' | 'safety' | 'tempo';
+  confidence: number;
+  timestamp: number;
+  details?: string;
+}
 
 export function analyzeExerciseForm(
   exerciseType: string,
   keypoints: poseDetection.Keypoint[],
   previousKeypoints: poseDetection.Keypoint[] | null
-): FeedbackItem[] {
+): ExerciseFeedbackItem[] {
   switch (exerciseType.toLowerCase()) {
     case 'squat':
       return analyzeSquatForm(keypoints, previousKeypoints);
@@ -19,8 +28,8 @@ export function analyzeExerciseForm(
 function analyzeSquatForm(
   keypoints: poseDetection.Keypoint[],
   previousKeypoints: poseDetection.Keypoint[] | null
-): FeedbackItem[] {
-  const feedback: FeedbackItem[] = [];
+): ExerciseFeedbackItem[] {
+  const feedback: ExerciseFeedbackItem[] = [];
   const timestamp = Date.now();
 
   // Get key points
@@ -90,8 +99,8 @@ function analyzeSquatForm(
 function analyzeDeadliftForm(
   keypoints: poseDetection.Keypoint[],
   previousKeypoints: poseDetection.Keypoint[] | null
-): FeedbackItem[] {
-  const feedback: FeedbackItem[] = [];
+): ExerciseFeedbackItem[] {
+  const feedback: ExerciseFeedbackItem[] = [];
   const timestamp = Date.now();
 
   // Get key points
