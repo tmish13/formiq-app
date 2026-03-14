@@ -130,6 +130,11 @@ def create_application() -> FastAPI:
     app.include_router(api_router, prefix=settings.API_V1_STR)
     app.include_router(health_router)
 
+    # Root endpoint — answers GET / and HEAD / health probes (Render, uptime monitors, etc.)
+    @app.get("/", include_in_schema=False)
+    async def root():
+        return {"status": "ok", "service": "FormIQ API", "version": "1.0.0"}
+
     # Serve locally-uploaded files (avatars, etc.)
     os.makedirs("uploads", exist_ok=True)
     app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")

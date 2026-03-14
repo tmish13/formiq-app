@@ -119,6 +119,9 @@ class EnhancedValidateRequestMiddleware(BaseHTTPMiddleware):
     
     def _should_skip_validation(self, request: Request) -> bool:
         """Check if validation should be skipped for this request."""
+        # Exact match for root — startswith("/") would skip every path
+        if request.url.path == "/":
+            return True
         return any(request.url.path.startswith(path) for path in self.skip_paths)
     
     def _validate_content_length(self, request: Request) -> bool:

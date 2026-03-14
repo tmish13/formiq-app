@@ -124,15 +124,14 @@ class TestShouldSkipValidation:
             mw.skip_paths = ["/api/", "/health", "/docs", "/redoc", "/openapi.json"]
         self.mw = mw
 
-    def test_root_path_is_NOT_in_skip_list(self):
-        # "/" is intentionally not in skip_paths (startswith("/") would match all paths).
-        # HEAD / and GET / pass because _validate_content_type() returns True for those methods.
+    def test_root_path_is_skipped(self):
+        # "/" is skipped via exact match (not startswith, which would match all paths).
         req = _make_request("GET", "/")
-        assert self.mw._should_skip_validation(req) is False
+        assert self.mw._should_skip_validation(req) is True
 
-    def test_head_root_path_is_NOT_in_skip_list(self):
+    def test_head_root_path_is_skipped(self):
         req = _make_request("HEAD", "/")
-        assert self.mw._should_skip_validation(req) is False
+        assert self.mw._should_skip_validation(req) is True
 
     def test_health_is_skipped(self):
         req = _make_request("GET", "/health")
