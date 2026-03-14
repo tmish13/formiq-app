@@ -1,12 +1,11 @@
 import apiService from './apiService';
-import { poseAnalysisService } from './poseAnalysisService';
-import { FormAnalysisRequest, FormAnalysisResult, FormAnalysisResponse, JointAngles, FormFeedback, JointAngle } from '../types/formAnalysis';
-import { ExerciseType } from './exerciseLibraryService';
+import { FormAnalysisRequest, FormAnalysisResult, FormAnalysisResponse, JointAngles, FormFeedback } from '../types/formAnalysis';
 import { EventEmitter } from 'events';
 import * as poseDetection from '@tensorflow-models/pose-detection';
-import { PoseCalculator } from '../wasm/pose_calculations';
-import { initWasmModule } from '../wasm/wasm-init';
 import { Keypoint } from '@tensorflow-models/pose-detection';
+
+// Default values for required FormAnalysisResult fields that this service cannot compute
+const DEFAULT_METRICS = { alignment: 0, stability: 0, symmetry: 0, consistency: 0 };
 
 interface FormAnalysisState {
   isAnalyzing: boolean;
@@ -99,6 +98,8 @@ export class FormAnalysisService extends EventEmitter {
       keypoints,
       angles,
       feedback,
+      suggestions: [],
+      metrics: DEFAULT_METRICS,
       timestamp: Date.now(),
       videoUrl: ''
     };
@@ -106,45 +107,45 @@ export class FormAnalysisService extends EventEmitter {
 
   private calculateJointAngles(keypoints: poseDetection.Keypoint[]): JointAngles {
     const angles: JointAngles = {};
-    
+
     // Calculate angles between keypoints
     const findKeypoint = (name: string) => keypoints.find(kp => kp.name === name);
-    
+
     // Calculate knee angle
     const leftHip = findKeypoint('left_hip');
     const leftKnee = findKeypoint('left_knee');
     const leftAnkle = findKeypoint('left_ankle');
-    
+
     if (leftHip && leftKnee && leftAnkle) {
       const angle = this.calculateAngle(
         { x: leftHip.x, y: leftHip.y },
         { x: leftKnee.x, y: leftKnee.y },
         { x: leftAnkle.x, y: leftAnkle.y }
       );
-      
+
       angles.leftKnee = {
         value: angle,
         confidence: Math.min(leftHip.score || 0, leftKnee.score || 0, leftAnkle.score || 0)
       };
     }
-    
+
     return angles;
   }
 
   private calculateAngle(p1: {x: number, y: number}, p2: {x: number, y: number}, p3: {x: number, y: number}): number {
     const radians = Math.atan2(p3.y - p2.y, p3.x - p2.x) - Math.atan2(p1.y - p2.y, p1.x - p2.x);
     let angle = Math.abs(radians * 180.0 / Math.PI);
-    
+
     if (angle > 180.0) {
       angle = 360 - angle;
     }
-    
+
     return angle;
   }
 
   private generateFeedback(keypoints: poseDetection.Keypoint[], angles: JointAngles): FormFeedback[] {
     const feedback: FormFeedback[] = [];
-    
+
     // Generate feedback based on angles and keypoint positions
     const leftKnee = angles.leftKnee;
     if (leftKnee && leftKnee.value < 90) {
@@ -155,7 +156,7 @@ export class FormAnalysisService extends EventEmitter {
         jointName: 'leftKnee'
       });
     }
-    
+
     return feedback;
   }
 
@@ -181,17 +182,17 @@ export class FormAnalysisService extends EventEmitter {
 
       let result: FormAnalysisResult;
       const startTime = Date.now();
-      
+
       if (request.keypoints) {
         const pose = {
           keypoints: request.keypoints,
           score: 1.0
         };
         result = this.analyzePose(pose as poseDetection.Pose);
-        if (request.video_url) {
-          result.videoUrl = request.video_url;
+        if (request.videoUrl) {
+          result.videoUrl = request.videoUrl;
         }
-      } else if (request.video_url) {
+      } else if (request.videoUrl) {
         throw new Error('No keypoints or video URL provided');
       } else {
         throw new Error('No keypoints or video URL provided');
@@ -216,6 +217,8 @@ export class FormAnalysisService extends EventEmitter {
           keypoints: [],
           angles: {},
           feedback: [],
+          suggestions: [],
+          metrics: DEFAULT_METRICS,
           timestamp: Date.now(),
           videoUrl: ''
         },
@@ -232,7 +235,7 @@ export class FormAnalysisService extends EventEmitter {
 
   public async getAnalysisHistory(): Promise<FormAnalysisResult[]> {
     try {
-      const response = await apiService.get('/form-checks/history');
+      const response = await apiService.get<FormAnalysisResult[]>('/form-checks/history');
       return response.data;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to fetch analysis history';
@@ -252,4 +255,4 @@ export class FormAnalysisService extends EventEmitter {
   }
 }
 
-export const formAnalysisService = FormAnalysisService.getInstance(); 
+export const formAnalysisService = FormAnalysisService.getInstance();
