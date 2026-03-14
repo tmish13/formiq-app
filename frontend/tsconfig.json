@@ -23,11 +23,20 @@
     }
   },
   "include": [
-    "src/**/*",
-    "tests/**/*",
-    "**/*.test.ts",
-    "**/*.test.tsx",
-    "**/__tests__/**/*"
+    "src/**/*"
   ],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules",
+    "tests/**/*",
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx",
+    "src/**/*.spec.ts",
+    "src/**/*.spec.tsx",
+    "src/tests/**/*",
+    "src/**/__tests__/**/*",
+    "src/__mocks__/**/*",
+    "src/mocks/**/*",
+    "src/setupTests.ts",
+    "src/utils/test-data.ts"
+  ]
 } 

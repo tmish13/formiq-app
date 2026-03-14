@@ -14,7 +14,7 @@ import '@testing-library/jest-dom';
 
 // Import components and slices
 import { useAuth } from '../hooks/useAuth';
-import { authSlice } from '../store/slices/authSlice';
+import { authSlice, AuthState } from '../store/slices/authSlice';
 import AuthenticatedRoot from '../components/auth/AuthenticatedRoot';
 import OnboardingPage from '../pages/OnboardingPage';
 
@@ -33,8 +33,12 @@ jest.mock('react-router-dom', () => ({
   useNavigate: () => mockNavigate,
 }));
 
+interface TestStoreState {
+  auth?: Partial<AuthState>;
+}
+
 // Test store setup
-const createTestStore = (initialState = {}) => {
+const createTestStore = (initialState: TestStoreState = {}) => {
   return configureStore({
     reducer: {
       auth: authSlice.reducer,
