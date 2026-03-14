@@ -1,6 +1,34 @@
 import apiService from './apiService';
 import { EventEmitter } from 'events';
 
+interface FormCheckUploadResponse {
+  id: string;
+}
+
+interface FormCheckStatusResponse {
+  status: string;
+}
+
+interface FormCheckMLAnalysisResponse {
+  confidence?: number;
+  exercise_type?: string;
+  detected_issues?: string[];
+  ml_scores?: {
+    posture_score: number;
+    stability_score: number;
+    depth_score: number;
+  };
+  feedback?: Array<{
+    message?: string;
+    text?: string;
+    severity?: string;
+    type?: string;
+    suggestion?: string;
+    details?: string;
+    confidence?: number;
+  }>;
+}
+
 export type ExerciseType = 'squat' | 'pushup' | 'plank' | 'lunges' | 'deadlift' | 'burpees' | 'mountain_climbers';
 
 export interface FeedbackItem {
@@ -98,7 +126,7 @@ export class PoseAnalysisService extends EventEmitter {
       formData.append('video', blob, 'exercise_video.webm');
       formData.append('exercise_type', exerciseType);
 
-      const uploadResponse = await apiService.post('/form-checks/upload', formData);
+      const uploadResponse = await apiService.post<FormCheckUploadResponse>('/form-checks/upload', formData);
       this.currentFormCheckId = uploadResponse.data.id;
 
       // Poll for analysis results
@@ -119,7 +147,7 @@ export class PoseAnalysisService extends EventEmitter {
 
     const pollInterval = setInterval(async () => {
       try {
-        const statusResponse = await apiService.get(`/form-checks/${this.currentFormCheckId}/status`);
+        const statusResponse = await apiService.get<FormCheckStatusResponse>(`/form-checks/${this.currentFormCheckId}/status`);
         const { status } = statusResponse.data;
 
         this.emit('analysisProgress', { status });
@@ -128,7 +156,7 @@ export class PoseAnalysisService extends EventEmitter {
           clearInterval(pollInterval);
           
           // Get ML analysis results
-          const resultsResponse = await apiService.get(`/form-checks/${this.currentFormCheckId}/ml-analysis`);
+          const resultsResponse = await apiService.get<FormCheckMLAnalysisResponse>(`/form-checks/${this.currentFormCheckId}/ml-analysis`);
           const mlResults = resultsResponse.data;
 
           // Convert backend results to frontend format
