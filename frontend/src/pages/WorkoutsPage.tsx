@@ -144,10 +144,6 @@ const FATIGUE_COLORS: Record<FatigueSignal, string> = {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function formatRest(seconds?: number): string {
-  if (!seconds) return "";
-  return seconds < 60 ? `${seconds}s` : `${Math.round(seconds / 60)}m`;
-}
 
 function formatElapsed(startedAt: string): string {
   const totalMin = Math.floor(
@@ -962,7 +958,7 @@ export default function WorkoutsPage() {
         return { exerciseId: exId, target };
       }),
     };
-  }, []); // computed once on mount for the start screen
+  }, [session]); // recompute when session changes (returns null during active session)
 
   function handleStartWorkout() {
     const s = createSession(goal);
@@ -1244,8 +1240,7 @@ export default function WorkoutsPage() {
   // Derived values for weight controls
   const inc          = currentEquipment?.incrementLb ?? currentExercise?.defaultIncrementLb ?? 5;
   // Pure bodyweight: equipment type is explicitly "bodyweight" OR increment is 0 with no equipment
-  const isBodyweight = currentEquipment?.type === "bodyweight" || (inc === 0 && !currentEquipment);
-  const step         = currentExercise ? weightStep(currentExercise, currentEquipment) : 5;
+  const isBodyweight = (currentEquipment?.type === "bodyweight") || (inc === 0 && !currentEquipment);
   const hasWorkingSet = setsForExercise.some((s) => s.setType === "working");
 
   // Best working set id for table highlight
@@ -1280,15 +1275,6 @@ export default function WorkoutsPage() {
         : null,
     [currentExercise, currentEquipment],
   );
-
-  // Equipment line copy — uses getEquipmentDisplayName for consistency
-  function equipmentLineCopy(): string {
-    if (isBodyweight) return "Equipment: Bodyweight";
-    const name = currentEquipment
-      ? getEquipmentDisplayName(currentEquipment)
-      : "Default";
-    return `Equipment: ${name}`;
-  }
 
   // ── Workout summary (shown after End Workout) ─────────────────────────────
   if (summary) {

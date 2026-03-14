@@ -12,7 +12,6 @@
 import { listSessions, listSetLogsForSession } from "../features/training/storage";
 import { EXERCISES } from "../features/training/catalog";
 import {
-  setE1RM,
   getExerciseSessionHistory,
   getRecentVsPriorAvgRIR,
   getConsistencyLabel,

@@ -1,6 +1,6 @@
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { Capacitor } from '@capacitor/core';
-import { logError, logNetworkError } from '../utils/errorLogging';
+import { logNetworkError } from '../utils/errorLogging';
 import { storageService } from './storageService';
 import { mockAuthService } from './mockAuthService';
 import { UserSettings } from '../types/auth';

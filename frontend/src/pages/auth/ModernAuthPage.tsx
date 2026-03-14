@@ -3,125 +3,13 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Eye, EyeOff, Mail, Lock, User, ArrowLeft, CheckCircle } from "lucide-react"
 import { Input } from "../../components/ui/input"
 import { Label } from "../../components/ui/label"
-import { Navigate, useNavigate } from "react-router-dom"
+import { Navigate } from "react-router-dom"
 import { useAuth } from "../../hooks/useAuth"
 import { useAppSelector } from "../../store/hooks"
-import { useGoogleLogin } from "@react-oauth/google"
 import apiService from "../../services/apiService"
 import SocialSignInButtons from '../../components/auth/SocialSignInButtons'
 
 type AuthMode = "login" | "signup" | "forgot-password" | "reset-success"
-
-// ---------------------------------------------------------------------------
-// GoogleLoginButton — only rendered inside GoogleOAuthProvider (clientId set)
-// ---------------------------------------------------------------------------
-interface GoogleLoginButtonProps {
-  onSuccess: (accessToken: string) => void
-  onError: () => void
-  disabled?: boolean
-}
-
-const GoogleLoginButton: React.FC<GoogleLoginButtonProps> = ({ onSuccess, onError, disabled }) => {
-  const googleLogin = useGoogleLogin({
-    flow: 'implicit',
-    onSuccess: (tokenResponse) => onSuccess(tokenResponse.access_token),
-    onError,
-  })
-
-  return (
-    <motion.button
-      type="button"
-      whileHover={{ scale: 1.02, y: -1 }}
-      whileTap={{ scale: 0.98 }}
-      onClick={() => googleLogin()}
-      disabled={disabled}
-      className="flex-1 h-12 flex items-center justify-center gap-3 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all duration-200 disabled:opacity-50"
-    >
-      <svg className="h-5 w-5" viewBox="0 0 24 24">
-        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-      </svg>
-      <span className="font-medium text-slate-700 dark:text-slate-300">Google</span>
-    </motion.button>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// AppleLoginButton — loads Apple JS SDK lazily, uses popup flow.
-// Only rendered when REACT_APP_APPLE_CLIENT_ID is present.
-// Note: Apple Sign-In web requires HTTPS and a registered redirect URI.
-// ---------------------------------------------------------------------------
-interface AppleLoginButtonProps {
-  onSuccess: (idToken: string) => void
-  onError: () => void
-  disabled?: boolean
-}
-
-const APPLE_SDK_URL =
-  "https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js"
-
-const AppleLoginButton: React.FC<AppleLoginButtonProps> = ({ onSuccess, onError, disabled }) => {
-  const handleClick = async () => {
-    try {
-      // Load the Apple JS SDK script if it hasn't been loaded yet
-      if (!document.getElementById("apple-jssdk")) {
-        await new Promise<void>((resolve, reject) => {
-          const script = document.createElement("script")
-          script.id = "apple-jssdk"
-          script.src = APPLE_SDK_URL
-          script.onload = () => resolve()
-          script.onerror = () => reject(new Error("Failed to load Apple Sign-In script"))
-          document.head.appendChild(script)
-        })
-      }
-
-      const AppleID = (window as any).AppleID
-      if (!AppleID) {
-        throw new Error("Apple Sign-In SDK not available")
-      }
-
-      AppleID.auth.init({
-        clientId: process.env.REACT_APP_APPLE_CLIENT_ID!,
-        scope: "name email",
-        // redirectURI must be registered in your Apple developer portal.
-        // For popup mode Apple uses this as a validation hint, not a real redirect.
-        redirectURI: window.location.origin,
-        usePopup: true,
-      })
-
-      const response = await AppleID.auth.signIn()
-      const idToken = response?.authorization?.id_token
-      if (!idToken) {
-        throw new Error("No identity token in Apple response")
-      }
-      onSuccess(idToken)
-    } catch (error: any) {
-      // popup_closed_by_user is not an error — user simply cancelled
-      if (error?.error !== "popup_closed_by_user") {
-        console.error("Apple Sign-In error:", error)
-        onError()
-      }
-    }
-  }
-
-  return (
-    <motion.button
-      type="button"
-      whileHover={{ scale: 1.02, y: -1 }}
-      whileTap={{ scale: 0.98 }}
-      onClick={handleClick}
-      disabled={disabled}
-      className="flex-1 h-12 flex items-center justify-center gap-3 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all duration-200 disabled:opacity-50"
-    >
-      <svg className="h-5 w-5 text-slate-700 dark:text-slate-300" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701" />
-      </svg>
-      <span className="font-medium text-slate-700 dark:text-slate-300">Apple</span>
-    </motion.button>
-  )
-}
 
 export default function ModernAuthPage() {
   const { isAuthenticated, user } = useAppSelector((state) => state.auth)
@@ -129,7 +17,6 @@ export default function ModernAuthPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [logoAnimated, setLogoAnimated] = useState(false)
   const [showToast, setShowToast] = useState(false)
   const [toastMessage, setToastMessage] = useState("")
   const [toastType, setToastType] = useState<"success" | "error">("success")
@@ -148,7 +35,6 @@ export default function ModernAuthPage() {
   const [pendingEmail, setPendingEmail] = useState("")
   // 30-second cooldown after each resend
   const [resendCooldown, setResendCooldown] = useState(0)
-  const navigate = useNavigate()
   const { login, register, requestPasswordReset, socialLogin } = useAuth()
 
   const handleGoogleSuccess = async (accessToken: string) => {
@@ -196,12 +82,6 @@ export default function ModernAuthPage() {
   const handleAppleError = () => {
     setErrors({ general: 'Apple sign-in failed. Please try again.' })
   }
-
-  useEffect(() => {
-    // Trigger logo animation after component mounts
-    const timer = setTimeout(() => setLogoAnimated(true), 300)
-    return () => clearTimeout(timer)
-  }, [])
 
   // Count down resend cooldown
   useEffect(() => {
@@ -376,168 +256,6 @@ export default function ModernAuthPage() {
 
       setErrors({ general: errorMessage })
     } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const handleSocialLogin = async (provider: 'google' | 'apple') => {
-    setIsLoading(true)
-    try {
-      console.log(`🔐 Starting ${provider} authentication...`);
-      
-      // Check if we're in a mobile environment
-      const { Capacitor } = await import('@capacitor/core');
-      const isNativeMobile = Capacitor.isNativePlatform();
-      
-      if (provider === 'google') {
-        if (isNativeMobile) {
-          // Mobile Google OAuth using web redirect flow
-          const { Browser } = await import('@capacitor/browser');
-          const { App } = await import('@capacitor/app');
-          
-          // Use existing backend redirect endpoint
-          const apiBaseUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000';
-          const oauthUrl = `${apiBaseUrl}/auth/social/google/redirect?redirect_uri=${encodeURIComponent('formiq://auth/callback')}`;
-          
-          console.log('🌐 Opening Google OAuth URL:', oauthUrl);
-          
-          // Open OAuth in in-app browser
-          await Browser.open({
-            url: oauthUrl,
-            windowName: 'oauth',
-          });
-          
-          // Listen for the app to be reopened (OAuth callback)
-          const listener = await App.addListener('appUrlOpen', async (data) => {
-            console.log('📱 App URL opened:', data.url);
-            
-            if (data.url.includes('formiq://auth/callback')) {
-              try {
-                // Extract OAuth token or code from the URL
-                const url = new URL(data.url);
-                const token = url.searchParams.get('token');
-                const code = url.searchParams.get('code');
-                const error = url.searchParams.get('error');
-                
-                if (error) {
-                  throw new Error(`OAuth error: ${error}`);
-                }
-                
-                if (token) {
-                  // Direct token - use socialLogin
-                  await socialLogin('google', token);
-                  showToastMessage("Successfully signed in with Google!", "success");
-                } else if (code) {
-                  // OAuth code - exchange for token using existing endpoint
-                  const response = await fetch(`${apiBaseUrl}/api/v1/auth/social/google`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ code })
-                  });
-                  
-                  if (response.ok) {
-                    const data = await response.json();
-                    await socialLogin('google', data.access_token);
-                    showToastMessage("Successfully signed in with Google!", "success");
-                  } else {
-                    throw new Error('Failed to exchange OAuth code');
-                  }
-                }
-                
-                // Close the browser and remove listener
-                await Browser.close();
-                listener.remove();
-                setIsLoading(false);
-              } catch (err) {
-                console.error('OAuth callback error:', err);
-                setErrors({ general: 'Google authentication failed. Please try again.' });
-                setIsLoading(false);
-              }
-            }
-          });
-        } else {
-          // Web Google OAuth - redirect to backend endpoint
-          const apiBaseUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000';
-          window.location.href = `${apiBaseUrl}/auth/social/google/redirect?redirect_uri=${encodeURIComponent(window.location.origin + '/auth/google/callback')}`;
-        }
-        
-      } else if (provider === 'apple') {
-        if (isNativeMobile) {
-          // Try native Apple Sign In first
-          try {
-            const { SignInWithApple } = await import('@capacitor-community/apple-sign-in');
-            
-            const result = await SignInWithApple.authorize({
-              clientId: 'com.formiq.app',
-              redirectURI: 'formiq://auth/callback',
-              scopes: 'email name',
-              state: 'state',
-              nonce: 'nonce'
-            });
-            
-            if (result.response && result.response.identityToken) {
-              await socialLogin('apple', result.response.identityToken);
-              showToastMessage("Successfully signed in with Apple!", "success");
-              setIsLoading(false);
-            }
-          } catch (appleError) {
-            console.error('Native Apple Sign In failed, falling back to web flow');
-            
-            // Fallback to web-based Apple OAuth
-            const { Browser } = await import('@capacitor/browser');
-            const { App } = await import('@capacitor/app');
-            
-            const apiBaseUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000';
-            const oauthUrl = `${apiBaseUrl}/auth/social/apple/redirect?redirect_uri=${encodeURIComponent('formiq://auth/callback')}`;
-            
-            await Browser.open({
-              url: oauthUrl,
-              windowName: 'oauth',
-            });
-            
-            const listener = await App.addListener('appUrlOpen', async (data) => {
-              if (data.url.includes('formiq://auth/callback')) {
-                try {
-                  const url = new URL(data.url);
-                  const token = url.searchParams.get('token');
-                  const code = url.searchParams.get('code');
-                  
-                  if (token) {
-                    await socialLogin('apple', token);
-                  } else if (code) {
-                    const response = await fetch(`${apiBaseUrl}/api/v1/auth/social/apple`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ code })
-                    });
-                    
-                    if (response.ok) {
-                      const data = await response.json();
-                      await socialLogin('apple', data.access_token);
-                    }
-                  }
-                  
-                  showToastMessage("Successfully signed in with Apple!", "success");
-                  await Browser.close();
-                  listener.remove();
-                  setIsLoading(false);
-                } catch (err) {
-                  console.error('Apple OAuth callback error:', err);
-                  setErrors({ general: 'Apple authentication failed. Please try again.' });
-                  setIsLoading(false);
-                }
-              }
-            });
-          }
-        } else {
-          // Web Apple OAuth - redirect to backend endpoint
-          const apiBaseUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000';
-          window.location.href = `${apiBaseUrl}/auth/social/apple/redirect?redirect_uri=${encodeURIComponent(window.location.origin + '/auth/apple/callback')}`;
-        }
-      }
-    } catch (error) {
-      console.error(`${provider} login failed:`, error)
-      setErrors({ general: `${provider} authentication failed. Please try again.` })
       setIsLoading(false)
     }
   }
