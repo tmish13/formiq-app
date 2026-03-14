@@ -142,12 +142,11 @@ class TestAuthenticateUserLockoutBehaviour:
         mock_db = AsyncMock()
         mock_db.execute.return_value = mock_result
 
-        with patch("app.core.redis.get_redis", return_value=redis_mock):
-            from app.services.auth_service import AuthService
-            svc = AuthService(db=mock_db, user_service=MagicMock(), email_service=MagicMock())
-            user, locked, success = await svc.authenticate_user(
-                mock_request, "user@test.com", "PvOneShip2026!"
-            )
+        from app.services.auth_service import AuthService
+        svc = AuthService(db=mock_db, user_service=MagicMock(), email_service=MagicMock(), redis_client=redis_mock)
+        user, locked, success = await svc.authenticate_user(
+            mock_request, "user@test.com", "PvOneShip2026!"
+        )
 
         assert success is True
         assert locked is False
@@ -159,7 +158,7 @@ class TestAuthenticateUserLockoutBehaviour:
 
     @pytest.mark.asyncio
     async def test_wrong_password_increments_failure_count(self):
-        from unittest.mock import AsyncMock, MagicMock, patch
+        from unittest.mock import AsyncMock, MagicMock
         from app.core.password import get_password_hash
 
         real_hash = get_password_hash("PvOneShip2026!")
@@ -181,12 +180,11 @@ class TestAuthenticateUserLockoutBehaviour:
         mock_db = AsyncMock()
         mock_db.execute.return_value = mock_result
 
-        with patch("app.core.redis.get_redis", return_value=redis_mock):
-            from app.services.auth_service import AuthService
-            svc = AuthService(db=mock_db, user_service=MagicMock(), email_service=MagicMock())
-            user, locked, success = await svc.authenticate_user(
-                mock_request, "user@test.com", "WrongPassXyz@99"
-            )
+        from app.services.auth_service import AuthService
+        svc = AuthService(db=mock_db, user_service=MagicMock(), email_service=MagicMock(), redis_client=redis_mock)
+        user, locked, success = await svc.authenticate_user(
+            mock_request, "user@test.com", "WrongPassXyz@99"
+        )
 
         assert success is False
         assert locked is False

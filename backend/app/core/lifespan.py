@@ -1,5 +1,7 @@
 """Application lifespan management."""
 import logging
+import os
+import re
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from sqlalchemy import text
@@ -41,6 +43,12 @@ async def lifespan(app: FastAPI):
     # Startup Logic
     logger.info(f"Application starting up in {settings.ENVIRONMENT} environment...")
     try:
+        # Log Redis URL source at startup so it's visible in Render logs
+        _redis_url = settings.REDIS_URL
+        _masked = re.sub(r"(redis://[^:@/]*):([^@]+)@", r"\1:*****@", _redis_url)
+        _src = "REDIS_URL env var" if os.getenv("REDIS_URL") else "fallback (REDIS_HOST/localhost)"
+        logger.info(f"[Redis] URL source: {_src} → {_masked}")
+
         # Initialize core services
         init_monitoring()
         init_logging()

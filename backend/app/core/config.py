@@ -396,12 +396,14 @@ class Settings(BaseSettings):
         return f"redis://{auth}{host}:{port}/{db}"
 
     # Celery Configuration
+    # Fall back to REDIS_URL if CELERY_BROKER_URL is not set explicitly, so Render's
+    # REDIS_URL env var is honoured without needing a separate Celery-specific variable.
     CELERY_BROKER_URL: str = Field(
-        default=os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0"),
+        default=os.getenv("CELERY_BROKER_URL") or os.getenv("REDIS_URL", "redis://localhost:6379/0"),
         description="URL for the Celery message broker."
     )
     CELERY_RESULT_BACKEND: Optional[str] = Field(
-        default=os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/1"),
+        default=os.getenv("CELERY_RESULT_BACKEND") or os.getenv("REDIS_URL", "redis://localhost:6379/0"),
         description="URL for the Celery result backend (optional)."
     )
     CELERY_SHARED_DATA_PATH: str = Field(

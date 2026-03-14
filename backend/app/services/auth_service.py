@@ -58,9 +58,8 @@ class AuthService:
         """
         client_ip = request.client.host if request.client else "unknown"
 
-        from app.core.redis import get_redis
         from app.core.security import is_account_locked
-        redis_client = get_redis()
+        redis_client = self.redis_client
 
         # Read-only lockout check — does NOT increment failed attempts
         if is_account_locked(email.lower(), redis_client):
