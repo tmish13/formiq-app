@@ -51,7 +51,7 @@ export default function DashboardPage() {
         ...(user.fitness_level != null && { fitnessLevel: user.fitness_level }),
       });
     }
-  }, [user?.fitness_goal, user?.fitness_level]);
+  }, [user, user?.fitness_goal, user?.fitness_level]);
 
   // Re-fetch every time the user navigates to this page (location.key changes
   // on every navigation, even back to the same path — fixes stale state after

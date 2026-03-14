@@ -1,7 +1,7 @@
 import { useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
-import { setUser, setToken, setRefreshToken, setError, setLoading, logout as logoutAction, setTokens } from '../store/slices/authSlice';
+import { setUser, setError, setLoading, logout as logoutAction, setTokens } from '../store/slices/authSlice';
 import type { User } from '../types';
 import apiService from '../services/apiService';
 import { logError } from '../utils/logger';
@@ -172,7 +172,7 @@ export const useAuth = () => {
       dispatch(setLoading(true));
       dispatch(setError(null));
       
-      const response = await apiService.register({
+      await apiService.register({
         email,
         password,
         ...additionalData

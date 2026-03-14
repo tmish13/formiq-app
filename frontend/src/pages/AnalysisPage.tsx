@@ -9,7 +9,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import {
   CheckCircle,
   AlertTriangle,
-  XCircle,
   Target,
   TrendingUp,
   RotateCcw,
@@ -37,7 +36,7 @@ import AppLayout from '../components/layout/AppLayout';
 
 // Import our backend services
 import { formCheckService } from '../services/formCheckService';
-import { FormCheck, MLAnalysisResponse, SquatTrainingSet } from '../types/formCheck';
+import { FormCheck, MLAnalysisResponse } from '../types/formCheck';
 import { getCaptureQualitySummary } from '../utils/componentEligibility';
 import { logBetaEvent } from '../utils/logEvent';
 import {
@@ -190,17 +189,6 @@ const groupInsights = (
     }
   }
   return result;
-};
-
-// ---------------------------------------------------------------------------
-// Readable names for component score keys (used in summary + primary limiter)
-// ---------------------------------------------------------------------------
-
-const COMPONENT_READABLE: Record<string, string> = {
-  torso_stability: 'trunk stability',
-  knee_symmetry:   'knee alignment',
-  bottom_control:  'bottom position control',
-  forward_lean:    'forward torso control',
 };
 
 /** Maps named_score keys to human-readable limiter labels for summary copy. */
@@ -521,11 +509,11 @@ export default function AnalysisPage() {
   
   const [formCheck, setFormCheck] = useState<FormCheck | null>(null);
   const [mlAnalysis, setMlAnalysis] = useState<MLAnalysisResponse | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [, setLoading] = useState(false);
   const [showDetails, setShowDetails] = useState<number | null>(null);
   const [breakdown, setBreakdown] = useState<AnalysisBreakdown[]>([]);
   const [recommendations, setRecommendations] = useState<AIRecommendation[]>([]);
-  const [modelVersion, setModelVersion] = useState<string | null>(null);
+  const [, setModelVersion] = useState<string | null>(null);
   const [pollingTimedOut, setPollingTimedOut] = useState(false);
   const [breakdownUnavailable, setBreakdownUnavailable] = useState(false);
   const [showFirstAnalysisBanner, setShowFirstAnalysisBanner] = useState(false);
@@ -552,6 +540,7 @@ export default function AnalysisPage() {
       // No ID in URL — send user to the history list
       navigate('/analysis');
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   // Fire beta event when ML analysis lands with an uncertain decision
@@ -831,7 +820,7 @@ export default function AnalysisPage() {
       const s = Math.round(score);
       // Use specific insight copy when this feature appears in top_signals
       const hasFault = topSignalNames.includes(feedbackKey) ||
-        topSignalNames.includes('bottom_trunk_wobble') && key === 'bottom_control_score';
+        (topSignalNames.includes('bottom_trunk_wobble') && key === 'bottom_control_score');
       const feedback = hasFault
         ? (FEATURE_INSIGHT_FEEDBACK[feedbackKey] ?? genericGood)
         : (s < 60 ? (FEATURE_INSIGHT_FEEDBACK[feedbackKey] ?? genericGood) : genericGood);
@@ -1058,29 +1047,6 @@ export default function AnalysisPage() {
     return { headline: headlines[band] ?? '', bullets };
   };
 
-  /**
-   * Status icon for breakdown items.
-   * When 3+ components are poor, switch from alarming XCircle to softer
-   * AlertTriangle so the UI reads "corrective" not "alarming".
-   */
-  const getStatusIcon = (status: string, totalPoor: number = 0) => {
-    switch (status) {
-      case 'excellent':
-        return <CheckCircle className="w-5 h-5 text-green-500" />;
-      case 'good':
-        return <CheckCircle className="w-5 h-5 text-blue-500" />;
-      case 'warning':
-        return <AlertTriangle className="w-5 h-5 text-yellow-500" />;
-      case 'poor':
-        // Soften when many components are poor — avoid a wall of red X marks
-        return totalPoor >= 3
-          ? <AlertTriangle className="w-5 h-5 text-red-400" />
-          : <XCircle className="w-5 h-5 text-red-500" />;
-      default:
-        return <CheckCircle className="w-5 h-5 text-gray-400" />;
-    }
-  };
-
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'excellent':
@@ -1246,9 +1212,6 @@ export default function AnalysisPage() {
     mlAnalysis?.named_scores &&
     mlAnalysis.posture_v1?.decision !== 'uncertain'
   );
-
-  // Precompute for visual-softening logic (PART 7)
-  const poorCount = breakdown.filter(b => b.status === 'poor').length;
 
   return (
     <AppLayout>

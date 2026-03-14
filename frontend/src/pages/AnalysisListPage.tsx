@@ -9,7 +9,6 @@ import {
   Plus,
   Filter,
   Search,
-  LoaderIcon,
   Target,
   Dumbbell,
 } from 'lucide-react';
@@ -34,6 +33,7 @@ export default function AnalysisListPage() {
 
   useEffect(() => {
     loadFormChecks();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadFormChecks = async () => {
