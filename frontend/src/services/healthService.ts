@@ -1,4 +1,3 @@
-import { Platform } from '@capacitor/core';
 // TODO: Install @capacitor-community/health when available
 // import { Health } from '@capacitor-community/health';
 import { StorageService } from './storageService';
