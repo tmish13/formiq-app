@@ -45,7 +45,7 @@ class ExerciseRecommendationService {
   async getRecommendations(request: RecommendationRequest): Promise<RecommendationResponse> {
     try {
       this.isLoading = true;
-      const response = await apiService.post('/exercise-recommendations', request);
+      const response = await apiService.post<RecommendationResponse>('/exercise-recommendations', request);
       return response.data;
     } catch (error) {
       this.error = error instanceof Error ? error.message : 'Failed to get exercise recommendations';
@@ -58,7 +58,7 @@ class ExerciseRecommendationService {
   async getPersonalizedWorkoutPlan(request: RecommendationRequest): Promise<RecommendationResponse> {
     try {
       this.isLoading = true;
-      const response = await apiService.post('/workout-plan', request);
+      const response = await apiService.post<RecommendationResponse>('/workout-plan', request);
       return response.data;
     } catch (error) {
       this.error = error instanceof Error ? error.message : 'Failed to generate workout plan';
@@ -71,7 +71,7 @@ class ExerciseRecommendationService {
   async getExerciseAlternatives(exerciseId: string): Promise<Exercise[]> {
     try {
       this.isLoading = true;
-      const response = await apiService.get(`/exercise-alternatives/${exerciseId}`);
+      const response = await apiService.get<Exercise[]>(`/exercise-alternatives/${exerciseId}`);
       return response.data;
     } catch (error) {
       this.error = error instanceof Error ? error.message : 'Failed to get exercise alternatives';
@@ -96,7 +96,7 @@ class ExerciseRecommendationService {
   async getExerciseHistory(userId: string): Promise<RecommendationRequest['history']> {
     try {
       this.isLoading = true;
-      const response = await apiService.get(`/exercise-history/${userId}`);
+      const response = await apiService.get<RecommendationRequest['history']>(`/exercise-history/${userId}`);
       return response.data;
     } catch (error) {
       this.error = error instanceof Error ? error.message : 'Failed to get exercise history';
