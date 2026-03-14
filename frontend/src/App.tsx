@@ -124,9 +124,10 @@ const AppContent: React.FC = () => {
   );
 };
 
-export const App: React.FC = () => {
-  const googleClientId = process.env.REACT_APP_GOOGLE_CLIENT_ID;
+// Build-time constant — CRA inlines process.env at bundle time so this never changes at runtime.
+const googleClientId = process.env.REACT_APP_GOOGLE_CLIENT_ID;
 
+export const App: React.FC = () => {
   useEffect(() => {
     console.log('App mounted');
     if (!googleClientId) {
