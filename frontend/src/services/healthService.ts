@@ -2,13 +2,18 @@
 // import { Health } from '@capacitor-community/health';
 import { StorageService } from './storageService';
 
-// Mock Health interface for now
+// Stub Health interface — @capacitor-community/health not installed for beta
 const Health = {
   async getSteps(): Promise<number> { return 0; },
   async getCalories(): Promise<number> { return 0; },
   async getDistance(): Promise<number> { return 0; },
   async getHeartRate(): Promise<number[]> { return []; },
   async getWorkoutMinutes(): Promise<number> { return 0; },
+  async isAvailable(): Promise<boolean> { return false; },
+  async requestAuthorization(_opts: { read: string[]; write: string[] }): Promise<boolean> { return false; },
+  async queryAggregated(_opts: { startDate: Date; endDate: Date; dataType: string }): Promise<{ value: number }> { return { value: 0 }; },
+  async query(_opts: { startDate: Date; endDate: Date; dataType: string }): Promise<Array<{ value: number }>> { return []; },
+  async store(_opts: { dataType: string; startDate: Date; endDate: Date; value: number; sourceName: string; sourceBundleId: string; metadata: Record<string, string> }): Promise<void> { return; },
 };
 
 export interface HealthData {

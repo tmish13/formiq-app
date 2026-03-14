@@ -251,28 +251,22 @@ class OfflineQueueService extends EventEmitter {
     formData.append('file', file);
     formData.append('exerciseType', exerciseType);
     
-    // Upload the video
-    const response = await apiService.uploads.uploadVideo(formData, (progress: number) => {
-      this.emit('uploadProgress', { progress, exerciseType });
-    });
-    
-    return response.data;
+    // Upload the video via the standard post endpoint
+    await apiService.post('/videos/upload', formData);
   }
   
   /**
    * Processes a form analysis queue item.
    */
   private async processFormAnalysis(payload: any): Promise<void> {
-    const response = await apiService.formAnalysis.analyze(payload);
-    return response.data;
+    await apiService.post('/form-checks/analyze', payload);
   }
-  
+
   /**
    * Processes a save analysis queue item.
    */
   private async processSaveAnalysis(payload: any): Promise<void> {
-    const response = await apiService.formAnalysis.save(payload);
-    return response.data;
+    await apiService.post('/form-checks', payload);
   }
   
   /**

@@ -70,7 +70,8 @@ export class PerformanceService {
       // First Input Delay
       const fidObserver = new PerformanceObserver((entries) => {
         entries.getEntries().forEach((entry) => {
-          this.monitoring.trackMetric('first_input_delay', entry.processingStart - entry.startTime);
+          const eventEntry = entry as PerformanceEventTiming;
+          this.monitoring.trackMetric('first_input_delay', eventEntry.processingStart - entry.startTime);
         });
       });
       fidObserver.observe({ entryTypes: ['first-input'] });
@@ -130,7 +131,16 @@ export class PerformanceService {
       this.metricsBuffer.shift();
     }
 
-    this.monitoring.trackMetrics(metrics);
+    // Pass only the numeric scalar fields to trackMetrics (excludes memoryUsage / resourceTimings objects)
+    this.monitoring.trackMetrics({
+      timeToFirstByte: metrics.timeToFirstByte,
+      timeToFirstPaint: metrics.timeToFirstPaint,
+      timeToFirstContentfulPaint: metrics.timeToFirstContentfulPaint,
+      timeToInteractive: metrics.timeToInteractive,
+      largestContentfulPaint: metrics.largestContentfulPaint,
+      firstInputDelay: metrics.firstInputDelay,
+      cumulativeLayoutShift: metrics.cumulativeLayoutShift,
+    });
     this.analyzePerformance(metrics);
   }
 
@@ -153,12 +163,12 @@ export class PerformanceService {
     return new Promise((resolve) => {
       if ('requestIdleCallback' in window) {
         (window as any).requestIdleCallback(() => {
-          const navigationEntry = performance.getEntriesByType('navigation')[0];
+          const navigationEntry = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
           resolve(navigationEntry ? navigationEntry.domInteractive : 0);
         });
       } else {
         setTimeout(() => {
-          const navigationEntry = performance.getEntriesByType('navigation')[0];
+          const navigationEntry = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
           resolve(navigationEntry ? navigationEntry.domInteractive : 0);
         }, 0);
       }
@@ -171,7 +181,7 @@ export class PerformanceService {
   }
 
   private getFirstInputDelay(): number {
-    const fid = performance.getEntriesByType('first-input')[0];
+    const fid = performance.getEntriesByType('first-input')[0] as PerformanceEventTiming | undefined;
     return fid ? fid.processingStart - fid.startTime : 0;
   }
 
@@ -190,14 +200,17 @@ export class PerformanceService {
   }
 
   private getResourceTimings(): ResourceTiming[] {
-    return performance.getEntriesByType('resource').map(entry => ({
-      name: entry.name,
-      initiatorType: entry.initiatorType,
-      duration: entry.duration,
-      transferSize: (entry as PerformanceResourceTiming).transferSize,
-      encodedBodySize: (entry as PerformanceResourceTiming).encodedBodySize,
-      decodedBodySize: (entry as PerformanceResourceTiming).decodedBodySize
-    }));
+    return performance.getEntriesByType('resource').map(entry => {
+      const r = entry as PerformanceResourceTiming;
+      return {
+        name: r.name,
+        initiatorType: r.initiatorType,
+        duration: r.duration,
+        transferSize: r.transferSize,
+        encodedBodySize: r.encodedBodySize,
+        decodedBodySize: r.decodedBodySize
+      };
+    });
   }
 
   private trackResourceTiming(entry: PerformanceResourceTiming): void {
@@ -218,6 +231,7 @@ export class PerformanceService {
     if (metrics.timeToFirstContentfulPaint > 3000) {
       this.monitoring.sendAlert({
         type: 'performance_warning',
+        severity: 'warning' as const,
         message: 'High First Contentful Paint time detected',
         details: {
           metric: 'FCP',
@@ -230,6 +244,7 @@ export class PerformanceService {
     if (metrics.largestContentfulPaint > 4000) {
       this.monitoring.sendAlert({
         type: 'performance_warning',
+        severity: 'warning' as const,
         message: 'High Largest Contentful Paint time detected',
         details: {
           metric: 'LCP',
@@ -242,6 +257,7 @@ export class PerformanceService {
     if (metrics.cumulativeLayoutShift > 0.1) {
       this.monitoring.sendAlert({
         type: 'performance_warning',
+        severity: 'warning' as const,
         message: 'High Cumulative Layout Shift detected',
         details: {
           metric: 'CLS',
@@ -256,6 +272,7 @@ export class PerformanceService {
     if (memoryUsagePercent > 80) {
       this.monitoring.sendAlert({
         type: 'performance_warning',
+        severity: 'warning' as const,
         message: 'High memory usage detected',
         details: {
           metric: 'Memory',

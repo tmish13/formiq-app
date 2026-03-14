@@ -1,5 +1,5 @@
 import { storageService } from './storageService';
-import { networkRecoveryService } from './networkRecovery';
+import networkRecoveryService from './networkRecovery';
 import { FormAnalysisResult } from '../types/formAnalysis';
 
 interface SyncQueueItem {

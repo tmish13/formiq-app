@@ -64,17 +64,15 @@ export class MobileService {
       // Get safe area insets
       let safeAreaInsets: SafeAreaInsets = { top: 0, bottom: 0, left: 0, right: 0 };
       if (isNative) {
-        try {
-          const insets = await SafeArea.getSafeAreaInsets();
-          safeAreaInsets = {
-            top: insets.top,
-            bottom: insets.bottom,
-            left: insets.left || 0,
-            right: insets.right || 0
-          };
-        } catch (error) {
-          console.warn('SafeArea not available:', error);
-        }
+        // getSafeAreaInsets() was removed in @capacitor-community/safe-area v7.
+        // Fall back to CSS env() variable values for beta; native safe-area
+        // styling is handled via CSS custom properties set by the plugin.
+        safeAreaInsets = {
+          top: 0,
+          bottom: 0,
+          left: 0,
+          right: 0
+        };
       }
 
       // Detect device features
