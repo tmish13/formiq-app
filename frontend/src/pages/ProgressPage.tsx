@@ -11,7 +11,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { TrendingUp, TrendingDown, Minus, Target, Activity, Camera, Dumbbell, BarChart2, BookOpen, Info } from 'lucide-react';
+import { TrendingUp, Target, Activity, Camera, Dumbbell, BarChart2, BookOpen, Info } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { useNavigate } from 'react-router-dom';
@@ -222,7 +222,7 @@ export default function ProgressPage() {
   // selectedExercise is 'squat' for now; swap to state + selector when OHP/Row are ready
   const selectedExercise: SupportedExercise = 'squat';
 
-  const [loading, setLoading] = useState(false);
+  const [, setLoading] = useState(false);
   const [progressStats, setProgressStats] = useState<any>(null);
   const [currentStreak, setCurrentStreak] = useState(0);
   const [analytics, setAnalytics] = useState<AnalyticsResponse | null>(null);
@@ -472,7 +472,8 @@ export default function ProgressPage() {
 
   const strengthTrend = useMemo<StrengthTrend>(
     () => generateStrengthTrend(),
-    [workoutSessionsList],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [workoutSessionsList], // refresh when local sessions change even though fn reads localStorage directly
   );
 
   /** Total working sets ever logged — used in the Strength Score "Based on N sets" sub-label. */

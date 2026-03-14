@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Bell,
   Shield,
   HelpCircle,
   LogOut,
@@ -21,7 +20,6 @@ import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Switch } from '../components/ui/switch';
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
-import { Badge } from '../components/ui/badge';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../hooks/use-toast';
 import { useDispatch, useSelector } from 'react-redux';
@@ -31,7 +29,7 @@ import { progressService } from '../services/progressService';
 import { useAuth } from '../hooks/useAuth';
 import apiService from '../services/apiService';
 import AppLayout from '../components/layout/AppLayout';
-import { logEvent, logBetaEvent, getBetaStats } from '../utils/logEvent';
+import { logBetaEvent, getBetaStats } from '../utils/logEvent';
 import { getUserPrefs, setUserPrefs, type UserPrefs } from '../utils/userPrefs';
 
 interface UserStats {
@@ -51,7 +49,7 @@ export default function ProfilePage() {
   const { updateProfile, logout, changePassword } = useAuth();
 
   const [darkMode, setDarkMode] = useState(false);
-  const [notifications, setNotifications] = useState(true);
+  const [, setNotifications] = useState(true);
   const [autoRecord, setAutoRecord] = useState(false);
   const [userStats, setUserStats] = useState<UserStats>({
     totalAnalyses: 0,
@@ -59,7 +57,7 @@ export default function ProfilePage() {
     currentStreak: 0,
     joinDate: 'January 2024',
   });
-  const [loading, setLoading] = useState(false);
+  const [, setLoading] = useState(false);
 
   // Edit Profile modal state
   const [showEditModal, setShowEditModal] = useState(false);
@@ -86,7 +84,7 @@ export default function ProfilePage() {
   const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
 
   // Beta diagnostics panel state (hidden — tap version 5×)
-  const [versionTapCount, setVersionTapCount] = useState(0);
+  const [, setVersionTapCount] = useState(0);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
 
   useEffect(() => {
@@ -98,6 +96,7 @@ export default function ProfilePage() {
         if (val !== undefined) setNotifications(val);
       })
       .catch(() => {}); // keep localStorage default on failure
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -163,19 +162,6 @@ export default function ProfilePage() {
       document.documentElement.classList.remove('dark');
       localStorage.setItem('formiq-theme', 'light');
       toast({ title: 'Light Mode Enabled', description: 'Interface switched to light theme', duration: 2000 });
-    }
-  };
-
-  const handleNotificationsToggle = async () => {
-    const next = !notifications;
-    setNotifications(next);
-    localStorage.setItem('formiq-notifications', JSON.stringify(next));
-    try {
-      await apiService.updateUserSettings({ notifications: { workout_reminders: next } });
-    } catch {
-      setNotifications(!next);
-      localStorage.setItem('formiq-notifications', JSON.stringify(!next));
-      toast({ title: 'Could not update notification settings. Please try again.', duration: 3000 });
     }
   };
 

@@ -14,11 +14,8 @@ import {
   Timer,
   Video,
   Eye,
-  Info,
   X,
   Play,
-  User,
-  Zap,
   Upload,
   AlertTriangle,
 } from 'lucide-react';
@@ -99,10 +96,9 @@ export default function RecordPage() {
     stability: false,
   });
   const [currentSetupStep, setCurrentSetupStep] = useState(0);
-  const [showTooltip, setShowTooltip] = useState(false);
   const [cameraError, setCameraError] = useState(false);
   const [cameraErrorType, setCameraErrorType] = useState<CameraErrorType>(null);
-  const [positionGood, setPositionGood] = useState(true);
+  const [positionGood] = useState(true);
   const [tooShortError, setTooShortError] = useState(false);
   const [recordingPreviewUrl, setRecordingPreviewUrl] = useState<string | null>(null);
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
