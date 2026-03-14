@@ -1,26 +1,26 @@
-import apiServiceService from './apiServiceService';
+import apiService from './apiService';
 import { Workout, WorkoutPlan } from '../types';
 
 const API_PATH = '/apiService';
 
 export class WorkoutService {
   async getWorkouts(): Promise<Workout[]> {
-    const response = await apiServiceService.get(`${API_PATH}/workouts`);
+    const response = await apiService.get<Workout[]>(`${API_PATH}/workouts`);
     return response.data;
   }
 
   async getWorkout(id: string): Promise<Workout> {
-    const response = await apiServiceService.get(`${API_PATH}/workouts/${id}`);
+    const response = await apiService.get<Workout>(`${API_PATH}/workouts/${id}`);
     return response.data;
   }
 
   async createWorkout(workout: Omit<Workout, 'id' | 'userId' | 'createdAt' | 'updatedAt'>): Promise<Workout> {
-    const response = await apiServiceService.post(`${API_PATH}/workouts`, workout);
+    const response = await apiService.post<Workout>(`${API_PATH}/workouts`, workout);
     return response.data;
   }
 
   async updateWorkout(id: string, workout: Partial<Workout>): Promise<Workout> {
-    const response = await apiServiceService.put(`${API_PATH}/workouts/${id}`, workout);
+    const response = await apiService.put<Workout>(`${API_PATH}/workouts/${id}`, workout);
     return response.data;
   }
 
@@ -30,22 +30,22 @@ export class WorkoutService {
 
   // Workout Plans
   async getWorkoutPlans(): Promise<WorkoutPlan[]> {
-    const response = await apiService.get(`${API_PATH}/workout-plans`);
+    const response = await apiService.get<WorkoutPlan[]>(`${API_PATH}/workout-plans`);
     return response.data;
   }
 
   async getWorkoutPlan(id: string): Promise<WorkoutPlan> {
-    const response = await apiService.get(`${API_PATH}/workout-plans/${id}`);
+    const response = await apiService.get<WorkoutPlan>(`${API_PATH}/workout-plans/${id}`);
     return response.data;
   }
 
   async createWorkoutPlan(plan: Omit<WorkoutPlan, 'id' | 'userId' | 'createdAt' | 'updatedAt'>): Promise<WorkoutPlan> {
-    const response = await apiService.post(`${API_PATH}/workout-plans`, plan);
+    const response = await apiService.post<WorkoutPlan>(`${API_PATH}/workout-plans`, plan);
     return response.data;
   }
 
   async updateWorkoutPlan(id: string, plan: Partial<WorkoutPlan>): Promise<WorkoutPlan> {
-    const response = await apiService.put(`${API_PATH}/workout-plans/${id}`, plan);
+    const response = await apiService.put<WorkoutPlan>(`${API_PATH}/workout-plans/${id}`, plan);
     return response.data;
   }
 
@@ -55,14 +55,14 @@ export class WorkoutService {
 
   // Additional endpoints
   async getUpcomingWorkouts(days: number = 7): Promise<Workout[]> {
-    const response = await apiService.get(`${API_PATH}/workouts/upcoming`, {
+    const response = await apiService.get<Workout[]>(`${API_PATH}/workouts/upcoming`, {
       params: { days }
     });
     return response.data;
   }
 
   async getActiveWorkoutPlans(): Promise<WorkoutPlan[]> {
-    const response = await apiService.get(`${API_PATH}/workout-plans/active`);
+    const response = await apiService.get<WorkoutPlan[]>(`${API_PATH}/workout-plans/active`);
     return response.data;
   }
 }
