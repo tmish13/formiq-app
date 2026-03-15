@@ -24,6 +24,7 @@ import { progressService, AnalyticsResponse } from '../services/progressService'
 import { logEvent } from '../utils/logEvent';
 import { useAuth } from '../hooks/useAuth';
 import { listSessions, listSetLogsForSession } from '../features/training/storage';
+import type { Goal } from '../features/training/types';
 import { EXERCISES } from '../features/training/catalog';
 import { loadSquatSessions, saveSquatSessions, getBiggestOpportunityFromSessions } from '../utils/squatSessions';
 import { squatSessionService } from '../services/squatSessionService';
@@ -42,6 +43,12 @@ import { TechniqueSkillCard } from '../components/molecules/TechniqueSkillCard';
 // TODO(OHP): when Overhead Press is supported, add 'ohp' here and expose the selector
 // TODO(Row): when Barbell Row is supported, add 'barbell_row' here
 type SupportedExercise = 'squat';
+
+/** Coerce a backend-returned goal string into the Goal union; defaults to "general". */
+const VALID_GOALS = new Set<Goal>(["strength", "hypertrophy", "general"]);
+function toGoal(s: string): Goal {
+  return VALID_GOALS.has(s as Goal) ? (s as Goal) : "general";
+}
 
 interface StatCardProps {
   icon: React.ReactNode;
@@ -410,7 +417,7 @@ export default function ProgressPage() {
           records.map((r) => ({
             id: r.id,
             startedAt: r.started_at,
-            goal: r.goal,
+            goal: toGoal(r.goal),
             sets: r.sets_json,
           }))
         );
@@ -431,7 +438,7 @@ export default function ProgressPage() {
             records.map((r) => ({
               id: r.id,
               startedAt: r.started_at,
-              goal: r.goal,
+              goal: toGoal(r.goal),
               sets: r.sets_json,
             }))
           );

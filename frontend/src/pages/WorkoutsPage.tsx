@@ -95,6 +95,12 @@ const GOAL_LABELS: Record<string, string> = Object.fromEntries(
   GOAL_OPTIONS.map(o => [o.value, o.label])
 );
 
+/** Coerce a backend-returned goal string into the Goal union; defaults to "general". */
+const VALID_GOALS = new Set<Goal>(["strength", "hypertrophy", "general"]);
+function toGoal(s: string): Goal {
+  return VALID_GOALS.has(s as Goal) ? (s as Goal) : "general";
+}
+
 const SET_TYPE_OPTIONS: { value: SetType; label: string }[] = [
   { value: "warmup",  label: "Warm-up" },
   { value: "working", label: "Working" },
@@ -811,7 +817,7 @@ function HistoryTab() {
       if (records.length > 0) {
         setSessions(
           records.map((r) => ({
-            session: { id: r.id, startedAt: r.started_at, goal: r.goal },
+            session: { id: r.id, startedAt: r.started_at, goal: toGoal(r.goal) },
             sets: r.sets_json,
           }))
         );
