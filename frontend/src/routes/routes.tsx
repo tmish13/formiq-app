@@ -1,4 +1,12 @@
 import React, { lazy, Suspense } from 'react';
+import { RouteObject, Navigate } from 'react-router-dom';
+import { ProtectedRoute } from '../components/auth/ProtectedRoute';
+import { PageLoader } from '../components/common/PageLoader';
+import { ResetPasswordForm } from '../components/auth/ResetPasswordForm';
+import { ConfirmPasswordResetForm } from '../components/auth/ConfirmPasswordResetForm';
+import { RequestEmailVerificationForm } from '../components/auth/RequestEmailVerificationForm';
+import { ConfirmEmailVerification } from '../components/auth/ConfirmEmailVerification';
+import AuthenticatedRoot from '../components/auth/AuthenticatedRoot';
 
 // Chunk load recovery: if a lazy chunk 404s (stale SW or CDN eviction), reload once.
 // sessionStorage flag prevents an infinite reload loop if the chunk is genuinely missing.
@@ -13,14 +21,6 @@ function lazyWithRetry(factory: () => Promise<{ default: any }>) {
     })
   );
 }
-import { RouteObject, Navigate } from 'react-router-dom';
-import { ProtectedRoute } from '../components/auth/ProtectedRoute';
-import { PageLoader } from '../components/common/PageLoader';
-import { ResetPasswordForm } from '../components/auth/ResetPasswordForm';
-import { ConfirmPasswordResetForm } from '../components/auth/ConfirmPasswordResetForm';
-import { RequestEmailVerificationForm } from '../components/auth/RequestEmailVerificationForm';
-import { ConfirmEmailVerification } from '../components/auth/ConfirmEmailVerification';
-import AuthenticatedRoot from '../components/auth/AuthenticatedRoot';
 
 // Route constants
 export const ROUTES = {
