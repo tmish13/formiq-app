@@ -39,7 +39,23 @@ export const useAuth = () => {
               const now = Date.now() / 1000;
               
               if (tokenPayload.exp && tokenPayload.exp < now) {
-                // Token is expired, clear it
+                // Access token expired — try refresh token before giving up
+                if (savedRefreshToken) {
+                  try {
+                    const refreshResult = await apiService.refreshToken(savedRefreshToken);
+                    const newAccessToken = refreshResult.access_token;
+                    const newRefreshToken = refreshResult.refresh_token || savedRefreshToken;
+                    localStorage.setItem('formiq_auth_token', newAccessToken);
+                    if (refreshResult.refresh_token) {
+                      localStorage.setItem('formiq_refresh_token', refreshResult.refresh_token);
+                    }
+                    dispatch(setTokens({ token: newAccessToken, refreshToken: newRefreshToken }));
+                    dispatch(setLoading(false));
+                    return;
+                  } catch {
+                    // Refresh failed — fall through to clear both tokens
+                  }
+                }
                 console.log('Token expired, clearing auth');
                 localStorage.removeItem('formiq_auth_token');
                 localStorage.removeItem('formiq_refresh_token');

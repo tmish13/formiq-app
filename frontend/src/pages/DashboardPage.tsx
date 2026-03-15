@@ -59,9 +59,11 @@ export default function DashboardPage() {
   // Re-fetch every time the user navigates to this page (location.key changes
   // on every navigation, even back to the same path — fixes stale state after
   // completing a workout and pressing Done).
+  // isAuthenticated in deps ensures we reload after auth hydration completes on
+  // page refresh, and that we never fire unauthenticated requests.
   useEffect(() => {
-    loadDashboardData();
-  }, [location.key]);
+    if (isAuthenticated) loadDashboardData();
+  }, [location.key, isAuthenticated]);
 
 const loadDashboardData = async () => {
     try {
@@ -91,9 +93,14 @@ const loadDashboardData = async () => {
           setLastSession({ score: Math.round(effectiveScore), date: fc.created_at, weightLb });
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.warn('Failed to load dashboard data', error);
-      setStatsError(true);
+      // Don't surface an error banner for 401s — the token interceptor either
+      // retries successfully (no exception reaches here) or triggers a redirect.
+      const httpStatus = error?.status ?? error?.response?.status;
+      if (httpStatus !== 401) setStatsError(true);
+      // Ensure hasTrainingSessions resolves so we don't show "Loading…" forever.
+      setHasTrainingSessions((prev) => prev ?? false);
     }
   };
 
