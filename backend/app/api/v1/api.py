@@ -17,6 +17,7 @@ from app.api.v1.endpoints import (
     metrics_analysis,
     circuit_breakers,
     squat_sessions,
+    training_sessions,
 )
 from .endpoints import admin, debug
 from .endpoints.debug import beta_router
@@ -43,5 +44,6 @@ api_router.include_router(circuit_breakers.router, prefix="/circuit-breakers", t
 api_router.include_router(debug.router, prefix="/debug", tags=["debug"])
 api_router.include_router(beta_router, tags=["beta"])
 api_router.include_router(squat_sessions.router, prefix="/squat-sessions", tags=["squat-sessions"])
+api_router.include_router(training_sessions.router, prefix="/training-sessions", tags=["training-sessions"])
 
 __all__ = ["api_router"]

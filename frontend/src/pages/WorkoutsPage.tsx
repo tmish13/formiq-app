@@ -57,6 +57,7 @@ import { generateWorkoutInsights } from "../utils/workoutInsights";
 import { loadSquatSessions } from "../utils/squatSessions";
 import { getNextSessionRecommendation } from "../utils/trainingRecommendations";
 import { makeId } from "../features/training/id";
+import { trainingSessionService } from "../services/trainingSessionService";
 import type {
   Exercise,
   EquipmentProfile,
@@ -1113,7 +1114,11 @@ export default function WorkoutsPage() {
   }
 
   function handleEndWorkout() {
-    if (session) setSummary(buildSummary(session));
+    if (!session) return;
+    setSummary(buildSummary(session));
+    // Persist to backend — fire-and-forget, never blocks the summary screen.
+    // localStorage remains intact as the immediate source of truth.
+    trainingSessionService.sync(session, listSetLogsForSession(session.id));
   }
 
   function handleDismissSummary() {
