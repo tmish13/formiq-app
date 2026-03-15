@@ -165,14 +165,12 @@ export default function ModernAuthPage() {
       } else if (authMode === "signup") {
         console.log("🔄 Creating account for:", formData.email);
         // Derive username from name fields; fall back to email prefix if blank
-        const rawUsername = `${formData.firstName}${formData.lastName}`.toLowerCase().trim();
+        const rawUsername = `${formData.firstName}${formData.lastName}`.toLowerCase().replace(/[^a-z0-9_-]/g, '').trim();
         const usernameFromEmail = formData.email.split('@')[0].replace(/[^a-z0-9_]/g, '_');
         const registrationData = {
           confirm_password: formData.confirmPassword,
           full_name: `${formData.firstName} ${formData.lastName}`.trim() || formData.email.split('@')[0],
           username: rawUsername.length >= 3 ? rawUsername : usernameFromEmail,
-          first_name: formData.firstName,
-          last_name: formData.lastName
         };
         console.log("📝 Registration data:", registrationData);
 
