@@ -526,17 +526,15 @@ export default function ProgressPage() {
       // Prefer backend-sourced values from Redux user; fall back to local prefs
       const bwKg = user?.weight_kg ?? prefs.weightKg;
       const age = user?.age ?? prefs.age;
-      return calculateStrengthScore(bwKg, age);
+      // Pass backend-hydrated sessions so score survives logout/login
+      return calculateStrengthScore(bwKg, age, loadedSessions);
     },
-    // workoutSessionsList ensures the card refreshes immediately after logging
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [user, workoutSessionsList],
+    [user, loadedSessions],
   );
 
   const strengthTrend = useMemo<StrengthTrend>(
-    () => generateStrengthTrend(),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [workoutSessionsList], // refresh when local sessions change even though fn reads localStorage directly
+    () => generateStrengthTrend(loadedSessions),
+    [loadedSessions],
   );
 
   /** Total working sets ever logged — used in the Strength Score "Based on N sets" sub-label. */
@@ -701,7 +699,7 @@ export default function ProgressPage() {
       })
       .filter((s): s is NonNullable<typeof s> => s !== null);
 
-    return { totalSessions: sessions.length, sessionsThisWeek, recentSessions };
+    return { totalSessions: recentSessions.length, sessionsThisWeek, recentSessions };
   }, [loadedSessions]);
 
   const hasData = progressStats && progressStats.totalAnalyses > 0;

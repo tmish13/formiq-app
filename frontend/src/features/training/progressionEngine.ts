@@ -144,9 +144,10 @@ function computeExerciseStatus(
   if (setsCompleted >= setsRecommended) return "finish";
 
   if (goal === "strength") {
-    // Strength: prioritise intensity. 2+ heavy sets at RIR ≤ 2 is typically sufficient.
-    if (setsCompleted >= 2 && lastRir <= 2) return "finish";
-    if (setsCompleted >= 2) return "optional"; // can do a 3rd if feeling good
+    // Strength: honour the full set target (setsRecommended=3).
+    // Only surface "optional" early when near-maximal effort (RIR ≤ 1) after at least 2 sets,
+    // so the lifter knows they can wrap up if needed — but finish is NOT forced before target.
+    if (setsCompleted >= 2 && lastRir <= 1) return "optional";
   }
 
   if (goal === "hypertrophy") {

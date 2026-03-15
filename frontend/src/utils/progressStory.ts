@@ -10,6 +10,7 @@
  */
 
 import { listSessions, listSetLogsForSession } from "../features/training/storage";
+import type { PreloadedSession } from "./strengthScore";
 import { EXERCISES } from "../features/training/catalog";
 import {
   getExerciseSessionHistory,
@@ -165,8 +166,11 @@ function buildNarrative(exercises: ExerciseTrend[]): string {
  * With 2–3 sessions: compares last vs first session (no block average).
  * With 1 session: omitted (no trend possible).
  */
-export function generateStrengthTrend(): StrengthTrend {
-  const sessions = listSessions(50);
+export function generateStrengthTrend(preloadedData?: PreloadedSession[]): StrengthTrend {
+  // Prefer preloaded backend data; fall back to localStorage.
+  const sessions: Array<{ id: string; startedAt: string; sets: ReturnType<typeof listSetLogsForSession> }> =
+    preloadedData
+      ?? listSessions(50).map((s) => ({ id: s.id, startedAt: s.startedAt, sets: listSetLogsForSession(s.id) }));
 
   if (sessions.length === 0) {
     return { exercises: [], narrative: "", isEmpty: true };
@@ -183,7 +187,7 @@ export function generateStrengthTrend(): StrengthTrend {
   }>> = {};
 
   for (const sess of sessions) {
-    const sets = listSetLogsForSession(sess.id);
+    const sets = sess.sets;
     const candidateExIds = Array.from(new Set(
       sets
         .filter((s) => s.setType === "working" && s.weightLb > 0 && s.reps > 0)

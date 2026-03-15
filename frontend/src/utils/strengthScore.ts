@@ -19,6 +19,14 @@
 import { listSessions, listSetLogsForSession } from "../features/training/storage";
 import { EXERCISES } from "../features/training/catalog";
 import { sessionExerciseE1RM } from "./e1rm";
+import type { SetLog } from "../features/training/types";
+
+/** Preloaded session shape — matches loadedSessions in ProgressPage. */
+export interface PreloadedSession {
+  id: string;
+  startedAt: string;
+  sets: SetLog[];
+}
 
 /**
  * Bodyweight-ratio → population percentile anchors.
@@ -137,9 +145,15 @@ export interface StrengthScore {
   hasRankableExercises: boolean;
 }
 
-export function calculateStrengthScore(bodyWeightKg?: number, age?: number): StrengthScore {
+export function calculateStrengthScore(
+  bodyWeightKg?: number,
+  age?: number,
+  preloadedData?: PreloadedSession[],
+): StrengthScore {
+  // Prefer preloaded backend data; fall back to localStorage when not provided.
   // listSessions returns newest-first — guaranteed by storage.ts
-  const sessions = listSessions(100);
+  const sessions: Array<{ id: string; sets: SetLog[] }> = preloadedData
+    ?? listSessions(100).map((s) => ({ id: s.id, sets: listSetLogsForSession(s.id) }));
   if (!sessions.length) {
     return { overall: null, exercises: [], isEmpty: true, hasBodyweight: !!bodyWeightKg, hasRankableExercises: false };
   }
@@ -149,7 +163,7 @@ export function calculateStrengthScore(bodyWeightKg?: number, age?: number): Str
   const e1RMHistory: Record<string, number[]> = {};
 
   for (const sess of sessions) {
-    const sets = listSetLogsForSession(sess.id);
+    const sets = sess.sets;
     const exIds = Array.from(new Set(
       sets
         .filter((s) => s.setType === "working" && s.weightLb > 0 && s.reps > 0)
@@ -182,7 +196,18 @@ export function calculateStrengthScore(bodyWeightKg?: number, age?: number): Str
 
     const ex = EXERCISES.find((e) => e.id === exId);
     const pattern = ex?.movementPattern ?? "";
-    const isMachineBased = (ex?.name ?? "").toLowerCase().includes("smith");
+
+    // Exclude exercises where comparison against population strength standards is invalid:
+    //   1. Machine-only load types: all allowedEquipment are pure machine (no barbell/dumbbell/cable).
+    //      cable_stack is NOT excluded — compound cable movements (e.g. cable row) are comparable.
+    //   2. Isolation movement patterns that have no meaningful population strength standard.
+    const PURE_MACHINE_EQUIPMENT = new Set(["machine_selectorized", "machine_plate_loaded", "smith"]);
+    const ISOLATION_PATTERNS = new Set(["knee_extension", "knee_flexion"]);
+    const isMachineBased =
+      ISOLATION_PATTERNS.has(pattern) ||
+      (ex?.allowedEquipment != null &&
+        ex.allowedEquipment.length > 0 &&
+        ex.allowedEquipment.every((eq) => PURE_MACHINE_EQUIPMENT.has(eq)));
 
     let score: number | null = null;
     if (bwLb && !isMachineBased) {
