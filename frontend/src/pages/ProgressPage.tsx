@@ -390,11 +390,6 @@ export default function ProgressPage() {
     return parts.length > 0 ? parts.join(' ') : null;
   };
 
-  // Workout sessions state — loaded from localStorage on mount and on tab focus so
-  // stats don't go stale after the user logs a session in WorkoutsPage and returns.
-  // Keep for strengthScore and strengthTrend which read localStorage directly.
-  const [workoutSessionsList, setWorkoutSessionsList] = useState(() => listSessions());
-
   // Backend-aware session list with inline sets. Initialized from localStorage
   // synchronously (no blank flash); upgraded to backend data after fetch.
   const [loadedSessions, setLoadedSessions] = useState(() =>
