@@ -58,6 +58,7 @@ import { loadSquatSessions } from "../utils/squatSessions";
 import { getNextSessionRecommendation } from "../utils/trainingRecommendations";
 import { makeId } from "../features/training/id";
 import { trainingSessionService } from "../services/trainingSessionService";
+import { useAppSelector } from "../store/hooks";
 import type {
   Exercise,
   EquipmentProfile,
@@ -793,21 +794,47 @@ function WorkoutSummaryScreen({
 
 function HistoryTab() {
   const [visibleCount, setVisibleCount] = React.useState(20);
-  const totalSessions = listSessions().length;
-  const sessionsWithSets = listSessions(visibleCount)
-    .map((s) => ({ session: s, sets: listSetLogsForSession(s.id) }))
-    .filter(({ sets }) => sets.length > 0);
+  const isAuthenticated = useAppSelector((state) => state.auth.isAuthenticated);
+  // Initialized from localStorage synchronously; upgraded to backend data after fetch.
+  const [sessions, setSessions] = React.useState(() =>
+    listSessions().map((s) => ({
+      session: { id: s.id, startedAt: s.startedAt, goal: s.goal },
+      sets: listSetLogsForSession(s.id),
+    }))
+  );
+
+  // Re-runs when isAuthenticated transitions to true (e.g. after logout → login).
+  // Using [] alone caused the fetch to silently fail with no retry on re-login.
+  React.useEffect(() => {
+    if (!isAuthenticated) return;
+    trainingSessionService.list().then((records) => {
+      if (records.length > 0) {
+        setSessions(
+          records.map((r) => ({
+            session: { id: r.id, startedAt: r.started_at, goal: r.goal },
+            sets: r.sets_json,
+          }))
+        );
+      }
+      // else: backend empty — keep localStorage data already in state
+    }).catch(() => {
+      // Network error — localStorage fallback already loaded in state
+    });
+  }, [isAuthenticated]);
+
+  const sessionsWithSets = sessions.filter(({ sets }) => sets.length > 0);
+  const pagedSessions = sessionsWithSets.slice(0, visibleCount);
+  const hasMore = sessionsWithSets.length > visibleCount;
   const allProfiles = listEquipmentProfiles();
-  const hasMore = totalSessions > visibleCount;
 
   return (
     <div className="space-y-4">
-      {sessionsWithSets.length === 0 && (
+      {pagedSessions.length === 0 && (
         <p className="text-sm text-muted-foreground text-center py-8">
           No past workouts yet.
         </p>
       )}
-      {sessionsWithSets.map(({ session: s, sets }) => {
+      {pagedSessions.map(({ session: s, sets }) => {
         const date = new Date(s.startedAt).toLocaleDateString(undefined, {
           month: "short",
           day: "numeric",

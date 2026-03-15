@@ -27,6 +27,7 @@ import { listSessions, listSetLogsForSession } from '../features/training/storag
 import { EXERCISES } from '../features/training/catalog';
 import { loadSquatSessions, saveSquatSessions, getBiggestOpportunityFromSessions } from '../utils/squatSessions';
 import { squatSessionService } from '../services/squatSessionService';
+import { trainingSessionService } from '../services/trainingSessionService';
 import { SquatTrainingSession } from '../types/formCheck';
 import { getUserPrefs } from '../utils/userPrefs';
 import { calculateStrengthScore, patternWeight } from '../utils/strengthScore';
@@ -217,7 +218,7 @@ function getSessionInterpretation(
 
 export default function ProgressPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
 
   // selectedExercise is 'squat' for now; swap to state + selector when OHP/Row are ready
   const selectedExercise: SupportedExercise = 'squat';
@@ -384,12 +385,67 @@ export default function ProgressPage() {
 
   // Workout sessions state — loaded from localStorage on mount and on tab focus so
   // stats don't go stale after the user logs a session in WorkoutsPage and returns.
+  // Keep for strengthScore and strengthTrend which read localStorage directly.
   const [workoutSessionsList, setWorkoutSessionsList] = useState(() => listSessions());
+
+  // Backend-aware session list with inline sets. Initialized from localStorage
+  // synchronously (no blank flash); upgraded to backend data after fetch.
+  const [loadedSessions, setLoadedSessions] = useState(() =>
+    listSessions().map((s) => ({
+      id: s.id,
+      startedAt: s.startedAt,
+      goal: s.goal,
+      sets: listSetLogsForSession(s.id),
+    }))
+  );
+
+  // Hydrate loadedSessions from backend.
+  // Re-runs when isAuthenticated transitions to true (e.g. after logout → login).
+  // Using [] alone caused the fetch to silently fail with no retry on re-login.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    trainingSessionService.list().then((records) => {
+      if (records.length > 0) {
+        setLoadedSessions(
+          records.map((r) => ({
+            id: r.id,
+            startedAt: r.started_at,
+            goal: r.goal,
+            sets: r.sets_json,
+          }))
+        );
+      }
+      // else: backend empty — keep localStorage fallback already in state
+    }).catch(() => {});
+  }, [isAuthenticated]);
+
   useEffect(() => {
     const refresh = () => {
       // Refresh localStorage-backed data immediately (synchronous)
       setWorkoutSessionsList(listSessions());
       setSquatSessions(loadSquatSessions());
+      // Refresh backend training sessions
+      trainingSessionService.list().then((records) => {
+        if (records.length > 0) {
+          setLoadedSessions(
+            records.map((r) => ({
+              id: r.id,
+              startedAt: r.started_at,
+              goal: r.goal,
+              sets: r.sets_json,
+            }))
+          );
+        } else {
+          setLoadedSessions(
+            listSessions().map((s) => ({
+              id: s.id,
+              startedAt: s.startedAt,
+              goal: s.goal,
+              sets: listSetLogsForSession(s.id),
+            }))
+          );
+        }
+      }).catch(() => {});
       // Silently refresh backend analytics so backend stats don't stay stale
       progressService.getProgressStats()
         .then(stats => { setProgressStats(stats); setCurrentStreak(stats.currentStreak ?? 0); })
@@ -478,11 +534,10 @@ export default function ProgressPage() {
 
   /** Total working sets ever logged — used in the Strength Score "Based on N sets" sub-label. */
   const totalWorkingSets = useMemo(() =>
-    workoutSessionsList.reduce((total, sess) => {
-      const sets = listSetLogsForSession(sess.id);
-      return total + sets.filter(s => s.setType === "working" && s.weightLb > 0 && s.reps > 0).length;
+    loadedSessions.reduce((total, sess) => {
+      return total + sess.sets.filter(s => s.setType === "working" && s.weightLb > 0 && s.reps > 0).length;
     }, 0),
-    [workoutSessionsList],
+    [loadedSessions],
   );
 
   const latestNamedScores = useMemo(() => {
@@ -491,7 +546,7 @@ export default function ProgressPage() {
   }, [analytics]);
 
   const workoutStats = useMemo(() => {
-    const sessions = workoutSessionsList; // newest first — guaranteed by storage.ts
+    const sessions = loadedSessions; // backend sessions when available, localStorage fallback
     if (!sessions.length) return null;
     const now = Date.now();
     const weekMs = 7 * 24 * 60 * 60 * 1000;
@@ -510,7 +565,7 @@ export default function ProgressPage() {
     };
 
     const allData: SessData[] = sessions.map((sess) => {
-      const sets = listSetLogsForSession(sess.id);
+      const sets = sess.sets;
       const working = sets.filter(
         (s) => s.setType === "working" && s.weightLb > 0 && s.reps > 0,
       );
@@ -640,7 +695,7 @@ export default function ProgressPage() {
       .filter((s): s is NonNullable<typeof s> => s !== null);
 
     return { totalSessions: sessions.length, sessionsThisWeek, recentSessions };
-  }, [workoutSessionsList]);
+  }, [loadedSessions]);
 
   const hasData = progressStats && progressStats.totalAnalyses > 0;
   // True only when there are genuinely no squat records in either source.
