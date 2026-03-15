@@ -83,9 +83,6 @@ class S3StorageProvider(StorageProvider):
             if metadata:
                 upload_args['Metadata'] = metadata
             
-            if public:
-                upload_args['ACL'] = 'public-read'
-            
             # Upload file using context manager; for private files also generate a presigned URL
             async with await self.get_client() as s3_client:
                 await s3_client.put_object(**upload_args)

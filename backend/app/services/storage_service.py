@@ -98,9 +98,9 @@ class StorageService:
                     file_key,
                     content_type=content_type,
                     metadata=metadata,
-                    public=True
+                    public=False
                 )
-            
+
             def fallback_error():
                 error_msg = f"Storage service temporarily unavailable for file: {file.filename}"
                 logger.error(error_msg)
@@ -110,7 +110,7 @@ class StorageService:
                     is_temporary=True,
                     retry_after=90
                 )
-            
+
             try:
                 url = await self.storage_breaker.call(
                     storage_upload,
@@ -186,7 +186,7 @@ class StorageService:
                     file_key,
                     content_type=content_type,
                     metadata=metadata,
-                    public=True
+                    public=False
                 )
 
             def fallback_error():

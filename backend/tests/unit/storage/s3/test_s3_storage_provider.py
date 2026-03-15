@@ -74,10 +74,7 @@ async def test_upload_file(s3_storage_provider, s3_client_mock):
     assert s3_client_mock.put_object.call_args[1]["Bucket"] == "test-bucket"
     assert s3_client_mock.put_object.call_args[1]["Key"] == object_name
     assert s3_client_mock.put_object.call_args[1]["ContentType"] == content_type
-    assert s3_client_mock.put_object.call_args[1]["ACL"] == "public-read"
-    
-    # Verify the returned URL is correct
-    assert "https://test-bucket.s3.us-east-1.amazonaws.com/test/testfile.txt" == result
+    assert "ACL" not in s3_client_mock.put_object.call_args[1]  # bucket has ACLs disabled
 
 @pytest.mark.asyncio
 async def test_upload_file_private(s3_storage_provider, s3_client_mock):
