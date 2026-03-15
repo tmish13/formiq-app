@@ -102,7 +102,8 @@ async def get_auth_service(
 
 async def get_video_service(db: AsyncSession = Depends(get_async_db), app_settings: Settings = Depends(get_settings)) -> VideoService:
     """Dependency for getting the video service."""
-    storage_service = StorageService()
+    import app.core.storage as _storage_module  # late-bound: sees S3 provider after init_storage()
+    storage_service = StorageService(provider=_storage_module.storage_provider)
     return VideoService(db=db, storage_service=storage_service, app_settings=app_settings)
 
 async def get_async_storage_service(): # Placeholder if get_storage_service is not async already
@@ -128,15 +129,30 @@ async def get_cache_service() -> Optional[CacheService]:
     logger.info("get_cache_service called, returning None (stubbed). Caching will be disabled for FormCheckService.")
     return None # Return None if cache is not configured/available
 
-async def get_ai_service() -> AIService:
-    """Dependency for getting the AI service."""
-    return AIService()
+# ---------------------------------------------------------------------------
+# AIService singleton — MediaPipe/TFLite loads once on first ML request,
+# NOT on every read-only API call (history, dashboard, analytics).
+# Per-request AIService() was the primary cause of Render memory-limit restarts.
+# ---------------------------------------------------------------------------
+_ai_service_instance: Optional[AIService] = None
+
+def get_ai_service() -> AIService:
+    """Return the AIService singleton. MediaPipe initializes on first call only."""
+    global _ai_service_instance
+    if _ai_service_instance is None:
+        logger.info("[AIService] Singleton: first-use initialization (MediaPipe + TFLite loading)...")
+        _ai_service_instance = AIService()
+        logger.info("[AIService] Singleton ready.")
+    return _ai_service_instance
 
 async def get_storage_service() -> StorageService:
-    """Dependency for getting the Storage service."""
-    # StorageService uses a global provider if None is passed, or takes a StorageProvider
-    # Assuming global storage_provider is configured.
-    return StorageService()
+    """Return StorageService backed by the live global storage provider (S3 in production).
+
+    Uses a late-bound module import so it sees the S3StorageProvider set by
+    init_storage() at startup, not the LocalStorageProvider frozen at import time.
+    """
+    import app.core.storage as _storage_module  # late-bound: sees S3 after init_storage()
+    return StorageService(provider=_storage_module.storage_provider)
 
 async def get_async_form_check_service(
     db: AsyncSession = Depends(get_async_db),
