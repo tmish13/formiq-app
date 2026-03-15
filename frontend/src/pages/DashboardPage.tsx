@@ -161,7 +161,9 @@ const loadDashboardData = async () => {
                     ? 'Log your first session to start tracking progress'
                     : hasTrainingSessions === null
                       ? 'Loading your training history\u2026'
-                      : `${totalSessions} session${totalSessions !== 1 ? 's' : ''} logged · form analysis available below`}
+                      : totalSessions === 0
+                        ? 'No form analyses yet \u2014 record a rep to get started'
+                        : `${totalSessions} form ${totalSessions === 1 ? 'analysis' : 'analyses'} logged \u00b7 view below`}
                 </p>
               </div>
               {currentStreak > 0 && (

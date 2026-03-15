@@ -530,6 +530,12 @@ export default function ProgressPage() {
     [loadedSessions],
   );
 
+  /** True when neither the backend user nor local prefs have body weight set. */
+  const missingBodyweight = useMemo(() => {
+    const prefs = getUserPrefs();
+    return !user?.weight_kg && !prefs.weightKg;
+  }, [user]);
+
   /** Total working sets ever logged — used in the Strength Score "Based on N sets" sub-label. */
   const totalWorkingSets = useMemo(() =>
     loadedSessions.reduce((total, sess) => {
@@ -827,6 +833,23 @@ export default function ProgressPage() {
                     <p className="text-2xl font-bold">{workoutStats.sessionsThisWeek}</p>
                   </div>
                 </div>
+
+                {/* Profile completeness tip — only when body weight is missing */}
+                {missingBodyweight && (
+                  <div className="flex items-start gap-2 rounded-lg bg-muted/50 px-3 py-2.5 text-xs text-muted-foreground">
+                    <Info className="w-3.5 h-3.5 mt-0.5 shrink-0 text-muted-foreground/70" />
+                    <span>
+                      Add your height and bodyweight in{' '}
+                      <button
+                        className="underline underline-offset-2 hover:text-foreground transition-colors"
+                        onClick={() => navigate('/profile')}
+                      >
+                        Profile
+                      </button>
+                      {' '}to improve Strength Score accuracy.
+                    </span>
+                  </div>
+                )}
 
                 {/* Strength Trend */}
                 <div className="space-y-2">
