@@ -423,8 +423,6 @@ export default function ProgressPage() {
 
   useEffect(() => {
     const refresh = () => {
-      // Refresh localStorage-backed data immediately (synchronous)
-      setWorkoutSessionsList(listSessions());
       setSquatSessions(loadSquatSessions());
       // Refresh backend training sessions
       trainingSessionService.list().then((records) => {
