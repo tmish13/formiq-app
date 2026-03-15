@@ -4,16 +4,11 @@
 // See https://developers.google.com/web/tools/workbox/modules
 // for the list of available Workbox modules
 
-const CACHE_NAME = 'formiq-cache-v1';
+// Bump version on every production deploy to evict stale chunks from previous builds.
+const CACHE_NAME = 'formiq-cache-v2';
+// Only cache static assets; never cache index.html (its chunk references change every build).
 const urlsToCache = [
-  '/',
-  '/index.html',
-  '/static/js/main.chunk.js',
-  '/static/js/0.chunk.js',
-  '/static/js/bundle.js',
   '/manifest.json',
-  '/logo192.png',
-  '/logo512.png',
   '/favicon.ico'
 ];
 
@@ -54,8 +49,10 @@ self.addEventListener('fetch', (event) => {
               // 2. to put it in the cache
               const responseToCache = response.clone();
 
-              // Don't cache API calls
-              if (!event.request.url.includes('/api/')) {
+              // Don't cache API calls or HTML (index.html chunk refs change every build)
+              const url = event.request.url;
+              const isHtml = response.headers.get('content-type')?.includes('text/html');
+              if (!url.includes('/api/') && !isHtml) {
                 caches.open(CACHE_NAME)
                   .then((cache) => {
                     cache.put(event.request, responseToCache);

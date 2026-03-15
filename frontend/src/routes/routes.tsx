@@ -1,4 +1,18 @@
 import React, { lazy, Suspense } from 'react';
+
+// Chunk load recovery: if a lazy chunk 404s (stale SW or CDN eviction), reload once.
+// sessionStorage flag prevents an infinite reload loop if the chunk is genuinely missing.
+function lazyWithRetry(factory: () => Promise<{ default: any }>) {
+  return lazy(() =>
+    factory().catch(() => {
+      if (!sessionStorage.getItem('chunk_load_retry')) {
+        sessionStorage.setItem('chunk_load_retry', '1');
+        window.location.reload();
+      }
+      return new Promise<never>(() => {});
+    })
+  );
+}
 import { RouteObject, Navigate } from 'react-router-dom';
 import { ProtectedRoute } from '../components/auth/ProtectedRoute';
 import { PageLoader } from '../components/common/PageLoader';
@@ -35,25 +49,25 @@ export const ROUTES = {
 } as const;
 
 // Modern UI pages ONLY - using shadcn/ui and Tailwind
-const ModernAuthPage = lazy(() => import('../pages/auth/ModernAuthPage'));
-const GoogleCallback = lazy(() => import('../pages/auth/GoogleCallback'));
-const AppleCallback = lazy(() => import('../pages/auth/AppleCallback'));
-const DashboardPage = lazy(() => import('../pages/DashboardPage'));
-const RecordPage = lazy(() => import('../pages/RecordPage'));
-const AnalysisPage = lazy(() => import('../pages/AnalysisPage'));
-const AnalysisListPage = lazy(() => import('../pages/AnalysisListPage'));
-const ProgressPage = lazy(() => import('../pages/ProgressPage'));
-const ModernExerciseLibrary = lazy(() => import('../pages/ModernExerciseLibrary'));
-const ProfilePage = lazy(() => import('../pages/ProfilePage'));
-const OnboardingPage = lazy(() => import('../pages/OnboardingPage'));
-const ExerciseLibraryPage = lazy(() => import('../pages/ExerciseLibraryPage'));
-const WorkoutsPage = lazy(() => import('../pages/WorkoutsPage'));
-const BetaChecklistPage = lazy(() => import('../pages/BetaChecklistPage'));
+const ModernAuthPage = lazyWithRetry(() => import('../pages/auth/ModernAuthPage'));
+const GoogleCallback = lazyWithRetry(() => import('../pages/auth/GoogleCallback'));
+const AppleCallback = lazyWithRetry(() => import('../pages/auth/AppleCallback'));
+const DashboardPage = lazyWithRetry(() => import('../pages/DashboardPage'));
+const RecordPage = lazyWithRetry(() => import('../pages/RecordPage'));
+const AnalysisPage = lazyWithRetry(() => import('../pages/AnalysisPage'));
+const AnalysisListPage = lazyWithRetry(() => import('../pages/AnalysisListPage'));
+const ProgressPage = lazyWithRetry(() => import('../pages/ProgressPage'));
+const ModernExerciseLibrary = lazyWithRetry(() => import('../pages/ModernExerciseLibrary'));
+const ProfilePage = lazyWithRetry(() => import('../pages/ProfilePage'));
+const OnboardingPage = lazyWithRetry(() => import('../pages/OnboardingPage'));
+const ExerciseLibraryPage = lazyWithRetry(() => import('../pages/ExerciseLibraryPage'));
+const WorkoutsPage = lazyWithRetry(() => import('../pages/WorkoutsPage'));
+const BetaChecklistPage = lazyWithRetry(() => import('../pages/BetaChecklistPage'));
 
 // Create modern versions of missing pages using shadcn/ui
-const ModernProcessingPage = lazy(() => import('../pages/ModernProcessingPage'));
-const ModernResultsPage = lazy(() => import('../pages/ModernResultsPage'));
-const ModernNotFoundPage = lazy(() => import('../pages/ModernNotFoundPage'));
+const ModernProcessingPage = lazyWithRetry(() => import('../pages/ModernProcessingPage'));
+const ModernResultsPage = lazyWithRetry(() => import('../pages/ModernResultsPage'));
+const ModernNotFoundPage = lazyWithRetry(() => import('../pages/ModernNotFoundPage'));
 
 // Route configuration with Suspense
 const withSuspense = (Component: React.LazyExoticComponent<any>) => (
