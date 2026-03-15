@@ -17,6 +17,7 @@ import { progressService } from '../services/progressService';
 import { isMeaningfulScore } from '../types/formCheck';
 import { setUserPrefs } from '../utils/userPrefs';
 import { TodayPlanCard } from '../components/molecules/TodayPlanCard';
+import { trainingSessionService } from '../services/trainingSessionService';
 
 
 const timeAgo = (dateStr: string): string => {
@@ -39,6 +40,8 @@ export default function DashboardPage() {
   const [betaDismissed, setBetaDismissed] = useState(
     () => localStorage.getItem("formiq-beta-notice-dismissed") === "1"
   );
+  // null = loading (suppress empty-state flash), false = confirmed new user, true = returning user
+  const [hasTrainingSessions, setHasTrainingSessions] = useState<boolean | null>(null);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -63,11 +66,13 @@ export default function DashboardPage() {
 const loadDashboardData = async () => {
     try {
       // Fire all requests in parallel — they are independent
-      const [analyticsData, progressData, historyData] = await Promise.all([
+      const [analyticsData, progressData, historyData, trainingSessions] = await Promise.all([
         formCheckService.getAnalyticsOverview('30d'),
         progressService.getProgressOverview(),
         formCheckService.getHistory().catch(() => [] as any[]),
+        trainingSessionService.list(1).catch(() => [] as any[]),
       ]);
+      setHasTrainingSessions(trainingSessions.length > 0);
 
       setTotalSessions(analyticsData.totalSessions ?? 0);
       setTodayFormScore(Math.round(analyticsData.averageScore ?? 0));
@@ -147,14 +152,16 @@ const loadDashboardData = async () => {
             <div className="flex items-start justify-between mb-4">
               <div>
                 <h1 className="text-xl font-bold mb-0.5 text-balance">
-                  {totalSessions === 0
+                  {hasTrainingSessions === false
                     ? 'Ready to Train'
                     : 'Keep the Momentum'}
                 </h1>
                 <p className="text-blue-200 text-sm">
-                  {totalSessions === 0
+                  {hasTrainingSessions === false
                     ? 'Log your first session to start tracking progress'
-                    : `${totalSessions} session${totalSessions !== 1 ? 's' : ''} logged · form analysis available below`}
+                    : hasTrainingSessions === null
+                      ? 'Loading your training history\u2026'
+                      : `${totalSessions} session${totalSessions !== 1 ? 's' : ''} logged · form analysis available below`}
                 </p>
               </div>
               {currentStreak > 0 && (
