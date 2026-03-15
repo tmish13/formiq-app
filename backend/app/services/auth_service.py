@@ -145,7 +145,7 @@ class AuthService:
             logger.warning("Token validation error", extra={"error": str(e)})
             raise AuthenticationException("Could not validate credentials")
 
-        user: Optional[DBUser] = await self.user_service.get_by_id_async(str(token_data.sub)) # Use UserService
+        user: Optional[DBUser] = await self.user_service.get_async(id=token_data.sub)
         
         if not user:
             raise AuthenticationException("User not found")
@@ -380,7 +380,7 @@ class AuthService:
                 raise AuthenticationException("Invalid refresh token payload")
 
             # Check if the user account is still valid and active
-            user = await self.user_service.get_by_id_async(user_id)
+            user = await self.user_service.get_async(id=user_id)
             if not user:
                 logger.warning(f"User {user_id} from refresh token not found.")
                 raise AuthenticationException("User not found")

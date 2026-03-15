@@ -490,3 +490,132 @@ class TestRequestVerificationEndpoint:
             )
         body = resp.json().get("message", "")
         assert "if" in body.lower()   # "If account exists..." pattern
+
+
+# ---------------------------------------------------------------------------
+# AuthService: refresh_access_token
+# ---------------------------------------------------------------------------
+
+class TestRefreshAccessToken:
+    """AuthService.refresh_access_token — covers the get_async user-lookup path."""
+
+    def _make_svc(self, user=None, verify_payload=None):
+        """Return a wired-up AuthService with mocked dependencies."""
+        from app.services.auth_service import AuthService
+
+        user_service = AsyncMock()
+        user_service.get_async = AsyncMock(return_value=user)
+
+        svc = AuthService(
+            db=AsyncMock(),
+            user_service=user_service,
+            email_service=MagicMock(),
+            redis_client=None,
+        )
+        return svc, user_service
+
+    @pytest.mark.asyncio
+    async def test_valid_refresh_returns_new_tokens(self):
+        """Happy path: valid refresh token → new access + refresh tokens returned."""
+        from app.core.exceptions import AuthenticationException
+
+        user = _make_user(is_active=True)
+        svc, _ = self._make_svc(user=user)
+
+        with (
+            patch("app.services.auth_service.verify_token_payload",
+                  return_value={"sub": str(user.id), "type": "refresh"}),
+            patch("app.services.auth_service.create_access_token", return_value="new_access"),
+            patch("app.services.auth_service.create_refresh_token", return_value="new_refresh"),
+            patch("app.services.auth_service.blacklist_token"),
+            patch("app.services.auth_service.settings") as ms,
+        ):
+            ms.ACCESS_TOKEN_EXPIRE_MINUTES = 30
+            ms.REFRESH_TOKEN_EXPIRE_DAYS = 7
+            result = await svc.refresh_access_token("valid_refresh_token")
+
+        assert result["access_token"] == "new_access"
+        assert result["refresh_token"] == "new_refresh"
+        assert result["token_type"] == "bearer"
+
+    @pytest.mark.asyncio
+    async def test_invalid_refresh_token_raises(self):
+        """verify_token_payload returning None → AuthenticationException."""
+        from app.core.exceptions import AuthenticationException
+
+        svc, _ = self._make_svc()
+
+        with patch("app.services.auth_service.verify_token_payload", return_value=None):
+            with pytest.raises(AuthenticationException):
+                await svc.refresh_access_token("bad_token")
+
+    @pytest.mark.asyncio
+    async def test_missing_sub_in_payload_raises(self):
+        """Payload without 'sub' → AuthenticationException, not AttributeError."""
+        from app.core.exceptions import AuthenticationException
+
+        svc, _ = self._make_svc()
+
+        with patch("app.services.auth_service.verify_token_payload",
+                   return_value={"type": "refresh"}):  # no 'sub'
+            with pytest.raises(AuthenticationException):
+                await svc.refresh_access_token("nosub_token")
+
+    @pytest.mark.asyncio
+    async def test_deleted_user_raises(self):
+        """User not found in DB (deleted) → AuthenticationException."""
+        from app.core.exceptions import AuthenticationException
+
+        svc, _ = self._make_svc(user=None)  # get_async returns None
+
+        with patch("app.services.auth_service.verify_token_payload",
+                   return_value={"sub": str(uuid4()), "type": "refresh"}):
+            with pytest.raises(AuthenticationException, match="User not found"):
+                await svc.refresh_access_token("deleted_user_token")
+
+    @pytest.mark.asyncio
+    async def test_inactive_user_raises(self):
+        """Inactive (disabled) user → AuthenticationException."""
+        from app.core.exceptions import AuthenticationException
+
+        user = _make_user(is_active=False)
+        svc, _ = self._make_svc(user=user)
+
+        with patch("app.services.auth_service.verify_token_payload",
+                   return_value={"sub": str(user.id), "type": "refresh"}):
+            with pytest.raises(AuthenticationException, match="inactive"):
+                await svc.refresh_access_token("inactive_user_token")
+
+    @pytest.mark.asyncio
+    async def test_no_get_by_id_async_attribute_error(self):
+        """Regression: calling refresh must NOT raise AttributeError from missing method."""
+        from app.services.auth_service import AuthService
+        from app.core.exceptions import AuthenticationException
+
+        # Use a real UserService-like object that only has get_async, not get_by_id_async
+        user = _make_user(is_active=True)
+        user_service = MagicMock()
+        # Explicitly remove the old broken name so we confirm it's not called
+        del user_service.get_by_id_async
+        user_service.get_async = AsyncMock(return_value=user)
+
+        svc = AuthService(
+            db=AsyncMock(),
+            user_service=user_service,
+            email_service=MagicMock(),
+            redis_client=None,
+        )
+
+        with (
+            patch("app.services.auth_service.verify_token_payload",
+                  return_value={"sub": str(user.id), "type": "refresh"}),
+            patch("app.services.auth_service.create_access_token", return_value="tok"),
+            patch("app.services.auth_service.create_refresh_token", return_value="rtok"),
+            patch("app.services.auth_service.blacklist_token"),
+            patch("app.services.auth_service.settings") as ms,
+        ):
+            ms.ACCESS_TOKEN_EXPIRE_MINUTES = 30
+            ms.REFRESH_TOKEN_EXPIRE_DAYS = 7
+            # Must not raise AttributeError
+            result = await svc.refresh_access_token("good_token")
+        assert "access_token" in result
