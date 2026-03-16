@@ -1,7 +1,7 @@
 """Training session persistence endpoints for Train Analysis (WorkoutsPage)."""
 from typing import List
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,6 +11,14 @@ from app.models.user import User
 from app.schemas.training_session import TrainingSessionCreate, TrainingSessionRead
 
 router = APIRouter()
+
+
+def _is_countable(sets_json: list) -> bool:
+    """A session is countable only if it has at least one set with reps > 0."""
+    return any(
+        isinstance(s, dict) and s.get("reps", 0) > 0
+        for s in (sets_json or [])
+    )
 
 
 @router.post(
@@ -24,6 +32,13 @@ async def create_training_session(
     db: AsyncSession = Depends(deps.get_async_db),
     current_user: User = Depends(deps.get_current_active_user),
 ) -> TrainingSession:
+    # Reject empty sessions — no countable set means nothing to persist.
+    if not _is_countable(body.sets_json):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Session has no logged sets with reps > 0 and cannot be saved.",
+        )
+
     # Idempotent: client retries after a network error return the existing row.
     existing = await db.get(TrainingSession, body.id)
     if existing is not None and existing.user_id == current_user.id:
@@ -58,4 +73,5 @@ async def list_training_sessions(
         .order_by(TrainingSession.started_at.desc())
         .limit(limit)
     )
-    return result.scalars().all()
+    # Filter out any historically-synced empty sessions so they never count.
+    return [s for s in result.scalars().all() if _is_countable(s.sets_json)]

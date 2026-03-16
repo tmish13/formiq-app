@@ -555,7 +555,9 @@ export default function ProgressPage() {
     const now = Date.now();
     const weekMs = 7 * 24 * 60 * 60 * 1000;
     const sessionsThisWeek = sessions.filter(
-      (s) => now - new Date(s.startedAt).getTime() < weekMs,
+      (s) =>
+        now - new Date(s.startedAt).getTime() < weekMs &&
+        s.sets.some((sl) => sl.reps > 0),
     ).length;
 
     // Single pass over ALL sessions to compute session-level e1RM per exercise.

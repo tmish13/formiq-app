@@ -38,6 +38,7 @@ import {
   deleteSetLog,
   listSetLogsForSession,
   listSessions,
+  removeSession,
   listEquipmentProfiles,
   saveNextTarget,
   getNextTarget,
@@ -921,8 +922,9 @@ export default function WorkoutsPage() {
 
   // Timer / UX state
   const [restTimer,   setRestTimer]   = useState<{ total: number; remaining: number; running: boolean } | null>(null);
-  const [undoNotice,  setUndoNotice]  = useState<string | null>(null);
-  const [tab,         setTab]         = useState<"active" | "history">("active");
+  const [undoNotice,    setUndoNotice]    = useState<string | null>(null);
+  const [discardNotice, setDiscardNotice] = useState<string | null>(null);
+  const [tab,           setTab]           = useState<"active" | "history">("active");
   const [rirHelpOpen, setRirHelpOpen] = useState(false);
 
   // Workout summary (shown instead of clearing immediately on End Workout)
@@ -1148,10 +1150,22 @@ export default function WorkoutsPage() {
 
   function handleEndWorkout() {
     if (!session) return;
+    const sets = listSetLogsForSession(session.id);
+    const hasCountableSet = sets.some((s) => s.reps > 0);
+    if (!hasCountableSet) {
+      // Empty workout — remove from localStorage and return to start screen.
+      removeSession(session.id);
+      setSession(null);
+      setCurrentExercise(null);
+      setSetsForExercise([]);
+      setDiscardNotice("No exercises were logged, so this workout wasn't saved.");
+      setTimeout(() => setDiscardNotice(null), 4000);
+      return;
+    }
     setSummary(buildSummary(session));
     // Persist to backend — fire-and-forget, never blocks the summary screen.
     // localStorage remains intact as the immediate source of truth.
-    trainingSessionService.sync(session, listSetLogsForSession(session.id));
+    trainingSessionService.sync(session, sets);
   }
 
   function handleDismissSummary() {
@@ -1653,6 +1667,13 @@ export default function WorkoutsPage() {
                 Log your sets. Get AI load recommendations based on your RIR.
               </p>
             </div>
+
+            {/* Discard notice — shown when an empty workout is ended */}
+            {discardNotice && (
+              <div className="rounded-lg bg-muted px-4 py-2 text-xs text-muted-foreground">
+                {discardNotice}
+              </div>
+            )}
 
             {/* Last session preview */}
             {lastSessionPreview && (

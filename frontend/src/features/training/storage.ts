@@ -93,6 +93,29 @@ export function saveSession(session: WorkoutSession): void {
   writeJson(KEYS.sessions, [session, ...existing]);
 }
 
+/**
+ * Remove a session from localStorage by id.
+ * Called when discarding an empty workout so it never appears in history
+ * or session counts.
+ */
+export function removeSession(id: string): void {
+  const existing = readJson<WorkoutSession>(KEYS.sessions).filter(
+    (s) => s.id !== id,
+  );
+  writeJson(KEYS.sessions, existing);
+}
+
+/**
+ * Canonical "countable session" rule:
+ * A session counts toward analytics only if it has at least one set log
+ * with reps > 0 (covers bodyweight where weightLb may be 0).
+ */
+export function isCountableSession(sessionId: string): boolean {
+  return readJson<SetLog>(KEYS.setLogs).some(
+    (s) => s.sessionId === sessionId && s.reps > 0,
+  );
+}
+
 export function createSession(
   goal: WorkoutSession["goal"],
   chainId?: GymChainId,
