@@ -151,8 +151,14 @@ class ApiService {
       async (error) => {
         const originalRequest = error.config;
         
-        // If error is 401 (Unauthorized) and we haven't already tried to refresh
-        if (error.response?.status === 401 && !originalRequest._retry) {
+        // If error is 401 (Unauthorized) and we haven't already tried to refresh.
+        // Skip refresh for auth endpoints — a 401 on /auth/login means wrong credentials,
+        // not an expired session token; attempting a refresh would find no token and then
+        // call redirectToLogin(), wiping state before the error can be displayed.
+        const isAuthEndpoint =
+          originalRequest.url?.includes('/auth/login') ||
+          originalRequest.url?.includes('/auth/token');
+        if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
           originalRequest._retry = true;
           clearCachedToken(); // stale token — clear cache before refresh attempt
 

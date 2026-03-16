@@ -1226,6 +1226,10 @@ class FormCheckService(BaseService[FormCheck, FormCheckCreate, FormCheckUpdate])
                     
                     logger.info(f"Added reference pose data and visual overlay to form check {form_check_id}")
                     
+                except ImportError:
+                    # Already logged at DEBUG in the inner try-except; suppress here.
+                    form_check_dict["reference_pose_data"] = None
+                    form_check_dict["visual_overlay_data"] = None
                 except Exception as e:
                     logger.error(f"Error getting reference pose data for form check {form_check_id}: {e}")
                     form_check_dict["reference_pose_data"] = None

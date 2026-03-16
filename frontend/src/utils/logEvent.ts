@@ -80,22 +80,8 @@ export const logBetaEvent = (
   };
   console.log('[BetaEvent]', entry);
   _updateBetaStats(eventName);
-  try {
-    const token = localStorage.getItem('formiq_auth_token');
-    const baseUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1';
-    // TODO: wire /beta-events backend route
-    fetch(`${baseUrl}/beta-events`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify(entry),
-      keepalive: true,
-    }).catch(() => {}); // fire-and-forget
-  } catch {
-    // never throw from logBetaEvent
-  }
+  // Note: backend /beta-events route is not yet implemented — HTTP POST removed
+  // to eliminate 404 spam. Stats are persisted locally in localStorage.
 };
 
 /** Read aggregated beta stats from localStorage for diagnostics panel. */

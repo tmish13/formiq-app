@@ -957,7 +957,7 @@ export default function ModernAuthPage() {
           animate={{ opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.4 }}
         >
-          <p className="text-sm text-slate-500 dark:text-slate-400">© 2024 FormIQ. Perfect your form with AI.</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">© {new Date().getFullYear()} FormIQ. Perfect your form with AI.</p>
         </motion.div>
       </div>
 

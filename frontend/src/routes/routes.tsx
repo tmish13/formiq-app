@@ -68,6 +68,8 @@ const BetaChecklistPage = lazyWithRetry(() => import('../pages/BetaChecklistPage
 const ModernProcessingPage = lazyWithRetry(() => import('../pages/ModernProcessingPage'));
 const ModernResultsPage = lazyWithRetry(() => import('../pages/ModernResultsPage'));
 const ModernNotFoundPage = lazyWithRetry(() => import('../pages/ModernNotFoundPage'));
+const TermsPage = lazyWithRetry(() => import('../pages/TermsPage'));
+const PrivacyPage = lazyWithRetry(() => import('../pages/PrivacyPage'));
 
 // Route configuration with Suspense
 const withSuspense = (Component: React.LazyExoticComponent<any>) => (
@@ -117,8 +119,16 @@ export const publicRoutes: RouteObject[] = [
     element: withSuspense(GoogleCallback)
   },
   {
-    path: '/auth/apple/callback', 
+    path: '/auth/apple/callback',
     element: withSuspense(AppleCallback)
+  },
+  {
+    path: '/terms',
+    element: withSuspense(TermsPage)
+  },
+  {
+    path: '/privacy',
+    element: withSuspense(PrivacyPage)
   }
 ];
 

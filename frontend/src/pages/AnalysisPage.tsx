@@ -509,7 +509,7 @@ export default function AnalysisPage() {
   
   const [formCheck, setFormCheck] = useState<FormCheck | null>(null);
   const [mlAnalysis, setMlAnalysis] = useState<MLAnalysisResponse | null>(null);
-  const [, setLoading] = useState(false);
+  const [isLoading, setLoading] = useState(true);
   const [showDetails, setShowDetails] = useState<number | null>(null);
   const [breakdown, setBreakdown] = useState<AnalysisBreakdown[]>([]);
   const [recommendations, setRecommendations] = useState<AIRecommendation[]>([]);
@@ -1076,6 +1076,13 @@ export default function AnalysisPage() {
   };
 
   if (!formCheck) {
+    if (isLoading) {
+      return (
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+          <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      );
+    }
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <div className="text-center">
