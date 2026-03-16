@@ -1264,7 +1264,7 @@ export default function RecordPage() {
   const isFullscreenState = recordingState === 'countdown' || recordingState === 'recording' || recordingState === 'preview';
 
   return (
-    <AppLayout>
+    <AppLayout showBottomNav={!isFullscreenState}>
       {/* Card content — hidden during full-screen recording/preview states */}
       {!isFullscreenState && (
         <div className="px-4 py-6 max-w-2xl mx-auto" style={{ paddingBottom: 'max(calc(env(safe-area-inset-bottom) + 64px), 96px)' }}>

@@ -73,8 +73,13 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
       {/* Beta: shown when user is logged in but email not yet verified */}
       <UnverifiedBanner />
 
-      {/* Page content constrained to 430px */}
-      <div className="mx-auto max-w-[430px] relative">
+      {/* Page content constrained to 430px.
+          Bottom padding clears the fixed BottomNav (≈64px) plus iOS home-bar safe area.
+          Applied here once so every page inherits it automatically. */}
+      <div
+        className="mx-auto max-w-[430px] relative"
+        style={showBottomNav ? { paddingBottom: 'calc(64px + env(safe-area-inset-bottom))' } : undefined}
+      >
         {children}
       </div>
 
