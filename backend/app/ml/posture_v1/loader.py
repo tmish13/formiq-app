@@ -97,6 +97,7 @@ class PostureV1TorchLoader:
     def _ensure_loaded(self) -> None:
         """Load model + manifest on first use (thread-safe double-checked locking)."""
         if self._loaded:
+            logger.debug("PostureV1 artifacts already loaded — reusing cached model and scaler")
             return
         with self._load_lock:
             if self._loaded:  # re-check after acquiring lock

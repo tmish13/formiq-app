@@ -34,37 +34,49 @@ logger = logging.getLogger(__name__)
 # Global instances for services initialized once per worker process
 _shared_ai_service: Optional[AIService] = None
 _shared_storage_service: Optional[StorageService] = None
-_shared_exercise_config_service: Optional[ExerciseConfigService] = None # ADDED
-_shared_video_service: Optional[VideoService] = None # ADDED
+_shared_exercise_config_service: Optional[ExerciseConfigService] = None
+_shared_video_service: Optional[VideoService] = None
+# PostureV1 model artifacts (heavy — ~200MB on disk, seconds to load)
+# Cached at module scope so they are loaded ONCE per worker process, not per task.
+_shared_posture_v1_loader: Optional[Any] = None
 
 @worker_process_init.connect
 def initialize_worker_services(**kwargs):
     """Initialize shared services once per Celery worker process."""
-    global _shared_ai_service, _shared_storage_service, _shared_exercise_config_service, _shared_video_service # MODIFIED
+    global _shared_ai_service, _shared_storage_service, _shared_exercise_config_service, _shared_video_service, _shared_posture_v1_loader
     logger.info("Celery worker process initializing shared services...")
     try:
-        settings_obj = get_settings() # Services might need settings
-        _shared_ai_service = AIService(app_settings=settings_obj) # Pass settings
+        settings_obj = get_settings()
+        _shared_ai_service = AIService(app_settings=settings_obj)
         if settings_obj.USE_S3_STORAGE:
             from app.core.storage.s3 import S3StorageProvider as _S3Provider
             _shared_storage_service = StorageService(provider=_S3Provider(), app_settings=settings_obj)
         else:
             _shared_storage_service = StorageService(app_settings=settings_obj)
-        # Initialize ExerciseConfigService and VideoService with db access needs to be handled carefully
-        # For services requiring DB session for __init__, this pattern might not be ideal,
-        # or they should be designed to be initializable without a session, deferring DB ops to methods.
-        # Assuming ExerciseConfigService and VideoService can be initialized without a db session, or get it later.
-        # If they strictly need a DB session at init, they should be created inside the task context.
-        # For now, let's assume they can be initialized here or their __init__ is adapted.
-        # A safer pattern for DB-bound services is to instantiate them per task, or use a factory that gets a session.
-        # However, ExerciseConfigService and VideoService in this project are typically instantiated with a db session.
-        # This highlights a potential design consideration for shared Celery services.
-        # For this refactor, we'll assume they are instantiated in get_services_for_task for safety if they need DB at init.
-        # So, we will NOT initialize them globally here to avoid issues with DB session state across tasks.
-        # They will be created in get_services_for_task.
-        _shared_exercise_config_service = None # Will be created in task
-        _shared_video_service = None       # Will be created in task
-        logger.info("Shared services (AIService, StorageService) initialized successfully for Celery worker. Other services (ExerciseConfig, Video) will be task-scoped.")
+        # ExerciseConfigService / VideoService need a DB session — created per task.
+        _shared_exercise_config_service = None
+        _shared_video_service = None
+        logger.info("Shared services (AIService, StorageService) initialized for Celery worker.")
+
+        # Pre-warm PostureV1 model artifacts.
+        # Loading posture_v1.pt + scaler takes 1-3s; doing it here means the very
+        # first production task is just as fast as all subsequent ones.
+        if getattr(settings_obj, 'USE_POSTURE_V1', True):
+            try:
+                from app.ml.posture_v1.loader import PostureV1TorchLoader
+                _loader = PostureV1TorchLoader(settings_obj)
+                _loader._ensure_loaded()
+                _shared_posture_v1_loader = _loader
+                logger.info(
+                    "PostureV1 model initialized in worker process — "
+                    "artifacts will be reused across tasks."
+                )
+            except Exception as _pv1_init_err:
+                # Non-fatal: the task will create a per-task loader as fallback.
+                logger.error(
+                    "PostureV1 worker pre-warm failed (will fall back to per-task load): %s",
+                    _pv1_init_err, exc_info=True,
+                )
     except Exception as e:
         logger.critical(f"CRITICAL: Failed to initialize shared services in Celery worker: {e}", exc_info=True)
         raise
@@ -716,10 +728,28 @@ async def _process_form_check_task_async(self, video_id_str: str, form_check_id_
             try:
                 from app.ml.posture_v1.loader import PostureV1TorchLoader
                 from app.ml.posture_v1.scoring import compute_full_scores
-                posture_v1_loader = PostureV1TorchLoader(settings_obj)
 
-                # Apply named threshold mode if set in form_check details
+                # Use the process-scoped shared loader so model + scaler are loaded
+                # ONCE per worker process, not once per task.
+                if _shared_posture_v1_loader is not None:
+                    posture_v1_loader = _shared_posture_v1_loader
+                    logger.debug(
+                        "[CeleryTask] Reusing cached PostureV1 artifacts (FormCheck %s)",
+                        form_check_id,
+                    )
+                else:
+                    logger.warning(
+                        "[CeleryTask] PostureV1 shared loader unavailable — "
+                        "creating per-task instance (FormCheck %s)",
+                        form_check_id,
+                    )
+                    posture_v1_loader = PostureV1TorchLoader(settings_obj)
+
+                # Apply named threshold mode if set in form_check details.
+                # Save the current threshold and restore it after inference so the
+                # shared loader is not left with a per-task override for the next task.
                 _threshold_mode = (form_check.details or {}).get("threshold_mode")
+                _saved_pv1_threshold = posture_v1_loader._fault_threshold
                 if _threshold_mode:
                     posture_v1_loader.set_threshold_mode(_threshold_mode)
 
@@ -1112,7 +1142,16 @@ async def _process_form_check_task_async(self, video_id_str: str, form_check_id_
                 except Exception as telem_exc:
                     logger.warning(f"[PostureV1 Telemetry] Failed to write telemetry row: {telem_exc}")
 
+                # Restore threshold on shared loader so the next task is not
+                # affected by this task's per-form-check threshold override.
+                posture_v1_loader._fault_threshold = _saved_pv1_threshold
+
             except Exception as pv1_exc:
+                # Restore threshold even on failure path.
+                try:
+                    posture_v1_loader._fault_threshold = _saved_pv1_threshold
+                except Exception:
+                    pass
                 logger.error(
                     f"[CeleryTask] PostureV1 inference failed for FormCheck {form_check_id}: {pv1_exc}",
                     exc_info=True,
