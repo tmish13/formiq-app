@@ -20,7 +20,8 @@ from app.models.enums import (
     FormCheckStatus,
     ExerciseType,
     FeedbackType,
-    FeedbackSeverity
+    FeedbackSeverity,
+    VideoStatus,
 )
 from app.core.storage import upload_video as core_upload_video, delete_video as core_delete_video
 from app.schemas.form_check import (
@@ -180,7 +181,7 @@ class FormCheckService(BaseService[FormCheck, FormCheckCreate, FormCheckUpdate])
                 url=video_cloud_url,
                 object_key=file_key,  # store the actual S3 key, not the presigned URL
                 mime_type=video_file.content_type or "video/mp4",
-                status="UPLOADED",
+                status=VideoStatus.UPLOADED,
                 exercise_type=exercise_type_enum.value,  # fallback for _is_squat routing
             )
             self.db.add(video_record)
@@ -1155,10 +1156,19 @@ class FormCheckService(BaseService[FormCheck, FormCheckCreate, FormCheckUpdate])
             # Add reference pose data and visual overlay data if requested
             if include_reference_pose and form_check.exercise_id:
                 try:
-                    # Import here to avoid circular imports
+                    # Import here to avoid circular imports.
+                    # pose_comparison_service / reference_pose_service are optional overlay
+                    # features that have not been implemented yet — ImportError is expected and
+                    # non-fatal; the form check is returned without overlay data.
                     from app.services.exercise_config_service import ExerciseConfigService
-                    from app.services.pose_comparison_service import PoseComparisonService
-                    from app.services.reference_pose_service import ReferencePoseService
+                    try:
+                        from app.services.pose_comparison_service import PoseComparisonService
+                        from app.services.reference_pose_service import ReferencePoseService
+                    except ImportError:
+                        logger.debug("Optional pose_comparison_service not available — skipping reference overlay")
+                        form_check_dict["reference_pose_data"] = None
+                        form_check_dict["visual_overlay_data"] = None
+                        raise  # re-raise so the outer except block skips the rest of the try body
                     
                     # Create service instances
                     exercise_config_service = ExerciseConfigService(

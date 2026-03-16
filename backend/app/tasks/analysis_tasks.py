@@ -118,33 +118,84 @@ async def get_services_for_task(db_session: AsyncSession, settings_obj: Settings
 # ---------------------------------------------------------------------------
 # Phase 2 helpers: pose extraction inside the Celery task
 # ---------------------------------------------------------------------------
-async def _resolve_video_local_path(video_model, settings_obj) -> Optional[str]:
+async def _resolve_video_local_path(
+    video_model,
+    settings_obj,
+    storage_service=None,
+) -> "tuple[Optional[str], bool]":
     """
-    Convert the stored video URL / object_key back to a local filesystem path.
-    LocalStorageProvider stores files under settings.UPLOAD_DIR keyed by the
-    relative path that follows the base URL.
+    Resolve the video to a local filesystem path the worker can open.
+
+    For local-storage deployments: converts the stored URL/object_key to an
+    absolute path on the current host.
+
+    For S3-backed deployments (USE_S3_STORAGE=True): if the file is not on local
+    disk (it won't be on Render/cloud workers), downloads the S3 object to a
+    NamedTemporaryFile and returns that path.
+
+    Returns:
+        (local_path, is_temp) — local_path is None when the video cannot be
+        located; is_temp is True only for S3-downloaded temp files (caller must
+        delete the temp file after use).
     """
     import os
+    import tempfile
     from app.core.storage import LocalStorageProvider
     try:
         provider = LocalStorageProvider()
         url = video_model.object_key or video_model.url or ""
         if not url:
             logger.warning(f"[PoseExtract] Video {video_model.id} has no url/object_key.")
-            return None
+            return None, False
         key = provider.get_key_from_url(url)
         local_path = os.path.join(provider.base_dir, key)
         if os.path.exists(local_path):
             logger.info(f"[PoseExtract] Resolved local path: {local_path}")
-            return local_path
+            return local_path, False
         # Fallback: maybe the URL itself is already a local path (e.g. stored as absolute)
         if os.path.exists(url):
-            return url
-        logger.warning(f"[PoseExtract] Local video file not found: {local_path} (key={key}, url={url})")
-        return None
+            return url, False
+
+        # --- S3 fallback: download to a temp file for processing ---
+        # In cloud deployments (USE_S3_STORAGE=True) the video lives in S3, not
+        # on the worker's disk.  Download it so ffmpeg/OpenCV can open it locally.
+        use_s3 = getattr(settings_obj, 'USE_S3_STORAGE', False)
+        if use_s3 and storage_service is not None:
+            # Prefer the raw object_key; fall back to the key derived above
+            s3_key = video_model.object_key or key
+            logger.info(
+                f"[PoseExtract] Local file not found for Video {video_model.id}; "
+                f"downloading from S3 key: {s3_key}"
+            )
+            try:
+                video_bytes = await storage_service.download_file(s3_key)
+                suffix = os.path.splitext(s3_key)[-1] or ".mp4"
+                tmp = tempfile.NamedTemporaryFile(
+                    delete=False, suffix=suffix, prefix="formiq_pose_"
+                )
+                tmp.write(video_bytes)
+                tmp.close()
+                logger.info(
+                    f"[PoseExtract] S3 download complete: {tmp.name} "
+                    f"({len(video_bytes):,} bytes, key={s3_key})"
+                )
+                return tmp.name, True  # caller must delete after pose extraction
+            except Exception as s3_err:
+                logger.error(
+                    f"[PoseExtract] S3 download failed for Video {video_model.id} "
+                    f"(key={s3_key}): {s3_err}",
+                    exc_info=True,
+                )
+                return None, False
+
+        logger.warning(
+            f"[PoseExtract] Local video file not found: {local_path} "
+            f"(key={key}, url={url}, USE_S3_STORAGE={use_s3})"
+        )
+        return None, False
     except Exception as e:
         logger.error(f"[PoseExtract] Error resolving local path for Video {video_model.id}: {e}", exc_info=True)
-        return None
+        return None, False
 
 
 async def _extract_pose_from_video(
@@ -426,8 +477,12 @@ async def _process_form_check_task_async(self, video_id_str: str, form_check_id_
         # This is the core pipeline gap fix: the task itself runs MediaPipe on the stored video file.
         if not (video_model.pose_data and isinstance(video_model.pose_data, list)):
             logger.info(f"[CeleryTask] pose_data missing for Video {video_id} — running pose extraction now.")
+            _video_is_temp = False  # track whether we downloaded a temp file from S3
+            video_local_path = None
             try:
-                video_local_path = await _resolve_video_local_path(video_model, settings_obj)
+                video_local_path, _video_is_temp = await _resolve_video_local_path(
+                    video_model, settings_obj, storage_service
+                )
                 if video_local_path:
                     raw_pose, sequence_length, video_fps = await _extract_pose_from_video(
                         video_local_path, _ai_service_instance, settings_obj
@@ -447,10 +502,18 @@ async def _process_form_check_task_async(self, video_id_str: str, form_check_id_
                     else:
                         logger.warning(f"[CeleryTask] Pose extraction yielded no landmarks for Video {video_id}.")
                 else:
-                    logger.warning(f"[CeleryTask] Could not resolve local path for Video {video_id} — skipping pose extraction.")
+                    logger.warning(f"[CeleryTask] Could not resolve video path for Video {video_id} — skipping pose extraction.")
             except Exception as pose_exc:
                 logger.error(f"[CeleryTask] Pose extraction failed for Video {video_id}: {pose_exc}", exc_info=True)
                 # Non-fatal: PostureV1 quality gate will set decision=uncertain if frames insufficient.
+            finally:
+                # Always clean up S3-downloaded temp files
+                if _video_is_temp and video_local_path:
+                    try:
+                        os.unlink(video_local_path)
+                        logger.info(f"[PoseExtract] Cleaned up temp video file: {video_local_path}")
+                    except Exception as _cleanup_err:
+                        logger.warning(f"[PoseExtract] Failed to clean up temp file {video_local_path}: {_cleanup_err}")
 
         # Prioritize pose_data (smoothed), fall back to raw_pose_data
         keypoint_sequence_for_classification: Optional[List[List[Optional[Dict[str, float]]]]] = None
