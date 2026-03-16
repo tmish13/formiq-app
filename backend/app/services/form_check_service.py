@@ -146,17 +146,25 @@ class FormCheckService(BaseService[FormCheck, FormCheckCreate, FormCheckUpdate])
             exercise_template = exercise_template_result.scalars().first()
 
             if not exercise_template:
-                if video_cloud_url: # If video was uploaded, try to delete it
+                logger.error(
+                    "ExerciseTemplate lookup failed: no row with LOWER(name) = '%s' in "
+                    "exercise_templates. Expected identifier: 'Squat' (case-insensitive). "
+                    "The table is likely unseeded — run: alembic upgrade head",
+                    _exercise_name_lower,
+                )
+                if video_cloud_url:
                     try:
-                        logger.warning(
-                            f"ExerciseTemplate for type '{exercise_type_enum.value}' not found "
-                            f"(searched lower-case: '{_exercise_name_lower}'). "
-                            f"Deleting uploaded video: {video_cloud_url}"
-                        )
+                        logger.info("Cleaning up orphaned upload after template miss: %s", file_key)
                         await self.storage_service.delete_file(video_cloud_url)
                     except Exception as e_del:
-                        logger.error(f"Failed to delete orphaned video {video_cloud_url} after ExerciseTemplate not found: {e_del}")
-                raise NotFoundException(f"ExerciseTemplate for type '{exercise_type_enum.value}' not found.")
+                        logger.error(
+                            "Failed to delete orphaned upload %s after template miss: %s",
+                            file_key, e_del,
+                        )
+                raise NotFoundException(
+                    f"Exercise template not found for type '{exercise_type_enum.value}'. "
+                    "The database may be missing seed data — contact support."
+                )
             actual_exercise_id: UUID = exercise_template.id
 
             # 3. Create Video record.
