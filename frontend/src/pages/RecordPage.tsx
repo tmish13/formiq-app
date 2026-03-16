@@ -102,6 +102,7 @@ export default function RecordPage() {
   const [tooShortError, setTooShortError] = useState(false);
   const [recordingPreviewUrl, setRecordingPreviewUrl] = useState<string | null>(null);
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
+  const [videoPreviewError, setVideoPreviewError] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -114,6 +115,9 @@ export default function RecordPage() {
   // Track preview URL for cleanup (state might be stale in effect)
   const previewUrlRef = useRef<string | null>(null);
   const previewVideoRef = useRef<HTMLVideoElement>(null);
+  // Actual MIME type used by the MediaRecorder instance — may differ from 'video/webm'
+  // on iOS Safari which records video/mp4. Read after creation, used for blob + file.
+  const recordingMimeRef = useRef<string>('video/webm');
   // Upload timeout — 60s wall-clock limit; cleared on success or error
   const uploadTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const uploadSucceededRef = useRef(false);
@@ -280,7 +284,19 @@ export default function RecordPage() {
     try {
       recordedChunksRef.current = [];
       recordingStartTimeRef.current = Date.now();
-      mediaRecorderRef.current = new MediaRecorder(streamRef.current);
+      // Pick the best supported MIME type. iOS Safari only supports video/mp4;
+      // forcing video/webm would silently record unusable data.
+      const preferredTypes = [
+        'video/mp4;codecs=avc1,mp4a.40.2',
+        'video/mp4',
+        'video/webm;codecs=vp9,opus',
+        'video/webm;codecs=vp8,opus',
+        'video/webm',
+      ];
+      const mimeType = preferredTypes.find((t) => MediaRecorder.isTypeSupported(t)) ?? '';
+      mediaRecorderRef.current = new MediaRecorder(streamRef.current, mimeType ? { mimeType } : undefined);
+      // Read back the actual type chosen by the browser (may differ from what we passed)
+      recordingMimeRef.current = mediaRecorderRef.current.mimeType || mimeType || 'video/webm';
 
       mediaRecorderRef.current.ondataavailable = (event) => {
         if (event.data.size > 0) {
@@ -337,12 +353,14 @@ export default function RecordPage() {
 
     logBetaEvent('recording_completed', { exercise: currentExercise, duration_sec: Math.round(elapsedSec * 10) / 10 });
 
-    // Build blob and preview URL
-    const videoBlob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+    // Build blob and preview URL using the actual recorded MIME type
+    const actualMime = recordingMimeRef.current;
+    const videoBlob = new Blob(recordedChunksRef.current, { type: actualMime });
     recordingBlobRef.current = videoBlob;
     const url = URL.createObjectURL(videoBlob);
     previewUrlRef.current = url;
     setRecordingPreviewUrl(url);
+    setVideoPreviewError(false);
     setRecordingState('preview');
   };
 
@@ -350,10 +368,12 @@ export default function RecordPage() {
     if (!recordingBlobRef.current) return;
 
     // Build File from the blob — keep recordingBlobRef.current alive for potential retry
+    const actualMime = recordingMimeRef.current;
+    const ext = actualMime.startsWith('video/mp4') ? 'mp4' : 'webm';
     const videoFile = new File(
       [recordingBlobRef.current],
-      `form-analysis-${Date.now()}.webm`,
-      { type: 'video/webm' }
+      `form-analysis-${Date.now()}.${ext}`,
+      { type: actualMime }
     );
 
     // Revoke preview URL only — blob is kept for retry
@@ -1193,41 +1213,59 @@ export default function RecordPage() {
     <div className="fixed inset-0 bg-black z-50 flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between px-4 pt-12 pb-2 flex-shrink-0">
-        <p className="text-base font-semibold text-white">Review Your Clip</p>
+        <p className="text-base font-semibold text-white">Review your clip</p>
         <span className="text-xs text-white/50 bg-white/10 px-2 py-0.5 rounded-full">Squat · 1 rep</span>
       </div>
 
-      {/* Recorded video preview */}
-      <div className="relative flex-1 min-h-0">
-        <video
-          ref={previewVideoRef}
-          src={recordingPreviewUrl || ''}
-          playsInline
-          controls
-          onPlay={() => setIsPreviewPlaying(true)}
-          onPause={() => setIsPreviewPlaying(false)}
-          onEnded={() => setIsPreviewPlaying(false)}
-          className="w-full h-full object-contain"
-        />
-        {!isPreviewPlaying && (
-          <button
-            aria-label="Play preview"
-            onClick={() => previewVideoRef.current?.play()}
-            className="absolute inset-0 flex items-center justify-center"
-          >
-            <div className="w-16 h-16 rounded-full bg-black/60 flex items-center justify-center">
-              <Play className="w-10 h-10 text-white fill-white ml-1" />
+      {/* Recorded video preview — optional; fallback shown if src missing or load fails */}
+      <div className="relative flex-1 min-h-0 flex items-center justify-center">
+        {recordingPreviewUrl && !videoPreviewError ? (
+          <>
+            <video
+              ref={previewVideoRef}
+              src={recordingPreviewUrl}
+              playsInline
+              muted
+              controls
+              preload="metadata"
+              onPlay={() => setIsPreviewPlaying(true)}
+              onPause={() => setIsPreviewPlaying(false)}
+              onEnded={() => setIsPreviewPlaying(false)}
+              onError={() => setVideoPreviewError(true)}
+              className="w-full h-full object-contain"
+            />
+            {!isPreviewPlaying && (
+              <button
+                aria-label="Play preview"
+                onClick={() => previewVideoRef.current?.play().catch(() => {})}
+                className="absolute inset-0 flex items-center justify-center"
+              >
+                <div className="w-16 h-16 rounded-full bg-black/60 flex items-center justify-center">
+                  <Play className="w-10 h-10 text-white fill-white ml-1" />
+                </div>
+              </button>
+            )}
+          </>
+        ) : (
+          <div className="flex flex-col items-center justify-center gap-3 px-8 text-center">
+            <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center">
+              <Video className="w-8 h-8 text-white/60" />
             </div>
-          </button>
+            <p className="text-white/50 text-sm">
+              {videoPreviewError ? 'Preview unavailable on this device' : 'Clip recorded'}
+            </p>
+          </div>
         )}
       </div>
 
-      {/* Action buttons */}
+      {/* Action buttons — always rendered */}
       <div
         className="bg-black/90 px-5 pt-4 flex-shrink-0"
         style={{ paddingBottom: 'max(calc(env(safe-area-inset-bottom) + 16px), 24px)' }}
       >
-        <p className="text-white/70 text-sm text-center mb-4">Does this show one full squat rep from start to finish?</p>
+        <p className="text-white/70 text-sm text-center mb-4">
+          Does this show one full squat rep from start to finish (no rerack or unrack)?
+        </p>
         <Button
           size="lg"
           className="w-full h-14 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-base mb-3"
