@@ -565,11 +565,6 @@ export default function RecordPage() {
     setCountdown(3);
   };
 
-  // Reset preview play state whenever the preview screen opens
-  useEffect(() => {
-    if (recordingState === 'preview') setIsPreviewPlaying(false);
-  }, [recordingState]);
-
   // Count-up animation for completion screen
   useEffect(() => {
     if (recordingState !== 'complete') return;
