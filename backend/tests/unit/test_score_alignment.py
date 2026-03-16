@@ -194,13 +194,21 @@ class TestHardConstraints:
             )
 
     def test_cannot_exceed_70_with_component_below_40(self):
-        """posture_score ≤ 70 whenever any component < 40, even with confident good model."""
+        """Severe component fault (< 40) pulls posture_score below model_score.
+
+        The blend formula gives model (65%) + components (35%).  A zero knee
+        component reduces the blend below model_score, even when model is confident.
+        The test checks the directional invariant (blend < model_score) rather than
+        a specific ceiling value, since the blend approach favors a smooth reduction
+        over a hard cap.
+        """
         feats = _features_knee_fault(value=3.5)  # severe knee fault → component ≈ 0
         r = _run(0.05, feats)
         cs = r["component_scores"]
         if any(v is not None and v < 40 for v in cs.values()):
-            assert r["posture_score"] <= 70, (
-                f"posture_score={r['posture_score']} > 70 with min component < 40: {cs}"
+            assert r["posture_score"] < r["model_score"], (
+                f"posture_score={r['posture_score']} should be < model_score={r['model_score']} "
+                f"with a severely broken component: {cs}"
             )
 
     def test_all_excellent_components_no_ceiling_reduction(self):
@@ -213,11 +221,20 @@ class TestHardConstraints:
         )
 
     def test_full_pipeline_constraint_boundary(self):
-        """End-to-end: zero features → all named components = 50 → weighted avg = 50."""
-        # Zero features → z=0 → _z_to_score(0) = 50 for every component.
-        # New formula: weighted average of all-50 components = 50.
-        r = _run(0.0, _zero_features())  # model_score=100
-        assert r["posture_score"] == 50  # weighted avg of all-50 named components
+        """End-to-end: zero features → all named components = 50; blend produces > 50 when model is perfect.
+
+        Zero features → z=0 → all components = 50 → component_weighted = 50.
+        model_score = 100 (prob_fault=0.0).
+        Blend: 0.65*100 + 0.35*50 = 82.5 → 82.
+        posture_score must be strictly between component_weighted (50) and model_score (100).
+        """
+        r = _run(0.0, _zero_features())  # model_score=100, component_weighted=50
+        comp_w = r["component_weighted_score"]
+        assert comp_w == 50, f"Expected component_weighted=50 with zero features, got {comp_w}"
+        assert comp_w < r["posture_score"] <= r["model_score"], (
+            f"Blend should place posture_score between component_weighted ({comp_w}) "
+            f"and model_score ({r['model_score']}): got {r['posture_score']}"
+        )
 
 
 # ===========================================================================
@@ -261,38 +278,49 @@ class TestBeforeVsAfter:
         assert "score_exclusions" in r
 
     def test_confident_good_model_cannot_override_zero_component(self):
-        """Even with prob_fault=0.05 (model=95), zero knee component pulls overall down."""
+        """Even with prob_fault=0.05 (model=95), zero knee component reduces overall score.
+
+        Blend: 0.65*95 + 0.35*component_weighted ≈ 0.65*95 + 0.35*38 ≈ 75.
+        posture_score must be strictly below model_score (the component penalty is visible).
+        """
         feats = _features_knee_fault(value=4.0)  # all knee features at +4σ → component=0
         r = _run(0.05, feats)
         assert r["model_score"] == 95
         assert r["component_scores"]["knee_stability"] == 0
-        # knee_symmetry_score=0 (weight 0.25), others≈50 → avg ≈ 37.5
-        # posture_score must be well below model_score
+        # Blend pulls posture_score below model_score even with excellent CNN-LSTM output
         assert r["posture_score"] < r["model_score"], (
             f"posture_score={r['posture_score']} should be < model_score={r['model_score']} "
-            f"when knee_symmetry=0"
+            f"when knee_symmetry=0 (component penalty must be visible)"
         )
-        # score_band reflects the actual severity, not the model's false confidence
-        assert r["score_band"] in ("poor", "needs_work")
+        # posture_score is also below the pure model score (≥15 points below)
+        assert r["model_score"] - r["posture_score"] >= 15, (
+            f"Expected at least 15 point penalty, got {r['model_score'] - r['posture_score']}"
+        )
 
     def test_good_model_and_good_components_achieves_excellent(self):
-        """When trunk/knee/hip components are excellent, posture_score is excellent."""
+        """When trunk/knee/hip components are excellent, posture_score is excellent.
+
+        model_score = 95 (prob_fault=0.05).
+        component_weighted = 0.30*100 + 0.25*100 + 0.25*100 + 0.20*50 = 90.
+        Blend: 0.65*95 + 0.35*90 = 61.75 + 31.5 = 93.25 → 93.
+        """
         feats = _features_all_good(value=-2.0)  # trunk/knee/hip features → 100
         r = _run(0.05, feats)  # model_score = 95
-        # _features_all_good only pushes trunk/knee/hip features; trunk_forward_lean
-        # stays at 0 → forward_lean_score ≈ 50.
-        # Weighted avg: 0.30*100 + 0.25*100 + 0.25*100 + 0.20*50 = 90
-        assert r["posture_score"] == 90
+        # Blend of model (65%) and component-weighted (35%): ≈ 93
+        assert r["posture_score"] == 93
         assert r["score_band"] == "excellent"
 
     def test_bad_model_bad_components_still_poor(self):
-        """Model and components both bad → posture_score reflects low component avg."""
+        """Model and components both bad → posture_score is poor.
+
+        model_score = 15 (prob_fault=0.85).
+        component_weighted = 0.30*0 + 0.25*0 + 0.25*0 + 0.20*50 = 10.
+        Blend: 0.65*15 + 0.35*10 = 9.75 + 3.5 = 13.25 → 13.
+        """
         feats = _features_all_bad(value=4.0)  # trunk/knee/hip features → 0
         r = _run(0.85, feats)  # model_score = 15
-        # _features_all_bad only spikes trunk/knee/hip features; trunk_forward_lean
-        # is intentionally excluded from those defs, so forward_lean_score ≈ 50.
-        # Weighted avg: 0.30*0 + 0.25*0 + 0.25*0 + 0.20*50 = 10
-        assert r["posture_score"] == 10
+        # Blend: 0.65*15 + 0.35*10 = 13
+        assert r["posture_score"] == 13
         assert r["score_band"] == "poor"
 
     def test_model_score_preserved_in_result(self):

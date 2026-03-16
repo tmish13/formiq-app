@@ -99,6 +99,22 @@ _CEILING_MARGIN: int = 30
 _MISSING_COMPONENT_DEFAULT: int = 50
 
 # ---------------------------------------------------------------------------
+# Score blend weight (model vs components)
+# ---------------------------------------------------------------------------
+#
+# posture_score = MODEL_BLEND_WEIGHT * model_score + (1 - MODEL_BLEND_WEIGHT) * component_weighted
+#
+# model_score   = 100 * (1 − prob_fault) — direct CNN-LSTM output; has strong
+#                 separation between good/bad form across the full prob_fault range.
+# component_weighted = weighted average of z-score-based component scores; adds
+#                 biomechanical specificity but compresses near 50 when production
+#                 features land close to the training distribution mean (z ≈ 0).
+#
+# 65/35 split: model dominates (preserving separation) while components still
+# meaningfully pull the score when a specific fault is clearly visible.
+_MODEL_BLEND_WEIGHT: float = 0.65
+
+# ---------------------------------------------------------------------------
 # Confidence calibration
 # ---------------------------------------------------------------------------
 
@@ -435,18 +451,21 @@ def compute_full_scores(
 ) -> Dict[str, Any]:
     """Compute all scores for a squat analysis.
 
-    ``posture_score`` is the weighted average of the four named component scores
-    (torso_stability, knee_symmetry, bottom_control, forward_lean).  This
-    ensures the overall score is always coherent with the per-component values
-    shown in the UI — no more "overall=35 while all components show 48-59".
+    ``posture_score`` is a blend of:
 
-    When components are None (visibility-gated), their weights are renormalized
-    across the remaining valid components.  If ALL four are None, the raw
-    ``model_score`` (100 * (1 - prob_fault)) is used as a fallback.
+    * ``model_score``  (65%) — ``100 * (1 − prob_fault)`` from the CNN-LSTM.
+      Has strong separation across the prob_fault range even when production
+      features land near the training distribution mean.
+    * ``component_weighted_score``  (35%) — weighted average of the four named
+      component z-scores.  Adds biomechanical specificity but may compress near
+      50 when z-scores are near zero (common with short single-rep clips padded
+      to the 300-frame model window).
 
-    The ``model_score`` is still preserved in the result dict for debugging and
-    audit purposes.  ``_apply_component_ceiling()`` is kept intact for tests
-    but is no longer used to compute ``posture_score``.
+    When ALL four components are None (visibility-gated), ``posture_score``
+    falls back to ``model_score`` directly (blend with model_score at 100%).
+
+    ``model_score`` and ``component_weighted_score`` are both preserved in the
+    result dict for debugging and audit.
 
     Returns a dict suitable for storing in FormCheck.results["posture_v1"].
     """
@@ -485,16 +504,29 @@ def compute_full_scores(
         if component_visibility is not None:
             result["component_visibility"] = component_visibility
 
-        # Step 3 — Weighted average of named component scores.
-        # When components are excluded (None), weights renormalize automatically.
-        # Falls back to model_score only when every component is None.
+        # Step 3 — Blend model_score with component-weighted score.
+        # Component scores may compress near 50 when z-scores cluster near the
+        # training mean (common for production single-rep clips padded to 300 frames).
+        # model_score (100 * (1 − prob_fault)) retains separation across the full
+        # prob_fault range and anchors the final score against compression.
         engine_result = compute_weighted_overall(
             named_scores, fallback_model_score=model_score
         )
-        posture_score = engine_result["overall_score"]
+        _component_weighted = engine_result["overall_score"]
+        _valid_count = engine_result["valid_component_count"]
         result["weights_used"] = engine_result["weights_used"]
         result["score_exclusions"] = engine_result["score_exclusions"]
-        result["valid_component_count"] = engine_result["valid_component_count"]
+        result["valid_component_count"] = _valid_count
+        result["component_weighted_score"] = _component_weighted
+
+        if _valid_count > 0 and _component_weighted is not None:
+            # Blend: 65% global temporal (model_score) + 35% biomechanical components
+            posture_score = int(
+                round(_MODEL_BLEND_WEIGHT * model_score + (1.0 - _MODEL_BLEND_WEIGHT) * _component_weighted)
+            )
+        else:
+            # All components None → fallback_model_score stored in _component_weighted
+            posture_score = _component_weighted  # already equals model_score
     else:
         result["component_scores"] = {
             "trunk_control": None,

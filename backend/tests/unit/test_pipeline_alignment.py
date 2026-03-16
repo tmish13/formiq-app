@@ -127,11 +127,16 @@ class TestBaselineFixture:
         assert ns["bottom_control_score"] == 50
 
     def test_posture_score_at_baseline(self):
-        """Zero features → all named components = 50 → weighted avg = 50."""
+        """Zero features → all components = 50; blend with model_score gives intermediate value.
+
+        model_score = 70 (prob_fault=0.3).
+        component_weighted = 50 (all z=0).
+        Blend: 0.65*70 + 0.35*50 = 45.5 + 17.5 = 63.
+        """
         r = _run(0.3, _zero_features())
-        # New formula: weighted avg of all-50 named components = 50 (regardless of model_score).
-        # model_score = 70 is still exposed in result["model_score"] for audit.
-        assert r["posture_score"] == 50
+        assert r["posture_score"] == 63
+        assert r["model_score"] == 70
+        assert r["component_weighted_score"] == 50
 
 
 # ===========================================================================

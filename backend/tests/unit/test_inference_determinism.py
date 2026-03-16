@@ -20,12 +20,12 @@ class TestInferenceDeterminism:
         assert r1["decision"] == r2["decision"]
 
     def test_compute_full_scores_different_prob_different_model_score(self):
-        """Different prob_fault → different model_score (and decision).
+        """Different prob_fault → different model_score AND different posture_score.
 
-        Under the new weighted-average formula, posture_score is driven by
-        components, not by prob_fault.  Zero features give all components=50
-        → posture_score=50 for ANY prob_fault.  But model_score and decision
-        still correctly reflect the CNN-LSTM output.
+        Zero features (all components=50).
+        prob=0.1: model_score=90, blend=0.65*90+0.35*50=76. decision=good_form.
+        prob=0.9: model_score=10, blend=0.65*10+0.35*50=24. decision=fault.
+        posture_score now varies with prob_fault (model_score is 65% of the blend).
         """
         from app.ml.posture_v1.scoring import compute_full_scores
         import numpy as np
@@ -37,8 +37,13 @@ class TestInferenceDeterminism:
         # decision differs
         assert r_good["decision"] == "good_form"
         assert r_fault["decision"] == "fault"
-        # posture_score is the same — both have identical zero features → components=50
-        assert r_good["posture_score"] == r_fault["posture_score"] == 50
+        # posture_score now also differs — model_score is 65% of the blend
+        assert r_good["posture_score"] > r_fault["posture_score"], (
+            f"Good squat should score higher than fault: "
+            f"{r_good['posture_score']} vs {r_fault['posture_score']}"
+        )
+        assert r_good["posture_score"] == 76
+        assert r_fault["posture_score"] == 24
 
     def test_compute_posture_score_boundary_values(self):
         """Boundary values do not crash and stay in [0, 100]."""

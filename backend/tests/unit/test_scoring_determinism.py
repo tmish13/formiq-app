@@ -144,18 +144,18 @@ class TestPostureScoreIndependentOfConfidence:
             )
 
     def test_low_confidence_does_not_reduce_posture_score(self):
-        """posture_score is driven by components, NOT by prob_fault.
+        """posture_score is driven by blend of model_score and component scores.
 
-        Under the new weighted-average formula, prob_fault=0.51 with zero
-        features (all named components = 50) still yields posture_score=50,
-        not 49.  The model_score in the result is 49, but posture_score comes
-        from the weighted component average.
+        prob_fault=0.51, zero features (all named components = 50):
+          model_score = 49, component_weighted = 50.
+          Blend: 0.65*49 + 0.35*50 = 31.85 + 17.5 = 49.35 → 49.
+        posture_score reflects the model's slight lean toward fault (49, not 50).
         """
         from app.ml.posture_v1.scoring import compute_full_scores
         feats = _make_zero_features_151d()
         r = compute_full_scores(0.51, feats, scaler_mean=None, scaler_std=None)
-        # Zero features → all named components = 50 → weighted avg = 50
-        assert r["posture_score"] == 50
+        # Blend: 0.65*49 + 0.35*50 = 49.35 → 49
+        assert r["posture_score"] == 49
         # model_score still reflects the CNN-LSTM output (49 for prob=0.51)
         assert r["model_score"] == 49
 
