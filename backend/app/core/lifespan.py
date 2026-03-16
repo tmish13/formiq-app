@@ -60,6 +60,38 @@ async def lifespan(app: FastAPI):
         async with engine.connect() as conn:
             result = await conn.execute(text("SELECT 1"))
             logger.info(f"Database connection successful: {result.scalar()}")
+
+        # Ensure core exercise template seed data exists on every startup.
+        # This is idempotent (WHERE NOT EXISTS) and runs in all environments
+        # so that production deploys don't require a separate manual migration step.
+        try:
+            async with engine.begin() as conn:
+                insert_result = await conn.execute(text("""
+                    INSERT INTO exercise_templates
+                        (id, name, description, difficulty, muscle_group, created_at, updated_at)
+                    SELECT
+                        'a1b2c3d4-e5f6-4a1b-8c3d-000000000001'::uuid,
+                        'Squat',
+                        'Barbell back squat — primary lower-body compound movement.',
+                        'Beginner',
+                        'Legs',
+                        NOW(),
+                        NOW()
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM exercise_templates WHERE LOWER(name) = 'squat'
+                    )
+                """))
+                rows_inserted = insert_result.rowcount
+                if rows_inserted:
+                    logger.info(
+                        "Exercise template seed applied: inserted Squat row "
+                        "(id=a1b2c3d4-e5f6-4a1b-8c3d-000000000001)"
+                    )
+                else:
+                    logger.info("Exercise template seed verified: Squat row already present")
+        except Exception as seed_err:
+            # Log but never block startup — the app can still serve other endpoints.
+            logger.warning(f"Exercise template seed check failed (non-fatal): {seed_err}")
         
         # Initialize database tables if needed (dev/test environments)
         if settings.ENVIRONMENT in ["development", "test"]:
