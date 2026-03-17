@@ -5,6 +5,7 @@ import {
   ChevronRight,
   ChevronLeft,
   Check,
+  CheckCircle,
   Camera,
   Target,
   Dumbbell,
