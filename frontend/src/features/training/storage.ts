@@ -19,11 +19,13 @@ import type { NextSessionTarget } from "../../utils/nextSessionTargets";
 // Versioned keys
 // ---------------------------------------------------------------------------
 const KEYS = {
-  sessions: "formiq-training-v1:sessions",
-  setLogs: "formiq-training-v1:setLogs",
-  equipmentProfiles: "formiq-training-v1:equipmentProfiles",
-  nextTargets: "formiq-training-v1:nextTargets",
-  gyms: "formiq-training-v1:gyms",
+  sessions:         "formiq-training-v1:sessions",
+  setLogs:          "formiq-training-v1:setLogs",
+  equipmentProfiles:"formiq-training-v1:equipmentProfiles",
+  nextTargets:      "formiq-training-v1:nextTargets",
+  gyms:             "formiq-training-v1:gyms",
+  activeDraft:      "formiq-training-v1:activeDraft",
+  customExercises:  "formiq-training-v1:customExercises",
 } as const;
 
 const LAST_EQUIP_PREFIX = "formiq-training-v1:lastEquip";
@@ -468,4 +470,94 @@ export function pushRecentEquipmentProfileId(id: string, limit = 3): void {
   } catch {
     // quota exceeded — fail silently
   }
+}
+
+// ---------------------------------------------------------------------------
+// Active workout draft — persists in-progress session across page reloads,
+// browser backgrounding, and auth token expiry redirects.
+// ---------------------------------------------------------------------------
+
+/** DRAFT_VERSION must be bumped whenever the shape changes. */
+const DRAFT_VERSION = 2 as const;
+
+export interface ActiveWorkoutDraft {
+  version: typeof DRAFT_VERSION;
+  sessionId: string;
+  goal: WorkoutSession["goal"];
+  currentExerciseId: string | null;
+  currentEquipmentId: string | null;
+  logWeight: number;
+  logReps: number;
+}
+
+export function saveActiveDraft(draft: Omit<ActiveWorkoutDraft, "version">): void {
+  const store = safeStorage();
+  if (!store) return;
+  try {
+    store.setItem(KEYS.activeDraft, JSON.stringify({ version: DRAFT_VERSION, ...draft }));
+  } catch {
+    // quota exceeded — fail silently, never risk data loss
+  }
+}
+
+export function loadActiveDraft(): ActiveWorkoutDraft | null {
+  const store = safeStorage();
+  if (!store) return null;
+  try {
+    const raw = store.getItem(KEYS.activeDraft);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    // Reject drafts from an older schema version
+    if (!parsed || parsed.version !== DRAFT_VERSION) return null;
+    return parsed as ActiveWorkoutDraft;
+  } catch {
+    return null;
+  }
+}
+
+export function clearActiveDraft(): void {
+  const store = safeStorage();
+  if (!store) return;
+  store.removeItem(KEYS.activeDraft);
+}
+
+// ---------------------------------------------------------------------------
+// Custom exercises — user-defined exercises stored locally.
+// ---------------------------------------------------------------------------
+
+export interface CustomExercise {
+  id: string;           // always "custom_<uuid>"
+  name: string;
+  primaryMuscles: string[];
+  movementPattern?: string;
+  defaultLoadType: string;
+  defaultIncrementLb: number;
+  defaultRepIntent: { min: number; max: number };
+  allowedEquipment: EquipmentType[];
+  createdAt: string;
+}
+
+export function listCustomExercises(): CustomExercise[] {
+  return readJson<CustomExercise>(KEYS.customExercises);
+}
+
+export function addCustomExercise(exercise: Omit<CustomExercise, "id" | "createdAt">): CustomExercise {
+  const { makeId } = require("./id") as typeof import("./id");
+  const newEx: CustomExercise = {
+    ...exercise,
+    id: `custom_${makeId()}`,
+    createdAt: new Date().toISOString(),
+  };
+  const existing = readJson<CustomExercise>(KEYS.customExercises).filter(
+    (e) => e.id !== newEx.id,
+  );
+  writeJson(KEYS.customExercises, [newEx, ...existing]);
+  return newEx;
+}
+
+export function deleteCustomExercise(id: string): void {
+  const existing = readJson<CustomExercise>(KEYS.customExercises).filter(
+    (e) => e.id !== id,
+  );
+  writeJson(KEYS.customExercises, existing);
 }

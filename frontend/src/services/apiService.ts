@@ -213,9 +213,12 @@ class ApiService {
     );
   }
 
-  // Helper method to redirect to login page
+  // Helper method to redirect to login page.
+  // Preserves the current path as a ?return= parameter so after re-auth the
+  // user lands back where they were (e.g. /workouts can resume a draft workout).
   private redirectToLogin() {
-    window.location.href = '/auth';
+    const returnTo = encodeURIComponent(window.location.pathname);
+    window.location.href = `/auth?return=${returnTo}`;
   }
 
   // Helper method to determine if we should use mock service.

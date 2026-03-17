@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Eye, EyeOff, Mail, Lock, User, ArrowLeft, CheckCircle } from "lucide-react"
 import { Input } from "../../components/ui/input"
 import { Label } from "../../components/ui/label"
-import { Navigate } from "react-router-dom"
+import { Navigate, useLocation } from "react-router-dom"
 import { useAuth } from "../../hooks/useAuth"
 import { useAppSelector } from "../../store/hooks"
 import apiService from "../../services/apiService"
@@ -13,6 +13,9 @@ type AuthMode = "login" | "signup" | "forgot-password" | "reset-success"
 
 export default function ModernAuthPage() {
   const { isAuthenticated, user } = useAppSelector((state) => state.auth)
+  const location = useLocation()
+  // Support ?return=/workouts so auth expiry during a workout brings user back
+  const returnTo = new URLSearchParams(location.search).get("return") ?? undefined
   const [authMode, setAuthMode] = useState<AuthMode>("login")
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
@@ -864,9 +867,13 @@ export default function ModernAuthPage() {
     </motion.div>
   )
 
-  // Already logged-in users are redirected immediately after all hooks have been called
+  // Already logged-in users are redirected immediately after all hooks have been called.
+  // If there's a ?return= param (e.g. set by apiService on auth expiry), use it.
   if (isAuthenticated && user) {
-    return <Navigate to={user.has_completed_onboarding ? "/dashboard" : "/onboarding"} replace />
+    const dest = returnTo
+      ? decodeURIComponent(returnTo)
+      : (user.has_completed_onboarding ? "/dashboard" : "/onboarding")
+    return <Navigate to={dest} replace />
   }
 
   // Verification pending — show dedicated inbox screen (bypasses the card's AnimatePresence)

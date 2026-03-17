@@ -248,6 +248,16 @@ export const EXERCISES: Exercise[] = [
   },
   // ── Pin-Loaded / Selectorized Machines ────────────────────────────────
   {
+    id: "machine_shoulder_press",
+    name: "Machine Shoulder Press",
+    primaryMuscles: ["deltoids", "triceps"],
+    movementPattern: "vertical_push",
+    defaultLoadType: "machine_stack",
+    defaultIncrementLb: 5,
+    defaultRepIntent: { min: 8, max: 15 },
+    allowedEquipment: ["machine_selectorized", "machine_plate_loaded"],
+  },
+  {
     id: "leg_extension",
     name: "Leg Extension",
     primaryMuscles: ["quadriceps"],

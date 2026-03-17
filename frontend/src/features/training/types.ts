@@ -92,6 +92,7 @@ export type ExerciseId =
   | "abductor_machine"
   | "machine_curl"
   | "machine_tricep_extension"
+  | "machine_shoulder_press"
   | "assisted_pull_up_dip";
 
 export interface Exercise {

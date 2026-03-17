@@ -10,12 +10,17 @@ import { Badge } from "../../components/ui/badge";
 import { EXERCISES, getExercisesForEquipmentType } from "./catalog";
 import { EQUIPMENT_TYPE_LABELS } from "./storage";
 import type { Exercise, EquipmentType } from "./types";
+import type { CustomExercise } from "./storage";
 
 interface ExercisePickerModalProps {
   open: boolean;
   equipmentType?: EquipmentType;
   onSelect: (exercise: Exercise) => void;
   onClose: () => void;
+  /** User-created custom exercises merged into the search pool. */
+  customExercises?: CustomExercise[];
+  /** Called when user wants to create a new exercise with the given name. */
+  onCreateCustom?: (name: string) => void;
 }
 
 const MOVEMENT_LABELS: Record<string, string> = {
@@ -42,16 +47,22 @@ export default function ExercisePickerModal({
   equipmentType,
   onSelect,
   onClose,
+  customExercises = [],
+  onCreateCustom,
 }: ExercisePickerModalProps) {
   const [query, setQuery] = useState("");
 
-  const basePool = useMemo(
-    () =>
+  const basePool = useMemo(() => {
+    const catalog =
       equipmentType && equipmentType !== "other"
         ? getExercisesForEquipmentType(equipmentType)
-        : EXERCISES,
-    [equipmentType],
-  );
+        : EXERCISES;
+    // Merge custom exercises — filter by equipment type when a specific type is selected
+    const custom = (equipmentType && equipmentType !== "other")
+      ? customExercises.filter((e) => e.allowedEquipment.includes(equipmentType))
+      : customExercises;
+    return [...catalog, ...custom] as Exercise[];
+  }, [equipmentType, customExercises]);
 
   const results = useMemo(() => {
     if (!query.trim()) return basePool;
@@ -66,6 +77,13 @@ export default function ExercisePickerModal({
 
   function handleSelect(ex: Exercise) {
     onSelect(ex);
+    setQuery("");
+    onClose();
+  }
+
+  function handleCreateCustom() {
+    if (!onCreateCustom || !query.trim()) return;
+    onCreateCustom(query.trim());
     setQuery("");
     onClose();
   }
@@ -102,13 +120,23 @@ export default function ExercisePickerModal({
 
         <ul className="overflow-y-auto max-h-80 divide-y divide-border">
           {results.length === 0 && (
-            <li className="px-4 py-8 text-center">
-              <p className="text-sm font-medium mb-1">No matching exercises</p>
-              <p className="text-xs text-muted-foreground">
-                {equipmentType && equipmentType !== "other"
-                  ? `No exercises available for ${EQUIPMENT_TYPE_LABELS[equipmentType]} yet.`
-                  : "Try a different search term."}
-              </p>
+            <li className="px-4 py-6 text-center space-y-3">
+              <p className="text-sm font-medium">No matching exercises</p>
+              {onCreateCustom && query.trim() ? (
+                <button
+                  type="button"
+                  onClick={handleCreateCustom}
+                  className="text-sm text-primary underline underline-offset-2"
+                >
+                  + Add "{query.trim()}" as a custom exercise
+                </button>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  {equipmentType && equipmentType !== "other"
+                    ? `No exercises for ${EQUIPMENT_TYPE_LABELS[equipmentType]}. Search all or type a name to create one.`
+                    : "Try a different search term."}
+                </p>
+              )}
             </li>
           )}
           {results.map((ex) => (
