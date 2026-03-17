@@ -9,7 +9,6 @@ import {
   RotateCcw,
   CheckCircle,
   ArrowLeft,
-  Lightbulb,
   Target,
   Timer,
   Video,
@@ -98,7 +97,7 @@ export default function RecordPage() {
   const [currentSetupStep, setCurrentSetupStep] = useState(0);
   const [cameraError, setCameraError] = useState(false);
   const [cameraErrorType, setCameraErrorType] = useState<CameraErrorType>(null);
-  const [positionGood] = useState(true);
+
   const [tooShortError, setTooShortError] = useState(false);
 
   // Camera control — front/back toggle
