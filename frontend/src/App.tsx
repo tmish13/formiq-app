@@ -1,4 +1,5 @@
 import React, { useEffect, Component, ReactNode } from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import { BrowserRouter } from 'react-router-dom';
 import { Provider, useSelector } from 'react-redux';
 import { GoogleOAuthProvider } from '@react-oauth/google';
@@ -138,18 +139,21 @@ export const App: React.FC = () => {
   }, []);
 
   return (
-    <ErrorBoundary>
-      <Provider store={store}>
-        <ModernThemeProvider>
-          {googleClientId ? (
-            <GoogleOAuthProvider clientId={googleClientId}>
+    <>
+      <ErrorBoundary>
+        <Provider store={store}>
+          <ModernThemeProvider>
+            {googleClientId ? (
+              <GoogleOAuthProvider clientId={googleClientId}>
+                <AppContent />
+              </GoogleOAuthProvider>
+            ) : (
               <AppContent />
-            </GoogleOAuthProvider>
-          ) : (
-            <AppContent />
-          )}
-        </ModernThemeProvider>
-      </Provider>
-    </ErrorBoundary>
+            )}
+          </ModernThemeProvider>
+        </Provider>
+      </ErrorBoundary>
+      <Analytics />
+    </>
   );
 };
