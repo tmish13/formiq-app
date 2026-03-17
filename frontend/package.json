@@ -52,6 +52,7 @@
     "@types/react-dom": "^18.2.0",
     "@types/redux-logger": "^3.0.13",
     "@types/redux-persist": "^4.3.1",
+    "@vercel/analytics": "^2.0.1",
     "ajv": "^8.17.1",
     "autoprefixer": "^10.4.20",
     "axios": "^1.4.0",
