@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Eye, EyeOff, Mail, Lock, User, ArrowLeft, CheckCircle } from "lucide-react"
+import { Eye, EyeOff, Mail, Lock, ArrowLeft, CheckCircle } from "lucide-react"
 import { Input } from "../../components/ui/input"
 import { Label } from "../../components/ui/label"
 import { Navigate, useLocation } from "react-router-dom"
@@ -128,12 +128,6 @@ export default function ModernAuthPage() {
 
     // Signup specific validations
     if (authMode === "signup") {
-      if (!formData.firstName) {
-        newErrors.firstName = "First name is required"
-      }
-      if (!formData.lastName) {
-        newErrors.lastName = "Last name is required"
-      }
       if (!formData.confirmPassword) {
         newErrors.confirmPassword = "Please confirm your password"
       } else if (formData.password !== formData.confirmPassword) {
@@ -167,13 +161,11 @@ export default function ModernAuthPage() {
         showToastMessage("Reset link sent successfully!", "success")
       } else if (authMode === "signup") {
         console.log("🔄 Creating account for:", formData.email);
-        // Derive username from name fields; fall back to email prefix if blank
-        const rawUsername = `${formData.firstName}${formData.lastName}`.toLowerCase().replace(/[^a-z0-9_-]/g, '').trim();
         const usernameFromEmail = formData.email.split('@')[0].replace(/[^a-z0-9_]/g, '_');
         const registrationData = {
           confirm_password: formData.confirmPassword,
-          full_name: `${formData.firstName} ${formData.lastName}`.trim() || formData.email.split('@')[0],
-          username: rawUsername.length >= 3 ? rawUsername : usernameFromEmail,
+          full_name: formData.email.split('@')[0],
+          username: usernameFromEmail,
         };
         console.log("📝 Registration data:", registrationData);
 
@@ -436,70 +428,18 @@ export default function ModernAuthPage() {
         <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100" style={{ lineHeight: "1.2" }}>
           Create your account
         </h1>
-        <p className="text-slate-600 dark:text-slate-400 -mt-1">Join thousands improving their form with AI</p>
+        {/* Product value — two short pills so new users immediately know what FormIQ does */}
+        <div className="flex items-center justify-center gap-2 flex-wrap">
+          <span className="inline-flex items-center gap-1 text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-2.5 py-1 rounded-full">
+            AI squat form scoring
+          </span>
+          <span className="inline-flex items-center gap-1 text-xs font-medium bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 px-2.5 py-1 rounded-full">
+            Smart workout progression
+          </span>
+        </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="firstName" className="text-sm font-medium text-slate-700 dark:text-slate-300">
-              First Name
-            </Label>
-            <div className="relative">
-              <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
-              <Input
-                id="firstName"
-                type="text"
-                placeholder="First name"
-                value={formData.firstName}
-                onChange={(e) => handleInputChange("firstName", e.target.value)}
-                disabled={isLoading}
-                className={`border border-slate-300 dark:border-slate-600 focus:border-indigo-500 dark:focus:border-indigo-400 rounded-md p-3 pl-10 h-12 ${
-                  errors.firstName ? "border-red-400 focus:border-red-400" : ""
-                }`}
-              />
-            </div>
-            {errors.firstName && (
-              <motion.p
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="text-sm text-red-400 text-left"
-              >
-                {errors.firstName}
-              </motion.p>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="lastName" className="text-sm font-medium text-slate-700 dark:text-slate-300">
-              Last Name
-            </Label>
-            <div className="relative">
-              <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
-              <Input
-                id="lastName"
-                type="text"
-                placeholder="Last name"
-                value={formData.lastName}
-                onChange={(e) => handleInputChange("lastName", e.target.value)}
-                disabled={isLoading}
-                className={`border border-slate-300 dark:border-slate-600 focus:border-indigo-500 dark:focus:border-indigo-400 rounded-md p-3 pl-10 h-12 ${
-                  errors.lastName ? "border-red-400 focus:border-red-400" : ""
-                }`}
-              />
-            </div>
-            {errors.lastName && (
-              <motion.p
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="text-sm text-red-400 text-left"
-              >
-                {errors.lastName}
-              </motion.p>
-            )}
-          </div>
-        </div>
-
+      <form onSubmit={handleSubmit} className="space-y-5">
         <div className="space-y-2">
           <Label htmlFor="email" className="text-sm font-medium text-slate-700 dark:text-slate-300">
             Email

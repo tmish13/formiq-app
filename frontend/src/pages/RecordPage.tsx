@@ -100,6 +100,14 @@ export default function RecordPage() {
   const [cameraErrorType, setCameraErrorType] = useState<CameraErrorType>(null);
   const [positionGood] = useState(true);
   const [tooShortError, setTooShortError] = useState(false);
+
+  // Camera control — front/back toggle
+  const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
+  const facingModeRef = useRef<'environment' | 'user'>('environment');
+  // Readiness indicator: initializing → positioning → ready
+  type ReadinessState = 'initializing' | 'positioning' | 'ready';
+  const [readiness, setReadiness] = useState<ReadinessState>('initializing');
+  const readinessFiredRef = useRef(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -173,6 +181,9 @@ export default function RecordPage() {
     };
   }, []);
 
+  // Keep facingModeRef in sync so initializeCamera() doesn't stale-close over state
+  useEffect(() => { facingModeRef.current = facingMode; }, [facingMode]);
+
   // Attach camera stream to video element when entering recording-related states
   useEffect(() => {
     if (recordingState === 'ready') {
@@ -180,6 +191,9 @@ export default function RecordPage() {
         if (videoRef.current && !videoRef.current.srcObject) {
           videoRef.current.srcObject = streamRef.current;
         }
+        // Reset readiness each time user returns to ready state
+        setReadiness('positioning');
+        readinessFiredRef.current = false;
       } else {
         initializeCamera();
       }
@@ -222,6 +236,38 @@ export default function RecordPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recordingState]);
 
+  // Auto-transition positioning → ready after 3.5 s; fire sound + haptic on back camera
+  useEffect(() => {
+    if (readiness !== 'positioning') return;
+    const t = setTimeout(() => {
+      setReadiness('ready');
+      if (facingModeRef.current === 'environment' && !readinessFiredRef.current) {
+        readinessFiredRef.current = true;
+        // Subtle beep — signals readiness when user can't see the screen (back camera)
+        try {
+          const AC = (window as any).AudioContext || (window as any).webkitAudioContext;
+          if (AC) {
+            const ctx: AudioContext = new AC();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.type = 'sine';
+            osc.frequency.value = 880;
+            gain.gain.setValueAtTime(0.12, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+            osc.start(ctx.currentTime);
+            osc.stop(ctx.currentTime + 0.3);
+          }
+        } catch { /* audio blocked or not available */ }
+        // Haptic pulse
+        try { if (navigator.vibrate) navigator.vibrate(150); } catch { /* not supported */ }
+      }
+    }, 3500);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [readiness]);
+
   const getCameraErrorMessage = (): string => {
     switch (cameraErrorType) {
       case 'permission':
@@ -233,16 +279,14 @@ export default function RecordPage() {
     }
   };
 
-  const initializeCamera = async () => {
+  const initializeCameraWithMode = async (mode: 'environment' | 'user') => {
     const tryGetStream = async (constraints: MediaStreamConstraints) =>
       navigator.mediaDevices.getUserMedia(constraints);
 
     let stream: MediaStream;
     try {
-      // Prefer back camera on mobile; gracefully falls back on desktop/front-only devices
-      stream = await tryGetStream({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+      stream = await tryGetStream({ video: { facingMode: { ideal: mode } }, audio: false });
     } catch {
-      // Retry without facingMode constraint
       try {
         stream = await tryGetStream({ video: true, audio: false });
       } catch (fallbackErr: unknown) {
@@ -265,6 +309,25 @@ export default function RecordPage() {
     }
     setCameraError(false);
     setCameraErrorType(null);
+    setReadiness('positioning');
+  };
+
+  // Uses the current facing mode (via ref to avoid stale closure)
+  const initializeCamera = () => initializeCameraWithMode(facingModeRef.current);
+
+  // Switch front/back camera — stops current stream then re-initialises
+  const flipCamera = async () => {
+    const next: 'environment' | 'user' = facingModeRef.current === 'environment' ? 'user' : 'environment';
+    setFacingMode(next);
+    facingModeRef.current = next;
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) videoRef.current.srcObject = null;
+    setReadiness('initializing');
+    readinessFiredRef.current = false;
+    await initializeCameraWithMode(next);
   };
 
   const startRecording = () => {
@@ -622,8 +685,8 @@ export default function RecordPage() {
       className="space-y-8"
     >
       <div className="text-center">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">Setup Your Recording</h2>
-        <p className="text-gray-600 dark:text-gray-400">Follow the checklist for best AI analysis results</p>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">Form Analysis</h2>
+        <p className="text-gray-500 dark:text-gray-400 text-sm">Side view · full body visible · 1 rep · 3–6 sec</p>
       </div>
 
       <div className="space-y-3">
@@ -663,9 +726,6 @@ export default function RecordPage() {
             </Card>
           ))}
         </div>
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          AI analyzes your form, including depth, stability, and tempo.
-        </p>
         {/* Unsupported exercises — plain coming-soon list */}
         <div className="space-y-1 pt-1">
           <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Coming soon</p>
@@ -687,8 +747,8 @@ export default function RecordPage() {
       </div>
 
       {/* Optional weight entry */}
-      <div className="space-y-3">
-        <h3 className="font-semibold text-gray-900 dark:text-white">Session Details (optional)</h3>
+      <div className="space-y-2">
+        <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400">Weight used (optional)</h3>
         <div className="space-y-1">
           <label className="text-sm text-gray-600 dark:text-gray-400">Weight (lb)</label>
           <input
@@ -703,9 +763,7 @@ export default function RecordPage() {
         </div>
       </div>
 
-      <div className="space-y-4">
-        <h3 className="font-semibold text-gray-900 dark:text-white">Setup Checklist:</h3>
-
+      <div className="space-y-3">
         {setupSteps.map((item, index) => (
           <motion.div
             key={item.key}
@@ -768,20 +826,6 @@ export default function RecordPage() {
         ))}
       </div>
 
-      <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
-        <div className="bg-blue-50 dark:bg-blue-900/15 rounded-lg p-4">
-          <div className="flex items-start space-x-3">
-            <Lightbulb className="w-5 h-5 text-blue-600 mt-0.5" />
-            <div>
-              <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-1">Pro Tip</h4>
-              <p className="text-sm text-blue-700 dark:text-blue-300 opacity-80">
-                Record one controlled rep in 3–6 seconds. Ensure your full body and complete range of motion are visible from start to finish.
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <Button
         onClick={() => setRecordingState('ready')}
         className="w-full"
@@ -826,10 +870,8 @@ export default function RecordPage() {
       className="space-y-6"
     >
       <div className="text-center">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Ready to Record</h2>
-        <p className="text-gray-600 dark:text-gray-400 text-sm">
-          Submit a 3–6 second video of a single, controlled rep. Full body must be visible.
-        </p>
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-1">Ready to Record</h2>
+        <p className="text-gray-500 dark:text-gray-400 text-sm">Tap the button when you're in position</p>
       </div>
 
       {/* "Clip too short" validation banner */}
@@ -871,35 +913,56 @@ export default function RecordPage() {
         <div className="relative aspect-video bg-black rounded-2xl overflow-hidden shadow-2xl">
           <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
 
-          {/* Framing guide — corner brackets communicate "fit full body within this area" */}
+          {/* Framing guide — corner brackets */}
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <motion.div
-              animate={{ opacity: [0.35, 0.6, 0.35] }}
+              animate={{ opacity: readiness === 'ready' ? [0.5, 0.85, 0.5] : [0.25, 0.45, 0.25] }}
               transition={{ duration: 3, repeat: Number.POSITIVE_INFINITY }}
               className="relative w-28 h-56"
             >
-              <div className="absolute top-0 left-0 w-5 h-5 border-t-2 border-l-2 border-white/70" />
-              <div className="absolute top-0 right-0 w-5 h-5 border-t-2 border-r-2 border-white/70" />
-              <div className="absolute bottom-0 left-0 w-5 h-5 border-b-2 border-l-2 border-white/70" />
-              <div className="absolute bottom-0 right-0 w-5 h-5 border-b-2 border-r-2 border-white/70" />
+              <div className={`absolute top-0 left-0 w-5 h-5 border-t-2 border-l-2 ${readiness === 'ready' ? 'border-green-400' : 'border-white/70'}`} />
+              <div className={`absolute top-0 right-0 w-5 h-5 border-t-2 border-r-2 ${readiness === 'ready' ? 'border-green-400' : 'border-white/70'}`} />
+              <div className={`absolute bottom-0 left-0 w-5 h-5 border-b-2 border-l-2 ${readiness === 'ready' ? 'border-green-400' : 'border-white/70'}`} />
+              <div className={`absolute bottom-0 right-0 w-5 h-5 border-b-2 border-r-2 ${readiness === 'ready' ? 'border-green-400' : 'border-white/70'}`} />
               <div className="absolute inset-0 flex flex-col items-center justify-end pb-3">
                 <span className="text-white/80 text-[10px] font-medium bg-black/50 px-2 py-0.5 rounded">Full body here</span>
               </div>
             </motion.div>
           </div>
 
-          {/* Status badge — neutral; we don't validate body position */}
-          <div className="absolute top-4 left-4 right-4">
-            <div className="flex items-center justify-between">
-              <Badge className="bg-black/60 text-white border border-white/20 shadow-sm">
-                <CheckCircle className="w-3 h-3 mr-1 text-green-400" />
-                Camera Ready
-              </Badge>
-              <Badge variant="outline" className="bg-black/50 text-white border-white/30">
-                <Camera className="w-3 h-3 mr-1" />
-                Ready
-              </Badge>
-            </div>
+          {/* Dynamic readiness banner */}
+          <div className="absolute top-3 left-3 right-3 flex items-center justify-between">
+            <motion.div
+              key={readiness}
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold shadow-sm ${
+                readiness === 'ready'
+                  ? 'bg-green-500/90 text-white'
+                  : readiness === 'positioning'
+                    ? 'bg-amber-500/85 text-white'
+                    : 'bg-black/60 text-white/70'
+              }`}
+            >
+              {readiness === 'ready' && <CheckCircle className="w-3 h-3 flex-shrink-0" />}
+              {readiness === 'positioning' && <span className="w-2 h-2 rounded-full bg-white/90 animate-pulse flex-shrink-0" />}
+              <span>
+                {readiness === 'ready'
+                  ? 'Ready ✓'
+                  : readiness === 'positioning'
+                    ? 'Position yourself — side view, full body'
+                    : 'Starting camera…'}
+              </span>
+            </motion.div>
+
+            {/* Camera flip toggle */}
+            <button
+              onClick={flipCamera}
+              className="p-2 rounded-full bg-black/50 text-white/80 hover:bg-black/70 active:scale-95 transition-all"
+              aria-label={facingMode === 'environment' ? 'Switch to front camera' : 'Switch to back camera'}
+            >
+              <RotateCcw className="w-4 h-4" />
+            </button>
           </div>
 
           {/* Record Button */}
@@ -917,67 +980,21 @@ export default function RecordPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {[
-          { icon: Timer, label: 'Duration', value: '3–6 sec · 1 rep', color: 'blue', satisfied: true },
-          { icon: Eye, label: 'Visibility', value: 'Full body in frame', color: 'green', satisfied: positionGood },
-          { icon: Target, label: 'Focus', value: 'Controlled form', color: 'purple', satisfied: true },
-        ].map((item, index) => (
-          <motion.div
-            key={index}
-            animate={
-              item.satisfied
-                ? {
-                    boxShadow: [
-                      '0 0 0 rgba(34, 197, 94, 0)',
-                      '0 0 20px rgba(34, 197, 94, 0.3)',
-                      '0 0 0 rgba(34, 197, 94, 0)',
-                    ],
-                  }
-                : {}
-            }
-            transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY }}
-            className={`text-center p-4 rounded-lg transition-all duration-300 ${
-              item.satisfied
-                ? 'bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800'
-                : 'bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700'
-            }`}
-          >
-            <item.icon
-              className={`w-6 h-6 mx-auto mb-2 ${item.satisfied ? 'text-green-500' : 'text-gray-400'}`}
-            />
-            <p
-              className={`font-medium mb-1 ${item.satisfied ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400'}`}
-            >
-              {item.label}
-            </p>
-            <p
-              className={`text-sm ${item.satisfied ? 'text-gray-600 dark:text-gray-300' : 'text-gray-500 dark:text-gray-500'}`}
-            >
-              {item.value}
-            </p>
-          </motion.div>
-        ))}
-      </div>
+      <p className="text-xs text-center text-muted-foreground">
+        {facingMode === 'environment'
+          ? 'Back camera · recommended for best analysis'
+          : 'Front camera · back camera gives better results'}
+      </p>
 
-      <div className="grid grid-cols-2 gap-4">
-        <Button
-          onClick={() => setRecordingState('setup')}
-          variant="outline"
-          className="flex items-center"
-        >
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Setup
-        </Button>
-        <Button
-          onClick={startCountdown}
-          className="flex items-center"
-          disabled={cameraError}
-        >
-          <Camera className="w-4 h-4 mr-2" />
-          Start Recording
-        </Button>
-      </div>
+      <Button
+        onClick={() => setRecordingState('setup')}
+        variant="outline"
+        size="sm"
+        className="w-full flex items-center justify-center"
+      >
+        <ArrowLeft className="w-4 h-4 mr-2" />
+        Back to Setup
+      </Button>
     </motion.div>
   );
 
