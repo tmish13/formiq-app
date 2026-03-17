@@ -46,6 +46,12 @@ import {
   setLastEquipment,
   pushRecentEquipmentProfileId,
   EQUIPMENT_TYPE_LABELS,
+  saveActiveDraft,
+  loadActiveDraft,
+  clearActiveDraft,
+  listCustomExercises,
+  addCustomExercise,
+  type CustomExercise,
 } from "../features/training/storage";
 import { getEquipmentDisplayName } from "../features/training/equipmentDisplay";
 import { getNextSetRecommendation } from "../features/training/progressionEngine";
@@ -185,7 +191,9 @@ function weightStep(exercise: Exercise, equipment: EquipmentProfile | null): num
 }
 
 function exerciseNameById(id: string): string {
-  return EXERCISES.find((e) => e.id === id)?.name ?? id;
+  return EXERCISES.find((e) => e.id === id)?.name
+    ?? listCustomExercises().find((e) => e.id === id)?.name
+    ?? id;
 }
 
 /**
@@ -558,6 +566,16 @@ function NextSetCard({
         >
           Fill inputs
         </Button>
+
+        {/* Always-available end exercise */}
+        <Button
+          size="sm"
+          variant="ghost"
+          className="w-full text-muted-foreground"
+          onClick={onEndExercise}
+        >
+          Done with this exercise
+        </Button>
       </CardContent>
     </Card>
   );
@@ -922,10 +940,17 @@ export default function WorkoutsPage() {
 
   // Timer / UX state
   const [restTimer,   setRestTimer]   = useState<{ total: number; remaining: number; running: boolean } | null>(null);
+  // Custom rest duration chosen by user this session; null = use goal default
+  const [customRestSecs, setCustomRestSecs] = useState<number | null>(null);
   const [undoNotice,    setUndoNotice]    = useState<string | null>(null);
   const [discardNotice, setDiscardNotice] = useState<string | null>(null);
   const [tab,           setTab]           = useState<"active" | "history">("active");
   const [rirHelpOpen, setRirHelpOpen] = useState(false);
+
+  // Custom exercises — loaded from localStorage, refreshed when user adds one
+  const [customExercises, setCustomExercises] = useState<CustomExercise[]>(() =>
+    listCustomExercises()
+  );
 
   // Workout summary (shown instead of clearing immediately on End Workout)
   const [summary, setSummary] = useState<WorkoutSummary | null>(null);
@@ -938,6 +963,55 @@ export default function WorkoutsPage() {
 
   const lastRecRef   = useRef<NextSetRecommendation | null>(null);
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Active draft: restore in-progress workout on mount ─────────────────
+  // This ensures the session survives page refreshes, tab backgrounding, and
+  // auth token expiry redirects. The draft is written on every meaningful
+  // mutation and cleared only on explicit end/discard.
+  useEffect(() => {
+    const draft = loadActiveDraft();
+    if (!draft) return;
+    const savedSession = listSessions().find((s) => s.id === draft.sessionId);
+    if (!savedSession) { clearActiveDraft(); return; }
+    // Discard drafts older than 24 h — stale sessions are not worth restoring
+    const ageHours = (Date.now() - new Date(savedSession.startedAt).getTime()) / 3_600_000;
+    if (ageHours > 24) { clearActiveDraft(); return; }
+
+    setSession(savedSession);
+    setGoal(draft.goal);
+    if (draft.currentExerciseId) {
+      const all = [...EXERCISES, ...listCustomExercises()] as Exercise[];
+      const ex = all.find((e) => e.id === draft.currentExerciseId);
+      if (ex) {
+        setCurrentExercise(ex);
+        if (savedSession) reloadSetsRef.current?.(savedSession.id, ex.id);
+      }
+    }
+    if (draft.currentEquipmentId) {
+      const equip = listEquipmentProfiles().find((p) => p.id === draft.currentEquipmentId);
+      if (equip) setCurrentEquipment(equip);
+    }
+    setLogWeight(draft.logWeight);
+    setLogReps(draft.logReps);
+    toast({ title: "Workout resumed", description: "Your in-progress workout was restored." });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Ref so the mount effect can call reloadSets without stale closure
+  const reloadSetsRef = useRef<((sessionId: string, exerciseId: string) => void) | null>(null);
+
+  // ── Active draft: save on every meaningful mutation ──────────────────────
+  useEffect(() => {
+    if (!session) return;
+    saveActiveDraft({
+      sessionId: session.id,
+      goal,
+      currentExerciseId: currentExercise?.id ?? null,
+      currentEquipmentId: currentEquipment?.id ?? null,
+      logWeight,
+      logReps,
+    });
+  }, [session?.id, goal, currentExercise?.id, currentEquipment?.id, logWeight, logReps]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Elapsed timer
   useEffect(() => {
@@ -977,6 +1051,9 @@ export default function WorkoutsPage() {
     setSetsForExercise(all);
     setNextIndex(all.length);
   }, []);
+
+  // Keep reloadSetsRef in sync so the mount-restore effect can call it
+  reloadSetsRef.current = reloadSets;
 
   const lastSessionPreview = useMemo(() => {
     if (session) return null; // only show on start screen
@@ -1154,6 +1231,7 @@ export default function WorkoutsPage() {
     const hasCountableSet = sets.some((s) => s.reps > 0);
     if (!hasCountableSet) {
       // Empty workout — remove from localStorage and return to start screen.
+      clearActiveDraft();
       removeSession(session.id);
       setSession(null);
       setCurrentExercise(null);
@@ -1162,6 +1240,7 @@ export default function WorkoutsPage() {
       setTimeout(() => setDiscardNotice(null), 4000);
       return;
     }
+    clearActiveDraft();
     setSummary(buildSummary(session));
     // Persist to backend — fire-and-forget, never blocks the summary screen.
     // localStorage remains intact as the immediate source of truth.
@@ -1169,6 +1248,7 @@ export default function WorkoutsPage() {
   }
 
   function handleDismissSummary() {
+    clearActiveDraft();
     setSession(null);
     setCurrentExercise(null);
     setCurrentEquipment(null);
@@ -1257,8 +1337,8 @@ export default function WorkoutsPage() {
     setLogSetType("working");
     setDidApplyRec(false);
 
-    // Start rest timer — use goal-based default; lastRec is a hint only
-    const restSecs = REST_SECONDS_DEFAULT[goal];
+    // Start rest timer — use custom duration when set, else goal-based default
+    const restSecs = customRestSecs ?? REST_SECONDS_DEFAULT[goal];
     setRestTimer({ total: restSecs, remaining: restSecs, running: true });
 
     // Undo notice (5s)
@@ -1273,6 +1353,22 @@ export default function WorkoutsPage() {
     setNextIndex((n) => Math.max(0, n - 1));
     setUndoNotice(null);
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+  }
+
+  /** Create a custom exercise and immediately select it. */
+  function handleCreateCustomExercise(name: string) {
+    const custom = addCustomExercise({
+      name,
+      primaryMuscles: [],
+      movementPattern: undefined,
+      defaultLoadType: "fixed",
+      defaultIncrementLb: 5,
+      defaultRepIntent: { min: 8, max: 15 },
+      allowedEquipment: ["other"],
+    });
+    setCustomExercises(listCustomExercises());
+    // Treat it as a generic Exercise so the rest of the flow works
+    handleSelectExercise(custom as unknown as Exercise);
   }
 
   /** Clear the current exercise — used by NextSetCard's "End Exercise" button. */
@@ -1486,21 +1582,43 @@ export default function WorkoutsPage() {
 
                 {/* Rest timer (enhanced) */}
                 {restTimer && (
-                  <div className="rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 px-4 py-3 flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-semibold text-blue-800 dark:text-blue-200">
-                        Rest
-                      </p>
-                      <p className="text-2xl font-bold tabular-nums text-blue-900 dark:text-blue-100">
-                        {Math.floor(restTimer.remaining / 60)}:{String(restTimer.remaining % 60).padStart(2, "0")}
-                      </p>
-                      <p className="text-xs text-blue-600 dark:text-blue-300 mt-0.5">
-                        {REST_LABEL[goal]}
-                      </p>
+                  <div className="rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 px-4 py-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-blue-800 dark:text-blue-200">
+                          Rest
+                        </p>
+                        <p className="text-2xl font-bold tabular-nums text-blue-900 dark:text-blue-100">
+                          {Math.floor(restTimer.remaining / 60)}:{String(restTimer.remaining % 60).padStart(2, "0")}
+                        </p>
+                        <p className="text-xs text-blue-600 dark:text-blue-300 mt-0.5">
+                          {customRestSecs != null ? `Custom: ${customRestSecs}s` : REST_LABEL[goal]}
+                        </p>
+                      </div>
+                      <Button size="sm" variant="outline" onClick={() => setRestTimer(null)}>
+                        Skip
+                      </Button>
                     </div>
-                    <Button size="sm" variant="outline" onClick={() => setRestTimer(null)}>
-                      Skip
-                    </Button>
+                    {/* Rest duration presets */}
+                    <div className="flex gap-1.5 pt-1">
+                      {[60, 90, 120, 180].map((secs) => (
+                        <button
+                          key={secs}
+                          type="button"
+                          onClick={() => {
+                            setCustomRestSecs(secs);
+                            setRestTimer({ total: secs, remaining: secs, running: true });
+                          }}
+                          className={`flex-1 rounded-md border py-1 text-xs font-medium transition-colors ${
+                            (customRestSecs ?? REST_SECONDS_DEFAULT[goal]) === secs
+                              ? "border-blue-500 bg-blue-500 text-white"
+                              : "border-blue-200 dark:border-blue-700 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-800/40"
+                          }`}
+                        >
+                          {secs >= 60 ? `${secs / 60}m` : `${secs}s`}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
 
@@ -1771,6 +1889,8 @@ export default function WorkoutsPage() {
             equipmentType={currentEquipment?.type}
             onSelect={handleSelectExercise}
             onClose={() => setExercisePickerOpen(false)}
+            customExercises={customExercises}
+            onCreateCustom={handleCreateCustomExercise}
           />
 
           {/* Equipment picker — always available (not gated on currentExercise) */}
