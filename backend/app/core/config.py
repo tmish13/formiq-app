@@ -829,6 +829,15 @@ class Settings(BaseSettings):
     )
     
     # RAG and LLM Settings
+    # COACHING_FEEDBACK_ENABLED gates the entire coaching-feedback block in analysis_tasks.
+    # Defaults OFF so workers that lack langchain_openai never attempt the import and
+    # never emit spurious "No module named 'langchain_openai'" warnings.
+    # Set COACHING_FEEDBACK_ENABLED=true in the environment only on workers that have
+    # the full LLM stack installed.
+    COACHING_FEEDBACK_ENABLED: bool = Field(
+        default=os.getenv("COACHING_FEEDBACK_ENABLED", "false").lower() == "true",
+        description="Enable coaching feedback generation (requires langchain_openai)"
+    )
     RAG_ENABLED: bool = Field(
         default=os.getenv("RAG_ENABLED", "true").lower() == "true",
         description="Enable RAG-powered feedback generation"

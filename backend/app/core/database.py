@@ -135,6 +135,28 @@ async_session_factory = async_sessionmaker(
     autoflush=False,
 )
 
+# ── Celery-safe async engine ────────────────────────────────────────────────
+# Each Celery task runs via asyncio.run(), creating a NEW event loop per task.
+# The QueuePool above keeps asyncpg connections alive between tasks; those
+# connections are bound to the event loop that created them. When the next
+# task's fresh loop tries to use or close them it gets:
+#   "Future <Future pending> attached to a different loop"
+#   "RuntimeError: Event loop is closed"
+#
+# Fix: NullPool — no connection is ever kept between operations. Every DB call
+# opens a fresh TCP connection in the current loop and closes it on release.
+# The cost (one extra handshake per task) is negligible for video-analysis jobs.
+_celery_async_engine = create_async_engine(
+    s_for_engine.ASYNC_DATABASE_URL,
+    poolclass=NullPool,
+)
+_celery_async_session_factory = async_sessionmaker(
+    bind=_celery_async_engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+    autoflush=False,
+)
+
 # Create sync engine for operations that need synchronous access
 sync_engine = create_engine(
     get_database_url(),
@@ -234,24 +256,17 @@ async def get_async_db() -> AsyncGenerator[Union[AsyncSession, Session], None]:
 @asynccontextmanager
 async def get_async_session_for_celery() -> AsyncGenerator[AsyncSession, None]:
     """
-    Provides an SQLAlchemy AsyncSession for Celery tasks, ensuring it's closed.
-    Manages the session lifecycle including rollback on error.
-    Commit should be handled explicitly within the Celery task where appropriate.
+    Provides a NullPool-backed AsyncSession for Celery tasks.
 
-    Usage:
-        async with get_async_session_for_celery() as db_session:
-            # ... perform database operations ...
-            # await db_session.commit() # Commit explicitly if needed
+    Uses _celery_async_engine (NullPool) so no asyncpg connection is ever
+    held across asyncio.run() boundaries. Each task gets a fresh connection
+    in its own event loop — no "Future attached to a different loop" errors.
+
+    Commit should be handled explicitly within the task.
     """
-    if 'async_session_factory' not in globals():
-        logger.error("async_session_factory is not defined. Database operations in Celery task will fail.")
-        raise RuntimeError("async_session_factory is not configured globally in database.py.")
-
-    session: AsyncSession = async_session_factory()
+    session: AsyncSession = _celery_async_session_factory()
     try:
         yield session
-        # Note: Commit is intentionally omitted here. 
-        # The Celery task should manage its own commits explicitly.
     except Exception:
         logger.error("Exception in Celery task DB session, rolling back.", exc_info=True)
         await session.rollback()

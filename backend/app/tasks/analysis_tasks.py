@@ -427,16 +427,8 @@ async def _process_form_check_task_async(self, video_id_str: str, form_check_id_
     video_id = UUID(video_id_str) # Convert video_id_str to UUID
     logger.info(f"[CeleryTask] Starting analysis for FormCheck ID: {form_check_id}, Video ID: {video_id}")
 
-    # Dispose the async engine connection pool before acquiring a session.
-    # Each asyncio.run() call creates a new event loop; connections held in the
-    # QueuePool from the previous (now-closed) loop are stale for asyncpg.
-    # Disposing forces fresh connections in the current event loop.
-    from app.core.database import async_engine as _async_engine
-    try:
-        await _async_engine.dispose()
-    except Exception as _dispose_exc:
-        logger.warning(f"[CeleryTask] async_engine.dispose() warning (non-fatal): {_dispose_exc}")
-
+    # get_async_session_for_celery() uses a NullPool engine — no connection is ever
+    # held across asyncio.run() boundaries, so no manual dispose() is needed here.
     settings_obj = get_settings()
     db_session: Optional[AsyncSession] = None
     form_check_service: Optional[FormCheckService] = None
@@ -1054,7 +1046,10 @@ async def _process_form_check_task_async(self, video_id_str: str, form_check_id_
                     logger.warning("[CeleryTask] limiter tracking failed: %s", _lim_err)
 
                 # --- Coaching feedback generation (best-effort, active mode only) ---
-                if not _is_shadow and pv1_decision != "uncertain":
+                # Gated on COACHING_FEEDBACK_ENABLED (default False) so workers
+                # without langchain_openai never attempt the import and never emit
+                # "No module named 'langchain_openai'" warnings.
+                if not _is_shadow and pv1_decision != "uncertain" and getattr(settings_obj, 'COACHING_FEEDBACK_ENABLED', False):
                     try:
                         from app.services.rag_feedback_service import rag_feedback_service as _rag_svc, FeedbackContext
                         if _rag_svc.is_available():
