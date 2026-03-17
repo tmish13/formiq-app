@@ -66,6 +66,7 @@ import { getNextSessionRecommendation } from "../utils/trainingRecommendations";
 import { makeId } from "../features/training/id";
 import { trainingSessionService } from "../services/trainingSessionService";
 import { useAppSelector } from "../store/hooks";
+import { useToast } from "../hooks/use-toast";
 import type {
   Exercise,
   EquipmentProfile,
@@ -915,6 +916,7 @@ function HistoryTab() {
 
 export default function WorkoutsPage() {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [session,          setSession]          = useState<WorkoutSession | null>(null);
   const [goal,             setGoal]             = useState<Goal>(() => {
     const { fitnessGoal } = getUserPrefs();
