@@ -2,6 +2,7 @@ import React, { useEffect, Component, ReactNode } from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import { Provider, useSelector } from 'react-redux';
 import { GoogleOAuthProvider } from '@react-oauth/google';
+import { Analytics } from '@vercel/analytics/react';
 import { store, RootState } from './store';
 import { AppRoutes } from './routes';
 import { ModernThemeProvider } from './contexts/ModernThemeContext';
@@ -148,6 +149,7 @@ export const App: React.FC = () => {
           ) : (
             <AppContent />
           )}
+          <Analytics />
         </ModernThemeProvider>
       </Provider>
     </ErrorBoundary>
