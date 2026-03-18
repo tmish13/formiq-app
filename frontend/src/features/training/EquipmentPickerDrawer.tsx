@@ -44,6 +44,8 @@ interface EquipmentPickerDrawerProps {
   onDeleteCustom?: (deletedId: string) => void;
 }
 
+/** Types shown in the browse list. "other" is omitted — custom equipment
+ * covers that use-case via "+ Add custom equipment". */
 const EQUIPMENT_TYPE_ORDER: EquipmentType[] = [
   "barbell",
   "dumbbell",
@@ -53,6 +55,12 @@ const EQUIPMENT_TYPE_ORDER: EquipmentType[] = [
   "smith",
   "bodyweight",
   "weighted_bodyweight",
+];
+
+/** All types available when creating a custom equipment item, including
+ * "other" as a valid category (the default for custom gear). */
+const CREATION_TYPE_ORDER: EquipmentType[] = [
+  ...EQUIPMENT_TYPE_ORDER,
   "other",
 ];
 
@@ -337,7 +345,7 @@ export default function EquipmentPickerDrawer({
                 Equipment type (optional)
               </label>
               <div className="flex flex-wrap gap-2">
-                {EQUIPMENT_TYPE_ORDER.map((type) => (
+                {CREATION_TYPE_ORDER.map((type) => (
                   <button
                     key={type}
                     type="button"
