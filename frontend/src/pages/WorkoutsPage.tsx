@@ -1942,9 +1942,41 @@ export default function WorkoutsPage() {
             onSelect={(p) => {
               setCurrentEquipment(p);
               setEquipmentHint(null);
-              // If an exercise is already selected, check compatibility and invalidate if needed.
-              // Custom exercises are always compatible — skip the catalog check for them.
-              if (p && currentExercise && p.type !== "other") {
+
+              if (!p) return;
+
+              // ── Custom equipment: auto-select (or create) a linked exercise ──
+              // Only fires when no exercise is already linked to this equipment.
+              if (p.isCustom) {
+                const allCustom = listCustomExercises();
+                const linked = allCustom.filter((e) => e.equipmentId === p.id);
+                const nameLower = p.name.trim().toLowerCase();
+
+                let target = linked[0]
+                  // Also accept an exercise that matches by name even without equipmentId
+                  ?? allCustom.find((e) => e.name.trim().toLowerCase() === nameLower);
+
+                if (!target) {
+                  // Create a default exercise using the equipment name
+                  target = addCustomExercise({
+                    name: p.name,
+                    primaryMuscles: [],
+                    movementPattern: undefined,
+                    defaultLoadType: "machine_stack",
+                    defaultIncrementLb: p.incrementLb ?? 5,
+                    defaultRepIntent: { min: 8, max: 15 },
+                    allowedEquipment: [p.type],
+                    equipmentId: p.id,
+                  });
+                  setCustomExercises(listCustomExercises());
+                }
+
+                handleSelectExercise(target as Exercise);
+                return;
+              }
+
+              // ── Standard equipment: existing compatibility logic ──
+              if (currentExercise && p.type !== "other") {
                 setLastEquipment(currentExercise.id, p.id);
                 pushRecentEquipmentProfileId(p.id);
                 if (!(currentExercise as any).isCustom) {
