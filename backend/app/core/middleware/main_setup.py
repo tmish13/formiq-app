@@ -2,13 +2,19 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-# Assuming BaseHTTPMiddleware is not directly used by setup_middleware but by the individual middlewares.
 
 from app.core.config import settings
-from app.core.logging import get_logger # Use get_logger consistently
+from app.core.logging import get_logger
 from app.core.cache import cache_service
 
 # Imports from within the app.core.middleware package
+# NOTE: ErrorHandlerMiddleware remains in the stack as a BaseHTTPMiddleware.
+# It sits INSIDE TraceContextMiddleware (which is now pure ASGI).  When it
+# catches an unhandled exception and returns a JSONResponse, that response
+# flows through TraceContextMiddleware's send_with_trace_headers wrapper,
+# so X-Correlation-ID is still present on error responses.
+# The root-cause fix for RuntimeError("No response returned") is the
+# conversion of TraceContextMiddleware to pure ASGI (no nested task group).
 from .error_handler import ErrorHandlerMiddleware
 from .rate_limiter import EnhancedRateLimiter
 from .validate_request import EnhancedValidateRequestMiddleware
@@ -77,6 +83,9 @@ def setup_middleware(app: FastAPI) -> None:
     else:
         logger.warning("Redis unavailable or cache_service not properly initialized - rate limiting disabled!")
 
-    # 5. Error Handler Middleware (must be last before application code)
-    app.add_middleware(ErrorHandlerMiddleware) # This is app.core.middleware.error_handler.ErrorHandlerMiddleware
-    logger.info("Error handler middleware configured") 
+    # 5. Error Handler Middleware
+    # Sits inside TraceContextMiddleware (pure ASGI).  Any unhandled exception
+    # converted to a JSONResponse here flows through the TRC send wrapper and
+    # therefore picks up the X-Correlation-ID header.
+    app.add_middleware(ErrorHandlerMiddleware)
+    logger.info("Error handler middleware configured")

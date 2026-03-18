@@ -5,7 +5,6 @@ from fastapi import FastAPI, Depends, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi.staticfiles import StaticFiles
-from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -148,20 +147,33 @@ def create_application() -> FastAPI:
     async def log_requests(request: Request, call_next):
         """Log all incoming requests and their processing time."""
         start_time = time.time()
-        
-        # Process the request
-        response = await call_next(request)
-        
-        # Calculate duration
-        duration = time.time() - start_time
-        
-        # Log the request
         client_host = request.client.host if request.client else "unknown"
+
+        # Safety net: Starlette 0.36.x BaseHTTPMiddleware can raise
+        # RuntimeError("No response returned") when deeply nested.
+        # The real fix is in the middleware architecture (TraceContextMiddleware
+        # is now pure ASGI; ErrorHandlerMiddleware was removed from the stack),
+        # which reduces nesting from 5 → 3 layers.  This catch is kept as a
+        # last-resort guard so the server always returns a response.
+        try:
+            response = await call_next(request)
+        except RuntimeError as exc:
+            duration = time.time() - start_time
+            logger.error(
+                f"{client_host} - {request.method} {request.url.path} "
+                f"- 500 - {duration:.4f}s [unexpected middleware error: {exc}]",
+                exc_info=True,
+            )
+            return JSONResponse(
+                status_code=500,
+                content={"detail": "Internal server error"},
+            )
+
+        duration = time.time() - start_time
         logger.info(
             f"{client_host} - {request.method} {request.url.path} "
             f"- {response.status_code} - {duration:.4f}s"
         )
-        
         return response
 
     return app

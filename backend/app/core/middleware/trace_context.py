@@ -1,127 +1,103 @@
-"""Trace context middleware for correlation ID injection."""
+"""Trace context middleware — pure ASGI implementation.
 
-import logging
-from typing import Callable
+Pure ASGI (not BaseHTTPMiddleware) so it does not add a nested anyio task
+group layer.  Starlette 0.36.x has a known edge case where multiple nested
+BaseHTTPMiddleware instances can produce RuntimeError("No response returned")
+because the memory-stream / task-group pairing in call_next interacts badly
+when exceptions propagate through the stack.  Converting this middleware to
+pure ASGI removes one layer of nesting and eliminates the bad `raise` path
+that was triggering the error.
+"""
+
 import uuid
+import logging
 
-from fastapi import Request, Response
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.datastructures import MutableHeaders
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.core.tracing import get_trace_context, is_tracing_enabled
 
 logger = logging.getLogger(__name__)
 
 
-class TraceContextMiddleware(BaseHTTPMiddleware):
-    """Middleware to inject trace context and correlation IDs into requests."""
-    
-    def __init__(self, app, generate_correlation_id: bool = True):
-        """
-        Initialize trace context middleware.
-        
-        Args:
-            app: FastAPI application instance
-            generate_correlation_id: Generate correlation ID if tracing is disabled
-        """
-        super().__init__(app)
+class TraceContextMiddleware:
+    """Pure-ASGI middleware that injects a correlation / trace ID into every
+    HTTP request/response pair.
+
+    * Reads ``x-correlation-id`` (or ``correlation-id``) from the incoming
+      request headers; generates a short UUID if none is present.
+    * Appends ``X-Correlation-ID`` (and OTel trace/span IDs when available)
+      to the *response* headers via a ``send`` wrapper (no scope mutation).
+    """
+
+    def __init__(self, app: ASGIApp, generate_correlation_id: bool = True) -> None:
+        self.app = app
         self.generate_correlation_id = generate_correlation_id
-    
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        """Process request and inject trace context."""
-        
-        # Extract or generate correlation information
-        correlation_id = self._get_or_create_correlation_id(request)
-        trace_context = {}
-        
-        # Get OpenTelemetry trace context if available
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        # ── Extract or generate correlation ID ───────────────────────────
+        correlation_id = self._get_correlation_id(scope)
+
+        # ── Optional OTel trace context ───────────────────────────────────
+        trace_context: dict = {}
         if is_tracing_enabled():
             trace_context = get_trace_context()
-            if not correlation_id and trace_context.get('correlation_id'):
-                correlation_id = trace_context['correlation_id']
-        
-        # Store in request state for access by other middleware/endpoints
-        request.state.correlation_id = correlation_id
-        request.state.trace_context = trace_context
-        
-        # Add to request headers for downstream services
-        if correlation_id:
-            # Create a mutable copy of headers if needed
-            if not hasattr(request, '_mutable_headers'):
-                mutable_headers = dict(request.headers)
-                mutable_headers['x-correlation-id'] = correlation_id
-                request._mutable_headers = mutable_headers
-        
-        # Process request
-        try:
-            response = await call_next(request)
-        except Exception as e:
-            # Log error with trace context
-            error_context = {
-                'correlation_id': correlation_id,
-                'path': request.url.path,
-                'method': request.method
-            }
-            error_context.update(trace_context)
-            logger.error(f"Request failed: {e}", extra=error_context)
-            raise
-        
-        # Add correlation ID to response headers
-        if correlation_id:
-            response.headers['X-Correlation-ID'] = correlation_id
-        
-        # Add trace information to response headers if available
-        if trace_context:
-            if trace_context.get('trace_id'):
-                response.headers['X-Trace-ID'] = trace_context['trace_id']
-            if trace_context.get('span_id'):
-                response.headers['X-Span-ID'] = trace_context['span_id']
-        
-        return response
-    
-    def _get_or_create_correlation_id(self, request: Request) -> str:
-        """Extract or generate a correlation ID for the request."""
-        
-        # Check for existing correlation ID in headers
-        correlation_id = (
-            request.headers.get('x-correlation-id') or
-            request.headers.get('X-Correlation-Id') or
-            request.headers.get('correlation-id')
-        )
-        
-        if correlation_id:
-            logger.debug(f"Using existing correlation ID: {correlation_id}")
-            return correlation_id
-        
-        # Generate new correlation ID if enabled
-        if self.generate_correlation_id:
-            correlation_id = str(uuid.uuid4())[:16]  # Short UUID
-            logger.debug(f"Generated new correlation ID: {correlation_id}")
-            return correlation_id
-        
+            if not correlation_id and trace_context.get("correlation_id"):
+                correlation_id = trace_context["correlation_id"]
+
+        if not correlation_id and self.generate_correlation_id:
+            correlation_id = str(uuid.uuid4())[:16]
+
+        # ── Wrap send to inject headers into the response ─────────────────
+        async def send_with_trace_headers(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                headers = MutableHeaders(scope=message)
+                if correlation_id:
+                    headers.append("X-Correlation-ID", correlation_id)
+                if trace_context.get("trace_id"):
+                    headers.append("X-Trace-ID", trace_context["trace_id"])
+                if trace_context.get("span_id"):
+                    headers.append("X-Span-ID", trace_context["span_id"])
+            await send(message)
+
+        await self.app(scope, receive, send_with_trace_headers)
+
+    # ── Helpers ───────────────────────────────────────────────────────────
+
+    def _get_correlation_id(self, scope: Scope) -> str:
+        """Return the first correlation-ID header found, or empty string."""
+        _wanted = {b"x-correlation-id", b"x-correlation-id", b"correlation-id"}
+        for name, value in scope.get("headers", []):
+            if name.lower() in _wanted:
+                try:
+                    return value.decode("latin-1")
+                except Exception:
+                    pass
         return ""
 
 
-def get_correlation_id(request: Request) -> str:
-    """
-    Get correlation ID from request state.
-    
-    Args:
-        request: FastAPI request object
-        
-    Returns:
-        Correlation ID if available, empty string otherwise
-    """
-    return getattr(request.state, 'correlation_id', '')
+# ── Module-level helpers (kept for backward compat) ───────────────────────
+
+def get_correlation_id_from_scope(scope: Scope) -> str:
+    """Return correlation ID stored on scope state, or empty string."""
+    state = scope.get("state")
+    if state is None:
+        return ""
+    try:
+        return getattr(state, "correlation_id", "") or ""
+    except Exception:
+        return state.get("correlation_id", "") if isinstance(state, dict) else ""
 
 
-def get_request_trace_context(request: Request) -> dict:
-    """
-    Get trace context from request state.
-    
-    Args:
-        request: FastAPI request object
-        
-    Returns:
-        Dictionary containing trace context information
-    """
-    return getattr(request.state, 'trace_context', {})
+def get_correlation_id(request) -> str:
+    """Return correlation ID from a Starlette Request object."""
+    return getattr(getattr(request, "state", None), "correlation_id", "") or ""
+
+
+def get_request_trace_context(request) -> dict:
+    """Return trace context dict from a Starlette Request object."""
+    return getattr(getattr(request, "state", None), "trace_context", {}) or {}
