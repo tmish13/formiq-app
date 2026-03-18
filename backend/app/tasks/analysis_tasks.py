@@ -2,6 +2,7 @@
 import asyncio
 import logging
 import os
+import threading
 from uuid import UUID
 from tempfile import NamedTemporaryFile
 from typing import Optional, Dict, Any, List
@@ -31,55 +32,79 @@ from app.services.video_service import VideoService
 
 logger = logging.getLogger(__name__)
 
-# Global instances for services initialized once per worker process
+# ── Per-worker singleton cache ────────────────────────────────────────────────
+# These are set lazily (on first task use) rather than eagerly at worker_process_init
+# so that Celery worker startup is fast and Render deploy timeouts are avoided.
+# MediaPipe + PyTorch + pandas/matplotlib are NOT imported until the first task runs.
 _shared_ai_service: Optional[AIService] = None
 _shared_storage_service: Optional[StorageService] = None
-_shared_exercise_config_service: Optional[ExerciseConfigService] = None
-_shared_video_service: Optional[VideoService] = None
-# PostureV1 model artifacts (heavy — ~200MB on disk, seconds to load)
-# Cached at module scope so they are loaded ONCE per worker process, not per task.
 _shared_posture_v1_loader: Optional[Any] = None
+
+_ai_service_lock = threading.Lock()
+_posture_loader_lock = threading.Lock()
+_storage_service_lock = threading.Lock()
+
 
 @worker_process_init.connect
 def initialize_worker_services(**kwargs):
-    """Initialize shared services once per Celery worker process."""
-    global _shared_ai_service, _shared_storage_service, _shared_exercise_config_service, _shared_video_service, _shared_posture_v1_loader
-    logger.info("Celery worker process initializing shared services...")
+    """Initialize only lightweight services at worker startup.
+
+    Heavy services (AIService, PostureV1) are deferred to first task use so that
+    the worker process becomes ready quickly and Render deploy timeouts are avoided.
+    MediaPipe / PyTorch / matplotlib-triggering imports are NOT executed here.
+    """
+    global _shared_storage_service
+    logger.info("Celery worker process starting — lightweight services only...")
     try:
         settings_obj = get_settings()
-        _shared_ai_service = AIService(app_settings=settings_obj)
-        if settings_obj.USE_S3_STORAGE:
-            from app.core.storage.s3 import S3StorageProvider as _S3Provider
-            _shared_storage_service = StorageService(provider=_S3Provider(), app_settings=settings_obj)
-        else:
-            _shared_storage_service = StorageService(app_settings=settings_obj)
-        # ExerciseConfigService / VideoService need a DB session — created per task.
-        _shared_exercise_config_service = None
-        _shared_video_service = None
-        logger.info("Shared services (AIService, StorageService) initialized for Celery worker.")
-
-        # Pre-warm PostureV1 model artifacts.
-        # Loading posture_v1.pt + scaler takes 1-3s; doing it here means the very
-        # first production task is just as fast as all subsequent ones.
-        if getattr(settings_obj, 'USE_POSTURE_V1', True):
-            try:
-                from app.ml.posture_v1.loader import PostureV1TorchLoader
-                _loader = PostureV1TorchLoader(settings_obj)
-                _loader._ensure_loaded()
-                _shared_posture_v1_loader = _loader
-                logger.info(
-                    "PostureV1 model initialized in worker process — "
-                    "artifacts will be reused across tasks."
-                )
-            except Exception as _pv1_init_err:
-                # Non-fatal: the task will create a per-task loader as fallback.
-                logger.error(
-                    "PostureV1 worker pre-warm failed (will fall back to per-task load): %s",
-                    _pv1_init_err, exc_info=True,
-                )
+        # StorageService is lightweight (no native libraries, no model files).
+        # Initialize it eagerly so the first task doesn't pay the setup cost.
+        with _storage_service_lock:
+            if settings_obj.USE_S3_STORAGE:
+                from app.core.storage.s3 import S3StorageProvider as _S3Provider
+                _shared_storage_service = StorageService(provider=_S3Provider(), app_settings=settings_obj)
+            else:
+                _shared_storage_service = StorageService(app_settings=settings_obj)
+        logger.info("Celery worker ready. AIService + PostureV1 will initialize on first task.")
     except Exception as e:
-        logger.critical(f"CRITICAL: Failed to initialize shared services in Celery worker: {e}", exc_info=True)
+        logger.critical("Failed to initialize worker services: %s", e, exc_info=True)
         raise
+
+
+def _get_shared_ai_service() -> AIService:
+    """Return the per-worker AIService singleton, creating it on first call.
+
+    Thread-safe double-checked locking.  MediaPipe + PyTorch are imported
+    here (not at module load time) so worker startup stays fast.
+    """
+    global _shared_ai_service
+    if _shared_ai_service is None:
+        with _ai_service_lock:
+            if _shared_ai_service is None:
+                logger.info("Initializing AIService for worker process (first task use)...")
+                _shared_ai_service = AIService(app_settings=get_settings())
+                logger.info("AIService initialized and cached for this worker.")
+    return _shared_ai_service
+
+
+def _get_shared_posture_loader() -> Any:
+    """Return the per-worker PostureV1TorchLoader singleton, creating it on first call.
+
+    PyTorch model loading (~1-3 s) happens here, not at worker startup.
+    """
+    global _shared_posture_v1_loader
+    if _shared_posture_v1_loader is None:
+        with _posture_loader_lock:
+            if _shared_posture_v1_loader is None:
+                settings_obj = get_settings()
+                if getattr(settings_obj, "USE_POSTURE_V1", True):
+                    logger.info("Loading PostureV1 model (first task use)...")
+                    from app.ml.posture_v1.loader import PostureV1TorchLoader
+                    _loader = PostureV1TorchLoader(settings_obj)
+                    _loader._ensure_loaded()
+                    _shared_posture_v1_loader = _loader
+                    logger.info("PostureV1 model loaded and cached for this worker.")
+    return _shared_posture_v1_loader
 
 # Helper to get an async DB session for Celery tasks
 # Use as: async with get_async_session_for_celery() as session:
@@ -88,11 +113,8 @@ get_task_db_session = get_async_session_for_celery
 # Helper to instantiate services within a task context
 async def get_services_for_task(db_session: AsyncSession, settings_obj: Settings):
     """Provides necessary services for the task."""
-    # Use globally initialized AI and Storage if available, otherwise fallback (with warning)
-    ai_service_instance = _shared_ai_service
-    if ai_service_instance is None:
-        logger.warning("Shared AIService not initialized, creating a new instance for this task.")
-        ai_service_instance = AIService(app_settings=settings_obj)
+    # Use per-worker singletons (initialized lazily on first task use).
+    ai_service_instance = _get_shared_ai_service()
 
     storage_service_instance = _shared_storage_service
     if storage_service_instance is None:
@@ -721,21 +743,22 @@ async def _process_form_check_task_async(self, video_id_str: str, form_check_id_
                 from app.ml.posture_v1.loader import PostureV1TorchLoader
                 from app.ml.posture_v1.scoring import compute_full_scores
 
-                # Use the process-scoped shared loader so model + scaler are loaded
-                # ONCE per worker process, not once per task.
-                if _shared_posture_v1_loader is not None:
-                    posture_v1_loader = _shared_posture_v1_loader
+                # Use the process-scoped shared loader (lazy-initialized on first use)
+                # so model + scaler are loaded ONCE per worker process, not once per task.
+                posture_v1_loader = _get_shared_posture_loader()
+                if posture_v1_loader is None:
+                    # USE_POSTURE_V1 is False — fall back to per-task instance.
+                    posture_v1_loader = PostureV1TorchLoader(settings_obj)
+                    logger.debug(
+                        "[CeleryTask] PostureV1 disabled or unavailable — "
+                        "created per-task instance (FormCheck %s)",
+                        form_check_id,
+                    )
+                else:
                     logger.debug(
                         "[CeleryTask] Reusing cached PostureV1 artifacts (FormCheck %s)",
                         form_check_id,
                     )
-                else:
-                    logger.warning(
-                        "[CeleryTask] PostureV1 shared loader unavailable — "
-                        "creating per-task instance (FormCheck %s)",
-                        form_check_id,
-                    )
-                    posture_v1_loader = PostureV1TorchLoader(settings_obj)
 
                 # Apply named threshold mode if set in form_check details.
                 # Save the current threshold and restore it after inference so the

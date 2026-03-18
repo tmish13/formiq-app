@@ -1,16 +1,58 @@
 """Consolidated AI service for pose detection and form analysis."""
-import mediapipe as mp
+import importlib
 import numpy as np
-import cv2
 from typing import Dict, List, Any, Tuple, Optional, Union
-import torch
 from pathlib import Path
 import asyncio # Added for asyncio.to_thread
 import time
 import hashlib
 import os
-import pandas as pd
 import uuid
+
+
+import types as _types
+
+
+class _LazyModule(_types.ModuleType):
+    """Defers a heavy library import until first attribute access.
+
+    Extends ``types.ModuleType`` so that mock patching works naturally:
+    ``setattr(lazy_cv2, "cvtColor", mock)`` stores the mock in the module's
+    ``__dict__``, and ``lazy_cv2.cvtColor`` returns from ``__dict__`` before
+    ``__getattr__`` is ever called — exactly how a real module behaves.
+
+    Replaces module-level ``import mediapipe as mp``, ``import torch``,
+    ``import cv2``, and ``import pandas as pd`` so that importing
+    *this* module during Celery worker startup does not:
+      - load native libraries (~100 MB+)
+      - trigger the matplotlib font-cache build (via pandas / mediapipe)
+      - block on CUDA initialisation (via torch)
+    The actual import fires once, on first attribute access, then is cached.
+    """
+
+    def __init__(self, real_name: str) -> None:
+        super().__init__(real_name)
+        # Store under private keys in the module __dict__
+        self._lazy_real_name = real_name
+        self._lazy_mod = None
+
+    def __getattr__(self, attr: str):
+        # Only called when attr is NOT already in __dict__ (e.g. a mock override)
+        if self._lazy_mod is None:
+            self._lazy_mod = importlib.import_module(self._lazy_real_name)
+        return getattr(self._lazy_mod, attr)
+
+    def __repr__(self) -> str:
+        return f"_LazyModule({self._lazy_real_name!r})"
+
+
+# These names shadow the old top-level imports.  No attribute is actually
+# accessed until AIService.__init__ runs (i.e. on first task use), so
+# Celery worker startup no longer pays the import cost.
+mp = _LazyModule("mediapipe")
+torch = _LazyModule("torch")
+cv2 = _LazyModule("cv2")
+pd = _LazyModule("pandas")
 
 from app.core.config import settings as global_settings, Settings # IMPORTED Settings
 from app.core.logging import get_logger

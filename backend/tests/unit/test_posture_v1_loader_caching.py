@@ -237,8 +237,8 @@ class TestAnalysisTasksModuleScope:
         # This is the safe starting state; the task will fall back to per-task creation.
         assert at._shared_posture_v1_loader is None
 
-    def test_initialize_worker_services_sets_loader_when_use_posture_v1_true(self):
-        """initialize_worker_services must set _shared_posture_v1_loader when USE_POSTURE_V1=True."""
+    def test_get_shared_posture_loader_sets_loader_when_use_posture_v1_true(self):
+        """_get_shared_posture_loader must lazily create and cache the loader when USE_POSTURE_V1=True."""
         import app.tasks.analysis_tasks as at
 
         mock_loader = MagicMock()
@@ -246,22 +246,23 @@ class TestAnalysisTasksModuleScope:
 
         mock_settings = _make_settings()
         mock_settings.USE_POSTURE_V1 = True
-        mock_settings.USE_S3_STORAGE = False
 
         with patch("app.tasks.analysis_tasks.get_settings", return_value=mock_settings), \
-             patch("app.tasks.analysis_tasks.AIService"), \
-             patch("app.tasks.analysis_tasks.StorageService"), \
-             patch("app.ml.posture_v1.loader.PostureV1TorchLoader", return_value=mock_loader) as MockLoader:
+             patch("app.ml.posture_v1.loader.PostureV1TorchLoader", return_value=mock_loader):
 
-            # Reset module state so we can test fresh
             original = at._shared_posture_v1_loader
+            original_lock = at._posture_loader_lock
             try:
+                import threading
                 at._shared_posture_v1_loader = None
-                at.initialize_worker_services()
+                at._posture_loader_lock = threading.Lock()
+                result = at._get_shared_posture_loader()
+                assert result is mock_loader
                 assert at._shared_posture_v1_loader is mock_loader
                 mock_loader._ensure_loaded.assert_called_once()
             finally:
                 at._shared_posture_v1_loader = original
+                at._posture_loader_lock = original_lock
 
     def test_initialize_worker_services_handles_loader_init_failure(self):
         """If PostureV1TorchLoader init fails, worker still starts (non-fatal)."""
