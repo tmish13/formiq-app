@@ -24,7 +24,6 @@ import {
   saveEquipmentProfile,
   DEFAULT_INCREMENT_BY_TYPE,
   EQUIPMENT_TYPE_LABELS,
-  listCustomEquipmentProfiles,
   createCustomEquipmentProfile,
   deleteCustomEquipmentProfile,
 } from "./storage";

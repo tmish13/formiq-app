@@ -52,8 +52,6 @@ import {
   listCustomExercises,
   addCustomExercise,
   deleteCustomExercise,
-  listCustomEquipmentProfiles,
-  deleteCustomEquipmentProfile,
   type CustomExercise,
 } from "../features/training/storage";
 import { getEquipmentDisplayName } from "../features/training/equipmentDisplay";

@@ -544,7 +544,7 @@ export function listCustomExercises(): CustomExercise[] {
   return readJson<CustomExercise>(KEYS.customExercises);
 }
 
-export function addCustomExercise(exercise: Omit<CustomExercise, "id" | "createdAt">): CustomExercise {
+export function addCustomExercise(exercise: Omit<CustomExercise, "id" | "createdAt" | "isCustom">): CustomExercise {
   const { makeId } = require("./id") as typeof import("./id");
   const newEx: CustomExercise = {
     ...exercise,
