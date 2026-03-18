@@ -135,6 +135,8 @@ export interface EquipmentProfile {
   brand?: string;
   notes?: string;
   isDefault?: boolean;
+  /** True for user-created custom equipment (id prefix "custom_equip_"). */
+  isCustom?: boolean;
   // Legacy fields — kept optional for backward compat with stored data.
   chainId?: GymChainId;
   exerciseId?: ExerciseId;

@@ -2,12 +2,15 @@
  * Bottom sheet for selecting or creating an equipment profile.
  * Uses shadcn/ui Sheet (side="bottom").
  *
- * Browse mode: 8-type stacked list (one row per EquipmentType).
- * Selecting a type finds the matching profile or auto-creates one from defaults.
- * Creation form: type chips + increment chips + brand/nickname/notes + Save/Back.
+ * Browse mode:
+ *   - "Your Equipment" section — user-created custom profiles, with delete support.
+ *   - Standard types stacked list (one row per EquipmentType).
+ *   - "+ Add custom equipment" button.
+ *
+ * Creation form: equipment name (required) + type chips + increment chips.
  */
 import React, { useState, useEffect } from "react";
-import { Check, X } from "lucide-react";
+import { Check, X, Trash2 } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -21,6 +24,9 @@ import {
   saveEquipmentProfile,
   DEFAULT_INCREMENT_BY_TYPE,
   EQUIPMENT_TYPE_LABELS,
+  listCustomEquipmentProfiles,
+  createCustomEquipmentProfile,
+  deleteCustomEquipmentProfile,
 } from "./storage";
 import { makeId } from "./id";
 import type { EquipmentProfile, EquipmentType } from "./types";
@@ -28,8 +34,15 @@ import type { EquipmentProfile, EquipmentType } from "./types";
 interface EquipmentPickerDrawerProps {
   open: boolean;
   selectedId?: string;
+  /**
+   * ID of the equipment currently in active use during a workout.
+   * Deletion is blocked while a profile is in active use.
+   */
+  activeEquipmentId?: string;
   onSelect: (profile: EquipmentProfile | null) => void;
   onClose: () => void;
+  /** Called after a custom equipment profile has been deleted. */
+  onDeleteCustom?: (deletedId: string) => void;
 }
 
 const EQUIPMENT_TYPE_ORDER: EquipmentType[] = [
@@ -49,47 +62,46 @@ const QUICK_INCREMENTS = [2.5, 5, 10, 25, 45];
 export default function EquipmentPickerDrawer({
   open,
   selectedId,
+  activeEquipmentId,
   onSelect,
   onClose,
+  onDeleteCustom,
 }: EquipmentPickerDrawerProps) {
+  // Standard (seed/auto-created) profiles, keyed by type
   const [profiles, setProfiles] = useState<EquipmentProfile[]>([]);
+  // User-created custom profiles
+  const [customProfiles, setCustomProfiles] = useState<EquipmentProfile[]>([]);
+
+  // Creation form state
   const [creating, setCreating] = useState(false);
-  const [form, setForm] = useState<{
-    type: EquipmentType;
-    brand: string;
-    incrementLb: string;
-    notes: string;
-    nickname: string;
-  }>({
-    type: "barbell",
-    brand: "",
-    incrementLb: String(DEFAULT_INCREMENT_BY_TYPE["barbell"]),
-    notes: "",
-    nickname: "",
-  });
+  const [customName, setCustomName] = useState("");
+  const [customType, setCustomType] = useState<EquipmentType>("other");
+  const [customIncrement, setCustomIncrement] = useState<string>(
+    String(DEFAULT_INCREMENT_BY_TYPE["other"]),
+  );
+
+  // Inline delete confirmation: id being confirmed, or null
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
-      setProfiles(listEquipmentProfiles());
+      const all = listEquipmentProfiles();
+      setProfiles(all.filter((p) => !p.isCustom));
+      setCustomProfiles(all.filter((p) => p.isCustom === true));
       setCreating(false);
+      setCustomName("");
+      setCustomType("other");
+      setCustomIncrement(String(DEFAULT_INCREMENT_BY_TYPE["other"]));
+      setConfirmDeleteId(null);
     }
   }, [open]);
-
-  /** Auto-suggest increment when type changes. */
-  function handleTypeChange(type: EquipmentType) {
-    setForm((f) => ({
-      ...f,
-      type,
-      incrementLb: String(DEFAULT_INCREMENT_BY_TYPE[type]),
-    }));
-  }
 
   function handleSelect(p: EquipmentProfile) {
     onSelect(p);
     onClose();
   }
 
-  /** Finds existing profile of this type or auto-creates one. */
+  /** Finds existing non-custom profile of this type or auto-creates one. */
   function handleSelectType(type: EquipmentType) {
     const match = profiles.find((p) => p.type === type);
     if (match) {
@@ -106,35 +118,41 @@ export default function EquipmentPickerDrawer({
     handleSelect(newProfile);
   }
 
-  function handleSave() {
-    let parsed = parseFloat(form.incrementLb);
-    if (isNaN(parsed) || parsed < 0) return;
-    if (form.type === "bodyweight") parsed = 0;
+  function handleTypeChange(type: EquipmentType) {
+    setCustomType(type);
+    setCustomIncrement(String(DEFAULT_INCREMENT_BY_TYPE[type]));
+  }
 
-    const typeLabel = EQUIPMENT_TYPE_LABELS[form.type];
-    const name =
-      form.nickname.trim() ||
-      (form.brand.trim() ? `${form.brand.trim()} \u2022 ${typeLabel}` : typeLabel);
-
-    const profile: EquipmentProfile = {
-      id: makeId(),
+  function handleSaveCustom() {
+    const name = customName.trim();
+    if (!name) return;
+    const inc = parseFloat(customIncrement);
+    const profile = createCustomEquipmentProfile(
       name,
-      type: form.type,
-      incrementLb: parsed,
-      brand: form.brand.trim() || undefined,
-      notes: form.notes.trim() || undefined,
-      nickname: form.nickname.trim() || undefined,
-      isDefault: profiles.length === 0,
-    };
-
-    saveEquipmentProfile(profile);
+      customType,
+      isNaN(inc) || inc < 0 ? DEFAULT_INCREMENT_BY_TYPE[customType] : inc,
+    );
     onSelect(profile);
     onClose();
   }
 
-  // Currently selected profile (for type-highlight detection)
+  function handleDeleteRequest(id: string) {
+    // Prevent deletion while the profile is actively in use
+    if (id === activeEquipmentId) return;
+    setConfirmDeleteId(id);
+  }
+
+  function handleDeleteConfirm(id: string) {
+    deleteCustomEquipmentProfile(id);
+    const all = listEquipmentProfiles();
+    setCustomProfiles(all.filter((p) => p.isCustom === true));
+    setConfirmDeleteId(null);
+    onDeleteCustom?.(id);
+  }
+
+  const allProfiles = [...profiles, ...customProfiles];
   const selectedProfile = selectedId
-    ? profiles.find((p) => p.id === selectedId) ?? null
+    ? allProfiles.find((p) => p.id === selectedId) ?? null
     : null;
 
   return (
@@ -146,7 +164,7 @@ export default function EquipmentPickerDrawer({
         <SheetHeader className="mb-4">
           <div className="flex items-center justify-between">
             <SheetTitle className="text-base">
-              {creating ? "Add equipment" : "Select equipment"}
+              {creating ? "Add custom equipment" : "Select equipment"}
             </SheetTitle>
             <button
               type="button"
@@ -161,9 +179,107 @@ export default function EquipmentPickerDrawer({
 
         {!creating ? (
           <div className="space-y-2 pb-10">
-            {/* 9-type stacked list — label only, no implementation-detail subtitles */}
+            {/* ── Your Equipment ─────────────────────────────────── */}
+            {customProfiles.length > 0 && (
+              <>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-1 pb-1">
+                  Your equipment
+                </p>
+
+                {customProfiles.map((p) => {
+                  const isSelected = selectedId === p.id;
+                  const isActive = activeEquipmentId === p.id;
+                  const isConfirming = confirmDeleteId === p.id;
+
+                  if (isConfirming) {
+                    return (
+                      <div
+                        key={p.id}
+                        className="flex items-center gap-2 rounded-xl border border-destructive/40 bg-destructive/5 px-4 py-3"
+                      >
+                        <span className="flex-1 text-sm font-medium text-destructive truncate">
+                          Delete &ldquo;{p.name}&rdquo;?
+                        </span>
+                        {isActive ? (
+                          <span className="text-xs text-muted-foreground shrink-0">
+                            In use — switch first
+                          </span>
+                        ) : (
+                          <div className="flex items-center gap-3 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteId(null)}
+                              className="text-xs text-muted-foreground hover:text-foreground"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteConfirm(p.id)}
+                              className="text-xs font-semibold text-destructive hover:underline"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => handleSelect(p)}
+                      className={`w-full flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors ${
+                        isSelected
+                          ? "border-2 border-primary bg-primary/5"
+                          : "border-border hover:bg-muted/50"
+                      }`}
+                    >
+                      <span className="flex-1 text-sm font-medium truncate">
+                        {p.name}
+                      </span>
+                      {isSelected && (
+                        <Check size={16} className="text-primary shrink-0" />
+                      )}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteRequest(p.id);
+                        }}
+                        className={`shrink-0 p-1 rounded transition-colors ${
+                          isActive
+                            ? "text-muted-foreground/30 cursor-not-allowed"
+                            : "text-muted-foreground hover:text-destructive"
+                        }`}
+                        aria-label={`Delete ${p.name}`}
+                        title={
+                          isActive
+                            ? "In use during active workout"
+                            : `Delete ${p.name}`
+                        }
+                        disabled={isActive}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </button>
+                  );
+                })}
+
+                {/* Divider before standard types */}
+                <div className="border-t border-border pt-2">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-1 pb-1">
+                    Standard
+                  </p>
+                </div>
+              </>
+            )}
+
+            {/* ── Standard equipment types ────────────────────────── */}
             {EQUIPMENT_TYPE_ORDER.map((type) => {
-              const isSelected = selectedProfile?.type === type;
+              const isSelected = selectedProfile?.type === type && !selectedProfile?.isCustom;
               return (
                 <button
                   key={type}
@@ -176,7 +292,9 @@ export default function EquipmentPickerDrawer({
                       : "border-border hover:bg-muted/50"
                   }`}
                 >
-                  <span className="flex-1 text-sm font-medium">{EQUIPMENT_TYPE_LABELS[type]}</span>
+                  <span className="flex-1 text-sm font-medium">
+                    {EQUIPMENT_TYPE_LABELS[type]}
+                  </span>
                   {isSelected && (
                     <Check size={16} className="text-primary shrink-0" />
                   )}
@@ -190,16 +308,34 @@ export default function EquipmentPickerDrawer({
                 className="w-full"
                 onClick={() => setCreating(true)}
               >
-                + Add custom
+                + Add custom equipment
               </Button>
             </div>
           </div>
         ) : (
+          /* ── Creation form ──────────────────────────────────────── */
           <div className="space-y-4 pb-10">
-            {/* Equipment type */}
+            {/* Name — the primary required field */}
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
-                Equipment type
+                Equipment name *
+              </label>
+              <Input
+                placeholder="e.g. Hammer Strength Incline Press"
+                value={customName}
+                onChange={(e) => setCustomName(e.target.value)}
+                autoFocus
+                className="h-9 text-sm"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && customName.trim()) handleSaveCustom();
+                }}
+              />
+            </div>
+
+            {/* Type chips — optional, defaults to "other" */}
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                Equipment type (optional)
               </label>
               <div className="flex flex-wrap gap-2">
                 {EQUIPMENT_TYPE_ORDER.map((type) => (
@@ -208,7 +344,7 @@ export default function EquipmentPickerDrawer({
                     type="button"
                     onClick={() => handleTypeChange(type)}
                     className={`rounded-full border px-3 py-1 text-xs transition-colors ${
-                      form.type === type
+                      customType === type
                         ? "border-primary bg-primary text-primary-foreground"
                         : "border-border hover:bg-muted/50"
                     }`}
@@ -219,8 +355,8 @@ export default function EquipmentPickerDrawer({
               </div>
             </div>
 
-            {/* Increment — chips for common values only */}
-            {form.type !== "bodyweight" ? (
+            {/* Increment chips — hidden for bodyweight */}
+            {customType !== "bodyweight" && (
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
                   Weight increment (lb)
@@ -230,10 +366,11 @@ export default function EquipmentPickerDrawer({
                     <button
                       key={v}
                       type="button"
-                      data-testid={`increment-chip-${v}`}
-                      onClick={() => setForm((f) => ({ ...f, incrementLb: String(v) }))}
+                      onClick={() =>
+                        setCustomIncrement(String(v))
+                      }
                       className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                        form.incrementLb === String(v)
+                        customIncrement === String(v)
                           ? "border-primary bg-primary text-primary-foreground"
                           : "border-border text-muted-foreground hover:bg-muted/50"
                       }`}
@@ -243,56 +380,7 @@ export default function EquipmentPickerDrawer({
                   ))}
                 </div>
               </div>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                Bodyweight — no increment needed.
-              </p>
             )}
-
-            {/* Brand (optional) */}
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
-                Brand (optional)
-              </label>
-              <Input
-                placeholder="e.g. Hammer Strength, Life Fitness"
-                value={form.brand}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, brand: e.target.value }))
-                }
-                className="h-9 text-sm"
-              />
-            </div>
-
-            {/* Nickname (optional) */}
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
-                Nickname (optional — overrides derived name)
-              </label>
-              <Input
-                placeholder="e.g. Cybex leg press"
-                value={form.nickname}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, nickname: e.target.value }))
-                }
-                className="h-9 text-sm"
-              />
-            </div>
-
-            {/* Notes (optional) */}
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
-                Notes (optional)
-              </label>
-              <Input
-                placeholder="e.g. selectorized stack, 200 lb max"
-                value={form.notes}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, notes: e.target.value }))
-                }
-                className="h-9 text-sm"
-              />
-            </div>
 
             <div className="flex gap-2 pt-2">
               <Button
@@ -302,7 +390,11 @@ export default function EquipmentPickerDrawer({
               >
                 Back
               </Button>
-              <Button className="flex-1" onClick={handleSave}>
+              <Button
+                className="flex-1"
+                disabled={!customName.trim()}
+                onClick={handleSaveCustom}
+              >
                 Save
               </Button>
             </div>

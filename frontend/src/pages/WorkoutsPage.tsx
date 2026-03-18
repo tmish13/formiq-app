@@ -51,6 +51,9 @@ import {
   clearActiveDraft,
   listCustomExercises,
   addCustomExercise,
+  deleteCustomExercise,
+  listCustomEquipmentProfiles,
+  deleteCustomEquipmentProfile,
   type CustomExercise,
 } from "../features/training/storage";
 import { getEquipmentDisplayName } from "../features/training/equipmentDisplay";
@@ -1365,12 +1368,48 @@ export default function WorkoutsPage() {
       primaryMuscles: [],
       movementPattern: undefined,
       defaultLoadType: equipType === "bodyweight" ? "fixed" : "machine_stack",
-      defaultIncrementLb: 5,
+      defaultIncrementLb: currentEquipment?.incrementLb ?? 5,
       defaultRepIntent: { min: 8, max: 15 },
       allowedEquipment: equipType ? [equipType] : ["other"],
+      // Link to custom equipment so it appears under that equipment next time
+      equipmentId: currentEquipment?.isCustom ? currentEquipment.id : undefined,
     });
     setCustomExercises(listCustomExercises());
     handleSelectExercise(custom as Exercise);
+  }
+
+  /** Delete a custom exercise; clears selection if it was the active one. */
+  function handleDeleteCustomExercise(id: string) {
+    deleteCustomExercise(id);
+    setCustomExercises(listCustomExercises());
+    if (currentExercise?.id === id) {
+      setCurrentExercise(null);
+      setCurrentEquipment(startEquipment);
+      setEquipmentHint(null);
+      setSetsForExercise([]);
+      setLogRir(null);
+      setDidApplyRec(false);
+      setRestTimer(null);
+    }
+  }
+
+  /** Called by EquipmentPickerDrawer after a custom equipment item is deleted. */
+  function handleDeleteCustomEquipment(deletedId: string) {
+    // Reload custom exercises (cascade delete may have removed some)
+    setCustomExercises(listCustomExercises());
+    // If the deleted equipment was active, fall back to startEquipment
+    if (currentEquipment?.id === deletedId) {
+      setCurrentEquipment(startEquipment);
+      setEquipmentHint(null);
+      // If current exercise was linked to the deleted equipment, clear it
+      if ((currentExercise as any)?.equipmentId === deletedId) {
+        setCurrentExercise(null);
+        setSetsForExercise([]);
+        setLogRir(null);
+        setDidApplyRec(false);
+        setRestTimer(null);
+      }
+    }
   }
 
   /** Clear the current exercise — used by NextSetCard's "End Exercise" button. */
@@ -1889,16 +1928,19 @@ export default function WorkoutsPage() {
           <ExercisePickerModal
             open={exercisePickerOpen}
             equipmentType={currentEquipment?.type}
+            currentEquipment={currentEquipment}
             onSelect={handleSelectExercise}
             onClose={() => setExercisePickerOpen(false)}
             customExercises={customExercises}
             onCreateCustom={handleCreateCustomExercise}
+            onDeleteCustomExercise={handleDeleteCustomExercise}
           />
 
           {/* Equipment picker — always available (not gated on currentExercise) */}
           <EquipmentPickerDrawer
             open={equipmentPickerOpen}
             selectedId={currentEquipment?.id}
+            activeEquipmentId={currentEquipment?.id}
             onSelect={(p) => {
               setCurrentEquipment(p);
               setEquipmentHint(null);
@@ -1917,6 +1959,7 @@ export default function WorkoutsPage() {
               }
             }}
             onClose={() => setEquipmentPickerOpen(false)}
+            onDeleteCustom={handleDeleteCustomEquipment}
           />
         </>
       )}
@@ -1929,6 +1972,10 @@ export default function WorkoutsPage() {
           setStartEquipment(p);
         }}
         onClose={() => setEquipmentPickerOpenStart(false)}
+        onDeleteCustom={() => {
+          // If deleted equipment was the start-screen default, clear it
+          if (startEquipment?.isCustom) setStartEquipment(null);
+        }}
       />
 
       {/* RIR explanation dialog */}

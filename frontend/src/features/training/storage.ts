@@ -162,7 +162,7 @@ export function listSetLogsForSession(sessionId: string): SetLog[] {
  * optionally filtered by equipmentProfileId.
  */
 export function listRecentWorkingSets(
-  exerciseId: ExerciseId,
+  exerciseId: string,
   limit: number,
   equipmentProfileId?: string,
 ): SetLog[] {
@@ -535,6 +535,8 @@ export interface CustomExercise {
   defaultRepIntent: { min: number; max: number };
   allowedEquipment: EquipmentType[];
   isCustom: true;
+  /** Links this exercise to a specific custom equipment profile id. */
+  equipmentId?: string;
   createdAt: string;
 }
 
@@ -562,4 +564,58 @@ export function deleteCustomExercise(id: string): void {
     (e) => e.id !== id,
   );
   writeJson(KEYS.customExercises, existing);
+}
+
+// ---------------------------------------------------------------------------
+// Custom equipment profiles — named equipment items created by the user.
+// Stored as EquipmentProfile entries with isCustom:true and id prefix
+// "custom_equip_" so they are distinguishable from seed/auto-created profiles.
+// ---------------------------------------------------------------------------
+
+/** Returns only user-created custom equipment profiles. */
+export function listCustomEquipmentProfiles(): EquipmentProfile[] {
+  return readJson<EquipmentProfile>(KEYS.equipmentProfiles).filter(
+    (p) => p.isCustom === true,
+  );
+}
+
+/**
+ * Create a named custom equipment profile.
+ * Dedup by normalized name — returns existing if same name already saved.
+ */
+export function createCustomEquipmentProfile(
+  name: string,
+  type: EquipmentType = "other",
+  incrementLb: number = 5,
+): EquipmentProfile {
+  const { makeId } = require("./id") as typeof import("./id");
+  const trimmed = name.trim();
+  // Dedup check
+  const existing = listCustomEquipmentProfiles().find(
+    (p) => p.name.trim().toLowerCase() === trimmed.toLowerCase(),
+  );
+  if (existing) return existing;
+
+  const profile: EquipmentProfile = {
+    id: `custom_equip_${makeId()}`,
+    name: trimmed,
+    type,
+    incrementLb,
+    isCustom: true,
+  };
+  saveEquipmentProfile(profile);
+  return profile;
+}
+
+/**
+ * Delete a custom equipment profile and cascade-delete all custom exercises
+ * that are linked to it via equipmentId.
+ */
+export function deleteCustomEquipmentProfile(id: string): void {
+  deleteEquipmentProfile(id);
+  // Cascade: remove linked custom exercises
+  const remaining = readJson<CustomExercise>(KEYS.customExercises).filter(
+    (e) => e.equipmentId !== id,
+  );
+  writeJson(KEYS.customExercises, remaining);
 }
