@@ -830,10 +830,16 @@ function HistoryTab() {
     }))
   );
 
+  // True while a backend fetch is in-flight. Initialized to `isAuthenticated`
+  // so we never briefly show "no workouts yet" while the first network call
+  // is resolving. Becomes false once the call settles (success or error).
+  const [fetching, setFetching] = React.useState(isAuthenticated);
+
   // Re-runs when isAuthenticated transitions to true (e.g. after logout → login).
   // Using [] alone caused the fetch to silently fail with no retry on re-login.
   React.useEffect(() => {
     if (!isAuthenticated) return;
+    setFetching(true);
     trainingSessionService.list().then((records) => {
       if (records.length > 0) {
         setSessions(
@@ -846,6 +852,8 @@ function HistoryTab() {
       // else: backend empty — keep localStorage data already in state
     }).catch(() => {
       // Network error — localStorage fallback already loaded in state
+    }).finally(() => {
+      setFetching(false);
     });
   }, [isAuthenticated]);
 
@@ -857,9 +865,9 @@ function HistoryTab() {
   return (
     <div className="space-y-4">
       {pagedSessions.length === 0 && (
-        <p className="text-sm text-muted-foreground text-center py-8">
-          No past workouts yet.
-        </p>
+        fetching
+          ? <p className="text-sm text-muted-foreground text-center py-8 animate-pulse">Loading…</p>
+          : <p className="text-sm text-muted-foreground text-center py-8">No past workouts yet.</p>
       )}
       {pagedSessions.map(({ session: s, sets }) => {
         const date = new Date(s.startedAt).toLocaleDateString(undefined, {

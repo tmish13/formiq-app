@@ -356,18 +356,23 @@ export default function EquipmentPickerDrawer({
                         : "border-border hover:bg-muted/50"
                     }`}
                   >
-                    {EQUIPMENT_TYPE_LABELS[type]}
+                    {/* "Other (show all)" is a browse-mode label; in creation context just "Other" */}
+                    {type === "other" ? "Other" : EQUIPMENT_TYPE_LABELS[type]}
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Increment chips — hidden for bodyweight */}
-            {customType !== "bodyweight" && (
+            {/* Increment chips — only shown for "Other" type.
+                Standard types auto-apply a sensible default; no manual entry needed. */}
+            {customType === "other" && (
               <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">
                   Weight increment (lb)
                 </label>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Smallest weight step for this equipment
+                </p>
                 <div className="flex flex-wrap gap-2">
                   {QUICK_INCREMENTS.map((v) => (
                     <button
