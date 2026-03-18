@@ -534,6 +534,7 @@ export interface CustomExercise {
   defaultIncrementLb: number;
   defaultRepIntent: { min: number; max: number };
   allowedEquipment: EquipmentType[];
+  isCustom: true;
   createdAt: string;
 }
 
@@ -546,6 +547,7 @@ export function addCustomExercise(exercise: Omit<CustomExercise, "id" | "created
   const newEx: CustomExercise = {
     ...exercise,
     id: `custom_${makeId()}`,
+    isCustom: true,
     createdAt: new Date().toISOString(),
   };
   const existing = readJson<CustomExercise>(KEYS.customExercises).filter(

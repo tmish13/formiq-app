@@ -96,7 +96,8 @@ export type ExerciseId =
   | "assisted_pull_up_dip";
 
 export interface Exercise {
-  id: ExerciseId;
+  /** Catalog exercises use ExerciseId literals; custom exercises use "custom_<id>". */
+  id: ExerciseId | string;
   name: string;
   primaryMuscles: string[];
   movementPattern?: string;
@@ -107,6 +108,8 @@ export interface Exercise {
   defaultRepIntent: { min: number; max: number };
   /** Equipment types this exercise can be performed with. */
   allowedEquipment: EquipmentType[];
+  /** True for user-created exercises; absent / false for catalog entries. */
+  isCustom?: boolean;
 }
 
 export type GymChainId =
@@ -145,7 +148,8 @@ export type SetType = "warmup" | "working" | "backoff";
 export interface SetLog {
   id: string;
   sessionId: string;
-  exerciseId: ExerciseId;
+  /** Catalog exercises use ExerciseId literals; custom exercises use "custom_<id>". */
+  exerciseId: ExerciseId | string;
   equipmentProfileId?: string;
   setIndex: number;
   setType: SetType;

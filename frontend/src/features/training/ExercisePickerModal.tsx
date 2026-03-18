@@ -161,6 +161,17 @@ export default function ExercisePickerModal({
               </button>
             </li>
           ))}
+          {results.length > 0 && onCreateCustom && query.trim() && (
+            <li className="px-4 py-3 text-center">
+              <button
+                type="button"
+                onClick={handleCreateCustom}
+                className="text-sm text-primary underline underline-offset-2"
+              >
+                + Add "{query.trim()}" as a custom exercise
+              </button>
+            </li>
+          )}
         </ul>
       </DialogContent>
     </Dialog>

@@ -1359,18 +1359,18 @@ export default function WorkoutsPage() {
 
   /** Create a custom exercise and immediately select it. */
   function handleCreateCustomExercise(name: string) {
+    const equipType = currentEquipment?.type;
     const custom = addCustomExercise({
       name,
       primaryMuscles: [],
       movementPattern: undefined,
-      defaultLoadType: "fixed",
+      defaultLoadType: equipType === "bodyweight" ? "fixed" : "machine_stack",
       defaultIncrementLb: 5,
       defaultRepIntent: { min: 8, max: 15 },
-      allowedEquipment: ["other"],
+      allowedEquipment: equipType ? [equipType] : ["other"],
     });
     setCustomExercises(listCustomExercises());
-    // Treat it as a generic Exercise so the rest of the flow works
-    handleSelectExercise(custom as unknown as Exercise);
+    handleSelectExercise(custom as Exercise);
   }
 
   /** Clear the current exercise — used by NextSetCard's "End Exercise" button. */
@@ -1902,14 +1902,17 @@ export default function WorkoutsPage() {
             onSelect={(p) => {
               setCurrentEquipment(p);
               setEquipmentHint(null);
-              // If an exercise is already selected, check compatibility and invalidate if needed
+              // If an exercise is already selected, check compatibility and invalidate if needed.
+              // Custom exercises are always compatible — skip the catalog check for them.
               if (p && currentExercise && p.type !== "other") {
                 setLastEquipment(currentExercise.id, p.id);
                 pushRecentEquipmentProfileId(p.id);
-                const valid = getExercisesForEquipmentType(p.type);
-                if (!valid.some((e) => e.id === currentExercise.id)) {
-                  setCurrentExercise(null);
-                  setEquipmentHint("Choose an exercise that matches this equipment.");
+                if (!(currentExercise as any).isCustom) {
+                  const valid = getExercisesForEquipmentType(p.type);
+                  if (!valid.some((e) => e.id === currentExercise.id)) {
+                    setCurrentExercise(null);
+                    setEquipmentHint("Choose an exercise that matches this equipment.");
+                  }
                 }
               }
             }}
