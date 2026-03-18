@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { usePoseReadiness } from '../hooks/usePoseReadiness';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Camera,
@@ -103,9 +104,8 @@ export default function RecordPage() {
   // Camera control — front/back toggle
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
   const facingModeRef = useRef<'environment' | 'user'>('environment');
-  // Readiness indicator: initializing → positioning → ready
-  type ReadinessState = 'initializing' | 'positioning' | 'ready';
-  const [readiness, setReadiness] = useState<ReadinessState>('initializing');
+  // readinessFiredRef prevents the audio/haptic cue from repeating while
+  // the user stays in the ready state; reset it whenever they leave ready.
   const readinessFiredRef = useRef(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
@@ -124,6 +124,41 @@ export default function RecordPage() {
   // Upload timeout — 60s wall-clock limit; cleared on success or error
   const uploadTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const uploadSucceededRef = useRef(false);
+
+  // ── Pose-based readiness ─────────────────────────────────────────────────
+  // Detection runs only when the camera preview is open (recordingState === 'ready')
+  // and stops once recording begins (or on unmount / camera flip).
+  const poseDetectionActive = recordingState === 'ready';
+
+  const handleBecameReady = useCallback(() => {
+    // Fire audio + haptic cue exactly once per ready-transition on back camera
+    if (facingModeRef.current === 'environment' && !readinessFiredRef.current) {
+      readinessFiredRef.current = true;
+      try {
+        const AC = (window as any).AudioContext || (window as any).webkitAudioContext;
+        if (AC) {
+          const ctx: AudioContext = new AC();
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.type = 'sine';
+          osc.frequency.value = 880;
+          gain.gain.setValueAtTime(0.12, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+          osc.start(ctx.currentTime);
+          osc.stop(ctx.currentTime + 0.3);
+        }
+      } catch { /* audio blocked or not available */ }
+      try { if (navigator.vibrate) navigator.vibrate(150); } catch { /* not supported */ }
+    }
+  }, []);
+
+  const { readiness, resetReadiness } = usePoseReadiness({
+    videoRef,
+    active: poseDetectionActive,
+    onBecameReady: handleBecameReady,
+  });
 
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -190,9 +225,8 @@ export default function RecordPage() {
         if (videoRef.current && !videoRef.current.srcObject) {
           videoRef.current.srcObject = streamRef.current;
         }
-        // Reset readiness each time user returns to ready state
-        setReadiness('positioning');
-        readinessFiredRef.current = false;
+        // resetReadiness() will restart the hook's detection cycle
+        resetReadiness();
       } else {
         initializeCamera();
       }
@@ -235,36 +269,12 @@ export default function RecordPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recordingState]);
 
-  // Auto-transition positioning → ready after 3.5 s; fire sound + haptic on back camera
+  // When user leaves ready state (moves out of frame), allow the cue to fire
+  // again the next time they return to ready.
   useEffect(() => {
-    if (readiness !== 'positioning') return;
-    const t = setTimeout(() => {
-      setReadiness('ready');
-      if (facingModeRef.current === 'environment' && !readinessFiredRef.current) {
-        readinessFiredRef.current = true;
-        // Subtle beep — signals readiness when user can't see the screen (back camera)
-        try {
-          const AC = (window as any).AudioContext || (window as any).webkitAudioContext;
-          if (AC) {
-            const ctx: AudioContext = new AC();
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc.type = 'sine';
-            osc.frequency.value = 880;
-            gain.gain.setValueAtTime(0.12, ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
-            osc.start(ctx.currentTime);
-            osc.stop(ctx.currentTime + 0.3);
-          }
-        } catch { /* audio blocked or not available */ }
-        // Haptic pulse
-        try { if (navigator.vibrate) navigator.vibrate(150); } catch { /* not supported */ }
-      }
-    }, 3500);
-    return () => clearTimeout(t);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (readiness !== 'ready') {
+      readinessFiredRef.current = false;
+    }
   }, [readiness]);
 
   const getCameraErrorMessage = (): string => {
@@ -308,7 +318,7 @@ export default function RecordPage() {
     }
     setCameraError(false);
     setCameraErrorType(null);
-    setReadiness('positioning');
+    // The usePoseReadiness hook drives readiness from here via real detection
   };
 
   // Uses the current facing mode (via ref to avoid stale closure)
@@ -324,8 +334,10 @@ export default function RecordPage() {
       streamRef.current = null;
     }
     if (videoRef.current) videoRef.current.srcObject = null;
-    setReadiness('initializing');
+    // Reset cue flag — back→front flip means the cue hasn't fired yet for this orientation
     readinessFiredRef.current = false;
+    // resetReadiness() signals the hook to restart its detection cycle
+    resetReadiness();
     await initializeCameraWithMode(next);
   };
 
