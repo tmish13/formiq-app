@@ -52,9 +52,13 @@ import {
   listCustomExercises,
   addCustomExercise,
   deleteCustomExercise,
+  getEquipmentProfile,
   type CustomExercise,
 } from "../features/training/storage";
-import { getEquipmentDisplayName } from "../features/training/equipmentDisplay";
+import {
+  getEquipmentDisplayName,
+  getResolvedExerciseDisplayName,
+} from "../features/training/equipmentDisplay";
 import { getNextSetRecommendation } from "../features/training/progressionEngine";
 import { computeFatigueBudget } from "../utils/fatigueBudget";
 import { getClampedWorkingRepRange } from "../utils/repClamp";
@@ -253,6 +257,7 @@ interface ExerciseSummary {
   nextTimeSuggestion: string;
   nextTarget: NextSessionTarget | null;
   equipmentName: string | null;
+  equipmentIsCustom: boolean;
   explanation: string | null;
 }
 
@@ -687,8 +692,16 @@ function WorkoutSummaryScreen({
           <CardHeader className="py-3 px-4">
             <CardTitle className="text-sm flex items-center justify-between">
               <div>
-                <span>{ex.exerciseName}</span>
-                {ex.equipmentName && (
+                <span>
+                  {getResolvedExerciseDisplayName(
+                    ex.exerciseName,
+                    ex.equipmentName,
+                    ex.equipmentIsCustom,
+                  )}
+                </span>
+                {/* For standard equipment (barbell, cable, etc.) show the equipment
+                    as context since it isn't merged into the resolved name. */}
+                {ex.equipmentName && !ex.equipmentIsCustom && (
                   <p className="text-xs font-normal text-muted-foreground mt-0.5">
                     {ex.equipmentName}
                   </p>
@@ -892,8 +905,14 @@ function HistoryTab() {
                 const equipName = equipProfile ? getEquipmentDisplayName(equipProfile) : null;
                 return (
                   <div key={exId} className="mb-2">
-                    <p className="text-xs font-medium mb-0.5">{exerciseNameById(exId)}</p>
-                    {equipName && (
+                    <p className="text-xs font-medium mb-0.5">
+                      {getResolvedExerciseDisplayName(
+                        exerciseNameById(exId),
+                        equipName,
+                        equipProfile?.isCustom === true,
+                      )}
+                    </p>
+                    {equipName && !(equipProfile?.isCustom === true) && (
                       <p className="text-xs text-muted-foreground mb-1">{equipName}</p>
                     )}
                     <SetLogTable sets={exSets} />
@@ -1177,10 +1196,9 @@ export default function WorkoutsPage() {
 
       // Compute and persist next-session target
       const exercise = EXERCISES.find((e) => e.id === exId) ?? null;
+      // Use direct id-lookup so custom equipment profiles (no legacy exerciseId field) resolve correctly
       const eqProfile = exSets[0]?.equipmentProfileId
-        ? listEquipmentProfiles(undefined, exId as any).find(
-            (p) => p.id === exSets[0].equipmentProfileId,
-          ) ?? null
+        ? getEquipmentProfile(exSets[0].equipmentProfileId) ?? null
         : null;
       const incrementLb = eqProfile?.incrementLb ?? exercise?.defaultIncrementLb ?? 5;
       const repClampRange = getClampedWorkingRepRange({
@@ -1222,6 +1240,7 @@ export default function WorkoutsPage() {
         nextTimeSuggestion: nextTimeLine(sess.goal, bestSet),
         nextTarget,
         equipmentName: equipProfile ? getEquipmentDisplayName(equipProfile) : null,
+        equipmentIsCustom: equipProfile?.isCustom === true,
         explanation,
       };
     });
