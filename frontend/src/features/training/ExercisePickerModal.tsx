@@ -8,6 +8,7 @@ import {
 } from "../../components/ui/dialog";
 import { Input } from "../../components/ui/input";
 import { Badge } from "../../components/ui/badge";
+import { Button } from "../../components/ui/button";
 import { EXERCISES, getExercisesForEquipmentType } from "./catalog";
 import { EQUIPMENT_TYPE_LABELS } from "./storage";
 import type { Exercise, EquipmentType, EquipmentProfile } from "./types";
@@ -129,6 +130,14 @@ export default function ExercisePickerModal({
     setConfirmDeleteId(null);
   }
 
+  /** CTA for custom equipment with no linked exercises: use the equipment name directly. */
+  function handleUseEquipmentName() {
+    if (!onCreateCustom || !currentEquipment) return;
+    onCreateCustom(currentEquipment.name);
+    setQuery("");
+    onClose();
+  }
+
   const showCreateOption = Boolean(onCreateCustom && query.trim());
 
   return (
@@ -184,14 +193,15 @@ export default function ExercisePickerModal({
           />
         </div>
 
-        {/* "Add exercise for this equipment" prompt when custom equipment selected */}
-        {isCustomEquipment && linkedCustomExercises.length === 0 && !query.trim() && (
-          <div className="px-4 pb-3">
-            <p className="text-xs text-muted-foreground">
-              No saved exercises for this equipment yet.{" "}
-              {onCreateCustom && (
-                <span>Search above and tap &ldquo;+ Add&rdquo; to create one.</span>
-              )}
+        {/* Explicit CTA when custom equipment has no linked exercises yet.
+            Replaces the old misleading "tap + Add" copy — the button IS the action. */}
+        {isCustomEquipment && currentEquipment && linkedCustomExercises.length === 0 && !query.trim() && onCreateCustom && (
+          <div className="px-4 pb-4 space-y-2">
+            <Button className="w-full" onClick={handleUseEquipmentName}>
+              Use &ldquo;{currentEquipment.name}&rdquo;
+            </Button>
+            <p className="text-xs text-muted-foreground text-center">
+              Or search below to pick a different exercise.
             </p>
           </div>
         )}
