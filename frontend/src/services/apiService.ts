@@ -108,6 +108,10 @@ let _cachedToken: string | null = null;
 // even when multiple concurrent requests receive a 401 simultaneously.
 let _refreshPromise: Promise<void> | null = null;
 
+// Guard against multiple concurrent redirect calls (e.g. several 401s after refresh failure).
+// Hard reload resets all module state, so no reset needed within a session.
+let _redirectingToLogin = false;
+
 async function getCachedAuthToken(): Promise<string | null> {
   if (_cachedToken !== null) return _cachedToken;
   const token = await storageService.getAuthToken();
@@ -157,7 +161,8 @@ class ApiService {
         // call redirectToLogin(), wiping state before the error can be displayed.
         const isAuthEndpoint =
           originalRequest.url?.includes('/auth/login') ||
-          originalRequest.url?.includes('/auth/token');
+          originalRequest.url?.includes('/auth/token') ||
+          originalRequest.url?.includes('/auth/refresh');
         if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
           originalRequest._retry = true;
           clearCachedToken(); // stale token — clear cache before refresh attempt
@@ -173,14 +178,25 @@ class ApiService {
                   if (response.access_token) {
                     await storageService.setAuthToken(response.access_token);
                     _cachedToken = response.access_token;
-                    return;
+                    if (response.refresh_token) {
+                      await storageService.setRefreshToken(response.refresh_token);
+                    }
+                    return; // success — waiters will retry with _cachedToken
                   }
                 }
-                // No refresh token or no new token — log out
+                // No refresh token available or server returned no access token
+                throw new Error('refresh_unavailable');
+              } catch (err) {
+                // Centralize ALL failure cleanup here — runs exactly once regardless of
+                // how many concurrent 401s are awaiting this promise. By removing the
+                // refresh token BEFORE finally nulls _refreshPromise, any late-arriving
+                // 401 that creates a new IIFE will find no token and fail fast without
+                // making a second network call.
                 await storageService.removeAuthToken();
                 await storageService.removeRefreshToken();
                 clearCachedToken();
-                this.redirectToLogin();
+                this.redirectToLogin(); // guarded by _redirectingToLogin
+                throw err; // propagate rejection to all waiters
               } finally {
                 _refreshPromise = null;
               }
@@ -189,15 +205,15 @@ class ApiService {
 
           try {
             await _refreshPromise;
-            // If we have a new cached token, retry the original request
+            // Refresh succeeded — retry the original request once with the new token
             if (_cachedToken) {
               originalRequest.headers['Authorization'] = `Bearer ${_cachedToken}`;
               return this.api(originalRequest);
             }
             return Promise.reject(error);
           } catch (refreshError) {
-            console.error('Token refresh failed:', refreshError);
-            return Promise.reject(error);
+            // All cleanup already done inside _refreshPromise — just propagate.
+            return Promise.reject(refreshError);
           }
         }
         
@@ -217,6 +233,8 @@ class ApiService {
   // Preserves the current path as a ?return= parameter so after re-auth the
   // user lands back where they were (e.g. /workouts can resume a draft workout).
   private redirectToLogin() {
+    if (_redirectingToLogin) return;
+    _redirectingToLogin = true;
     const returnTo = encodeURIComponent(window.location.pathname);
     window.location.href = `/auth?return=${returnTo}`;
   }
@@ -494,9 +512,11 @@ class ApiService {
    * Refresh the access token using refresh token
    */
   async refreshToken(refreshToken: string): Promise<{access_token: string; refresh_token?: string}> {
-    const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
-      refresh_token: refreshToken
-    });
+    const response = await axios.post(
+      `${API_BASE_URL}/auth/refresh`,
+      { refresh_token: refreshToken },
+      { withCredentials: true }, // send httpOnly refresh_token cookie
+    );
     return response.data;
   }
 

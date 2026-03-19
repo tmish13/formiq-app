@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Any, Dict, Optional
-from jose import jwt, JWTError
+from jose import jwt, JWTError, ExpiredSignatureError
 from redis import Redis
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -10,9 +10,11 @@ def _decode_jwt_payload(token: str) -> Optional[Dict[str, Any]]:
     try:
         payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
         return payload
+    except ExpiredSignatureError:
+        get_logger(__name__).debug("JWT token expired (routine expiry)")
+        return None
     except JWTError as e:
-        logger = get_logger(__name__)
-        logger.warning(f"JWT decoding error: {e}", exc_info=True)
+        get_logger(__name__).warning(f"JWT decoding error: {e}", exc_info=True)
         return None
 
 # --- Token Verification & Payload Retrieval ---

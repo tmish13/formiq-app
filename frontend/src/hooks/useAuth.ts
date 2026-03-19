@@ -1,7 +1,7 @@
 import { useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
-import { setUser, setError, setLoading, logout as logoutAction, setTokens } from '../store/slices/authSlice';
+import { setUser, setError, setLoading, logout as logoutAction, setTokens, loginSuccess } from '../store/slices/authSlice';
 import type { User } from '../types';
 import apiService from '../services/apiService';
 import { logError } from '../utils/logger';
@@ -19,110 +19,92 @@ export const useAuth = () => {
     (state) => state.auth
   );
 
-  // Initial load of auth token from storage on app start
+  // Bootstrap: runs once on mount — settles auth atomically before ProtectedRoute renders.
+  // isLoading starts as true (authSlice initialState), so ProtectedRoute shows a spinner
+  // until this effect finishes and dispatches setLoading(false).
   useEffect(() => {
-    const initializeAuth = async () => {
+    let cancelled = false;
+
+    const bootstrap = async () => {
+      const savedToken = localStorage.getItem('formiq_auth_token');
+      const savedRefreshToken = localStorage.getItem('formiq_refresh_token');
+
+      if (!savedToken) {
+        if (!cancelled) dispatch(setLoading(false));
+        return;
+      }
+
+      let activeToken = savedToken;
+      let activeRefreshToken = savedRefreshToken || '';
+
+      // Client-side expiry check (no signature verification)
       try {
-        // Only attempt to load from storage if not already authenticated and not loading
-        if (!token && !isLoading) {
-          dispatch(setLoading(true));
-          
-          // Simple localStorage check for web
-          const savedAuthToken = localStorage.getItem('formiq_auth_token');
-          const savedRefreshToken = localStorage.getItem('formiq_refresh_token');
-          
-          if (savedAuthToken) {
-            // Validate token format (basic check)
-            try {
-              // Decode JWT to check expiration (without verification)
-              const tokenPayload = JSON.parse(atob(savedAuthToken.split('.')[1]));
-              const now = Date.now() / 1000;
-              
-              if (tokenPayload.exp && tokenPayload.exp < now) {
-                // Access token expired — try refresh token before giving up
-                if (savedRefreshToken) {
-                  try {
-                    const refreshResult = await apiService.refreshToken(savedRefreshToken);
-                    const newAccessToken = refreshResult.access_token;
-                    const newRefreshToken = refreshResult.refresh_token || savedRefreshToken;
-                    localStorage.setItem('formiq_auth_token', newAccessToken);
-                    if (refreshResult.refresh_token) {
-                      localStorage.setItem('formiq_refresh_token', refreshResult.refresh_token);
-                    }
-                    dispatch(setTokens({ token: newAccessToken, refreshToken: newRefreshToken }));
-                    dispatch(setLoading(false));
-                    return;
-                  } catch {
-                    // Refresh failed — fall through to clear both tokens
-                  }
-                }
-                console.log('Token expired, clearing auth');
-                localStorage.removeItem('formiq_auth_token');
-                localStorage.removeItem('formiq_refresh_token');
-                dispatch(setLoading(false));
-                return;
-              }
-            } catch (e) {
-              // Invalid token format, clear it
-              console.error('Invalid token format:', e);
-              localStorage.removeItem('formiq_auth_token');
-              localStorage.removeItem('formiq_refresh_token');
-              dispatch(setLoading(false));
-              return;
+        const tokenPayload = JSON.parse(atob(savedToken.split('.')[1]));
+        const now = Date.now() / 1000;
+        if (tokenPayload.exp && tokenPayload.exp < now) {
+          if (!savedRefreshToken) {
+            localStorage.removeItem('formiq_auth_token');
+            localStorage.removeItem('formiq_refresh_token');
+            if (!cancelled) dispatch(setLoading(false));
+            return;
+          }
+          try {
+            const refreshResult = await apiService.refreshToken(savedRefreshToken);
+            activeToken = refreshResult.access_token;
+            activeRefreshToken = refreshResult.refresh_token || savedRefreshToken;
+            localStorage.setItem('formiq_auth_token', activeToken);
+            if (refreshResult.refresh_token) {
+              localStorage.setItem('formiq_refresh_token', refreshResult.refresh_token);
             }
-            
-            // Set the token in Redux store
-            dispatch(setTokens({
-              token: savedAuthToken,
-              refreshToken: savedRefreshToken || ''
-            }));
-            dispatch(setLoading(false)); // unblock ProtectedRoute immediately; checkAuth runs in background
-            // Token will trigger the other useEffect to fetch user data
-          } else {
-            // No saved token, user is not authenticated
-            dispatch(setLoading(false));
+          } catch {
+            localStorage.removeItem('formiq_auth_token');
+            localStorage.removeItem('formiq_refresh_token');
+            if (!cancelled) {
+              dispatch(logoutAction());
+              dispatch(setLoading(false));
+            }
+            return;
           }
         }
-      } catch (error) {
-        console.error('Error initializing auth:', error);
-        dispatch(setLoading(false));
+      } catch {
+        // Malformed token
+        localStorage.removeItem('formiq_auth_token');
+        localStorage.removeItem('formiq_refresh_token');
+        if (!cancelled) dispatch(setLoading(false));
+        return;
       }
-    };
 
-    initializeAuth();
-  }, [dispatch, token, isLoading]);
-
-  // When token is available but user isn't, fetch user data
-  useEffect(() => {
-    const checkAuth = async () => {
-      if (!token || user) return;
-
+      // Validate session with backend and set auth state atomically
       try {
         const response = await apiService.validateSession();
         const currentUser = response.data;
-        dispatch(setUser(currentUser));
-        // Seed localStorage prefs from backend — only non-null values overwrite existing ones
-        setUserPrefs({
-          ...(currentUser.fitness_goal != null && { fitnessGoal: currentUser.fitness_goal }),
-          ...(currentUser.fitness_level != null && { fitnessLevel: currentUser.fitness_level }),
-          ...(currentUser.weight_kg != null && { weightKg: currentUser.weight_kg }),
-          ...(currentUser.age != null && { age: currentUser.age }),
-          ...(currentUser.height_cm != null && { heightCm: currentUser.height_cm }),
-          ...(currentUser.training_experience != null && { trainingExperience: currentUser.training_experience as any }),
-        });
-      } catch (error: any) {
-        dispatch(setError(error.message));
-        // Clear invalid token
-        dispatch(setTokens({ token: '', refreshToken: '' }));
+        if (!cancelled) {
+          // loginSuccess sets user + tokens + isAuthenticated=true in one dispatch
+          dispatch(loginSuccess({ user: currentUser, accessToken: activeToken, refreshToken: activeRefreshToken }));
+          setUserPrefs({
+            ...(currentUser.fitness_goal != null && { fitnessGoal: currentUser.fitness_goal }),
+            ...(currentUser.fitness_level != null && { fitnessLevel: currentUser.fitness_level }),
+            ...(currentUser.weight_kg != null && { weightKg: currentUser.weight_kg }),
+            ...(currentUser.age != null && { age: currentUser.age }),
+            ...(currentUser.height_cm != null && { heightCm: currentUser.height_cm }),
+            ...(currentUser.training_experience != null && { trainingExperience: currentUser.training_experience as any }),
+          });
+        }
+      } catch (err: any) {
         localStorage.removeItem('formiq_auth_token');
         localStorage.removeItem('formiq_refresh_token');
+        if (!cancelled) {
+          dispatch(logoutAction());
+          dispatch(setError(err.message));
+        }
       } finally {
-        dispatch(setLoading(false));
+        if (!cancelled) dispatch(setLoading(false));
       }
     };
 
-    checkAuth();
-  }, [token, user, dispatch]);
+    bootstrap();
+    return () => { cancelled = true; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const login = useCallback(async (email: string, password: string) => {
     try {
