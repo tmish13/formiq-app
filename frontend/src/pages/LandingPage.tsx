@@ -19,17 +19,17 @@ const STEPS = [
   {
     icon: BookOpen,
     title: 'Log your workouts',
-    desc: 'Track sets, reps, and weight so you can see real progression.',
+    desc: 'Track sets, reps, and weight over time.',
   },
   {
     icon: Video,
     title: 'Analyze your form',
-    desc: 'Upload a squat video and get a form score based on depth, stability, and posture.',
+    desc: 'Upload a squat video and get a form score instantly.',
   },
   {
     icon: TrendingUp,
     title: 'Track your progress',
-    desc: 'See trends over time and know when to push harder.',
+    desc: 'See progress and know when to increase weight.',
   },
 ];
 
@@ -38,25 +38,25 @@ const VALUES = [
     icon: Target,
     color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
     title: 'Train without a coach',
-    desc: 'Get objective feedback on your form and performance without needing a trainer.',
+    desc: 'Get form feedback without needing a coach.',
   },
   {
     icon: TrendingUp,
     color: 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400',
     title: 'Know when to progress',
-    desc: 'Science-based recommendations based on your recent workouts and form quality.',
+    desc: 'Recommendations based on your recent workouts.',
   },
   {
     icon: BookOpen,
     color: 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400',
     title: 'Training history in one place',
-    desc: 'Log every session and see if your strength is actually improving.',
+    desc: 'Log every workout in one place.',
   },
   {
     icon: Dumbbell,
     color: 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400',
     title: 'Built for lifters who train alone',
-    desc: 'Most lifters train without a coach. FormIQ helps you stay consistent and progress safely.',
+    desc: 'Built for lifters who train alone.',
   },
 ];
 
@@ -98,17 +98,17 @@ export default function LandingPage() {
           transition={{ duration: 0.45 }}
           className="space-y-5"
         >
-          <Badge variant="secondary" className="text-xs">
-            Beta · Squat analysis available now
-          </Badge>
+          <p className="text-sm font-medium text-muted-foreground">
+            Workout tracker + form analysis for lifters
+          </p>
 
           <h1 className="text-3xl sm:text-4xl font-bold leading-tight text-balance">
             Science-based workout tracking and form analysis for lifters who train alone.
           </h1>
 
           <p className="text-muted-foreground text-base max-w-md mx-auto">
-            Log all your workouts, track your progress, and analyze your form — all in one place.
-            Start with squat analysis, with more exercises coming.
+            Log workouts, track progress, and get form feedback — all in one place.
+            Squat analysis available now. More exercises coming.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
@@ -123,9 +123,6 @@ export default function LandingPage() {
               See how it works <ChevronDown className="w-4 h-4" />
             </a>
           </div>
-          <p className="text-xs text-muted-foreground/60">
-            Log sessions, see progress, and analyze a squat to get a form score.
-          </p>
         </motion.div>
       </section>
 
@@ -237,7 +234,7 @@ export default function LandingPage() {
             ))}
           </div>
           <div>
-            <p className="text-xs text-muted-foreground mb-2">Coming soon</p>
+            <p className="text-xs text-muted-foreground mb-2">More exercises coming</p>
             <div className="flex flex-wrap justify-center gap-2">
               {['Bench', 'OHP', 'Row'].map((lift) => (
                 <Badge key={lift} variant="secondary" className="text-xs opacity-50">
@@ -261,9 +258,9 @@ export default function LandingPage() {
 
       {/* ── Footer CTA ───────────────────────────────────────────── */}
       <section className="px-5 py-16 max-w-2xl mx-auto text-center border-t border-border">
-        <h2 className="text-2xl font-bold mb-2">Log your workouts, track your progress, and analyze your form.</h2>
+        <h2 className="text-2xl font-bold mb-2">Track workouts. See progress. Analyze form.</h2>
         <p className="text-sm text-muted-foreground mb-7">
-          Free to use during beta. Start with squat analysis, more exercises coming.
+          Free during beta. Squat analysis available now.
         </p>
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
           <Button
