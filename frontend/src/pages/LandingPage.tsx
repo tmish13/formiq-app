@@ -3,7 +3,6 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Video,
-  BarChart2,
   CheckCircle,
   ArrowRight,
   ChevronDown,

@@ -6,7 +6,6 @@ import { ResetPasswordForm } from '../components/auth/ResetPasswordForm';
 import { ConfirmPasswordResetForm } from '../components/auth/ConfirmPasswordResetForm';
 import { RequestEmailVerificationForm } from '../components/auth/RequestEmailVerificationForm';
 import { ConfirmEmailVerification } from '../components/auth/ConfirmEmailVerification';
-import AuthenticatedRoot from '../components/auth/AuthenticatedRoot';
 
 // Chunk load recovery: if a lazy chunk 404s (stale SW or CDN eviction), reload once.
 // sessionStorage flag prevents an infinite reload loop if the chunk is genuinely missing.
