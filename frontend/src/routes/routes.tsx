@@ -49,6 +49,7 @@ export const ROUTES = {
 } as const;
 
 // Modern UI pages ONLY - using shadcn/ui and Tailwind
+const LandingPage = lazyWithRetry(() => import('../pages/LandingPage'));
 const ModernAuthPage = lazyWithRetry(() => import('../pages/auth/ModernAuthPage'));
 const GoogleCallback = lazyWithRetry(() => import('../pages/auth/GoogleCallback'));
 const AppleCallback = lazyWithRetry(() => import('../pages/auth/AppleCallback'));
@@ -203,10 +204,10 @@ export const protectedRoutes: RouteObject[] = [
  * All application routes combined - MODERN UI ONLY
  */
 export const appRoutes: RouteObject[] = [
-  // Root redirect - conditional based on authentication
+  // Root: public landing page — handles authenticated redirect internally
   {
     path: '/',
-    element: <AuthenticatedRoot />
+    element: withSuspense(LandingPage)
   },
   ...publicRoutes,
   ...protectedRoutes,

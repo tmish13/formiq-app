@@ -428,15 +428,17 @@ export default function ModernAuthPage() {
         <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100" style={{ lineHeight: "1.2" }}>
           Create your account
         </h1>
-        {/* Product value — two short pills so new users immediately know what FormIQ does */}
         <div className="flex items-center justify-center gap-2 flex-wrap">
           <span className="inline-flex items-center gap-1 text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-2.5 py-1 rounded-full">
-            AI squat form scoring
+            Form scoring
           </span>
           <span className="inline-flex items-center gap-1 text-xs font-medium bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 px-2.5 py-1 rounded-full">
-            Smart workout progression
+            Adaptive progression
           </span>
         </div>
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          Squat analysis available now · More lifts coming soon
+        </p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
@@ -878,6 +880,16 @@ export default function ModernAuthPage() {
               >
                 FormIQ
               </motion.span>
+              {(authMode === "login" || authMode === "signup") && !verificationPending && (
+                <motion.p
+                  className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed mt-0.5"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.45 }}
+                >
+                  Form analysis and workout tracking for lifters who train alone.
+                </motion.p>
+              )}
             </div>
           </div>
         </motion.div>
