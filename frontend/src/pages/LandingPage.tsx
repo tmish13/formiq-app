@@ -17,19 +17,19 @@ import { useAppSelector } from '../store/hooks';
 
 const STEPS = [
   {
-    icon: Video,
-    title: 'Record your lift',
-    desc: 'Upload a squat video or record directly in the app.',
+    icon: BookOpen,
+    title: 'Log your workouts',
+    desc: 'Track sets, reps, and weight so you can see real progression.',
   },
   {
-    icon: Target,
-    title: 'Get a form score',
-    desc: 'Depth, stability, and posture — scored automatically.',
+    icon: Video,
+    title: 'Analyze your form',
+    desc: 'Upload a squat video and get a form score based on depth, stability, and posture.',
   },
   {
     icon: TrendingUp,
     title: 'Track your progress',
-    desc: 'Log sessions, see trends, and know when to push harder.',
+    desc: 'See trends over time and know when to push harder.',
   },
 ];
 
@@ -37,26 +37,26 @@ const VALUES = [
   {
     icon: Target,
     color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
-    title: 'Form feedback without a coach',
-    desc: 'Objective analysis on every rep — depth, balance, and posture scored from video.',
+    title: 'Train without a coach',
+    desc: 'Get objective feedback on your form and performance without needing a trainer.',
   },
   {
     icon: TrendingUp,
     color: 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400',
     title: 'Know when to progress',
-    desc: 'Load recommendations based on your recent sessions and form quality.',
+    desc: 'Science-based recommendations based on your recent workouts and form quality.',
   },
   {
     icon: BookOpen,
     color: 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400',
     title: 'Training history in one place',
-    desc: 'Log sessions, track PRs, and see your progression over time.',
+    desc: 'Log every session and see if your strength is actually improving.',
   },
   {
     icon: Dumbbell,
     color: 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400',
-    title: 'Built for solo training',
-    desc: 'Most lifters train without a coach. FormIQ gives you the feedback they would.',
+    title: 'Built for lifters who train alone',
+    desc: 'Most lifters train without a coach. FormIQ helps you stay consistent and progress safely.',
   },
 ];
 
@@ -103,16 +103,17 @@ export default function LandingPage() {
           </Badge>
 
           <h1 className="text-3xl sm:text-4xl font-bold leading-tight text-balance">
-            Form analysis and workout tracking for lifters who train alone.
+            Science-based workout tracking and form analysis for lifters who train alone.
           </h1>
 
           <p className="text-muted-foreground text-base max-w-md mx-auto">
-            Record a squat, get a form score, and track your training — all in one place.
+            Log all your workouts, track your progress, and analyze your form — all in one place.
+            Start with squat analysis, with more exercises coming.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
             <Button size="lg" className="w-full sm:w-auto px-8 h-12" onClick={toAuth}>
-              Get started free
+              Track your workouts free
               <ArrowRight className="w-4 h-4 ml-1.5" />
             </Button>
             <a
@@ -122,11 +123,15 @@ export default function LandingPage() {
               See how it works <ChevronDown className="w-4 h-4" />
             </a>
           </div>
+          <p className="text-xs text-muted-foreground/60">
+            Log sessions, see progress, and analyze a squat to get a form score.
+          </p>
         </motion.div>
       </section>
 
       {/* ── Product mock ────────────────────────────────────────── */}
       <section className="px-5 pb-16 max-w-xs mx-auto">
+        <p className="text-center text-xs text-muted-foreground/50 mb-3">Example form analysis result</p>
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -224,15 +229,17 @@ export default function LandingPage() {
       <section className="px-5 py-10 max-w-2xl mx-auto">
         <div className="rounded-2xl border border-border bg-card p-6 text-center space-y-4">
           <h2 className="font-bold text-lg">What's available now</h2>
-          <div>
-            <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 border-0 text-xs px-3 py-1">
-              ✓ Squat
-            </Badge>
+          <div className="flex flex-wrap justify-center gap-2">
+            {['Workout tracking', 'Progress tracking', 'Squat form analysis'].map((item) => (
+              <Badge key={item} className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 border-0 text-xs px-3 py-1">
+                ✓ {item}
+              </Badge>
+            ))}
           </div>
           <div>
             <p className="text-xs text-muted-foreground mb-2">Coming soon</p>
             <div className="flex flex-wrap justify-center gap-2">
-              {['OHP', 'Row', 'Bench'].map((lift) => (
+              {['Bench', 'OHP', 'Row'].map((lift) => (
                 <Badge key={lift} variant="secondary" className="text-xs opacity-50">
                   {lift}
                 </Badge>
@@ -254,9 +261,9 @@ export default function LandingPage() {
 
       {/* ── Footer CTA ───────────────────────────────────────────── */}
       <section className="px-5 py-16 max-w-2xl mx-auto text-center border-t border-border">
-        <h2 className="text-2xl font-bold mb-2">Start with squat analysis</h2>
+        <h2 className="text-2xl font-bold mb-2">Log your workouts, track your progress, and analyze your form.</h2>
         <p className="text-sm text-muted-foreground mb-7">
-          Free to use during beta. No credit card required.
+          Free to use during beta. Start with squat analysis, more exercises coming.
         </p>
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
           <Button
