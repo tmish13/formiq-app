@@ -111,6 +111,10 @@ export default function LandingPage() {
             Squat analysis available now. More exercises coming.
           </p>
 
+          <p className="text-xs text-muted-foreground/60">
+            Early beta — actively improving with real user feedback.
+          </p>
+
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
             <Button size="lg" className="w-full sm:w-auto px-8 h-12" onClick={toAuth}>
               Track your workouts free
@@ -233,6 +237,9 @@ export default function LandingPage() {
               </Badge>
             ))}
           </div>
+          <p className="text-xs text-muted-foreground/60">
+            Early beta — more features being added based on user feedback.
+          </p>
           <div>
             <p className="text-xs text-muted-foreground mb-2">More exercises coming</p>
             <div className="flex flex-wrap justify-center gap-2">
@@ -249,10 +256,7 @@ export default function LandingPage() {
       {/* ── Trust ────────────────────────────────────────────────── */}
       <section className="px-5 py-8 max-w-2xl mx-auto text-center">
         <p className="text-sm text-muted-foreground">
-          Built for lifters who train without a coach.
-        </p>
-        <p className="text-xs text-muted-foreground/50 mt-1">
-          Early beta — actively improving with real user feedback.
+          Built for lifters who train alone. Early beta, improving with real user feedback.
         </p>
       </section>
 
@@ -260,7 +264,7 @@ export default function LandingPage() {
       <section className="px-5 py-16 max-w-2xl mx-auto text-center border-t border-border">
         <h2 className="text-2xl font-bold mb-2">Track workouts. See progress. Analyze form.</h2>
         <p className="text-sm text-muted-foreground mb-7">
-          Free during beta. Squat analysis available now.
+          Free during early beta. Built with feedback from real lifters.
         </p>
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
           <Button
