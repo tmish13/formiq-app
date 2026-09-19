@@ -144,22 +144,7 @@ def test_scaler_transform_is_exactly_the_documented_arithmetic():
 # 3. The feature vector fed to the model.
 # ---------------------------------------------------------------------------
 def test_feature_extractor_emits_exactly_151_features_in_a_stable_order():
-    """
-    Pins the ACTUAL feature layout produced by features_151d.get_feature_names().
-
-    NOTE — the manifest's human-readable `feature_order` block disagrees with the
-    implementation for the first two groups. The manifest says:
-        "0_32":  "joint{0..32}_x_mean"      (33 joints, x only)
-        "33_65": "joint{0..32}_x_std"
-    but the code emits:
-        [0:33]   joint{0..10}_{x,y,z}_mean  (11 joints x 3 coords)
-        [33:66]  joint{0..10}_{x,y,z}_std
-    Both are 33 values, so the 151 total still lines up and nothing crashes —
-    which is exactly why this went unnoticed. Serving is self-consistent (the
-    same function builds the vector every time), but the manifest prose is not a
-    reliable description of it. Asserting the real layout here so a future change
-    to either one is caught. See audit gap G-24.
-    """
+    """Pins the feature layout produced by features_151d.get_feature_names()."""
     from app.ml.posture_v1.features_151d import get_feature_names
 
     names = get_feature_names()
@@ -174,21 +159,119 @@ def test_feature_extractor_emits_exactly_151_features_in_a_stable_order():
     assert names[33:36] == ["joint0_x_std", "joint0_y_std", "joint0_z_std"]
     assert names[65] == "joint10_z_std"
 
-    # Block 3: per-joint ranges, 7 joints x (x,y,z) = 21  (matches the manifest)
+    # Block 3: per-joint ranges, 7 joints x (x,y,z) = 21
     assert names[66] == "joint0_x_range"
     assert names[86] == "joint6_z_range"
 
-    # Block 4: 4 angles x 15 stats = 60  (matches the manifest)
+    # Block 4: 4 angles x 15 stats = 60
     assert names[87] == "left_knee_angle_mean"
     assert names[146] == "left_hip_angle_ascent_angular_velocity"
 
-    # Block 5: 4 derived features  (matches the manifest)
+    # Block 5: 4 derived features
     assert names[-4:] == [
         "bottom_trunk_wobble",
         "knee_asymmetry_mean",
         "bottom_knee_asymmetry",
         "trunk_forward_lean",
     ]
+
+
+def test_every_static_feature_name_means_what_it_says():
+    """
+    G-24 resolution guard.
+
+    A feature name is only a string until something checks it. The manifest
+    previously documented features 0-65 as `joint{0..32}_x_mean`/`_x_std` because
+    it copied a mistaken inline comment in the training script
+    (export_posture_v1.py: `features.extend(joint_means.flatten()[:33])  # x means`).
+    The actual behaviour -- in BOTH training and serving -- is a row-major flatten
+    of a [33, 3] array truncated to 33, i.e. joints 0..10 x (x, y, z).
+
+    This test independently recomputes every one of the 87 static features from
+    its own name and asserts the extractor agrees, so a name can never again drift
+    from the value it labels.
+    """
+    import re
+    from app.ml.posture_v1.features_151d import get_feature_names, compute_151d_features
+
+    rng = np.random.default_rng(1234)
+    T = 40
+    kp = rng.random((T, 33, 3)).astype(np.float32)
+
+    feats = compute_151d_features(kp, apply_scaler=False, sequence_length=T)
+    assert feats.shape == (151,), f"expected [151], got {feats.shape}"
+
+    names = get_feature_names()
+    checked = 0
+    for idx, name in enumerate(names[:87]):
+        m = re.fullmatch(r"joint(\d+)_([xyz])_(mean|std|range)", name)
+        assert m, f"unexpected static feature name at index {idx}: {name!r}"
+        joint, coord, stat = int(m.group(1)), "xyz".index(m.group(2)), m.group(3)
+
+        series = kp[:, joint, coord].astype(np.float64)
+        expected = {
+            "mean": series.mean(),
+            "std": series.std(),
+            "range": series.max() - series.min(),
+        }[stat]
+
+        np.testing.assert_allclose(
+            float(feats[idx]), expected, rtol=1e-5, atol=1e-6,
+            err_msg=(
+                f"feature[{idx}] is named {name!r} but does not equal "
+                f"{stat}(keypoints[:, {joint}, {coord}])"
+            ),
+        )
+        checked += 1
+
+    assert checked == 87, f"expected to verify 87 static features, verified {checked}"
+
+
+def test_manifest_feature_order_strings_match_the_code():
+    """The manifest prose must describe the real layout (regression guard for G-24)."""
+    manifest_path = _MANIFEST_PATH
+    fo = json.loads(manifest_path.read_text())["feature_order"]
+
+    assert "joint{0..10}_{x,y,z}_mean" in fo["0_32"], (
+        f"manifest 0_32 still misdescribes the layout: {fo['0_32']!r}"
+    )
+    assert "joint{0..10}_{x,y,z}_std" in fo["33_65"], (
+        f"manifest 33_65 still misdescribes the layout: {fo['33_65']!r}"
+    )
+    assert "joint{0..6}_{x,y,z}_range" in fo["66_86"]
+
+
+def test_static_feature_block_contains_only_face_landmarks():
+    """
+    Documents a real property of the model, discovered while resolving G-24.
+
+    MediaPipe pose landmarks 0-10 are NOSE, both eyes (inner/centre/outer), both
+    ears and both mouth corners. Body landmarks start at index 11 (LEFT_SHOULDER).
+
+    Features 0-86 therefore contain ZERO body joints: 87 of the model's 151 inputs
+    (57%) are raw, unnormalised face-landmark coordinates, and all the squat
+    biomechanics live in the 64 temporal features that follow.
+
+    This is asserted rather than merely noted so that the property is visible to
+    the next person who reads the feature spec, and so a future change to the
+    static block is a deliberate decision rather than an accident.
+    """
+    import re
+    from app.ml.posture_v1.features_151d import get_feature_names
+
+    FIRST_BODY_LANDMARK = 11  # PoseLandmark.LEFT_SHOULDER
+
+    joints = set()
+    for name in get_feature_names()[:87]:
+        m = re.fullmatch(r"joint(\d+)_[xyz]_(?:mean|std|range)", name)
+        assert m, f"unexpected static feature name: {name!r}"
+        joints.add(int(m.group(1)))
+
+    assert max(joints) < FIRST_BODY_LANDMARK, (
+        f"static block references joints {sorted(j for j in joints if j >= FIRST_BODY_LANDMARK)}, "
+        "which are body landmarks - the documented composition has changed"
+    )
+    assert joints == set(range(11)), f"expected face joints 0-10, got {sorted(joints)}"
 
 
 def test_preprocessing_drops_visibility_and_pads_to_300():

@@ -1,0 +1,97 @@
+{
+  "threshold": 0.525,
+  "n_fixtures": 50,
+  "positive_class": "posture_fault",
+  "ablation_method": "freeze block at scaler training mean (== 0.0 after standardisation)",
+  "blocks": {
+    "baseline": null,
+    "face_mean_std": [
+      0,
+      66
+    ],
+    "face_all": [
+      0,
+      87
+    ],
+    "temporal": [
+      87,
+      151
+    ],
+    "all_features": [
+      0,
+      151
+    ]
+  },
+  "results": {
+    "baseline": {
+      "arm": "baseline",
+      "n": 50,
+      "TP": 20,
+      "FP": 7,
+      "TN": 18,
+      "FN": 5,
+      "precision": 0.7407,
+      "recall": 0.8,
+      "f1": 0.7692,
+      "accuracy": 0.76,
+      "prob_mean": 0.5114,
+      "prob_std": 0.2397
+    },
+    "face_mean_std": {
+      "arm": "face_mean_std",
+      "n": 50,
+      "TP": 19,
+      "FP": 9,
+      "TN": 16,
+      "FN": 6,
+      "precision": 0.6786,
+      "recall": 0.76,
+      "f1": 0.717,
+      "accuracy": 0.7,
+      "prob_mean": 0.5525,
+      "prob_std": 0.1956
+    },
+    "face_all": {
+      "arm": "face_all",
+      "n": 50,
+      "TP": 19,
+      "FP": 9,
+      "TN": 16,
+      "FN": 6,
+      "precision": 0.6786,
+      "recall": 0.76,
+      "f1": 0.717,
+      "accuracy": 0.7,
+      "prob_mean": 0.5622,
+      "prob_std": 0.1948
+    },
+    "temporal": {
+      "arm": "temporal",
+      "n": 50,
+      "TP": 20,
+      "FP": 10,
+      "TN": 15,
+      "FN": 5,
+      "precision": 0.6667,
+      "recall": 0.8,
+      "f1": 0.7273,
+      "accuracy": 0.7,
+      "prob_mean": 0.5623,
+      "prob_std": 0.1403
+    },
+    "all_features": {
+      "arm": "all_features",
+      "n": 50,
+      "TP": 25,
+      "FP": 25,
+      "TN": 0,
+      "FN": 0,
+      "precision": 0.5,
+      "recall": 1.0,
+      "f1": 0.6667,
+      "accuracy": 0.5,
+      "prob_mean": 0.7622,
+      "prob_std": 0.0003
+    }
+  }
+}

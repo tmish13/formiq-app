@@ -19,11 +19,12 @@
   },
   "feature_order_version": "truth_spec_151d_v1",
   "feature_order": {
-    "0_32": "joint{0..32}_x_mean",
-    "33_65": "joint{0..32}_x_std",
-    "66_86": "joint{0..6}_{x,y,z}_range (7*3=21)",
+    "0_32": "joint{0..10}_{x,y,z}_mean (11 FACE joints * 3 = 33)",
+    "33_65": "joint{0..10}_{x,y,z}_std (11 FACE joints * 3 = 33)",
+    "66_86": "joint{0..6}_{x,y,z}_range (7 FACE joints * 3 = 21)",
     "87_146": "4_angles_x_15_stats (left_knee, right_knee, trunk, left_hip)",
-    "147_150": "bottom_trunk_wobble, knee_asymmetry_mean, bottom_knee_asymmetry, trunk_forward_lean"
+    "147_150": "bottom_trunk_wobble, knee_asymmetry_mean, bottom_knee_asymmetry, trunk_forward_lean",
+    "_note": "Verified against the training source (export_posture_v1.py extract_rep_features_87d): np.mean(coords, axis=0) is [33,3] and .flatten()[:33] takes joints 0..10 x (x,y,z) in row-major order -- NOT 33 joints' x-values. The previous strings copied a mistaken inline comment. Serving (app/ml/posture_v1/features_151d.py) already matched the training behaviour, so this was a documentation defect, not a train/serve skew. MediaPipe body landmarks start at index 11, so features 0-86 contain zero body joints. See AUDIT.md G-24."
   },
   "model_config": {
     "sequence_length": 300,
