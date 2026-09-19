@@ -129,6 +129,10 @@ def main():
         "TP": tp, "FP": fp, "TN": tn, "FN": fn,
         "trivial_floor_f1": f1_all,
         "manifest_test_f1": 0.7237,
+        "per_video": [
+            {"video": v, "y": int(yy), "prob_fault": round(float(pp), 6)}
+            for v, yy, pp in zip(used, y, prob)
+        ],
     }))
 
 
