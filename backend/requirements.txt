@@ -42,6 +42,16 @@ scipy==1.13.1
 langchain==0.1.20
 chromadb==0.4.22
 openai==1.12.0
+# app/core/vectorstore.py:16-17 and app/services/rag_feedback_service.py:15-17
+# import these at module scope. langchain-openai was not declared and was not
+# installed by anything else, so `import app.core.vectorstore` raised
+# ModuleNotFoundError on a clean image. langchain-community did arrive
+# transitively via langchain 0.1.20, but is pinned explicitly here so the
+# import does not depend on another package's dependency graph.
+# Versions chosen by pip's resolver against langchain==0.1.20 / openai==1.12.0;
+# openai did not need to move.
+langchain-community==0.0.38
+langchain-openai==0.1.5
 sentence-transformers>=2.7.0
 
 # OpenTelemetry Tracing
