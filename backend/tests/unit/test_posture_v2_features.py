@@ -54,10 +54,19 @@ def test_names_and_values_stay_aligned():
     assert names == F.get_feature_names(), "get_feature_names() disagrees with compute_features()"
 
 
-def test_features_are_invariant_to_camera_distance_and_position():
+def test_features_are_invariant_to_zoom_and_pan():
     """
-    The headline property. v1 fed raw frame coordinates, so the same squat filmed
-    closer produced different inputs. v2 must not.
+    Invariance to camera DISTANCE and POSITION only.
+
+    Scope, stated precisely because the first version of this test was named
+    "camera invariance", which overclaims: hip-centering plus torso-length
+    scaling removes zoom and translation. It does NOT remove camera ANGLE.
+    A side view, a front view and a 45-degree view produce genuinely different
+    knee-valgus and trunk-lean readings, because those quantities are measured
+    in the image plane. Left/right mirroring is likewise not handled.
+
+    Those are open items for v2 (see AUDIT.md G-27), not properties this test
+    covers.
     """
     kp = _synthetic_squat()
     moved = kp.copy()
