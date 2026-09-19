@@ -151,6 +151,16 @@ def mock_storage() -> MagicMock:
     storage.upload_file = AsyncMock(
         side_effect=lambda *a, **kw: f"https://s3.example.com/test/{uuid.uuid4().hex}.mp4"
     )
+    # FormCheckService.submit_form_check (form_check_service.py:133-139) calls
+    # upload_file_and_get_key() -> str and then the *synchronous* get_file_url().
+    # Without explicit return values these yield Mock objects that get
+    # string-formatted into the s3:// URI and the Video.object_key column.
+    storage.upload_file_and_get_key = AsyncMock(
+        side_effect=lambda *a, **kw: f"form_check_videos/e2e/{uuid.uuid4().hex}.mp4"
+    )
+    storage.get_file_url = MagicMock(
+        side_effect=lambda key, **kw: f"https://s3.example.com/{key}"
+    )
     storage.delete_file = AsyncMock(return_value=None)
     return storage
 
