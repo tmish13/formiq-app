@@ -93,12 +93,19 @@ G-25 should therefore move off "pipeline investigation" and onto:
 
 ## Honest caveats
 
-- **These 50 fixtures may overlap the training split.** Sources match training
-  (`penn_action`, `squat_more`) and the manifest records 809/244/244 train/val/test
-  without naming which rows. If these are training samples, 0.769 is optimistic
-  and the "reproduces training performance" claim weakens to "reproduces
-  training-*distribution* performance". This is the single biggest caveat and it
-  cannot be resolved without the split manifest.
+- ~~**These 50 fixtures may overlap the training split.**~~ **RESOLVED 2026-09-19.**
+  The v1 split was recovered from the training repo
+  (`data/squat_processed/user_level_multilabel_splits.json`) into
+  `backend/app/ml/posture_v1/artifacts/posture_v1_splits.json`. **All 50 fixtures
+  are in the TEST split**, and the split is `user_level_splits: true` (one video
+  per user, 1625 users), so there is no subject leakage. Validation/test sizes
+  (244/244) match the model manifest exactly.
+
+  **The 0.769 baseline is therefore a legitimate held-out number**, and it is
+  slightly *better* than the manifest's recorded test F1 of 0.724 on the same
+  244-video test split. The conclusion strengthens: serving reproduces
+  training-time held-out performance. Pinned by
+  `backend/tests/unit/test_eval_split_integrity.py`.
 - n = 50, one threshold, no confidence intervals. Differences of ±0.05 F1 on 50
   samples are ~2–3 videos and are not individually significant.
 - `face_mean_std` and `face_all` scoring identically is expected — the 21 range
