@@ -22,7 +22,9 @@ services:
       - CELERY_SHARED_DATA_PATH=/var/formiq_celery_shared
       - ENVIRONMENT=${ENVIRONMENT:-development}
       - DEBUG=${DEBUG:-true}
-      - SECRET_KEY=${SECRET_KEY:-your-very-secure-secret-key}
+      # min_length=32 enforced by Settings.SECRET_KEY (app/core/config.py:177).
+      # The previous default was 27 chars and made `docker compose up` fail to boot.
+      - SECRET_KEY=${SECRET_KEY:-dev-only-insecure-secret-key-32chars-minimum}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_DB=0
@@ -41,6 +43,11 @@ services:
     volumes:
       - ..:/app
       - ../../.env:/app/.env:ro
+      # Must match the `app` service mount: with USE_S3_STORAGE=false the API
+      # writes uploads to /app/uploads and the worker reads them back from the
+      # same path. Without this volume the worker sees the (empty) bind-mounted
+      # host directory instead and pose extraction fails to locate the video.
+      - uploads:/app/uploads
       - formiq_shared:/var/formiq_celery_shared
     environment:
       - POSTGRES_SERVER=db
@@ -52,7 +59,9 @@ services:
       - CELERY_SHARED_DATA_PATH=/var/formiq_celery_shared
       - ENVIRONMENT=${ENVIRONMENT:-development}
       - DEBUG=${DEBUG:-true}
-      - SECRET_KEY=${SECRET_KEY:-your-very-secure-secret-key}
+      # min_length=32 enforced by Settings.SECRET_KEY (app/core/config.py:177).
+      # The previous default was 27 chars and made `docker compose up` fail to boot.
+      - SECRET_KEY=${SECRET_KEY:-dev-only-insecure-secret-key-32chars-minimum}
     depends_on:
       - db
       - redis
@@ -65,11 +74,14 @@ services:
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_DB: ${POSTGRES_DB:-formiq_db}
+      # Must match the app/worker default (`formiq`, lines 19 and 56).
+      # These previously disagreed (formiq_db vs formiq), so the API booted
+      # against a database that was never created.
+      POSTGRES_DB: ${POSTGRES_DB:-formiq}
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-formiq_db}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-formiq}"]
 
   redis:
     image: redis:6

@@ -51,8 +51,15 @@ if project_backend_root not in sys.path:
 
 # Sometimes, especially if running alembic from the true project root,
 # or if other modules expect to import 'backend.app', having the true root is also good.
+#
+# APPEND, do not insert(0): the backend root must keep priority on sys.path.
+# In the container the backend directory is mounted at /app, so project_true_root
+# is "/". Because backend/__init__.py exists, prepending "/" made `import app`
+# resolve to /app (the backend package) instead of /app/app, and every migration
+# failed with "ModuleNotFoundError: No module named 'app.models'".
+# This affected `alembic upgrade head` in docker-entrypoint.sh:33 as well.
 if project_true_root not in sys.path:
-    sys.path.insert(0, project_true_root)
+    sys.path.append(project_true_root)
 
 # --- BEGIN SIMPLIFIED URL AND ENV LOADING ---
 
@@ -101,7 +108,16 @@ if not existing_url or existing_url.strip() == placeholder_url_from_ini.strip():
     db_password = os.getenv("POSTGRES_PASSWORD", "postgres")
     db_server = os.getenv("POSTGRES_SERVER", "localhost")
     if db_server == "db":
-        db_server = "localhost"  # Docker alias → local dev
+        # "db" is the compose service alias. It resolves INSIDE the container but
+        # not on the host, so only fall back to localhost when it genuinely does
+        # not resolve. The previous unconditional rewrite made `alembic upgrade`
+        # impossible to run inside the container (and broke the `alembic upgrade
+        # head` step in docker-entrypoint.sh:33).
+        import socket
+        try:
+            socket.getaddrinfo(db_server, None)
+        except socket.gaierror:
+            db_server = "localhost"  # host-side run: use the published port
     db_port = os.getenv("POSTGRES_PORT", "5432")
     db_name = os.getenv("POSTGRES_DB", "formiq")
 
