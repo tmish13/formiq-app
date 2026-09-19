@@ -1,3 +1,11 @@
+> **CORRECTED 2026-09-19 — read `2026-09-19-v1-final-numbers-and-penn-shortcut.md` first.**
+> Three claims below are wrong or overstated: (1) the "+0.004 above the floor" comparison mixes two
+> populations — the manifest's own floor is 0.650, so it is +0.074 above; (2) "reproduces" should read
+> "consistent with" — 11 of the manifest's videos are unaccounted for; (3) the "46.5% of depth-fault squats
+> flagged = production defect" claim is retracted — 25 of those 33 flags were correct under the original
+> multilabel truth, and honest precision is 0.76, not 0.54. The provenance table and the FP-by-class
+> decomposition stand.
+
 # G-28 closed — the manifest's 0.724 reproduces. It was measured on a different population.
 
 **Date:** 2026-09-19 · **Bench only** · supersedes the "precision-shaped shortfall" reading in
