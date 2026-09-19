@@ -74,6 +74,12 @@ Removing either leaves ~0.72; removing both collapses to 0.667. They encode
 overlapping information rather than complementary information — which is why the
 face block looks "useless" in isolation but is not free to delete.
 
+> **SUPERSEDED 2026-09-19** — point 4 below is wrong. The n=50 balanced fixture set is not
+> comparable to a 244-video natural-prevalence number. On the recovered held-out split v1
+> scores **F1 0.6131 [0.5291, 0.6872]**, and the CI excludes the manifest's 0.7237.
+> See `2026-09-19-v1-held-out-evaluation.md`. The ablation's *relative* arm comparisons
+> (face vs temporal vs all) are unaffected — only the absolute-baseline claim is retracted.
+
 **4. The most important number here is the baseline.**
 In-domain F1 **0.769**, against the manifest's recorded test F1 of **0.724**.
 **The serving pipeline reproduces training-time performance.** After the G-21
