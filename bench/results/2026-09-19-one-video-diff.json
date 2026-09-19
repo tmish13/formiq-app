@@ -1,0 +1,38 @@
+{
+  "video": "T6ad8Et3C5Q_good_rep_1.mp4",
+  "complexity": 2,
+  "fallback": false,
+  "fps": 29.97002997002997,
+  "frames_read": 90,
+  "valid_detections": 90,
+  "preprocess_sequence_length": 90,
+  "quality_flags": [
+    "padded_210_frames"
+  ],
+  "eval_csv": {
+    "prob_fault": 0.0001,
+    "frames": 89,
+    "orig_frames": 90
+  },
+  "serving_reference_prob": 0.3347,
+  "seq_len_sweep": {
+    "60": 0.15242698788642883,
+    "66": 0.1468871831893921,
+    "80": 0.2617974877357483,
+    "85": 0.25452157855033875,
+    "88": 0.3170448839664459,
+    "89": 0.3206026554107666,
+    "90": 0.33471664786338806,
+    "100": 0.4261159598827362,
+    "120": 0.522724986076355,
+    "150": 0.5519067049026489,
+    "200": 0.5551748871803284,
+    "300": 0.6166090965270996
+  },
+  "prob_range": [
+    0.1468871831893921,
+    0.6166090965270996
+  ],
+  "eval_explained_by_seq_len": false,
+  "features_changed_89_vs_90": 125
+}
