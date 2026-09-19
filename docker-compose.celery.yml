@@ -18,12 +18,17 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    # NOTE: no --queues flag. Tasks are published with .delay() and there is no
+    # task_routes config anywhere in app/, so every task goes to Celery's default
+    # queue ("celery"). This worker previously subscribed to
+    # video_processing,pose_detection,form_analysis — three queues nothing ever
+    # publishes to — so it consumed nothing and form checks sat at PENDING
+    # forever. Consume the default queue instead, which is where the work is.
     command: >
-      celery -A app.core.celery_app:celery_app worker 
-      --loglevel=info 
+      celery -A app.core.celery_app:celery_app worker
+      --loglevel=info
       --concurrency=2
       --pool=prefork
-      --queues=video_processing,pose_detection,form_analysis
     volumes:
       - ./backend:/app
     environment:
