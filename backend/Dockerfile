@@ -45,7 +45,28 @@ COPY --from=builder /app/requirements.txt .
 # Consider adding --prefer-binary for potentially faster installs
 RUN pip install --no-cache-dir /wheels/*
 # Explicitly install Gunicorn/Uvicorn here if not in requirements.txt
-# RUN pip install --no-cache-dir gunicorn uvicorn 
+# RUN pip install --no-cache-dir gunicorn uvicorn
+
+# --- Bake the MediaPipe complexity-2 ("heavy") pose model into the image ---
+# MediaPipe ships the complexity 0/1 models but DOWNLOADS pose_landmark_heavy.tflite
+# on first use, into its own (root-owned) site-packages directory. Because the
+# runtime user below is non-root appuser, that download failed at runtime with
+# "[Errno 13] Permission denied" and AIService silently fell back to
+# model_complexity=1 (app/services/ai_service.py:100-104) — despite
+# AI_MODEL_COMPLEXITY defaulting to 2 (app/core/config.py:768-770).
+#
+# That is a train/serve skew: PostureV1 was evaluated on complexity-2 keypoints
+# (scripts/output/posture_v1_labels_and_results.csv records complexity=2, and
+# scripts/e2e_posture_v1_smoke.py:372 asserts model_complexity == 2) but was
+# being served complexity-1 keypoints. Measured on one fixture video, that moved
+# prob_fault from 0.0001 to 0.4739 against a 0.525 threshold.
+#
+# Constructing Pose(model_complexity=2) here, as root and with build-time network,
+# triggers the download once and bakes it in world-readable. The `test -f` makes
+# the build FAIL LOUDLY rather than silently shipping an image that will fall back.
+RUN python -c "import mediapipe as mp; p = mp.solutions.pose.Pose(model_complexity=2); p.close()" \
+    && test -f /usr/local/lib/python3.11/site-packages/mediapipe/modules/pose_landmark/pose_landmark_heavy.tflite \
+    && chmod -R a+rX /usr/local/lib/python3.11/site-packages/mediapipe/modules
 
 # Copy application code as the appuser
 # Ensure .dockerignore is properly configured to exclude unnecessary files
