@@ -62,6 +62,9 @@ pytest-asyncio==0.23.5
 httpx==0.26.0
 pytest-cov==4.1.0
 pytest-mock==3.12.0
+# pytest.ini declares pytest-timeout under required_plugins, so without it
+# every pytest invocation inside the built image aborts before collection.
+pytest-timeout==2.2.0
 factory_boy>=3.2.0
 
 # Development

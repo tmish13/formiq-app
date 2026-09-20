@@ -62,6 +62,7 @@ class FormCheckService(BaseService[FormCheck, FormCheckCreate, FormCheckUpdate])
 
     async def _process_video_frames_cv2(self, video_path: str) -> List[Dict[str, Any]]:
         """Synchronous helper function to process video frames using OpenCV."""
+        self.ai_service.reset_pose_tracker()  # per-video MediaPipe tracker reset; see reset_pose_tracker()
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
             raise IOError(f"Could not open video file: {video_path}")

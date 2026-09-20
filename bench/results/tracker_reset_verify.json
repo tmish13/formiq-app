@@ -1,0 +1,24 @@
+{
+  "target": "33387_1",
+  "path": "_extract_pose_from_video",
+  "rows": [
+    {
+      "after": "33348_2",
+      "prob_fault": 0.618214,
+      "shift": 0.0
+    },
+    {
+      "after": "36049_2",
+      "prob_fault": 0.618214,
+      "shift": 0.0
+    },
+    {
+      "after": "itself",
+      "prob_fault": 0.618214,
+      "shift": 0.0
+    }
+  ],
+  "cold_run_1": 0.618214,
+  "cold_run_2": 0.618214,
+  "max_abs_shift": 0.0
+}

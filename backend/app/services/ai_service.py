@@ -151,6 +151,44 @@ class AIService:
         
         return self.cache_service
         
+    def reset_pose_tracker(self) -> None:
+        """Discard the MediaPipe tracker's carried state and start a fresh one.
+
+        ``mp.solutions.pose.Pose`` is built with ``static_image_mode=False``, which
+        means each frame is seeded by the previous frame's landmarks.  That is
+        correct *within* one video and wrong *across* videos: because this service
+        is a per-worker singleton, the tracker otherwise carries the tail of one
+        clip into the head of the next, and the same bytes score differently
+        depending on what ran before them (measured spread 0.214 on prob_fault,
+        straddling the 0.525 decision threshold — see
+        bench/results/2026-09-19-mediapipe-state-leak.md).
+
+        Call this once per video, before the first frame.
+
+        Rebuilds at ``self._pose_complexity_used`` rather than the configured
+        complexity, so a worker that fell back to complexity=1 at startup stays
+        on 1 instead of silently changing models mid-run.
+        """
+        try:
+            self.pose.close()
+        except Exception as e:  # pragma: no cover - close() is best-effort
+            logger.warning("Failed to close previous MediaPipe Pose: %s", e)
+        self.pose = mp.solutions.pose.Pose(
+            static_image_mode=False,
+            model_complexity=self._pose_complexity_used,
+            min_detection_confidence=self.settings.AI_MIN_DETECTION_CONFIDENCE,
+            min_tracking_confidence=self.settings.AI_MIN_TRACKING_CONFIDENCE,
+        )
+        if getattr(self, "gpu_pose", None) is not None:
+            try:
+                self.gpu_pose.close()
+            except Exception as e:  # pragma: no cover
+                logger.warning("Failed to close previous GPU MediaPipe Pose: %s", e)
+            self._init_gpu_pose_model()
+        logger.debug(
+            "MediaPipe pose tracker reset (complexity=%d)", self._pose_complexity_used
+        )
+
     def _init_gpu_pose_model(self) -> None:
         """Initialize GPU-accelerated pose model if available."""
         try:
@@ -1284,6 +1322,8 @@ class AIService:
 
         all_frame_results: List[Optional[List[Optional[Dict[str, float]]]]] = []
 
+        self.reset_pose_tracker()  # per-video MediaPipe tracker reset; see reset_pose_tracker()
+
         for i, frame_np in enumerate(frames_data_np): # MODIFIED: iterate over frames_data_np
             try:
                 # frame = await asyncio.to_thread(cv2.imread, frame_path) # REMOVED
@@ -1663,6 +1703,7 @@ class AIService:
                 logger.error(f"AIService: Could not open video file: {path}")
                 raise IOError(f"Could not open video file: {path}")
 
+            ai_service_instance.reset_pose_tracker()  # per-video MediaPipe tracker reset; see reset_pose_tracker()
             frame_results = []
             processed_frames = 0
             # Potentially use a setting for max_frames if different from pose detection default

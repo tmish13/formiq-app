@@ -253,6 +253,12 @@ async def _extract_pose_from_video(
     max_frames: int = getattr(settings_obj, "AI_MAX_FRAMES_PER_VIDEO_ANALYSIS", 300) or 300
 
     def _sync_extract(path: str, ai_svc) -> tuple:
+        # AIService is a per-worker singleton and its MediaPipe Pose runs with
+        # static_image_mode=False, so the tracker would otherwise carry the
+        # previous video's landmarks into this one's first frames.  Reset it
+        # per video: without this the same bytes score differently depending on
+        # their predecessor (bench/results/2026-09-19-mediapipe-state-leak.md).
+        ai_svc.reset_pose_tracker()
         cap = cv2.VideoCapture(path)
         if not cap.isOpened():
             raise IOError(f"Cannot open video: {path}")
