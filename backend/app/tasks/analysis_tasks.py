@@ -1467,6 +1467,36 @@ async def _process_form_check_task_async(self, video_id_str: str, form_check_id_
                 "confidence_score": form_check.confidence_score,
                 "posture_v1_decision": pv1_data.get("decision"),
             }
+        elif not analysis_output_for_finalize:
+            # Nothing produced a result: DFAS was skipped AND PostureV1 has no
+            # output. No exception was raised, so none of the handlers below run
+            # and final_status keeps its initial value of FAILED -- which is
+            # right, but it was being written with an empty payload. The user
+            # was told "failed" and given nothing to act on.
+            #
+            # Measured: a corrupt upload finalized in 0.17s as FAILED with
+            # details={"risk_level": "high", "raw_feedback_strings": [],
+            # "model_version": "unknown"} and no error_message at all.
+            frames = keypoint_sequence_for_classification or []
+            usable = sum(1 for f in frames if f)
+            final_status = FormCheckStatus.FAILED
+            analysis_output_for_finalize = {
+                "score": None,
+                "feedback": [],
+                "risk_level": "high",
+                "feedback_structured": [],
+                "error_message": (
+                    "No analysis could be produced from this video: pose "
+                    f"extraction returned {usable} usable frame(s) out of "
+                    f"{len(frames)}. The file may be unreadable, may not show a "
+                    "person clearly enough, or may be too short to analyse."
+                ),
+            }
+            logger.warning(
+                "[CeleryTask] FormCheck %s produced no analysis at all "
+                "(%d/%d usable frames); failing with an explicit reason.",
+                form_check_id, usable, len(frames),
+            )
 
     except ValueError as ve: # Catch specific value errors from our checks
         logger.error(f"[CeleryTask] ValueError during FormCheck {form_check_id} analysis: {ve}", exc_info=True)

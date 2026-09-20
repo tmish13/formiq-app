@@ -162,3 +162,71 @@ class TestWrapperRetries:
     def test_the_wrapper_is_not_a_coroutine_function(self):
         """Regression guard shared with tests/unit/test_retired_tasks.py."""
         assert not asyncio.iscoroutinefunction(process_form_check_task.run)
+
+
+class TestFailuresAlwaysCarryAReason:
+    """A FAILED form check with no explanation is a dead end for the user.
+
+    Measured before this branch: a corrupt upload finalized in 0.17s as FAILED
+    with details={"risk_level": "high", "raw_feedback_strings": [],
+    "model_version": "unknown"} -- no error_message anywhere. No exception was
+    raised, so none of the handlers ran: every stage was skipped, and
+    final_status simply kept its initial value of FAILED.
+    """
+
+    def test_the_no_result_branch_sets_an_error_message(self):
+        """Pins the branch that fills the gap.
+
+        Checked structurally rather than by running the ~900-line task body,
+        which needs a DB session, a video, storage and the model.
+        """
+        import ast
+        import inspect
+
+        from app.tasks import analysis_tasks
+
+        src = inspect.getsource(analysis_tasks._process_form_check_task_async)
+        tree = ast.parse(textwrap_dedent(src))
+
+        # Find the `elif not analysis_output_for_finalize:` fallback and assert
+        # it writes an error_message.
+        found = False
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.If):
+                continue
+            test_src = ast.unparse(node.test)
+            if test_src != "not analysis_output_for_finalize":
+                continue
+            body_src = "\n".join(ast.unparse(n) for n in node.body)
+            if "error_message" in body_src and "FAILED" in body_src:
+                found = True
+                break
+        assert found, (
+            "the no-result fallback no longer sets an error_message; a form "
+            "check can be FAILED with nothing for the user to act on"
+        )
+
+    def test_every_failure_path_writes_a_reason(self):
+        """All three FAILED writes in the task body must carry a reason."""
+        import inspect
+        import re
+
+        from app.tasks import analysis_tasks
+
+        src = inspect.getsource(analysis_tasks._process_form_check_task_async)
+        # Each `final_status = FormCheckStatus.FAILED` should be accompanied by
+        # an error_message assignment within the next few lines.
+        assignments = [m.start() for m in
+                       re.finditer(r"final_status = FormCheckStatus\.FAILED", src)]
+        assert assignments, "no FAILED assignments found -- did the task change shape?"
+        for pos in assignments:
+            window = src[pos:pos + 1200]
+            assert "error_message" in window, (
+                f"a FAILED assignment at offset {pos} has no error_message near it"
+            )
+
+
+def textwrap_dedent(s: str) -> str:
+    import textwrap
+
+    return textwrap.dedent(s)

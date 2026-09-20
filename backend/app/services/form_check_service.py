@@ -346,7 +346,14 @@ class FormCheckService(BaseService[FormCheck, FormCheckCreate, FormCheckUpdate])
                 # Critical error: FormCheck created but analysis not started. Update status to ERROR.
                 # This requires db_form_check to be an actual ORM object that can be updated.
                 if db_form_check: # Ensure db_form_check is not None
-                    error_update_payload = {"status": FormCheckStatus.FAILED, "error_details": f"Failed to dispatch analysis task: {str(e_task_dispatch)}"}
+                    # Same phantom-column problem as finalize_form_check_analysis_async:
+                    # error_details does not exist on FormCheck, so this reason was
+                    # being dropped. details is a real JSON column.
+                    dispatch_details = dict(db_form_check.details or {})
+                    dispatch_details["error_message"] = (
+                        f"Failed to dispatch analysis task: {e_task_dispatch}"
+                    )
+                    error_update_payload = {"status": FormCheckStatus.FAILED, "details": dispatch_details}
                     await super().update_async(db_obj=db_form_check, obj_in=error_update_payload) # Use db_obj if get_async was called prior, or id if not
                     await self.db.commit() # Ensure error status is saved
                 # Re-raise or raise a specific HTTPException to inform the client of the dispatch failure.
@@ -397,15 +404,22 @@ class FormCheckService(BaseService[FormCheck, FormCheckCreate, FormCheckUpdate])
             # If we can't find it, can't update it.
             raise NotFoundException(f"FormCheck ID {form_check_id} not found during finalization.")
 
+        # Merge into the existing details rather than replacing them. Keys written
+        # earlier in the row's life -- threshold_mode and posture_v1_mode from
+        # submit, the reaper's reaper_* bookkeeping -- were being erased here the
+        # moment the analysis finished.
+        merged_details = dict(form_check.details or {})
+        merged_details.update({
+            "risk_level": analysis_results.get("risk_level"),
+            "raw_feedback_strings": analysis_results.get("feedback", []),
+            "model_version": analysis_results.get("model_version", "unknown"),
+        })
+
         update_payload = {
             "status": status,
             "score": analysis_results.get("score"),
             "summary": "\n".join(analysis_results.get("feedback", [])), # Or a more structured summary
-            "details": { # Storing raw/additional details from AI service
-                "risk_level": analysis_results.get("risk_level"),
-                "raw_feedback_strings": analysis_results.get("feedback", []),
-                "model_version": analysis_results.get("model_version", "unknown") # Example additional detail
-            },
+            "details": merged_details,
             "analysis_completed_at": datetime.utcnow(),
             # Add ML scores from analysis results
             "posture_score": analysis_results.get("posture_score"),
@@ -414,7 +428,15 @@ class FormCheckService(BaseService[FormCheck, FormCheckCreate, FormCheckUpdate])
         }
         
         if status == FormCheckStatus.FAILED:
-            update_payload["error_details"] = analysis_results.get("error_message", "Analysis failed due to an unknown error.")
+            # error_details is NOT a column on FormCheck -- not in the model, not
+            # in the database. Six places in this codebase assign to it, and every
+            # one of those failure reasons has been silently discarded, which is
+            # why every FAILED form check has been reason-less. details is a real
+            # JSON column and is already where the task writes error_message, so
+            # the reason goes there.
+            merged_details["error_message"] = analysis_results.get(
+                "error_message", "Analysis failed due to an unknown error."
+            )
 
         updated_form_check = await super().update_async(db_obj=form_check, obj_in=update_payload)
 

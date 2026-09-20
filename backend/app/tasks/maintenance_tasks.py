@@ -176,8 +176,9 @@ async def _give_up(session, row, details, stuck_at, redispatched, reason=None) -
     adding one means ALTER TYPE on a live Postgres enum. FAILED plus an explicit
     error_message carries the same information at none of the risk.
     """
+    status_text = getattr(row.status, "value", row.status)
     explanation = reason or (
-        f"Stuck in {row.status} with no worker since {stuck_at}; already "
+        f"Stuck in {status_text} with no worker since {stuck_at}; already "
         f"re-dispatched {redispatched} time(s). Giving up."
     )
     details["error_message"] = f"Recovered by the stuck-row reaper: {explanation}"
