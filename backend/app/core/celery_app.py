@@ -48,8 +48,20 @@ celery_app.conf.update(
     enable_utc=True,
     task_track_started=True, # If you want tasks to report 'started' state
     worker_prefetch_multiplier=1, # Can be useful for long-running I/O bound tasks
-    task_soft_time_limit=180,  # Raise SoftTimeLimitExceeded after 3 minutes
-    task_time_limit=300,       # Hard kill after 5 minutes
+    # Ack only after the task finishes. With the default early ack the broker
+    # forgets the message the moment it is delivered, so a worker that dies
+    # mid-task loses the work silently -- which is how 17 of 20 form checks sat
+    # at PENDING forever with nothing left to retry them.
+    task_acks_late=True,
+    # Late acks alone are not enough: a task whose worker vanishes would be
+    # redelivered forever. This requeues it once and then rejects it, so a
+    # poison message cannot pin a worker.
+    task_reject_on_worker_lost=True,
+    # The 20-video parity run measured 10-12 s/video, but complexity-2 pose on a
+    # long clip is the tail. Soft limit raises SoftTimeLimitExceeded inside the
+    # task so its cleanup blocks run; the hard limit is the backstop.
+    task_soft_time_limit=300,  # Raise SoftTimeLimitExceeded after 5 minutes
+    task_time_limit=360,       # Hard kill after 6 minutes
     # Concurrency capped well below DB pool_size (default 20) so analysis tasks
     # never exhaust PostgreSQL connections.  Override via CELERY_WORKER_CONCURRENCY
     # env var or --concurrency flag at worker startup.
@@ -65,7 +77,13 @@ celery_app.conf.update(
 #         return super().__call__(*args, **kwargs)
 # celery_app.Task = BaseTaskWithAppContext
 
-# NOTE: If you use async def tasks, you must run Celery with an async worker pool (e.g., -P eventlet or -P gevent).\n# Example: celery -A app.core.celery_app.celery_app worker -l info
+# NOTE: run the worker with -P prefork (the default pool). Do NOT use -P gevent or
+# -P eventlet here: the tasks in app.tasks.analysis_tasks are sync wrappers that
+# call asyncio.run(), and under a green-thread pool every task shares one thread
+# and one event loop, so the second concurrent task raises
+#   RuntimeError: asyncio.run() cannot be called from a running event loop
+# and dies. Prefork gives each task its own process and a fresh loop.
+# Example: celery -A app.core.celery_app.celery_app worker -l info -P prefork --concurrency=4
 
 if __name__ == '__main__':
     # This is for running the worker directly from this module, e.g., for development:

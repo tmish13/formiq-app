@@ -39,7 +39,12 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile
-    command: celery -A app.core.celery_app.celery_app worker -l info -P gevent
+    # -P prefork, not gevent. Under gevent every task shares one thread, so the
+    # asyncio.run() wrapper in analysis_tasks raises "cannot be called from a
+    # running event loop" and the task dies. Measured: 17 of 20 tasks died and
+    # stayed PENDING forever. Prefork gives each task its own process and a
+    # fresh event loop; the same 20 then completed with zero errors.
+    command: celery -A app.core.celery_app.celery_app worker -l info -P prefork --concurrency=4
     volumes:
       - ..:/app
       - ../../.env:/app/.env:ro

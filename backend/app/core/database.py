@@ -146,16 +146,60 @@ async_session_factory = async_sessionmaker(
 # Fix: NullPool — no connection is ever kept between operations. Every DB call
 # opens a fresh TCP connection in the current loop and closes it on release.
 # The cost (one extra handshake per task) is negligible for video-analysis jobs.
-_celery_async_engine = create_async_engine(
-    s_for_engine.ASYNC_DATABASE_URL,
-    poolclass=NullPool,
-)
-_celery_async_session_factory = async_sessionmaker(
-    bind=_celery_async_engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-    autoflush=False,
-)
+# Created lazily, never at import, and rebuilt whenever the PID changes.
+#
+# Under -P prefork the worker forks children AFTER this module is imported. An
+# engine built at import time is therefore inherited by every child, and all of
+# them share one object whose internal state was set up in the parent's process
+# and (for anything loop-bound) the parent's event loop. NullPool means there are
+# no live asyncpg sockets to inherit, which is why this has not corrupted data,
+# but the engine still must not be shared: keying on PID guarantees each process
+# builds its own, whether it was created before or after the fork.
+_celery_async_engine = None
+_celery_async_session_factory = None
+_celery_engine_pid = None
+
+
+def get_celery_async_engine():
+    """Return this process's Celery engine, creating it on first use."""
+    global _celery_async_engine, _celery_async_session_factory, _celery_engine_pid
+    pid = os.getpid()
+    if _celery_async_engine is None or _celery_engine_pid != pid:
+        if _celery_engine_pid is not None and _celery_engine_pid != pid:
+            # Inherited across a fork. Drop the reference without disposing it:
+            # disposing here would reach into the parent's engine.
+            logger.info(
+                "Celery async engine inherited from PID %s; building a fresh one "
+                "for PID %s.", _celery_engine_pid, pid,
+            )
+        _celery_async_engine = create_async_engine(
+            s_for_engine.ASYNC_DATABASE_URL,
+            poolclass=NullPool,
+        )
+        _celery_async_session_factory = async_sessionmaker(
+            bind=_celery_async_engine,
+            class_=AsyncSession,
+            expire_on_commit=False,
+            autoflush=False,
+        )
+        _celery_engine_pid = pid
+    return _celery_async_engine
+
+
+def get_celery_async_session_factory():
+    """Return this process's Celery session factory, creating it on first use."""
+    get_celery_async_engine()
+    return _celery_async_session_factory
+
+
+async def dispose_celery_async_engine() -> None:
+    """Dispose this process's Celery engine, if it owns one."""
+    global _celery_async_engine, _celery_async_session_factory, _celery_engine_pid
+    if _celery_async_engine is not None and _celery_engine_pid == os.getpid():
+        await _celery_async_engine.dispose()
+    _celery_async_engine = None
+    _celery_async_session_factory = None
+    _celery_engine_pid = None
 
 # Create sync engine for operations that need synchronous access
 sync_engine = create_engine(
@@ -264,7 +308,7 @@ async def get_async_session_for_celery() -> AsyncGenerator[AsyncSession, None]:
 
     Commit should be handled explicitly within the task.
     """
-    session: AsyncSession = _celery_async_session_factory()
+    session: AsyncSession = get_celery_async_session_factory()()
     try:
         yield session
     except Exception:

@@ -10,7 +10,10 @@ from typing import Optional, Dict, Any, List
 from celery.signals import worker_process_init
 from app.core.celery_app import celery_app
 from app.core.config import get_settings, Settings
-from app.core.database import get_async_session_for_celery # Changed import path
+from app.core.database import (  # Changed import path
+    get_async_session_for_celery,
+    get_celery_async_engine,
+)
 
 # Import services
 from app.services.form_check_service import FormCheckService
@@ -139,6 +142,9 @@ def initialize_worker_services(**kwargs):
     logger.info("Celery worker process starting — lightweight services only...")
     # A previously killed worker cannot have run its cleanup blocks; clear what it left.
     _sweep_stale_temp_files()
+    # Build this child's own async engine here, after the fork, so no engine
+    # object is ever shared between prefork children.
+    get_celery_async_engine()
     try:
         settings_obj = get_settings()
         # StorageService is lightweight (no native libraries, no model files).

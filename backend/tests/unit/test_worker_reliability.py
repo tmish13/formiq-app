@@ -15,35 +15,77 @@ from unittest.mock import AsyncMock, MagicMock, patch
 # ---------------------------------------------------------------------------
 
 class TestCelerySessionNullPool:
-    """get_async_session_for_celery() must use the NullPool engine."""
+    """get_async_session_for_celery() must use this process's NullPool engine."""
+
+    def test_celery_engine_is_not_built_at_import(self):
+        """Importing app.core.database must not create the Celery engine.
+
+        Under -P prefork the worker imports this module and THEN forks. An engine
+        built at import time is inherited by every child; building it lazily (and
+        eagerly in worker_process_init, after the fork) means each process owns
+        its own.
+        """
+        import subprocess
+        import sys
+
+        probe = (
+            "import app.core.database as d; "
+            "print('BUILT' if d._celery_async_engine is not None else 'LAZY')"
+        )
+        out = subprocess.run(
+            [sys.executable, "-c", probe], capture_output=True, text=True, cwd="/app"
+        )
+        assert "LAZY" in out.stdout, (
+            f"Celery engine was created at import time. stdout={out.stdout!r} "
+            f"stderr={out.stderr[-500:]!r}"
+        )
 
     def test_celery_session_factory_is_nullpool(self):
-        """_celery_async_engine is configured with NullPool."""
+        """The Celery engine is configured with NullPool."""
         from sqlalchemy.pool import NullPool
-        from app.core.database import _celery_async_engine
-        assert isinstance(_celery_async_engine.pool, NullPool), (
-            "_celery_async_engine should use NullPool to avoid cross-loop "
+        from app.core.database import get_celery_async_engine
+        assert isinstance(get_celery_async_engine().pool, NullPool), (
+            "the Celery engine should use NullPool to avoid cross-loop "
             "asyncpg connection reuse"
         )
 
     def test_celery_engine_is_separate_from_main_engine(self):
-        """_celery_async_engine must be a distinct object from async_engine."""
-        from app.core.database import _celery_async_engine, async_engine
-        assert _celery_async_engine is not async_engine, (
-            "_celery_async_engine must be a separate engine instance so its "
+        """The Celery engine must be a distinct object from async_engine."""
+        from app.core.database import get_celery_async_engine, async_engine
+        assert get_celery_async_engine() is not async_engine, (
+            "the Celery engine must be a separate engine instance so its "
             "pool configuration is independent of the main web-app engine"
+        )
+
+    def test_celery_engine_is_rebuilt_after_a_fork(self):
+        """A child process must not reuse the engine object it inherited.
+
+        Simulated by moving the recorded PID, which is exactly what a fork does
+        from the child's point of view.
+        """
+        import app.core.database as d
+
+        first = d.get_celery_async_engine()
+        d._celery_engine_pid = d._celery_engine_pid + 1  # pretend we forked
+        second = d.get_celery_async_engine()
+
+        assert second is not first, (
+            "get_celery_async_engine() returned the inherited engine instead of "
+            "building one for this process"
         )
 
     def test_celery_session_yields_async_session(self):
         """get_async_session_for_celery() yields an AsyncSession successfully."""
         from sqlalchemy.ext.asyncio import AsyncSession
-        from app.core.database import _celery_async_session_factory
 
         mock_session = MagicMock(spec=AsyncSession)
         mock_session.close = AsyncMock()
         mock_session.rollback = AsyncMock()
 
-        with patch("app.core.database._celery_async_session_factory", return_value=mock_session):
+        with patch(
+            "app.core.database.get_celery_async_session_factory",
+            return_value=lambda: mock_session,
+        ):
             async def _run():
                 from app.core.database import get_async_session_for_celery
                 async with get_async_session_for_celery() as session:
@@ -55,13 +97,15 @@ class TestCelerySessionNullPool:
     def test_celery_session_rolls_back_on_error(self):
         """get_async_session_for_celery() rolls back and re-raises on exception."""
         from sqlalchemy.ext.asyncio import AsyncSession
-        from app.core.database import _celery_async_session_factory
 
         mock_session = MagicMock(spec=AsyncSession)
         mock_session.close = AsyncMock()
         mock_session.rollback = AsyncMock()
 
-        with patch("app.core.database._celery_async_session_factory", return_value=mock_session):
+        with patch(
+            "app.core.database.get_celery_async_session_factory",
+            return_value=lambda: mock_session,
+        ):
             async def _run():
                 from app.core.database import get_async_session_for_celery
                 with pytest.raises(ValueError, match="boom"):
@@ -80,7 +124,6 @@ class TestCelerySessionNullPool:
         must not raise any event-loop errors.
         """
         from sqlalchemy.ext.asyncio import AsyncSession
-        from app.core.database import _celery_async_session_factory
 
         closed_counts = []
 
@@ -90,7 +133,10 @@ class TestCelerySessionNullPool:
             m.rollback = AsyncMock()
             return m
 
-        with patch("app.core.database._celery_async_session_factory", side_effect=make_mock):
+        with patch(
+            "app.core.database.get_celery_async_session_factory",
+            return_value=make_mock,
+        ):
             from app.core.database import get_async_session_for_celery
 
             async def _task():
