@@ -1,0 +1,82 @@
+[
+ {
+  "video": "33499_1",
+  "class": "good_form"
+ },
+ {
+  "video": "33634_10",
+  "class": "good_form"
+ },
+ {
+  "video": "33793_6",
+  "class": "good_form"
+ },
+ {
+  "video": "33924_4",
+  "class": "good_form"
+ },
+ {
+  "video": "33943_1",
+  "class": "good_form"
+ },
+ {
+  "video": "33966_2",
+  "class": "good_form"
+ },
+ {
+  "video": "36221_1",
+  "class": "good_form"
+ },
+ {
+  "video": "33072_1",
+  "class": "posture_fault"
+ },
+ {
+  "video": "33229_2",
+  "class": "posture_fault"
+ },
+ {
+  "video": "33322_3",
+  "class": "posture_fault"
+ },
+ {
+  "video": "33503_2",
+  "class": "posture_fault"
+ },
+ {
+  "video": "33758_1",
+  "class": "posture_fault"
+ },
+ {
+  "video": "33838_3",
+  "class": "posture_fault"
+ },
+ {
+  "video": "36049_2",
+  "class": "posture_fault"
+ },
+ {
+  "video": "33088_1",
+  "class": "depth_fault"
+ },
+ {
+  "video": "33194_1",
+  "class": "depth_fault"
+ },
+ {
+  "video": "33297_2",
+  "class": "depth_fault"
+ },
+ {
+  "video": "33316_1",
+  "class": "depth_fault"
+ },
+ {
+  "video": "33348_2",
+  "class": "depth_fault"
+ },
+ {
+  "video": "33387_1",
+  "class": "depth_fault"
+ }
+]
