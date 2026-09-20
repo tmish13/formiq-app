@@ -656,13 +656,45 @@ async def _process_form_check_task_async(self, video_id_str: str, form_check_id_
             logger.error(f"[CeleryTask] FormCheck ID {form_check_id} not found. Aborting task.")
             return {"status": "error", "message": "FormCheck not found"}
 
-        if form_check.status != FormCheckStatus.PENDING:
-            logger.warning(f"[CeleryTask] FormCheck ID {form_check_id} not PENDING (status: {form_check.status.value}). Skipping.")
-            return {"status": "skipped", "message": f"Not in PENDING state, was {form_check.status.value}"}
-
-        await form_check_service.update_async(db_obj=form_check, obj_in={"status": FormCheckStatus.PROCESSING})
+        # Claim the row atomically.
+        #
+        # This used to read the status, compare it, and then write PROCESSING in
+        # a separate statement -- a read-then-write race. Two workers handed the
+        # same message (which late acks and the reaper's re-dispatch both make
+        # more likely, not less) could each read PENDING and both proceed,
+        # running the model twice and finalizing over each other.
+        #
+        # A conditional UPDATE, not SELECT ... FOR UPDATE. FOR UPDATE would hold
+        # a row lock for the entire analysis -- minutes of pose extraction and
+        # inference -- against a NullPool connection, so a worker killed
+        # mid-task would strand the lock until its connection timed out, and the
+        # reaper would then block behind it. A single UPDATE ... WHERE
+        # status='pending' is atomic in one statement, takes no lock past
+        # commit, and rowcount says exactly whether we won.
+        claim = await db_session.execute(
+            sa_update(FormCheck)
+            .where(FormCheck.id == form_check_id)
+            .where(FormCheck.status == FormCheckStatus.PENDING)
+            .values(status=FormCheckStatus.PROCESSING)
+        )
         await db_session.commit()
-        logger.info(f"[CeleryTask] FormCheck ID {form_check_id} status updated to PROCESSING.")
+
+        if claim.rowcount == 0:
+            # Someone else claimed it, or it is already terminal. Either way it
+            # is not ours; return without touching the row.
+            await db_session.refresh(form_check)
+            observed = getattr(form_check.status, "value", form_check.status)
+            logger.warning(
+                "[CeleryTask] FormCheck ID %s could not be claimed (status: %s). "
+                "Skipping -- another worker has it or it is already finished.",
+                form_check_id, observed,
+            )
+            return {"status": "skipped", "message": f"Not in PENDING state, was {observed}"}
+
+        # The raw UPDATE bypassed the identity map, so refresh before anything
+        # downstream reads form_check.status.
+        await db_session.refresh(form_check)
+        logger.info(f"[CeleryTask] FormCheck ID {form_check_id} claimed; status updated to PROCESSING.")
 
         # Fetch the Video object (Phase 3 fix: use base get_async, not missing method)
         video_model = await video_service.get_async(id=video_id)

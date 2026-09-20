@@ -97,7 +97,10 @@ class TestSubmitFormCheckTemplateLookup:
         f = MagicMock(spec=UploadFile)
         f.filename = "squat.mp4"
         f.content_type = "video/mp4"
-        f.read = AsyncMock(return_value=b"fake-video")
+        # A real UploadFile.read(n) returns b"" at EOF. Returning the same bytes
+        # forever made every chunked reader in the service loop indefinitely.
+        f.read = AsyncMock(side_effect=[b"fake-video", b"", b"fake-video", b""] * 8)
+        f.seek = AsyncMock()
         return f
 
     # -- tests --------------------------------------------------------------

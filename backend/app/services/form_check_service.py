@@ -43,6 +43,7 @@ from app.core.exceptions import (
     PermissionDeniedException
 )
 from app.models.exercise import ExerciseTemplate
+from app.ml.model_identity import posture_v1_identity, is_identity_known
 from app.core.cache import CacheService, cache_service
 # from app.core.deps import get_async_db, get_settings # REMOVED
 
@@ -109,6 +110,89 @@ class FormCheckService(BaseService[FormCheck, FormCheckCreate, FormCheckUpdate])
             logger.error(f"Unexpected error in analyze_video_via_ai_service for {video_path}: {e}", exc_info=True)
             raise ServerErrorException("Video analysis failed due to an unexpected error.")
 
+    # ── Idempotency ──────────────────────────────────────────────────────────
+    #
+    # Key: (user_id, content_hash, model_version, spec_hash).
+    #
+    # Same user + same bytes + same model + same feature spec means the pipeline
+    # would compute the same answer, so returning the existing row is not a
+    # shortcut -- it is the same result for none of the cost. A model or spec
+    # upgrade changes the key, so the video is re-analysed under the new version
+    # without any explicit invalidation step.
+    #
+    # Deliberately NOT keyed on time (a re-submission a week later is still the
+    # same video) and deliberately scoped to one user (one person's upload must
+    # never be observable through another's submission).
+
+    _HASH_CHUNK = 1024 * 1024  # 1 MiB
+
+    async def _hash_upload(self, video_file: UploadFile) -> str:
+        """sha256 the upload, then rewind so the uploader sees a full stream.
+
+        Chunked: these are videos, and reading one into memory to hash it would
+        defeat the streaming upload that follows.
+        """
+        import hashlib
+
+        try:
+            max_mb = int(getattr(self.settings, "MAX_VIDEO_SIZE_MB", 100) or 100)
+        except (TypeError, ValueError):
+            max_mb = 100  # settings is mocked or misconfigured; still bound the read
+        max_bytes = max_mb * 1024 * 1024
+
+        await video_file.seek(0)
+        digest = hashlib.sha256()
+        total = 0
+        while True:
+            chunk = await video_file.read(self._HASH_CHUNK)
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > max_bytes:
+                # A real UploadFile returns b"" at EOF, so this should be
+                # unreachable for a well-formed upload -- but an unbounded read
+                # of a client-supplied stream is a hang waiting to happen, and
+                # this loop must not be the thing that wedges a worker.
+                raise ValidationError(
+                    f"Video exceeds the maximum upload size of "
+                    f"{max_bytes // (1024 * 1024)} MB."
+                )
+            digest.update(chunk)
+        await video_file.seek(0)  # MUST rewind: the upload reads from here
+        return digest.hexdigest()
+
+    async def _find_duplicate_submission(
+        self,
+        user_id: UUID,
+        content_hash: str,
+        model_version: str,
+        spec_hash: str,
+    ) -> Optional[FormCheck]:
+        """Return this user's existing row for these bytes and this model."""
+        if not is_identity_known():
+            # The manifest could not be read, so we do not actually know what
+            # this submission will be scored under. Deduping on an unknown
+            # version could hand back a result from a different model.
+            logger.warning(
+                "PostureV1 identity unknown; skipping the duplicate check for "
+                "user %s.", user_id,
+            )
+            return None
+
+        stmt = (
+            select(FormCheck)
+            .where(FormCheck.user_id == user_id)
+            .where(FormCheck.content_hash == content_hash)
+            .where(FormCheck.model_version == model_version)
+            .where(FormCheck.spec_hash == spec_hash)
+            # A previous attempt that FAILED should be retryable by submitting
+            # again -- otherwise a transient failure would be cached forever.
+            .where(FormCheck.status != FormCheckStatus.FAILED)
+            .order_by(FormCheck.created_at.desc())
+            .limit(1)
+        )
+        return (await self.db.execute(stmt)).scalars().first()
+
     async def submit_form_check(
         self,
         user_id: UUID,
@@ -124,6 +208,29 @@ class FormCheckService(BaseService[FormCheck, FormCheckCreate, FormCheckUpdate])
         logger.info(f"Submitting form check for user {user_id}, exercise: {exercise_type_enum.value}, video: {video_file.filename}")
         file_key: Optional[str] = None  # S3 object key
         video_cloud_url: Optional[str] = None  # presigned URL for initial use
+
+        # 0. Idempotency: hash the bytes BEFORE anything consumes the stream.
+        #    upload_file_and_get_key() reads video_file to the end, so hashing
+        #    after it would hash nothing. storage_service.py:159 also computes a
+        #    hash, but of filename + timestamp, deliberately unique per call --
+        #    not reusable here.
+        content_hash = await self._hash_upload(video_file)
+        model_version, spec_hash = posture_v1_identity()
+
+        existing = await self._find_duplicate_submission(
+            user_id=user_id,
+            content_hash=content_hash,
+            model_version=model_version,
+            spec_hash=spec_hash,
+        )
+        if existing is not None:
+            logger.info(
+                "Duplicate submission for user %s (content_hash=%s, model=%s): "
+                "returning existing FormCheck %s instead of re-uploading and "
+                "re-running inference.",
+                user_id, content_hash[:12], model_version, existing.id,
+            )
+            return self.response_schema.from_orm(existing)
 
         try:
             # 1. Upload video using StorageService to cloud storage; capture the S3 key
@@ -207,6 +314,11 @@ class FormCheckService(BaseService[FormCheck, FormCheckCreate, FormCheckUpdate])
             db_form_check = await super().create_async(obj_in=form_check_create_schema)
             db_form_check.video_id = video_record.id
             db_form_check.exercise_type = exercise_type_enum.value
+            # The idempotency key. Written here rather than through
+            # FormCheckCreate so the schema stays a user-facing contract.
+            db_form_check.content_hash = content_hash
+            db_form_check.model_version = model_version
+            db_form_check.spec_hash = spec_hash
             await self.db.flush()
             await self.db.commit()  # Persist video_id linkage (create_async committed without it)
             logger.info(f"Created FormCheck record ID {db_form_check.id} with PENDING status, video_id={video_record.id}")

@@ -91,7 +91,21 @@ class FormCheck(BaseModel):
     weight_kg = Column(Float, nullable=True)         # user-entered weight
     reps = Column(Integer, nullable=True)            # user-entered reps
 
+    # Idempotency key: (user_id, content_hash, model_version, spec_hash).
+    # Same user + same bytes + same model + same feature spec -> same answer, so
+    # a duplicate submission returns the existing row instead of re-running
+    # inference. A model or spec upgrade changes the key, so the video is
+    # legitimately re-analysed under the new version. Migration 0009 puts a
+    # partial unique index on the four together (WHERE content_hash IS NOT NULL,
+    # so pre-existing rows stay out of it).
+    content_hash = Column(String(64), nullable=True)   # sha256 hex of the upload
+    model_version = Column(String(50), nullable=True)
+    spec_hash = Column(String(64), nullable=True)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    # NOTE: onupdate but no server_default, so this is NULL until the row is
+    # first updated. Anything scanning for staleness must use
+    # COALESCE(updated_at, created_at) -- see app/tasks/maintenance_tasks.py.
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
     exercise = relationship(
