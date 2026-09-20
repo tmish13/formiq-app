@@ -15,6 +15,16 @@ VID_DIR="${VID_DIR:-$HOME/Desktop/Squat More/Labeled_Dataset/videos}"
 SEL="${SEL:-bench/results/parity_20_selection.json}"
 N="${N:-20}"
 TIMEOUT_S="${TIMEOUT_S:-1800}"
+# Seconds between launching each submit. 0 = all at once.
+#
+# All-at-once is the right setting for measuring the API's ceiling, and it found
+# one: at 20 simultaneous uploads gunicorn workers are OOM-killed and requests
+# are lost with no server-side log (G-36). That is an API capacity limit, not a
+# pipeline defect, and it masks the thing this script is meant to prove -- that
+# every task which IS dispatched reaches a terminal state. A small stagger keeps
+# the worker saturated (4 concurrent tasks, each ~40s) while staying under the
+# API memory cliff.
+SUBMIT_STAGGER="${SUBMIT_STAGGER:-0}"
 # Fresh user per run: content-hash idempotency is scoped to (user, bytes, model),
 # so reusing an account would dedupe against the previous run and dispatch nothing.
 EMAIL="${EMAIL:-phase1_$(date +%s)@example.com}"
@@ -26,7 +36,9 @@ psql_q() { docker compose -f "$COMPOSE" exec -T db psql -U postgres -d formiq -t
 echo "=== Phase 1 concurrent batch ==="
 echo "user      : $EMAIL"
 echo "videos    : $N"
-echo "worker    : $(docker compose -f "$COMPOSE" logs worker --tail 500 2>&1 | grep -oE 'concurrency: [0-9]+ \([a-z]+\)' | tail -1)"
+# Read the configured command, not the startup banner: the banner scrolls out of
+# `logs --tail N` once the worker has been up for a while.
+echo "worker    : $(grep -oE '\-P [a-z]+ --concurrency=[0-9]+' "$COMPOSE" | tail -1)"
 echo
 
 curl -s -o /dev/null -X POST "$BASE/api/v1/auth/register" -H "Content-Type: application/json" \
@@ -52,6 +64,7 @@ for v in $VIDEOS; do
         | python3 -c "import sys,json; print(json.load(sys.stdin).get('id',''))" 2>/dev/null)
     echo "$v ${ID:-NO_ID} curl_rc=$RC http=${META:-none}" > "$OUT/$v"
   ) &
+  [ "$SUBMIT_STAGGER" != "0" ] && sleep "$SUBMIT_STAGGER"
 done
 wait
 T_SUBMIT=$(( $(date +%s) - T0 ))
