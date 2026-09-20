@@ -530,12 +530,86 @@ def _check_minimum_motion(
     return True, ""
 
 
+class TransientTaskError(Exception):
+    """Wraps an error the task should retry rather than record as FAILED.
+
+    Raised out of the async body and converted into ``self.retry()`` by the sync
+    wrapper. It exists so the classification decision is made in one place, next
+    to the DB session that has to un-claim the row, rather than in the wrapper.
+    """
+
+    def __init__(self, original: BaseException):
+        self.original = original
+        super().__init__(f"{type(original).__name__}: {original}")
+
+
+def _transient_exception_types() -> tuple:
+    """Errors that mean "the infrastructure blinked", not "this video is bad".
+
+    Deliberately narrow. Note what is NOT here:
+      - OSError: IOError("Cannot open video") is an OSError, and a corrupt video
+        is permanent. Only ConnectionError (an OSError subclass) counts.
+      - SoftTimeLimitExceeded: a video that exceeded the soft limit will exceed
+        it again on retry. Permanent, recorded as FAILED with the reason.
+      - ValueError / NotFoundException: the task's own validation and gates.
+    """
+    from sqlalchemy import exc as sa_exc
+
+    types = [
+        sa_exc.OperationalError,   # server closed the connection, cannot connect
+        sa_exc.InterfaceError,     # connection already closed / invalid
+        sa_exc.DisconnectionError,
+        ConnectionError,           # incl. ConnectionReset/Refused/Aborted
+        TimeoutError,
+        asyncio.TimeoutError,
+    ]
+    try:  # redis is the broker; its connection errors are transient too
+        from redis import exceptions as redis_exc
+
+        types += [redis_exc.ConnectionError, redis_exc.TimeoutError]
+    except Exception:  # pragma: no cover - redis always present in practice
+        pass
+    return tuple(types)
+
+
+def _is_transient(exc: BaseException, retries_so_far: int, max_retries: int) -> bool:
+    """Transient AND we have retries left. Exhausted retries are permanent.
+
+    Classifying an exhausted retry as transient would leave the row PENDING with
+    nothing left to pick it up -- exactly the state this branch exists to remove.
+    """
+    if retries_so_far >= max_retries:
+        return False
+    return isinstance(exc, _transient_exception_types())
+
+
 # Explicitly name the task to ensure consistent registration
 @celery_app.task(name="app.tasks.analysis_tasks.process_form_check", bind=True, max_retries=3, default_retry_delay=300)
 def process_form_check_task(self, video_id_str: str, form_check_id_str: str):
-    """Sync wrapper that runs the async task via asyncio.run()."""
+    """Sync wrapper that runs the async task via asyncio.run().
+
+    Sync on purpose. An `async def` here would be handed to Celery unawaited and
+    the body would never run -- see app/tasks/ai_tasks.py for four tasks that
+    did exactly that.
+    """
     import asyncio
-    return asyncio.run(_process_form_check_task_async(self, video_id_str, form_check_id_str))
+    try:
+        return asyncio.run(
+            _process_form_check_task_async(self, video_id_str, form_check_id_str)
+        )
+    except TransientTaskError as wrapped:
+        # max_retries=3 was declared on this task from the start but self.retry()
+        # was never called, so it was dead configuration. The async body has
+        # already put the row back to PENDING, so the retry can claim it.
+        retries_so_far = getattr(self.request, "retries", 0) or 0
+        countdown = min(2 ** retries_so_far, 300)
+        logger.warning(
+            "[CeleryTask] Transient failure for FormCheck %s (%s); retry %d/%d "
+            "in %ds.",
+            form_check_id_str, wrapped, retries_so_far + 1, self.max_retries,
+            countdown,
+        )
+        raise self.retry(exc=wrapped.original, countdown=countdown)
 
 async def _process_form_check_task_async(self, video_id_str: str, form_check_id_str: str):
     """
@@ -554,6 +628,8 @@ async def _process_form_check_task_async(self, video_id_str: str, form_check_id_
     
     analysis_output_for_finalize: Dict[str, Any] = {} # Renamed to avoid confusion with model
     final_status: FormCheckStatus = FormCheckStatus.FAILED
+    # Set only when the failure is worth retrying; see _is_transient().
+    transient_exc: Optional[TransientTaskError] = None
     analyzed_form_check_model: Optional[FormCheck] = None # To store the result from DFAS
 
     try:
@@ -1366,12 +1442,52 @@ async def _process_form_check_task_async(self, video_id_str: str, form_check_id_
         if "error_message" not in analysis_output_for_finalize or not analysis_output_for_finalize["error_message"]:
             analysis_output_for_finalize["error_message"] = str(ve)
     except Exception as e:
-        logger.error(f"[CeleryTask] General error during FormCheck {form_check_id} analysis: {type(e).__name__}: {e}", exc_info=True)
-        final_status = FormCheckStatus.FAILED
-        if "error_message" not in analysis_output_for_finalize or not analysis_output_for_finalize["error_message"]:
-            analysis_output_for_finalize["error_message"] = f"{type(e).__name__}: {str(e)}"
+        retries_so_far = getattr(getattr(self, "request", None), "retries", 0) or 0
+        max_retries = getattr(self, "max_retries", 3) or 0
+        if _is_transient(e, retries_so_far, max_retries):
+            # Infrastructure blinked. Do NOT finalize as FAILED -- that would burn
+            # the form check on a problem that has nothing to do with the video.
+            logger.warning(
+                "[CeleryTask] Transient error during FormCheck %s analysis "
+                "(attempt %d/%d): %s: %s",
+                form_check_id, retries_so_far + 1, max_retries,
+                type(e).__name__, e,
+            )
+            transient_exc = TransientTaskError(e)
+        else:
+            logger.error(f"[CeleryTask] General error during FormCheck {form_check_id} analysis: {type(e).__name__}: {e}", exc_info=True)
+            final_status = FormCheckStatus.FAILED
+            if "error_message" not in analysis_output_for_finalize or not analysis_output_for_finalize["error_message"]:
+                reason = f"{type(e).__name__}: {str(e)}"
+                if retries_so_far >= max_retries:
+                    reason = f"{reason} (gave up after {retries_so_far} retries)"
+                analysis_output_for_finalize["error_message"] = reason
     finally:
-        if form_check_service and form_check_id: # Ensure form_check_id is available
+        if transient_exc is not None and form_check_id and db_session:
+            # Put the row back to PENDING so the retry's guard lets it through.
+            # Without this the row stays PROCESSING and the retry skips it,
+            # leaving a form check that is neither running nor finished.
+            try:
+                await db_session.rollback()
+                await db_session.execute(
+                    sa_update(FormCheck)
+                    .where(FormCheck.id == form_check_id)
+                    .where(FormCheck.status == FormCheckStatus.PROCESSING)
+                    .values(status=FormCheckStatus.PENDING)
+                )
+                await db_session.commit()
+                logger.info(
+                    "[CeleryTask] FormCheck %s released back to PENDING for retry.",
+                    form_check_id,
+                )
+            except Exception as e_release:
+                # The DB is very likely what just failed, so this can fail too.
+                # The stuck-row reaper is the backstop for exactly this case.
+                logger.error(
+                    "[CeleryTask] Could not release FormCheck %s back to PENDING: "
+                    "%s. The reaper will pick it up.", form_check_id, e_release,
+                )
+        elif form_check_service and form_check_id: # Ensure form_check_id is available
             try:
                 logger.info(f"[CeleryTask] Finalizing FormCheck {form_check_id} with status {final_status.value}")
                 # Ensure all necessary fields for finalize are in analysis_output_for_finalize
@@ -1435,6 +1551,11 @@ async def _process_form_check_task_async(self, video_id_str: str, form_check_id_
         except Exception as e_exit:
             logger.warning(f"[CeleryTask] Error closing DB session context manager: {e_exit}")
         logger.info(f"[CeleryTask] DB session closed for FormCheck ID: {form_check_id}")
+
+    if transient_exc is not None:
+        # Raised here, after the finally block, so the DB session is closed and
+        # the row is back at PENDING before Celery is told to retry.
+        raise transient_exc
 
     logger.info(f"[CeleryTask] Finished processing FormCheck ID: {form_check_id} with status: {final_status.value}")
     return {"status": final_status.value, "form_check_id": str(form_check_id), "final_score": analysis_output_for_finalize.get("score")}
