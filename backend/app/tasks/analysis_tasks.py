@@ -45,6 +45,88 @@ _posture_loader_lock = threading.Lock()
 _storage_service_lock = threading.Lock()
 
 
+# ── Temp-file registry ────────────────────────────────────────────────────────
+# The S3 fallback in _resolve_video_local_path writes the video to a
+# NamedTemporaryFile(delete=False).  The caller deletes it in its own `finally`,
+# but that only fires if the caller actually received the path: if the task is
+# cancelled at the await boundary (SoftTimeLimitExceeded lands as an exception
+# in the coroutine) the file is already on disk and its path is lost.
+#
+# Registering the path at creation closes that window.  Under -P prefork each
+# task owns its process and runs to completion before the next starts, so a
+# module-level set is per-task in practice.
+_TEMP_FILE_PREFIX = "formiq_pose_"
+_task_temp_files: set = set()
+
+# A hard kill (task_time_limit, OOM, docker kill) runs no `finally` at all, so
+# files can still survive.  Sweep them at worker start instead — older than this
+# many seconds, which must exceed task_time_limit so a sibling prefork child's
+# in-flight download is never deleted.
+_TEMP_FILE_STALE_SECONDS = 3600
+
+
+def _register_temp_file(path: str) -> None:
+    _task_temp_files.add(path)
+
+
+def _release_temp_file(path: str) -> bool:
+    """Delete one registered temp file. Returns True if a file was removed."""
+    _task_temp_files.discard(path)
+    try:
+        os.unlink(path)
+        return True
+    except FileNotFoundError:
+        return False
+    except Exception as e:
+        logger.warning("[TempSweep] Failed to delete temp file %s: %s", path, e)
+        return False
+
+
+def _sweep_task_temp_files() -> int:
+    """Delete any temp file this task registered but never released."""
+    leaked = list(_task_temp_files)
+    removed = 0
+    for path in leaked:
+        if _release_temp_file(path):
+            removed += 1
+            logger.warning(
+                "[TempSweep] Temp file %s outlived its cleanup block; removed by "
+                "the task-level sweep.", path,
+            )
+    _task_temp_files.clear()
+    return removed
+
+
+def _sweep_stale_temp_files() -> int:
+    """Delete orphaned temp videos left behind by a previously killed worker."""
+    import tempfile
+    import time
+
+    tmp_dir = tempfile.gettempdir()
+    cutoff = time.time() - _TEMP_FILE_STALE_SECONDS
+    removed = 0
+    try:
+        names = os.listdir(tmp_dir)
+    except OSError as e:
+        logger.warning("[TempSweep] Cannot list %s: %s", tmp_dir, e)
+        return 0
+    for name in names:
+        if not name.startswith(_TEMP_FILE_PREFIX):
+            continue
+        path = os.path.join(tmp_dir, name)
+        try:
+            if os.path.getmtime(path) < cutoff:
+                os.unlink(path)
+                removed += 1
+        except FileNotFoundError:
+            continue
+        except Exception as e:
+            logger.warning("[TempSweep] Failed to remove stale temp file %s: %s", path, e)
+    if removed:
+        logger.info("[TempSweep] Removed %d stale temp video(s) from %s", removed, tmp_dir)
+    return removed
+
+
 @worker_process_init.connect
 def initialize_worker_services(**kwargs):
     """Initialize only lightweight services at worker startup.
@@ -55,6 +137,8 @@ def initialize_worker_services(**kwargs):
     """
     global _shared_storage_service
     logger.info("Celery worker process starting — lightweight services only...")
+    # A previously killed worker cannot have run its cleanup blocks; clear what it left.
+    _sweep_stale_temp_files()
     try:
         settings_obj = get_settings()
         # StorageService is lightweight (no native libraries, no model files).
@@ -209,6 +293,7 @@ async def _resolve_video_local_path(
                 )
                 tmp.write(video_bytes)
                 tmp.close()
+                _register_temp_file(tmp.name)
                 logger.info(
                     f"[PoseExtract] S3 download complete: {tmp.name} "
                     f"({len(video_bytes):,} bytes, key={s3_key})"
@@ -541,11 +626,8 @@ async def _process_form_check_task_async(self, video_id_str: str, form_check_id_
             finally:
                 # Always clean up S3-downloaded temp files
                 if _video_is_temp and video_local_path:
-                    try:
-                        os.unlink(video_local_path)
+                    if _release_temp_file(video_local_path):
                         logger.info(f"[PoseExtract] Cleaned up temp video file: {video_local_path}")
-                    except Exception as _cleanup_err:
-                        logger.warning(f"[PoseExtract] Failed to clean up temp file {video_local_path}: {_cleanup_err}")
 
         # Prioritize pose_data (smoothed), fall back to raw_pose_data
         keypoint_sequence_for_classification: Optional[List[List[Optional[Dict[str, float]]]]] = None
@@ -1323,6 +1405,16 @@ async def _process_form_check_task_async(self, video_id_str: str, form_check_id_
                     logger.critical(
                         f"[CeleryTask] Raw fallback also failed for FormCheck {form_check_id}: {_e_raw}"
                     )
+
+        # Catch any temp file registered but not released -- e.g. the task was
+        # cancelled between NamedTemporaryFile creation and the caller binding
+        # the returned path, so the inner `finally` had nothing to delete.
+        _swept = _sweep_task_temp_files()
+        if _swept:
+            logger.warning(
+                f"[CeleryTask] Task-level sweep removed {_swept} leaked temp file(s) "
+                f"for FormCheck {form_check_id}."
+            )
 
         # Local video file cleanup was removed in original task, assuming cloud URLs are used.
         # If DynamicFormAnalysisService downloads files, it should clean them up.
