@@ -18,7 +18,12 @@ from app.services.storage_service import StorageService
 from app.core.config import Settings # Renamed from settings for consistency
 from uuid import uuid4
 from app.services.base_service import BaseService
-from app.core.exceptions import NotFoundException, PermissionDeniedException, ServerErrorException
+from app.core.exceptions import (
+    NotFoundException,
+    NotImplementedException,
+    PermissionDeniedException,
+    ServerErrorException,
+)
 from app.utils.compression import compress_pose_sequence, decompress_pose_sequence, CompressionMethod as CompMethod
 from app.services.cache_service import CacheService, get_cache_service
 
@@ -193,53 +198,25 @@ class VideoService(BaseService[Video, VideoCreate, VideoUpdate]):
         if not updated_video:
             raise ServerErrorException("Failed to update video record after confirmation, record vanished.")
             
-        # Trigger background processing via Celery
-        try:
-            # Ensure original_video_path is correctly determined (e.g., from video.object_key or video.url)
-            # For S3, it would be the s3://<bucket>/<object_key>
-            # For local, it would be the path where the video was stored by a previous step (if not direct upload to S3)
-            # This assumes video.object_key holds the definitive path for the Celery worker.
-            
-            original_video_path_for_celery = updated_video.object_key 
-            if not original_video_path_for_celery:
-                 logger.error(f"Cannot dispatch Celery task for video {updated_video.id}: object_key is missing.")
-                 # SUT returns updated_video (status UPLOADED) here by falling through, error is just logged.
-                 # To be more robust, should set to PROCESSING_FAILED here too.
-                 # For now, align with test expectations of what Celery failure path handles.
-            else:
-                from app.tasks.video_tasks import process_video_celery_task 
-                task_result = process_video_celery_task.delay(
-                    video_id_str=str(updated_video.id), 
-                    original_video_path=original_video_path_for_celery, 
-                    exercise_type_value=updated_video.exercise_type # Assuming exercise_type is a string here matching enum value
-                )
-                # logger.info(f"Video upload confirmed: id={updated_video.id}, processing task dispatched.")
-                # Status will be further updated by the Celery task itself (e.g., to PROCESSING)
-                # RETURN updated_video (status UPLOADED) IS REMOVED FROM HERE
-
-                task_id = "unknown_task_id" # Default if .delay doesn't return an ID (e.g. if not EagerResult)
-                if hasattr(task_result, 'id') and task_result.id:
-                    task_id = task_result.id
-
-                processing_video = await self.update_video_metadata_and_status(
-                    video_id=updated_video.id, # Use updated_video which is after first super().update_async
-                    status=VideoStatus.PROCESSING,
-                    celery_task_id=task_id,
-                    error_message=None # Explicitly clear any prior error message
-                )
-                logger.info(f"Video upload confirmed: id={processing_video.id}, status set to PROCESSING, Celery task ID: {task_id} dispatched.")
-                return self.response_schema.from_orm(processing_video)
-
-        except ImportError as e_import:
-            logger.error(f"Celery task import failed for video {updated_video.id}: {e_import}. Video will not be processed automatically.")
-            error_updated_video = await self.update_video_metadata_and_status(video_id=updated_video.id, status=VideoStatus.PROCESSING_FAILED, error_message=f"Task dispatch failed: Import Error - {e_import}")
-            return self.response_schema.from_orm(error_updated_video)
-        except Exception as e_task:
-            logger.error(f"Failed to dispatch processing task for video {updated_video.id}: {e_task}", exc_info=True)
-            error_updated_video = await self.update_video_metadata_and_status(video_id=updated_video.id, status=VideoStatus.PROCESSING_FAILED, error_message=f"Task dispatch failed: {e_task}") # Changed from VideoStatus.ERROR to PROCESSING_FAILED
-            return self.response_schema.from_orm(error_updated_video)
-
-        return self.response_schema.from_orm(updated_video) # Default return if no exception and no celery dispatch due to missing object_key
+        # No background processing is dispatched here any more.
+        #
+        # This used to call process_video_celery_task.delay() and then set the
+        # video to PROCESSING. That task was an async def under a plain
+        # @app.task, so Celery returned an un-awaited coroutine and the body
+        # never executed -- every video confirmed through this path was marked
+        # PROCESSING and stayed there forever, with a celery_task_id that
+        # pointed at nothing.
+        #
+        # Confirming an upload is this method's job; dispatching was a side
+        # effect. So the upload is confirmed and the video is left UPLOADED,
+        # which is what it actually is. Pose extraction happens inline in
+        # app.tasks.analysis_tasks when a form check is submitted for it.
+        logger.info(
+            "Video upload confirmed: id=%s, status=UPLOADED. No pre-processing "
+            "task dispatched (process_video_celery_task is retired).",
+            updated_video.id,
+        )
+        return self.response_schema.from_orm(updated_video)
 
     async def get_video_details(
         self,
@@ -554,11 +531,16 @@ class VideoService(BaseService[Video, VideoCreate, VideoUpdate]):
         if not video: # Should not happen if get_async worked
              raise ServerErrorException("Failed to update video for retry.")
 
-        from app.tasks.video_tasks import process_video_celery_task
-        task_result = process_video_celery_task.delay(
-            video_id_str=str(video.id),
-            original_video_path=video.object_key,
-            exercise_type_value=video.exercise_type
+        # Same retirement as the confirm-upload path above: the task this retried
+        # into never executed, so "retry processing" could only ever re-park the
+        # video in PROCESSING.
+        raise NotImplementedException(
+            message=(
+                "Retrying video processing is retired. process_video_celery_task "
+                "was an async def under @app.task and never executed. Submit a new "
+                "form check for this video instead."
+            ),
+            details={"video_id": str(video.id)},
         )
         
         task_id = task_result.id if hasattr(task_result, 'id') else "unknown_retry_task"

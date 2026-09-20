@@ -354,6 +354,26 @@ class ServerErrorException(FormIQException):
             details=details
         )
 
+class NotImplementedException(FormIQException):
+    """A retired code path that must not silently accept work.
+
+    Used where a service or endpoint previously dispatched a Celery task that
+    could never execute. Answering 501 is the point: the old behaviour reported
+    success for work that never happened.
+    """
+
+    def __init__(
+        self,
+        message: str = "This capability has been retired",
+        details: Optional[Dict[str, Any]] = None
+    ):
+        super().__init__(
+            message=message,
+            error_code="NOT_IMPLEMENTED",
+            status_code=HTTPStatus.NOT_IMPLEMENTED,
+            details=details
+        )
+
 class DatabaseException(FormIQException):
     """Database operation failed."""
     

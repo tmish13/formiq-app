@@ -5,57 +5,40 @@ from uuid import UUID
 
 from app.api import deps
 from app.services.video_service import VideoService
-# Import the Celery task
-try:
-    from app.tasks.ai_tasks import perform_form_analysis_celery_task
-except ImportError:
-    # This is a placeholder. If ai_tasks.py or the task doesn't exist,
-    # this will allow the API to start, but calls will fail.
-    # The task creation is handled in a subsequent step.
-    perform_form_analysis_celery_task = None 
-    logging.warning("Celery task perform_form_analysis_celery_task not found. Analysis endpoint will not function correctly.")
+
+# perform_form_analysis_celery_task is retired: it was an async def under
+# @app.task, so Celery returned an un-awaited coroutine and the body never ran.
+# This endpoint used to answer 202 Accepted and enqueue it, i.e. it promised work
+# that could not happen. It now says so.
+_RETIRED_DETAIL = (
+    "Form analysis is not available through this endpoint. The task it dispatched "
+    "(ai.perform_form_analysis) was an async def under a plain @app.task, so its "
+    "body never executed -- this endpoint returned 202 Accepted for work that "
+    "never ran. Submit a form check instead: POST /api/v1/form-checks/."
+)
 
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-@router.post("/analyze-form/{video_id}", status_code=status.HTTP_202_ACCEPTED)
+@router.post("/analyze-form/{video_id}", status_code=status.HTTP_501_NOT_IMPLEMENTED)
 async def trigger_form_analysis(
     video_id: UUID,
     video_service: VideoService = Depends(deps.get_video_service),
 ):
+    """Retired. Always 501.
+
+    Kept as a route so callers get a clear answer rather than a 404 that looks
+    like a typo. The live path is the form-check pipeline.
     """
-    Triggers dynamic form analysis for a given video ID.
+    logger.warning(
+        "Retired endpoint POST /analysis/analyze-form/%s called; returning 501.",
+        video_id,
+    )
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=_RETIRED_DETAIL
+    )
 
-    The analysis is performed asynchronously. This endpoint will return
-    a 202 Accepted response immediately after queueing the analysis task.
-    """
-    video = await video_service.get_async(id=video_id)
-    if not video:
-        logger.warning(f"Trigger analysis: Video with ID {video_id} not found.")
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
-
-    if not video.angle_data:
-        logger.warning(f"Trigger analysis: Video {video_id} has no angle data. Analysis cannot proceed.")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Video has no angle data to analyze.")
-
-    if perform_form_analysis_celery_task is None:
-        logger.error("perform_form_analysis_celery_task is not available. Cannot queue analysis.")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Analysis task handler is not configured.")
-
-    try:
-        # Update video status to indicate analysis is pending/queued
-        # Example: video.status = VideoStatus.FORM_ANALYSIS_PENDING (ensure VideoStatus enum is updated)
-        # await video_service.update_video_async(video_id, {"status": "FORM_ANALYSIS_PENDING"})
-
-        task = perform_form_analysis_celery_task.delay(str(video_id))
-        logger.info(f"Enqueued dynamic form analysis for video ID: {video_id}. Task ID: {task.id}")
-        
-        return {"message": "Form analysis accepted and queued.", "video_id": video_id, "task_id": task.id}
-
-    except Exception as e:
-        logger.error(f"Failed to enqueue form analysis task for video ID {video_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to queue analysis task.")
 
 # Add this router to the main FastAPI app in app/main.py
 # from app.api.v1.endpoints import analysis as analysis_router

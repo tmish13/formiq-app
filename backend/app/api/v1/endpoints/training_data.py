@@ -60,82 +60,34 @@ async def submit_training_data(
             detail=f"Error processing training data: {str(e)}"
         )
 
-@router.post("/submit_video")
+@router.post("/submit_video", status_code=501)
 async def submit_training_video(
     background_tasks: BackgroundTasks,
     video: UploadFile = File(...),
     metadata: str = Body(...),
     video_processing_service: VideoProcessingService = Depends(get_async_video_processing_service)
 ):
-    """
-    Submit a video file with training metadata.
-    
-    This endpoint allows uploading video recordings with associated
-    training metadata like expert scores and corrections.
-    """
-    api_key: str = Depends(get_api_key) # Re-declare for FastAPI
+    """Retired. Always 501.
 
-    try:
-        # Parse metadata
-        metadata_dict = json.loads(metadata)
-        exercise_type = metadata_dict.get("exercise_type")
-        
-        if not exercise_type:
-            raise HTTPException(
-                status_code=400,
-                detail="Exercise type is required in metadata"
-            )
-        
-        # Save video to temporary storage first (non-blocking)
-        import tempfile
-        import aiofiles
-        import os
-        
-        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
-        temp_file_path = temp_file.name
-        temp_file.close()
-        
-        try:
-            # Stream video to temp file without loading into memory
-            async with aiofiles.open(temp_file_path, 'wb') as f:
-                content = await video.read(8192)  # Read in chunks
-                while content:
-                    await f.write(content)
-                    content = await video.read(8192)
-            
-            # Get file size for response
-            file_size = os.path.getsize(temp_file_path)
-            
-            # Queue processing task with file path (Celery will handle the file)
-            from app.tasks.video_tasks import process_training_video_task
-            task = process_training_video_task.delay(
-                temp_file_path=temp_file_path,
-                filename=video.filename,
-                metadata=metadata_dict
-            )
-            
-            return {
-                "success": True,
-                "message": "Training video uploaded successfully. Processing in background.",
-                "filename": video.filename,
-                "size": file_size,
-                "task_id": task.id,
-                "status": "queued"
-            }
-            
-        except Exception as e:
-            # Clean up temp file on error
-            if os.path.exists(temp_file_path):
-                os.unlink(temp_file_path)
-            logger.error(f"Failed to stream video to temporary file: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"Failed to process video: {str(e)}")
-        
-    except Exception as e:
-        logger.error(f"Error processing training video: {str(e)}")
-        raise HTTPException(
-            status_code=500, 
-            detail=f"Error processing training video: {str(e)}"
-        )
+    This endpoint streamed the upload to a NamedTemporaryFile(delete=False) and
+    then dispatched ``app.tasks.video_tasks.process_training_video_task`` -- a
+    task that was never defined anywhere in the codebase. The import therefore
+    raised ImportError on every call, which the outer handler turned into a 500.
+    So this has never worked; it only ever looked like a server fault.
+
+    It now refuses before reading a single byte, so no temp file is created.
+    """
+    logger.warning("Retired endpoint POST /training-data/submit_video called; returning 501.")
+    raise HTTPException(
+        status_code=501,
+        detail=(
+            "Training-video submission is retired. It dispatched "
+            "process_training_video_task, which was never implemented, so every "
+            "call failed after writing a temp file. No replacement endpoint "
+            "exists; add training data through the dataset tooling instead."
+        ),
+    )
+
 
 async def process_training_data(
     submission: TrainingDataSubmission,

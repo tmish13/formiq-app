@@ -28,9 +28,11 @@ celery_app = Celery(
     broker=settings.CELERY_BROKER_URL, 
     # backend=settings.CELERY_RESULT_BACKEND, # Optional: if you need to store task results
     include=[
-        'app.tasks.video_tasks',
-        'app.tasks.ai_tasks', # Add the new AI tasks module
-        'app.tasks.analysis_tasks', # ADD THIS LINE
+        # app.tasks.video_tasks and app.tasks.ai_tasks are retired -- every task in
+        # them was an async def under a plain @app.task, so Celery returned an
+        # un-awaited coroutine and the bodies never ran. Their modules survive as
+        # loud stubs; they are deliberately NOT registered with any worker.
+        'app.tasks.analysis_tasks',
         # 'app.tasks.pose_detection_tasks', # Example for future tasks
         # 'app.tasks.form_analysis_tasks',  # Example for future tasks
     ]

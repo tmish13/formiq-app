@@ -180,87 +180,57 @@ class TestVideoService:
 
     @patch("app.tasks.video_tasks.process_video_celery_task.delay")
     @patch.object(VideoService, 'update_video_metadata_and_status', new_callable=AsyncMock)
-    async def test_confirm_video_upload_success_dispatches_task(
-        self, 
-        mock_update_meta_status: AsyncMock, 
-        mock_celery_delay: MagicMock, 
-        video_service: VideoService, 
-        sample_video_record: Video, 
+    async def test_confirm_video_upload_does_not_dispatch_and_leaves_video_uploaded(
+        self,
+        mock_update_meta_status: AsyncMock,
+        mock_celery_delay: MagicMock,
+        video_service: VideoService,
+        sample_video_record: Video,
         sample_user_id: uuid.UUID,
         mock_storage_service: MagicMock
     ):
-        """Test successful video upload confirmation and Celery task dispatch."""
+        """Confirming an upload must not enqueue process_video_celery_task.
+
+        This test previously asserted the opposite. The task it dispatched was an
+        async def under a plain @app.task, so Celery returned an un-awaited
+        coroutine and the body never ran -- every video confirmed through this
+        path was set to PROCESSING, given a celery_task_id pointing at nothing,
+        and left there forever. Confirmation now reports the truth: UPLOADED.
+        """
         video_id = sample_video_record.id
         object_key = sample_video_record.object_key
         video_size = 1024 * 1024  # 1MB
-        exercise_type_value = sample_video_record.exercise_type
 
-        # Mock DB calls
         mock_db = video_service.db
         execute_result_mock = MagicMock()
-        execute_result_mock.scalars.return_value.first.return_value = sample_video_record # Video in PENDING_UPLOAD
+        execute_result_mock.scalars.return_value.first.return_value = sample_video_record
         mock_db.execute = AsyncMock(return_value=execute_result_mock)
-        
-        # Mock first update to UPLOADED
+
         now_uploaded = datetime.now(timezone.utc)
-        mock_uploaded_video_attributes = {
+        mock_uploaded_video_obj = Video(**{
             "id": sample_video_record.id, "user_id": sample_video_record.user_id,
             "filename": sample_video_record.filename, "mime_type": sample_video_record.mime_type,
-            "object_key": sample_video_record.object_key, "exercise_type": sample_video_record.exercise_type,
+            "object_key": sample_video_record.object_key,
+            "exercise_type": sample_video_record.exercise_type,
             "created_at": sample_video_record.created_at, "updated_at": now_uploaded,
-            "status": VideoStatus.UPLOADED, "size": video_size, "url": "http://s3.public.url/video.mp4"
-        }
-        mock_uploaded_video_obj = Video(**mock_uploaded_video_attributes)
+            "status": VideoStatus.UPLOADED, "size": video_size,
+            "url": "http://s3.public.url/video.mp4",
+        })
 
-        with patch.object(BaseService, 'update_async', new_callable=AsyncMock) as mock_super_update_first_call:
-            mock_super_update_first_call.return_value = mock_uploaded_video_obj
-
+        with patch.object(BaseService, 'update_async', new_callable=AsyncMock) as mock_super_update:
+            mock_super_update.return_value = mock_uploaded_video_obj
             mock_storage_service.get_public_url.return_value = "http://s3.public.url/video.mp4"
-            mock_celery_task_instance = MagicMock()
-            mock_celery_task_instance.id = "test_celery_task_id"
-            mock_celery_delay.return_value = mock_celery_task_instance
-
-            now_processing = datetime.now(timezone.utc)
-            mock_processing_video_attributes = {
-                **mock_uploaded_video_attributes, # Start with UPLOADED attributes
-                "status": VideoStatus.PROCESSING, "celery_task_id": "test_celery_task_id",
-                "updated_at": now_processing
-            }
-            mock_processing_video_obj_for_response = Video(**mock_processing_video_attributes)
-            mock_update_meta_status.return_value = video_service.response_schema.from_orm(mock_processing_video_obj_for_response)
 
             result = await video_service.confirm_video_upload(
                 video_id, sample_user_id, False, object_key, video_size
             )
 
-        # video_service.db.refresh(sample_video_record) # This does not work as expected with AsyncMock
-    
-        # Check first update call (to UPLOADED) made to BaseService.update_async
-        # mock_super_update_first_call.assert_awaited_once() # This was already checked within the with block
-        # update_args = mock_super_update_first_call.call_args.kwargs
-        # assert update_args['obj_in'].status == VideoStatus.UPLOADED # Also checked within the with block
-        # assert update_args['obj_in'].size == video_size
-        # assert update_args['obj_in'].url == "http://s3.public.url/video.mp4"
-        # The above assertions on mock_super_update_first_call are correctly placed *inside* its `with` block.
-        # The assertion `assert sample_video_record.status == VideoStatus.UPLOADED` is removed as it's misleading.
-
-        mock_celery_delay.assert_called_once_with(
-            video_id_str=str(video_id),
-            original_video_path=object_key,
-            exercise_type_value=exercise_type_value
-        )
-        
-        # Check update_video_metadata_and_status call (to PROCESSING)
-        mock_update_meta_status.assert_called_once_with(
-            video_id=video_id,
-            status=VideoStatus.PROCESSING,
-            celery_task_id="test_celery_task_id",
-            error_message=None
-        )
+        mock_celery_delay.assert_not_called()
+        mock_update_meta_status.assert_not_called()
 
         assert result.id == video_id
-        assert result.status == VideoStatus.PROCESSING
-        assert result.celery_task_id == "test_celery_task_id"
+        assert result.status == VideoStatus.UPLOADED
+        assert result.celery_task_id is None
 
     async def test_confirm_video_upload_video_not_found(
         self, video_service: VideoService, mock_storage_service: MagicMock, sample_user_id: uuid.UUID
@@ -417,172 +387,52 @@ class TestVideoService:
         assert result.status == VideoStatus.FRAMES_EXTRACTED
         # mock_update_meta_status.assert_not_called() # mock_update_meta_status is not in this test's scope
 
-    @patch.object(VideoService, 'update_video_metadata_and_status', new_callable=AsyncMock)
-    async def test_confirm_video_upload_celery_import_error(
-        self, mock_update_meta_status: AsyncMock, video_service: VideoService, sample_video_record: Video, sample_user_id: uuid.UUID, mock_storage_service: MagicMock
-    ):
-        """Test handling of ImportError when trying to dispatch Celery task."""
-        mock_storage_service.get_public_url = AsyncMock(return_value="http://s3.public.url/video_for_import_error.mp4") # Configure return value
-
-        mock_db = video_service.db
-        execute_result_mock_get = MagicMock() # For the initial get_async
-        execute_result_mock_get.scalars.return_value.first.return_value = sample_video_record
-        
-        # For the get_async inside the patched update_video_metadata_and_status, if it's not fully mocked out by mock_update_meta_status
-        # This assumes mock_update_meta_status effectively mocks the entire method including its potential get_async
-        mock_db.execute = AsyncMock(return_value=execute_result_mock_get)
-        
-        now = datetime.now(timezone.utc)
-        mock_uploaded_video = Video(
-            id=sample_video_record.id,
-            user_id=sample_video_record.user_id,
-            filename=sample_video_record.filename,
-            mime_type=sample_video_record.mime_type,
-            object_key=sample_video_record.object_key,
-            exercise_type=sample_video_record.exercise_type,
-            created_at=sample_video_record.created_at,
-            # ---- Key changes for this mock ----
-            status=VideoStatus.UPLOADED, 
-            updated_at=now,
-            # ---- End Key changes ----
-            # Carry over other nullable fields from sample_video_record
-            url=sample_video_record.url,
-            processed_url=sample_video_record.processed_url,
-            size=sample_video_record.size,
-            duration=sample_video_record.duration,
-            resolution=sample_video_record.resolution,
-            fps=sample_video_record.fps,
-            processing_errors=sample_video_record.processing_errors,
-            processed_object_key=sample_video_record.processed_object_key,
-            frame_s3_keys=sample_video_record.frame_s3_keys,
-            processed_frame_count=sample_video_record.processed_frame_count,
-            thumbnail_s3_key=sample_video_record.thumbnail_s3_key,
-            thumbnail_url=sample_video_record.thumbnail_url,
-            additional_metadata=sample_video_record.additional_metadata,
-            pose_data=sample_video_record.pose_data,
-            pose_visualizations=sample_video_record.pose_visualizations,
-            analysis_results=sample_video_record.analysis_results,
-            stats=sample_video_record.stats,
-            score=sample_video_record.score,
-            rep_count=sample_video_record.rep_count,
-            raw_pose_data=sample_video_record.raw_pose_data,
-            calculated_angles=sample_video_record.calculated_angles,
-            celery_task_id = None # Explicitly None before Celery call in this test path
-        )
-        mock_update_meta_status.return_value = video_service.response_schema.from_orm(mock_uploaded_video)
-        
-        # Patch Celery task import to raise ImportError
-        with patch("app.tasks.video_tasks.process_video_celery_task.delay", side_effect=ImportError("Celery is down")):
-            # Mock the final status update to PROCESSING_FAILED
-            now_failed_import_err = datetime.now(timezone.utc)
-            mock_failed_video_attrs = {
-                "id": mock_uploaded_video.id, 
-                "user_id": mock_uploaded_video.user_id,
-                "filename": mock_uploaded_video.filename, 
-                "mime_type": mock_uploaded_video.mime_type,
-                "object_key": mock_uploaded_video.object_key, 
-                "exercise_type": mock_uploaded_video.exercise_type,
-                "created_at": mock_uploaded_video.created_at, 
-                "updated_at": now_failed_import_err, # New timestamp
-                "status": VideoStatus.PROCESSING_FAILED, 
-                "error_message": "Task dispatch failed: Import Error - Celery is down",
-                # Copy other necessary fields from mock_uploaded_video if they exist and are non-nullable
-                "url": mock_uploaded_video.url,
-                "processed_url": mock_uploaded_video.processed_url,
-                "size": mock_uploaded_video.size,
-                "duration": mock_uploaded_video.duration,
-                "resolution": mock_uploaded_video.resolution,
-                "fps": mock_uploaded_video.fps,
-                "processing_errors": mock_uploaded_video.processing_errors,
-                "processed_object_key": mock_uploaded_video.processed_object_key,
-                "frame_s3_keys": mock_uploaded_video.frame_s3_keys,
-                "processed_frame_count": mock_uploaded_video.processed_frame_count,
-                "thumbnail_s3_key": mock_uploaded_video.thumbnail_s3_key,
-                "thumbnail_url": mock_uploaded_video.thumbnail_url,
-                "additional_metadata": mock_uploaded_video.additional_metadata,
-                "pose_data": mock_uploaded_video.pose_data,
-                "pose_visualizations": mock_uploaded_video.pose_visualizations,
-                "analysis_results": mock_uploaded_video.analysis_results,
-                "stats": mock_uploaded_video.stats,
-                "score": mock_uploaded_video.score,
-                "rep_count": mock_uploaded_video.rep_count,
-                "raw_pose_data": mock_uploaded_video.raw_pose_data,
-                "calculated_angles": mock_uploaded_video.calculated_angles,
-                "celery_task_id": None # Celery task dispatch failed
-            }
-            mock_failed_video_obj = Video(**mock_failed_video_attrs)
-            mock_update_meta_status.return_value = video_service.response_schema.from_orm(mock_failed_video_obj)
-            
-            result = await video_service.confirm_video_upload(
-                sample_video_record.id, sample_user_id, False, sample_video_record.object_key, 100
-            )
-
-        assert isinstance(result, video_service.response_schema) # Changed here
-        assert result.status == VideoStatus.PROCESSING_FAILED
-        assert "Task dispatch failed: Import Error" in result.error_message
-        # First update to UPLOADED should have happened
-        mock_update_meta_status.assert_called_once()
-        # Second update (update_video_metadata_and_status) to PROCESSING_FAILED
-        mock_update_meta_status.assert_called_once_with(
-            video_id=sample_video_record.id,
-            status=VideoStatus.PROCESSING_FAILED,
-            error_message="Task dispatch failed: Import Error - Celery is down"
-        )
-        
     @patch("app.tasks.video_tasks.process_video_celery_task.delay")
-    @patch.object(VideoService, 'update_video_metadata_and_status', new_callable=AsyncMock)
-    async def test_confirm_video_upload_celery_dispatch_general_error(
-        self, mock_update_meta_status: AsyncMock, mock_celery_delay: MagicMock, video_service: VideoService, sample_video_record: Video, sample_user_id: uuid.UUID, mock_storage_service: MagicMock
+    async def test_confirm_video_upload_has_no_dispatch_failure_path_left(
+        self,
+        mock_celery_delay: MagicMock,
+        video_service: VideoService,
+        sample_video_record: Video,
+        sample_user_id: uuid.UUID,
+        mock_storage_service: MagicMock
     ):
-        """Test handling of a general error when dispatching Celery task."""
-        mock_db = video_service.db
-        execute_result_mock_get = MagicMock()
-        execute_result_mock_get.scalars.return_value.first.return_value = sample_video_record
-        mock_db.execute = AsyncMock(return_value=execute_result_mock_get)
+        """Replaces test_confirm_video_upload_celery_import_error and
+        test_confirm_video_upload_celery_dispatch_general_error.
 
-        now_uploaded_general_err = datetime.now(timezone.utc)
-        mock_uploaded_video_attrs_general_err = {
+        Both covered error handling around a Celery dispatch that no longer
+        happens: an ImportError or a general exception from .delay() used to set
+        the video to PROCESSING_FAILED. With no dispatch there is no dispatch
+        failure, and confirmation cannot be knocked into a failed state by the
+        task queue being unavailable. That is the property worth keeping.
+        """
+        mock_celery_delay.side_effect = AssertionError("dispatch must not be attempted")
+
+        mock_db = video_service.db
+        execute_result_mock = MagicMock()
+        execute_result_mock.scalars.return_value.first.return_value = sample_video_record
+        mock_db.execute = AsyncMock(return_value=execute_result_mock)
+        mock_storage_service.get_public_url = AsyncMock(return_value="http://s3.public.url/v.mp4")
+
+        uploaded_obj = Video(**{
             "id": sample_video_record.id, "user_id": sample_video_record.user_id,
             "filename": sample_video_record.filename, "mime_type": sample_video_record.mime_type,
-            "object_key": sample_video_record.object_key, "exercise_type": sample_video_record.exercise_type,
-            "created_at": sample_video_record.created_at, "updated_at": now_uploaded_general_err,
-            "status": VideoStatus.UPLOADED, "size": 100, "url": "http://s3.public.url/video.mp4"
-        }
-        mock_uploaded_video_obj_general_err = Video(**mock_uploaded_video_attrs_general_err)
-        
-        mock_storage_service.get_public_url.return_value = "http://s3.public.url/video.mp4"
-        
-        dispatch_error_message = "Redis not available"
-        mock_celery_delay.side_effect = Exception(dispatch_error_message)
+            "object_key": sample_video_record.object_key,
+            "exercise_type": sample_video_record.exercise_type,
+            "created_at": sample_video_record.created_at,
+            "updated_at": datetime.now(timezone.utc),
+            "status": VideoStatus.UPLOADED, "size": 2048,
+            "url": "http://s3.public.url/v.mp4",
+        })
 
-        now_failed_general_err = datetime.now(timezone.utc)
-        mock_failed_video_attrs_for_response = {
-            **mock_uploaded_video_attrs_general_err, # Start with UPLOADED attributes
-            "status": VideoStatus.PROCESSING_FAILED,
-            "error_message": f"Task dispatch failed: {dispatch_error_message}",
-            "updated_at": now_failed_general_err,
-            "celery_task_id": None # No task ID if dispatch failed
-        }
-        mock_failed_video_obj_for_response = Video(**mock_failed_video_attrs_for_response)
-        mock_update_meta_status.return_value = video_service.response_schema.from_orm(mock_failed_video_obj_for_response)
-        
-        with patch.object(BaseService, 'update_async', new_callable=AsyncMock) as mock_super_update_first_call:
-            mock_super_update_first_call.return_value = mock_uploaded_video_obj_general_err
-
+        with patch.object(BaseService, 'update_async', new_callable=AsyncMock) as mock_super_update:
+            mock_super_update.return_value = uploaded_obj
             result = await video_service.confirm_video_upload(
-                sample_video_record.id, sample_user_id, False, sample_video_record.object_key, 100
+                sample_video_record.id, sample_user_id, False,
+                sample_video_record.object_key, 2048,
             )
 
-        assert isinstance(result, video_service.response_schema) # Changed here
-        assert result.status == VideoStatus.PROCESSING_FAILED
-        print(f"DEBUG: mock_failed_video_obj_for_response.error_message = {mock_failed_video_obj_for_response.error_message}")
-        print(f"DEBUG: result.error_message = {result.error_message}")
-        assert f"Task dispatch failed: {dispatch_error_message}" in result.error_message
-        mock_update_meta_status.assert_called_once_with(
-            video_id=sample_video_record.id,
-            status=VideoStatus.PROCESSING_FAILED,
-            error_message=f"Task dispatch failed: {dispatch_error_message}"
-        )
+        assert result.status == VideoStatus.UPLOADED
+        assert result.status is not VideoStatus.PROCESSING_FAILED
 
     @patch("app.tasks.video_tasks.process_video_celery_task.delay")
     @patch.object(VideoService, 'update_video_metadata_and_status', new_callable=AsyncMock)
@@ -729,22 +579,6 @@ class TestVideoService:
                 
         mock_storage_service.get_public_url.return_value = "http://s3.public.url/video.mp4"
 
-        mock_celery_task_instance = MagicMock()
-        mock_celery_task_instance.id = "superuser_celery_task_id"
-        mock_celery_delay.return_value = mock_celery_task_instance
-
-        # This is the Video that update_video_metadata_and_status (which is mocked) should return
-        # Manually construct this from mock_uploaded_video_attrs_superuser and changes for processing state
-        now_processing_superuser = datetime.now(timezone.utc)
-        mock_processing_video_attrs_for_response_superuser = {
-            **mock_uploaded_video_attrs_superuser, # Start with UPLOADED attributes
-            "status": VideoStatus.PROCESSING, 
-            "celery_task_id": "superuser_celery_task_id",
-            "updated_at": now_processing_superuser
-        }
-        mock_processing_video_obj_for_response_superuser = Video(**mock_processing_video_attrs_for_response_superuser)
-        mock_update_meta_status.return_value = video_service.response_schema.from_orm(mock_processing_video_obj_for_response_superuser)
-
         with patch.object(BaseService, 'update_async', new_callable=AsyncMock) as mock_super_update_first_call_superuser:
             mock_super_update_first_call_superuser.return_value = mock_uploaded_video_obj_superuser
 
@@ -756,16 +590,15 @@ class TestVideoService:
                 video_size
             )
 
-        mock_update_meta_status.assert_called_once_with(
-            video_id=video_id,
-            status=VideoStatus.PROCESSING,
-            celery_task_id="superuser_celery_task_id",
-            error_message=None
-        )
+        # The permission check is what this test is about; the dispatch that used
+        # to follow it is retired, so the superuser gets the same honest UPLOADED
+        # result any other caller gets.
+        mock_celery_delay.assert_not_called()
+        mock_update_meta_status.assert_not_called()
 
         assert result.id == video_id
-        assert result.status == VideoStatus.PROCESSING
-        assert result.celery_task_id == "superuser_celery_task_id"
+        assert result.status == VideoStatus.UPLOADED
+        assert result.celery_task_id is None
 
     # Add more tests for other methods in VideoService like get_video_details, update_video_metadata_and_status etc.
     # For example, test update_video_metadata_and_status directly:
