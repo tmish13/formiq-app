@@ -83,7 +83,7 @@ def test_retired_modules_are_not_registered_with_any_worker():
     assert "app.tasks.analysis_tasks" in include, "the live task must still be included"
 
 
-def test_the_worker_registers_exactly_one_task():
+def test_the_worker_registers_only_the_live_tasks():
     """Guards against a dead module creeping back into `include`.
 
     Run in a clean subprocess: in a shared pytest session other test modules
@@ -108,7 +108,10 @@ def test_the_worker_registers_exactly_one_task():
     marker = [ln for ln in out.stdout.splitlines() if ln.startswith("RESULT")]
     assert marker, f"probe produced no result. stderr={out.stderr[-800:]!r}"
     registered = json.loads(marker[-1][len("RESULT"):])
-    assert registered == ["app.tasks.analysis_tasks.process_form_check"], registered
+    assert registered == [
+        "app.tasks.analysis_tasks.process_form_check",
+        "app.tasks.maintenance_tasks.reap_stuck_form_checks",
+    ], registered
 
 
 def test_the_live_task_is_a_sync_function():

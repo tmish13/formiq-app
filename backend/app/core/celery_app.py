@@ -33,6 +33,7 @@ celery_app = Celery(
         # un-awaited coroutine and the bodies never ran. Their modules survive as
         # loud stubs; they are deliberately NOT registered with any worker.
         'app.tasks.analysis_tasks',
+        'app.tasks.maintenance_tasks',
         # 'app.tasks.pose_detection_tasks', # Example for future tasks
         # 'app.tasks.form_analysis_tasks',  # Example for future tasks
     ]
@@ -94,9 +95,15 @@ if __name__ == '__main__':
 
 # Celery beat schedule for periodic tasks (if needed)
 celery_app.conf.beat_schedule = {
-    # Example periodic task:
-    # "cleanup-old-videos": {
-    #     "task": "app.tasks.video_processing.cleanup_old_videos",
-    #     "schedule": 86400.0,  # Once per day
-    # },
+    # Recovers form checks that no worker is working on. Every other safety net
+    # on this pipeline is in-process, so none of them survives a worker that
+    # dies without running a single `finally` -- which is how 17 of 20 form
+    # checks ended up PENDING forever with the broker already acked.
+    #
+    # 60s is well below the 30-minute staleness threshold, so a stranded row is
+    # noticed promptly while the scan itself stays cheap (one indexed query).
+    "reap-stuck-form-checks": {
+        "task": "app.tasks.maintenance_tasks.reap_stuck_form_checks",
+        "schedule": 60.0,
+    },
 } 
