@@ -71,6 +71,39 @@ services:
       - db
       - redis
 
+  beat:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    # Without this service the Phase 1 stuck-row reaper is dead configuration:
+    # `reap_stuck_form_checks` is registered on a beat schedule that nothing
+    # runs, so a form check abandoned by a killed worker stays PROCESSING
+    # forever in this environment. The same is now true of the unclosed-run
+    # sweep added in Stage A.
+    #
+    # One replica, always. Two beat processes double-fire every scheduled task,
+    # and the reaper re-dispatching the same form check twice is exactly the
+    # duplicate-work race the atomic claim exists to prevent.
+    command: celery -A app.core.celery_app.celery_app beat -l info
+    volumes:
+      - ..:/app
+      - ../../.env:/app/.env:ro
+      - formiq_shared:/var/formiq_celery_shared
+    environment:
+      - POSTGRES_SERVER=db
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-formiq}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - CELERY_SHARED_DATA_PATH=/var/formiq_celery_shared
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - DEBUG=${DEBUG:-true}
+      - SECRET_KEY=${SECRET_KEY:-dev-only-insecure-secret-key-32chars-minimum}
+    depends_on:
+      - db
+      - redis
+
   db:
     image: postgres:15
     container_name: formiq_db

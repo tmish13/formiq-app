@@ -421,11 +421,22 @@ class FormCheckService(BaseService[FormCheck, FormCheckCreate, FormCheckUpdate])
             "summary": "\n".join(analysis_results.get("feedback", [])), # Or a more structured summary
             "details": merged_details,
             "analysis_completed_at": datetime.utcnow(),
-            # Add ML scores from analysis results
-            "posture_score": analysis_results.get("posture_score"),
-            "stability_score": analysis_results.get("stability_score"),
-            "depth_score": analysis_results.get("depth_score")
         }
+
+        # Score keys are written ONLY when the payload carries them.
+        # `.get(k)` returns None for a key that was never supplied, which is
+        # indistinguishable from a checker that deliberately answered None --
+        # so every finalize was blanking every score column it had no opinion
+        # about. The PostureV1-only path supplies posture_score and nothing
+        # else, and was therefore erasing depth_score and stability_score on
+        # every run.
+        #
+        # Absent  => leave the column alone.
+        # Present => write it, INCLUDING an explicit None, which is a real
+        #            statement that the checker declined.
+        for _key in ("posture_score", "stability_score", "depth_score"):
+            if _key in analysis_results:
+                update_payload[_key] = analysis_results[_key]
         
         if status == FormCheckStatus.FAILED:
             # error_details is NOT a column on FormCheck -- not in the model, not

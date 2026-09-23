@@ -9,6 +9,9 @@ from app.core.exceptions import ServiceError
 from sqlalchemy.exc import IntegrityError
 from fastapi import status
 import logging
+import os
+
+import sqlalchemy as sa
 
 # Define TypeVars for Model, Create Schema, and Update Schema
 ModelType = TypeVar("ModelType", bound=BaseModel)
@@ -16,6 +19,42 @@ CreateSchemaType = TypeVar("CreateSchemaType")
 UpdateSchemaType = TypeVar("UpdateSchemaType")
 
 logger = logging.getLogger(__name__)
+
+
+def _reject_unknown_fields(db_obj: Any, update_data: dict) -> dict:
+    """Refuse to silently drop keys the model has no attribute for.
+
+    A bare `setattr(db_obj, field, value)` accepts anything. Python attaches
+    the attribute to the instance, SQLAlchemy ignores it because it is not
+    mapped, the commit succeeds, and the value is gone. Nothing raises and
+    nothing logs.
+
+    That is not hypothetical. Three fields were lost this way for the life of
+    the project:
+
+      * `error_details` -- six call sites, including every finalized failure.
+        Every FAILED form check was reason-less as a result (G-37).
+      * `summary` and `analysis_completed_at` -- written on every finalize and
+        read back at form_check_service.py:483, against nothing.
+
+    The column added in migration 0011 fixes those two instances. This closes
+    the class. It raises outside production so a test or a dev run fails loudly,
+    and only logs in production, where dropping a field is still better than
+    500ing a user's request over a field name.
+    """
+    mapper = sa.inspect(type(db_obj))
+    known = set(mapper.attrs.keys()) | {c.key for c in mapper.columns}
+    unknown = [k for k in update_data if k not in known]
+    if not unknown:
+        return update_data
+
+    msg = (f"{type(db_obj).__name__} has no attribute(s) {sorted(unknown)}; "
+           f"they would be silently discarded. Add the column, or stop writing "
+           f"the key.")
+    logger.error("BaseService: %s", msg)
+    if os.getenv("ENVIRONMENT", "development") != "production":
+        raise ServiceError(msg)
+    return {k: v for k, v in update_data.items() if k in known}
 
 class BaseService(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
     """Base service with repository pattern and error handling for both sync and async sessions."""
@@ -120,12 +159,18 @@ class BaseService(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
 
     async def update_async(self, *, db_obj: ModelType, obj_in: Union[UpdateSchemaType, dict]) -> ModelType:
         """Update an existing record asynchronously."""
-        try:
-            if not isinstance(obj_in, dict):
-                update_data = obj_in.model_dump(exclude_unset=True)
-            else:
-                update_data = obj_in
+        if not isinstance(obj_in, dict):
+            update_data = obj_in.model_dump(exclude_unset=True)
+        else:
+            update_data = obj_in
 
+        # Outside the try, deliberately. A key the model does not have is a
+        # programming error, not a database failure: reporting it as one would
+        # bury the field name under "Failed to update FormCheck" and trigger a
+        # rollback of a transaction that never got as far as the database.
+        update_data = _reject_unknown_fields(db_obj, update_data)
+
+        try:
             for field, value in update_data.items():
                 setattr(db_obj, field, value)
             self.db.add(db_obj)

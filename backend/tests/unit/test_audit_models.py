@@ -159,3 +159,54 @@ def test_run_statuses_are_short_enough_for_the_column():
     limit = AnalysisRun.__table__.c.status.type.length
     assert all(len(s) <= limit for s in RUN_STATUSES)
     assert RUN_STATUS_ABANDONED in RUN_STATUSES
+
+
+class TestDecisionWritesAreNotBatched:
+    """Regression: three decisions in one transaction used to fail entirely.
+
+    SQLAlchemy 2.0 batches same-table INSERTs through insertmanyvalues and
+    matches the returned rows back using the primary key as a sentinel.
+    `SQLiteUUID` BINDS a str and RETURNS a uuid.UUID, so the sentinel never
+    matched:
+
+        Can't match sentinel values in result set to parameter sets
+
+    Measured on 8 live analyses: every run opened, every run closed, and every
+    single decision row was lost -- with only a warning, because the recorder
+    is best-effort by design. `posture_v1_inference_logs` uses the same type
+    and never hit it, because a task adds exactly one telemetry row.
+    """
+
+    @pytest.mark.asyncio
+    async def test_each_decision_is_flushed_on_its_own(self):
+        from unittest.mock import AsyncMock, MagicMock
+
+        from app.services.decisions.recorder import record_decisions
+        from app.services.decisions.types import CheckerOutcome
+
+        session = AsyncMock()
+        session.add = MagicMock()
+        outcomes = [
+            CheckerOutcome(checker_name=f"c{i}", target=f"t{i}", decision="X")
+            for i in range(3)
+        ]
+        written = await record_decisions(session, run_id=uuid.uuid4(),
+                                         outcomes=outcomes)
+        assert written == 3
+        assert session.add.call_count == 3
+        # One flush per row: three separate INSERTs, never one batch.
+        assert session.flush.await_count == 3
+
+    def test_three_decisions_commit_together(self, session):
+        """The shape that broke. SQLite does not reproduce the sentinel bug, so
+        this pins the intent rather than the driver behaviour; the live proof is
+        bench/stage_a_decision_trail.sh assertion A2."""
+        run = AnalysisRun(id=uuid.uuid4(), status=RUN_STATUS_RUNNING)
+        session.add(run)
+        session.commit()
+        for name in ("posture_v1", "depth_parallel_v0", "knees_forward_v0"):
+            session.add(CheckerDecision(id=uuid.uuid4(), run_id=run.id,
+                                        checker_name=name, target=name,
+                                        decision="UNCERTAIN"))
+        session.commit()
+        assert session.query(CheckerDecision).count() == 3

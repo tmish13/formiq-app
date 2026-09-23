@@ -72,6 +72,12 @@ class FormCheck(BaseModel):
     form_metadata = Column(JSON, nullable=True)  # For aggregated scores_by_rep, issues_by_rep, and summary stats for UI.
     results = Column(JSON, nullable=True)
     details = Column(JSON, nullable=True)
+    # Written by finalize_form_check_analysis_async since the beginning
+    # (form_check_service.py:421,423) and read at :483 -- against nothing.
+    # Neither was a column, so update_async's bare setattr loop accepted both
+    # and discarded them, exactly as it did with error_details (G-37).
+    summary = Column(Text, nullable=True)
+    analysis_completed_at = Column(DateTime(timezone=True), nullable=True)
     configuration_id = Column(SQLiteUUID(), ForeignKey("exercise_configs.id", ondelete="SET NULL"), nullable=True, index=True)
     reps_per_minute = Column(Float, nullable=True)
     reps_detected = Column(Integer, nullable=True)

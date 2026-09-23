@@ -926,7 +926,21 @@ async def _process_form_check_task_async(self, video_id_str: str, form_check_id_
                         form_check.posture_score = _temporal_score
 
                     form_check.stability_score = temporal_metrics.get('stability_score', 0.0)
-                    form_check.depth_score = movement_quality.get('consistency', 0.0)
+                    # `depth_score` used to receive movement_quality['consistency'].
+                    # Consistency is how steady the movement was; it is not depth,
+                    # nothing depth-related feeds it, and the word "femur" appears
+                    # nowhere in this repo. A column named depth_score carrying a
+                    # consistency metric is a claim the system cannot support, and
+                    # it is worse than NULL because it reads as an answer.
+                    #
+                    # It stays NULL until a FITTED depth checker exists. The
+                    # definitional parallel rule shipped in Stage A is unfitted and
+                    # advisory (see the rules block below); the value it computes
+                    # is recorded in results["rules_shadow"], which is labelled.
+                    _mq = form_check.results or {}
+                    _mq.setdefault("movement_quality", {})["consistency"] = \
+                        movement_quality.get('consistency')
+                    form_check.results = _mq
 
                     # Store additional temporal analysis metadata
                     enhanced_details = form_check.details or {}
@@ -1677,6 +1691,19 @@ async def _process_form_check_task_async(self, video_id_str: str, form_check_id_
                 "posture_score": form_check.posture_score,
                 "confidence_score": form_check.confidence_score,
                 "posture_v1_decision": pv1_data.get("decision"),
+                # Explicit None, not omission. Under the presence-based writes
+                # in finalize (form_check_service.py), omitting a key means
+                # "leave the column alone" -- which would START shipping the
+                # legacy temporal heuristic's stability_score, a user-visible
+                # number nothing validates. Until it is measured it declines,
+                # the same call made for depth_score.
+                #
+                # This preserves today's observable behaviour exactly. What
+                # changes is that it is now a decision in the code rather than
+                # a side effect of finalize blanking every score it had no
+                # opinion about.
+                "stability_score": None,
+                "depth_score": None,
             }
         elif not analysis_output_for_finalize:
             # Nothing produced a result: DFAS was skipped AND PostureV1 has no

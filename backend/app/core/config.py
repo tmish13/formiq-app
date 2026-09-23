@@ -1033,7 +1033,10 @@ class Settings(BaseSettings):
             "key_points": ["hip", "knee", "ankle"],
             "target_angles": {"knee": 90, "hip": 90},
             "angle_tolerances": {"knee": 15, "hip": 15},
-            "depth_threshold": 0.7
+            # "depth_threshold": 0.7 removed -- zero readers anywhere in the
+            # repo. An unused threshold in a config file reads as a tuned
+            # constant to anyone auditing the pipeline, and three separate
+            # threshold tables here already have no callers.
         },
         "pushup": {
             "key_points": ["shoulder", "elbow", "wrist"],

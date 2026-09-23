@@ -144,6 +144,24 @@ async def record_decision(
             **outcome.as_row(),
         )
         db_session.add(row)
+        # Flush THIS row on its own, rather than letting several accumulate.
+        #
+        # SQLAlchemy 2.0 batches same-table INSERTs through insertmanyvalues and
+        # matches the returned rows back to their parameter sets using the
+        # primary key as a "sentinel". `SQLiteUUID` is a TypeDecorator that
+        # BINDS a str and RETURNS a uuid.UUID, so the sentinel never matches and
+        # the whole batch fails with:
+        #
+        #   Can't match sentinel values in result set to parameter sets
+        #
+        # `posture_v1_inference_logs` uses the same type and never hit this,
+        # because a task adds exactly one telemetry row. A run adds three or
+        # more decisions at once, which is what crosses the batching threshold.
+        #
+        # One flush per row is a single INSERT and sidesteps it entirely. Three
+        # statements per analysis is not a cost worth optimising against a
+        # 40-second pose pass.
+        await db_session.flush()
         return True
     except Exception as exc:
         logger.warning("[Audit] could not record %s/%s for run %s: %s",
