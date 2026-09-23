@@ -69,7 +69,7 @@ def main():
     assert args.split != "test", "the test split is extracted but not opened"
 
     from app.rules import load_params
-    from app.rules.kinematics import to_array
+    from app.rules.kinematics import scale_reference, to_array
     from app.rules.segmentation import find_bottom
 
     params = load_params()
@@ -86,11 +86,18 @@ def main():
         with gzip.open(p, "rt") as fh:
             d = json.load(fh)
         kp = to_array(d["frames"])
+        S = scale_reference(
+            kp, params["min_visibility"], params["standing_quantile"],
+            params["min_usable_frames_for_scale"], params["min_standing_frames"])
+        if S is None:
+            skipped["bad_scale"] += 1
+            continue
         w = find_bottom(
             kp, float(d.get("source_fps") or 0.0), params["min_visibility"],
             params["smooth_seconds"], params["baseline_quantile"],
             params["bottom_band_frac"], params["max_window_seconds"],
             params["min_window_frames"], params["fallback_fps"],
+            scale_ref=S, min_descent_ratio=params["min_descent_ratio"],
         )
         if w is None:
             skipped["no_bottom"] += 1
