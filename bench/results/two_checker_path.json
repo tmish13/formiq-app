@@ -1,0 +1,5044 @@
+{
+  "n": 719,
+  "combiner_version": "combiner_v1",
+  "advisory": 1012,
+  "contributors": 0,
+  "scored": 0,
+  "depth_params_id": "depth_v1_provisional",
+  "knees_forward_params_id": "knees_forward_v0_unfitted",
+  "rows": [
+    {
+      "video": "32903_8",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.028638,
+      "view": "oblique"
+    },
+    {
+      "video": "32907_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.158182,
+      "view": "oblique"
+    },
+    {
+      "video": "32939_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": -0.072823,
+      "view": "front"
+    },
+    {
+      "video": "32964_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.154158,
+      "view": "oblique"
+    },
+    {
+      "video": "32971_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.16272,
+      "view": "oblique"
+    },
+    {
+      "video": "32975_6",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.107326,
+      "view": "oblique"
+    },
+    {
+      "video": "32977_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.105382,
+      "view": "oblique"
+    },
+    {
+      "video": "32979_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.012734,
+      "view": "side"
+    },
+    {
+      "video": "32990_6",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.102739,
+      "view": "side"
+    },
+    {
+      "video": "32991_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "32995_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.017331,
+      "view": "side"
+    },
+    {
+      "video": "32996_2",
+      "depth": "SHALLOW",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.018779,
+      "view": "oblique"
+    },
+    {
+      "video": "33006_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.098008,
+      "view": "oblique"
+    },
+    {
+      "video": "33010_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.093228,
+      "view": "oblique"
+    },
+    {
+      "video": "33018_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.21318,
+      "view": "side"
+    },
+    {
+      "video": "33024_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.1254,
+      "view": "oblique"
+    },
+    {
+      "video": "33025_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "33028_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "33029_1",
+      "depth": "SHALLOW",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.027415,
+      "view": "oblique"
+    },
+    {
+      "video": "33035_4",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "33044_11",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.218056,
+      "view": "oblique"
+    },
+    {
+      "video": "33045_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.043465,
+      "view": "oblique"
+    },
+    {
+      "video": "33048_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": -0.092383,
+      "view": "oblique"
+    },
+    {
+      "video": "33051_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.082457,
+      "view": "oblique"
+    },
+    {
+      "video": "33052_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.024766,
+      "view": "side"
+    },
+    {
+      "video": "33053_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.009295,
+      "view": "oblique"
+    },
+    {
+      "video": "33058_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "oblique"
+    },
+    {
+      "video": "33063_6",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.158933,
+      "view": "oblique"
+    },
+    {
+      "video": "33071_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.271505,
+      "view": "oblique"
+    },
+    {
+      "video": "33072_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.13459,
+      "view": "oblique"
+    },
+    {
+      "video": "33073_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.056274,
+      "view": "side"
+    },
+    {
+      "video": "33088_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.018553,
+      "view": "oblique"
+    },
+    {
+      "video": "33090_7",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.152184,
+      "view": "oblique"
+    },
+    {
+      "video": "33095_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.204189,
+      "view": "front"
+    },
+    {
+      "video": "33096_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.187389,
+      "view": "oblique"
+    },
+    {
+      "video": "33103_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "oblique"
+    },
+    {
+      "video": "33104_4",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.315344,
+      "view": "side"
+    },
+    {
+      "video": "33124_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.193124,
+      "view": "oblique"
+    },
+    {
+      "video": "33127_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.040786,
+      "view": "oblique"
+    },
+    {
+      "video": "33133_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.046143,
+      "view": "side"
+    },
+    {
+      "video": "33146_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.034967,
+      "view": "oblique"
+    },
+    {
+      "video": "33151_1",
+      "depth": "SHALLOW",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.085048,
+      "view": "oblique"
+    },
+    {
+      "video": "33153_4",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.009778,
+      "view": "oblique"
+    },
+    {
+      "video": "33154_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "33159_5",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "33166_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.135674,
+      "view": "oblique"
+    },
+    {
+      "video": "33170_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.174943,
+      "view": "oblique"
+    },
+    {
+      "video": "33171_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.298542,
+      "view": "side"
+    },
+    {
+      "video": "33172_4",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "oblique"
+    },
+    {
+      "video": "33176_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.0362,
+      "view": "side"
+    },
+    {
+      "video": "33194_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.16464,
+      "view": "oblique"
+    },
+    {
+      "video": "33203_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "33205_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.195845,
+      "view": "oblique"
+    },
+    {
+      "video": "33207_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.087665,
+      "view": "oblique"
+    },
+    {
+      "video": "33218_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.091365,
+      "view": "oblique"
+    },
+    {
+      "video": "33223_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.15928,
+      "view": "oblique"
+    },
+    {
+      "video": "33229_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.253699,
+      "view": "oblique"
+    },
+    {
+      "video": "33233_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.042793,
+      "view": "oblique"
+    },
+    {
+      "video": "33234_1",
+      "depth": "SHALLOW",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.051048,
+      "view": "side"
+    },
+    {
+      "video": "33235_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": -0.00062,
+      "view": "front"
+    },
+    {
+      "video": "33236_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "oblique"
+    },
+    {
+      "video": "33238_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.231266,
+      "view": "side"
+    },
+    {
+      "video": "33245_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "33248_3",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.113604,
+      "view": "oblique"
+    },
+    {
+      "video": "33253_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.175894,
+      "view": "oblique"
+    },
+    {
+      "video": "33254_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.167358,
+      "view": "oblique"
+    },
+    {
+      "video": "33273_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.227258,
+      "view": "oblique"
+    },
+    {
+      "video": "33277_10",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.262031,
+      "view": "oblique"
+    },
+    {
+      "video": "33279_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": -0.082016,
+      "view": "front"
+    },
+    {
+      "video": "33284_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.13823,
+      "view": "side"
+    },
+    {
+      "video": "33289_4",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "side"
+    },
+    {
+      "video": "33290_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.154555,
+      "view": "oblique"
+    },
+    {
+      "video": "33297_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.089026,
+      "view": "oblique"
+    },
+    {
+      "video": "33300_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.032242,
+      "view": "side"
+    },
+    {
+      "video": "33301_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.089627,
+      "view": "oblique"
+    },
+    {
+      "video": "33303_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.135,
+      "view": "oblique"
+    },
+    {
+      "video": "33305_8",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "33316_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "33322_3",
+      "depth": "UNCERTAIN",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.017931,
+      "view": "oblique"
+    },
+    {
+      "video": "33329_5",
+      "depth": "SHALLOW",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.29637,
+      "view": "oblique"
+    },
+    {
+      "video": "33330_3",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.061065,
+      "view": "oblique"
+    },
+    {
+      "video": "33334_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "33345_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.270877,
+      "view": "oblique"
+    },
+    {
+      "video": "33348_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": -0.643712,
+      "view": "side"
+    },
+    {
+      "video": "33357_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.004428,
+      "view": "oblique"
+    },
+    {
+      "video": "33364_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.02595,
+      "view": "oblique"
+    },
+    {
+      "video": "33367_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.106168,
+      "view": "oblique"
+    },
+    {
+      "video": "33373_5",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.02547,
+      "view": "side"
+    },
+    {
+      "video": "33374_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.194598,
+      "view": "oblique"
+    },
+    {
+      "video": "33375_5",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.150677,
+      "view": "oblique"
+    },
+    {
+      "video": "33384_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.021514,
+      "view": "oblique"
+    },
+    {
+      "video": "33387_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "side"
+    },
+    {
+      "video": "33388_4",
+      "depth": "SHALLOW",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.029509,
+      "view": "side"
+    },
+    {
+      "video": "33406_8",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.329774,
+      "view": "side"
+    },
+    {
+      "video": "33417_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.130471,
+      "view": "oblique"
+    },
+    {
+      "video": "33419_4",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "oblique"
+    },
+    {
+      "video": "33425_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.023708,
+      "view": "side"
+    },
+    {
+      "video": "33427_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.209801,
+      "view": "oblique"
+    },
+    {
+      "video": "33430_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "front"
+    },
+    {
+      "video": "33432_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.053701,
+      "view": "oblique"
+    },
+    {
+      "video": "33433_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.133506,
+      "view": "oblique"
+    },
+    {
+      "video": "33434_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.31027,
+      "view": "side"
+    },
+    {
+      "video": "33440_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.099897,
+      "view": "oblique"
+    },
+    {
+      "video": "33454_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.045302,
+      "view": "oblique"
+    },
+    {
+      "video": "33461_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.151653,
+      "view": "oblique"
+    },
+    {
+      "video": "33466_5",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.369984,
+      "view": "oblique"
+    },
+    {
+      "video": "33468_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.086531,
+      "view": "oblique"
+    },
+    {
+      "video": "33483_2",
+      "depth": "SHALLOW",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.13364,
+      "view": "side"
+    },
+    {
+      "video": "33485_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.004075,
+      "view": "oblique"
+    },
+    {
+      "video": "33491_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": -0.020736,
+      "view": "front"
+    },
+    {
+      "video": "33497_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.065069,
+      "view": "oblique"
+    },
+    {
+      "video": "33499_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.015665,
+      "view": "oblique"
+    },
+    {
+      "video": "33500_3",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": -0.142911,
+      "view": "front"
+    },
+    {
+      "video": "33503_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.011557,
+      "view": "oblique"
+    },
+    {
+      "video": "33511_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "33513_1",
+      "depth": "SHALLOW",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "side"
+    },
+    {
+      "video": "33532_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.09988,
+      "view": "oblique"
+    },
+    {
+      "video": "33547_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.051179,
+      "view": "oblique"
+    },
+    {
+      "video": "33552_4",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "oblique"
+    },
+    {
+      "video": "33554_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": -0.013806,
+      "view": "side"
+    },
+    {
+      "video": "33555_5",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 1.126242,
+      "view": "front"
+    },
+    {
+      "video": "33561_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.212069,
+      "view": "oblique"
+    },
+    {
+      "video": "33565_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.169185,
+      "view": "oblique"
+    },
+    {
+      "video": "33576_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.066176,
+      "view": "oblique"
+    },
+    {
+      "video": "33577_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "oblique"
+    },
+    {
+      "video": "33584_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.13942,
+      "view": "oblique"
+    },
+    {
+      "video": "33591_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.137133,
+      "view": "oblique"
+    },
+    {
+      "video": "33594_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.30459,
+      "view": "side"
+    },
+    {
+      "video": "33596_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.225088,
+      "view": "oblique"
+    },
+    {
+      "video": "33599_4",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.15763,
+      "view": "oblique"
+    },
+    {
+      "video": "33601_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.12126,
+      "view": "oblique"
+    },
+    {
+      "video": "33603_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.066951,
+      "view": "side"
+    },
+    {
+      "video": "33608_4",
+      "depth": "UNCERTAIN",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.037903,
+      "view": "oblique"
+    },
+    {
+      "video": "33620_4",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "33626_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.297738,
+      "view": "oblique"
+    },
+    {
+      "video": "33628_4",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.360704,
+      "view": "side"
+    },
+    {
+      "video": "33630_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.170111,
+      "view": "side"
+    },
+    {
+      "video": "33634_10",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": -0.048223,
+      "view": "front"
+    },
+    {
+      "video": "33641_3",
+      "depth": "UNCERTAIN",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.007272,
+      "view": "oblique"
+    },
+    {
+      "video": "33643_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.017407,
+      "view": "oblique"
+    },
+    {
+      "video": "33648_1",
+      "depth": "SHALLOW",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.04906,
+      "view": "oblique"
+    },
+    {
+      "video": "33652_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.102279,
+      "view": "oblique"
+    },
+    {
+      "video": "33654_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.387607,
+      "view": "oblique"
+    },
+    {
+      "video": "33658_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.195523,
+      "view": "oblique"
+    },
+    {
+      "video": "33659_3",
+      "depth": "SHALLOW",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "oblique"
+    },
+    {
+      "video": "33660_8",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.246553,
+      "view": "side"
+    },
+    {
+      "video": "33663_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.547024,
+      "view": "oblique"
+    },
+    {
+      "video": "33666_7",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.303041,
+      "view": "oblique"
+    },
+    {
+      "video": "33667_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.031859,
+      "view": "oblique"
+    },
+    {
+      "video": "33671_1",
+      "depth": "SHALLOW",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.009804,
+      "view": "side"
+    },
+    {
+      "video": "33675_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.217433,
+      "view": "oblique"
+    },
+    {
+      "video": "33676_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.055754,
+      "view": "oblique"
+    },
+    {
+      "video": "33691_4",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.156751,
+      "view": "side"
+    },
+    {
+      "video": "33725_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.000342,
+      "view": "side"
+    },
+    {
+      "video": "33726_5",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.078641,
+      "view": "oblique"
+    },
+    {
+      "video": "33729_4",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.227623,
+      "view": "oblique"
+    },
+    {
+      "video": "33735_8",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "oblique"
+    },
+    {
+      "video": "33742_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.060048,
+      "view": "oblique"
+    },
+    {
+      "video": "33743_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "33747_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.046398,
+      "view": "oblique"
+    },
+    {
+      "video": "33752_3",
+      "depth": "UNCERTAIN",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.071964,
+      "view": "oblique"
+    },
+    {
+      "video": "33758_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "oblique"
+    },
+    {
+      "video": "33765_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "side"
+    },
+    {
+      "video": "33775_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.145016,
+      "view": "oblique"
+    },
+    {
+      "video": "33777_8",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.018349,
+      "view": "oblique"
+    },
+    {
+      "video": "33786_6",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.462901,
+      "view": "side"
+    },
+    {
+      "video": "33791_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.128449,
+      "view": "oblique"
+    },
+    {
+      "video": "33793_6",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "33805_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.208847,
+      "view": "oblique"
+    },
+    {
+      "video": "33809_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": -0.099534,
+      "view": "oblique"
+    },
+    {
+      "video": "33816_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.065648,
+      "view": "oblique"
+    },
+    {
+      "video": "33819_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.128992,
+      "view": "side"
+    },
+    {
+      "video": "33824_4",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.015741,
+      "view": "side"
+    },
+    {
+      "video": "33827_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.043135,
+      "view": "oblique"
+    },
+    {
+      "video": "33838_3",
+      "depth": "SHALLOW",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.132439,
+      "view": "oblique"
+    },
+    {
+      "video": "33839_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.262099,
+      "view": "side"
+    },
+    {
+      "video": "33843_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.165838,
+      "view": "oblique"
+    },
+    {
+      "video": "33844_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.043668,
+      "view": "oblique"
+    },
+    {
+      "video": "33845_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.077019,
+      "view": "oblique"
+    },
+    {
+      "video": "33847_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.068652,
+      "view": "side"
+    },
+    {
+      "video": "33850_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.133877,
+      "view": "oblique"
+    },
+    {
+      "video": "33860_3",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "oblique"
+    },
+    {
+      "video": "33868_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.235157,
+      "view": "side"
+    },
+    {
+      "video": "33876_9",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "33877_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.053586,
+      "view": "oblique"
+    },
+    {
+      "video": "33883_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.031857,
+      "view": "oblique"
+    },
+    {
+      "video": "33884_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.196576,
+      "view": "side"
+    },
+    {
+      "video": "33891_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.060629,
+      "view": "oblique"
+    },
+    {
+      "video": "33919_1",
+      "depth": "SHALLOW",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.027415,
+      "view": "oblique"
+    },
+    {
+      "video": "33921_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.13459,
+      "view": "oblique"
+    },
+    {
+      "video": "33924_4",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "33933_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.043668,
+      "view": "oblique"
+    },
+    {
+      "video": "33934_3",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.113604,
+      "view": "oblique"
+    },
+    {
+      "video": "33937_8",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "33938_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.106168,
+      "view": "oblique"
+    },
+    {
+      "video": "33941_1",
+      "depth": "SHALLOW",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.085048,
+      "view": "oblique"
+    },
+    {
+      "video": "33943_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.270877,
+      "view": "oblique"
+    },
+    {
+      "video": "33944_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.060048,
+      "view": "oblique"
+    },
+    {
+      "video": "33947_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.046143,
+      "view": "side"
+    },
+    {
+      "video": "33948_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.102279,
+      "view": "oblique"
+    },
+    {
+      "video": "33950_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.053586,
+      "view": "oblique"
+    },
+    {
+      "video": "33957_5",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.109793,
+      "view": "side"
+    },
+    {
+      "video": "33959_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.164457,
+      "view": "oblique"
+    },
+    {
+      "video": "33961_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.066176,
+      "view": "oblique"
+    },
+    {
+      "video": "33966_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.191886,
+      "view": "oblique"
+    },
+    {
+      "video": "36021_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.034961,
+      "view": "oblique"
+    },
+    {
+      "video": "36025_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "36035_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.141884,
+      "view": "oblique"
+    },
+    {
+      "video": "36041_6",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.10355,
+      "view": "oblique"
+    },
+    {
+      "video": "36043_3",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.377555,
+      "view": "oblique"
+    },
+    {
+      "video": "36046_4",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.010011,
+      "view": "oblique"
+    },
+    {
+      "video": "36049_2",
+      "depth": "SHALLOW",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "oblique"
+    },
+    {
+      "video": "36058_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "oblique"
+    },
+    {
+      "video": "36077_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.220259,
+      "view": "oblique"
+    },
+    {
+      "video": "36081_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.155434,
+      "view": "oblique"
+    },
+    {
+      "video": "36083_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.007629,
+      "view": "side"
+    },
+    {
+      "video": "36085_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "36088_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.130769,
+      "view": "oblique"
+    },
+    {
+      "video": "36091_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "36092_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.110873,
+      "view": "oblique"
+    },
+    {
+      "video": "36093_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.056965,
+      "view": "oblique"
+    },
+    {
+      "video": "36107_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.042932,
+      "view": "oblique"
+    },
+    {
+      "video": "36110_8",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.032762,
+      "view": "side"
+    },
+    {
+      "video": "36113_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": -0.139251,
+      "view": "oblique"
+    },
+    {
+      "video": "36124_1",
+      "depth": "SHALLOW",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.074613,
+      "view": "oblique"
+    },
+    {
+      "video": "36129_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.008674,
+      "view": "front"
+    },
+    {
+      "video": "36131_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.054512,
+      "view": "oblique"
+    },
+    {
+      "video": "36133_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.059781,
+      "view": "oblique"
+    },
+    {
+      "video": "36138_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.413508,
+      "view": "oblique"
+    },
+    {
+      "video": "36143_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.001839,
+      "view": "front"
+    },
+    {
+      "video": "36145_1",
+      "depth": "SHALLOW",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": -0.028213,
+      "view": "oblique"
+    },
+    {
+      "video": "36154_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.108469,
+      "view": "oblique"
+    },
+    {
+      "video": "36155_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.065772,
+      "view": "oblique"
+    },
+    {
+      "video": "36158_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.049249,
+      "view": "oblique"
+    },
+    {
+      "video": "36165_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.170937,
+      "view": "front"
+    },
+    {
+      "video": "36166_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.229401,
+      "view": "oblique"
+    },
+    {
+      "video": "36170_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.084813,
+      "view": "oblique"
+    },
+    {
+      "video": "36186_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.991609,
+      "view": "oblique"
+    },
+    {
+      "video": "36190_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "36206_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "36212_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.383712,
+      "view": "side"
+    },
+    {
+      "video": "36221_1",
+      "depth": "SHALLOW",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "side"
+    },
+    {
+      "video": "36222_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.016962,
+      "view": "oblique"
+    },
+    {
+      "video": "36224_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "36233_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.197047,
+      "view": "oblique"
+    },
+    {
+      "video": "36236_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.017221,
+      "view": "front"
+    },
+    {
+      "video": "36238_5",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.147011,
+      "view": "front"
+    },
+    {
+      "video": "36240_1",
+      "depth": "SHALLOW",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "oblique"
+    },
+    {
+      "video": "36243_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.181203,
+      "view": "oblique"
+    },
+    {
+      "video": "36249_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "front"
+    },
+    {
+      "video": "36254_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.119157,
+      "view": "oblique"
+    },
+    {
+      "video": "36257_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.2232,
+      "view": "oblique"
+    },
+    {
+      "video": "36261_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.125488,
+      "view": "oblique"
+    },
+    {
+      "video": "36264_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.238442,
+      "view": "oblique"
+    },
+    {
+      "video": "36267_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.245238,
+      "view": "oblique"
+    },
+    {
+      "video": "36269_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.078398,
+      "view": "oblique"
+    },
+    {
+      "video": "36271_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": -0.035685,
+      "view": "front"
+    },
+    {
+      "video": "36275_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.437394,
+      "view": "side"
+    },
+    {
+      "video": "36276_4",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.053828,
+      "view": "oblique"
+    },
+    {
+      "video": "36289_4",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.091022,
+      "view": "side"
+    },
+    {
+      "video": "36292_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.147143,
+      "view": "oblique"
+    },
+    {
+      "video": "36308_2",
+      "depth": "SHALLOW",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "side"
+    },
+    {
+      "video": "36309_3",
+      "depth": "SHALLOW",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.024541,
+      "view": "side"
+    },
+    {
+      "video": "36318_5",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.026196,
+      "view": "side"
+    },
+    {
+      "video": "36324_1",
+      "depth": "SHALLOW",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "oblique"
+    },
+    {
+      "video": "36325_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.100993,
+      "view": "oblique"
+    },
+    {
+      "video": "36329_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.252929,
+      "view": "oblique"
+    },
+    {
+      "video": "36345_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.086485,
+      "view": "oblique"
+    },
+    {
+      "video": "36350_4",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.066515,
+      "view": "oblique"
+    },
+    {
+      "video": "36351_11",
+      "depth": "SHALLOW",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "oblique"
+    },
+    {
+      "video": "36354_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.02811,
+      "view": "oblique"
+    },
+    {
+      "video": "36359_3",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "side"
+    },
+    {
+      "video": "36389_4",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.086492,
+      "view": "side"
+    },
+    {
+      "video": "36408_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.008684,
+      "view": "side"
+    },
+    {
+      "video": "36478_7",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.021832,
+      "view": "oblique"
+    },
+    {
+      "video": "36504_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.062428,
+      "view": "oblique"
+    },
+    {
+      "video": "36544_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.202543,
+      "view": "front"
+    },
+    {
+      "video": "36552_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.042313,
+      "view": "oblique"
+    },
+    {
+      "video": "36563_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "36585_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.068927,
+      "view": "oblique"
+    },
+    {
+      "video": "36586_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.462016,
+      "view": "side"
+    },
+    {
+      "video": "36599_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.141259,
+      "view": "oblique"
+    },
+    {
+      "video": "36614_10",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.264676,
+      "view": "side"
+    },
+    {
+      "video": "36640_1",
+      "depth": "SHALLOW",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": -0.086938,
+      "view": "side"
+    },
+    {
+      "video": "36654_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.122933,
+      "view": "side"
+    },
+    {
+      "video": "36667_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.004073,
+      "view": "side"
+    },
+    {
+      "video": "36672_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "36679_5",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.005824,
+      "view": "oblique"
+    },
+    {
+      "video": "36687_3",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.005995,
+      "view": "front"
+    },
+    {
+      "video": "36706_4",
+      "depth": "SHALLOW",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": -0.072889,
+      "view": "side"
+    },
+    {
+      "video": "36709_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.254599,
+      "view": "side"
+    },
+    {
+      "video": "36732_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.062537,
+      "view": "oblique"
+    },
+    {
+      "video": "36738_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.138326,
+      "view": "oblique"
+    },
+    {
+      "video": "36740_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.112048,
+      "view": "oblique"
+    },
+    {
+      "video": "36745_2",
+      "depth": "SHALLOW",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "oblique"
+    },
+    {
+      "video": "36746_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.076701,
+      "view": "oblique"
+    },
+    {
+      "video": "36748_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.17442,
+      "view": "oblique"
+    },
+    {
+      "video": "36784_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.084541,
+      "view": "oblique"
+    },
+    {
+      "video": "36819_6",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.437783,
+      "view": "oblique"
+    },
+    {
+      "video": "36828_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.066691,
+      "view": "oblique"
+    },
+    {
+      "video": "36839_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.101742,
+      "view": "side"
+    },
+    {
+      "video": "36865_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.321689,
+      "view": "oblique"
+    },
+    {
+      "video": "36893_1",
+      "depth": "SHALLOW",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.031376,
+      "view": "side"
+    },
+    {
+      "video": "36897_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.476138,
+      "view": "oblique"
+    },
+    {
+      "video": "36911_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.034329,
+      "view": "oblique"
+    },
+    {
+      "video": "36938_5",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.311883,
+      "view": "oblique"
+    },
+    {
+      "video": "36954_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.101481,
+      "view": "oblique"
+    },
+    {
+      "video": "36963_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.14284,
+      "view": "oblique"
+    },
+    {
+      "video": "36964_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.335126,
+      "view": "oblique"
+    },
+    {
+      "video": "36968_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.066167,
+      "view": "oblique"
+    },
+    {
+      "video": "36974_2",
+      "depth": "SHALLOW",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.113661,
+      "view": "oblique"
+    },
+    {
+      "video": "36975_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.220078,
+      "view": "side"
+    },
+    {
+      "video": "36979_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.181582,
+      "view": "oblique"
+    },
+    {
+      "video": "36980_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.182754,
+      "view": "oblique"
+    },
+    {
+      "video": "36991_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.181339,
+      "view": "oblique"
+    },
+    {
+      "video": "37036_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.012868,
+      "view": "oblique"
+    },
+    {
+      "video": "37037_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.066691,
+      "view": "oblique"
+    },
+    {
+      "video": "37038_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.383712,
+      "view": "side"
+    },
+    {
+      "video": "37039_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": -0.139251,
+      "view": "oblique"
+    },
+    {
+      "video": "37040_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.042313,
+      "view": "oblique"
+    },
+    {
+      "video": "37041_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.086485,
+      "view": "oblique"
+    },
+    {
+      "video": "37042_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.193085,
+      "view": "oblique"
+    },
+    {
+      "video": "37043_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.054671,
+      "view": "oblique"
+    },
+    {
+      "video": "37044_4",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.001752,
+      "view": "oblique"
+    },
+    {
+      "video": "37045_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.062428,
+      "view": "oblique"
+    },
+    {
+      "video": "37046_4",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.124562,
+      "view": "side"
+    },
+    {
+      "video": "37047_2",
+      "depth": "SHALLOW",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "oblique"
+    },
+    {
+      "video": "37048_2",
+      "depth": "SHALLOW",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.006406,
+      "view": "side"
+    },
+    {
+      "video": "37049_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.181203,
+      "view": "oblique"
+    },
+    {
+      "video": "37050_1",
+      "depth": "SHALLOW",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "side"
+    },
+    {
+      "video": "37051_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.182754,
+      "view": "oblique"
+    },
+    {
+      "video": "37052_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.11434,
+      "view": "oblique"
+    },
+    {
+      "video": "37053_4",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.125731,
+      "view": "oblique"
+    },
+    {
+      "video": "37054_1",
+      "depth": "SHALLOW",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": -0.028213,
+      "view": "oblique"
+    },
+    {
+      "video": "37055_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.112048,
+      "view": "oblique"
+    },
+    {
+      "video": "37056_1",
+      "depth": "SHALLOW",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.074613,
+      "view": "oblique"
+    },
+    {
+      "video": "37057_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.143131,
+      "view": "oblique"
+    },
+    {
+      "video": "37058_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.323361,
+      "view": "oblique"
+    },
+    {
+      "video": "37067_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.0911,
+      "view": "oblique"
+    },
+    {
+      "video": "37070_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.189508,
+      "view": "oblique"
+    },
+    {
+      "video": "37094_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.122686,
+      "view": "oblique"
+    },
+    {
+      "video": "37108_11",
+      "depth": "UNCERTAIN",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.045248,
+      "view": "oblique"
+    },
+    {
+      "video": "37114_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "37117_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.033807,
+      "view": "oblique"
+    },
+    {
+      "video": "37131_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": -0.09423,
+      "view": "oblique"
+    },
+    {
+      "video": "37145_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.019372,
+      "view": "side"
+    },
+    {
+      "video": "37151_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.271984,
+      "view": "oblique"
+    },
+    {
+      "video": "37214_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.180422,
+      "view": "oblique"
+    },
+    {
+      "video": "37215_5",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.124357,
+      "view": "side"
+    },
+    {
+      "video": "37242_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.150911,
+      "view": "side"
+    },
+    {
+      "video": "37251_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.053088,
+      "view": "oblique"
+    },
+    {
+      "video": "37261_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.10858,
+      "view": "side"
+    },
+    {
+      "video": "37278_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.140057,
+      "view": "oblique"
+    },
+    {
+      "video": "37286_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.213523,
+      "view": "oblique"
+    },
+    {
+      "video": "37295_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.03582,
+      "view": "side"
+    },
+    {
+      "video": "37327_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.04432,
+      "view": "oblique"
+    },
+    {
+      "video": "37337_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.363437,
+      "view": "front"
+    },
+    {
+      "video": "37376_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.054907,
+      "view": "oblique"
+    },
+    {
+      "video": "37394_4",
+      "depth": "SHALLOW",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": -0.12755,
+      "view": "oblique"
+    },
+    {
+      "video": "37400_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "oblique"
+    },
+    {
+      "video": "37413_6",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "side"
+    },
+    {
+      "video": "37423_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.017051,
+      "view": "oblique"
+    },
+    {
+      "video": "37432_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.089674,
+      "view": "oblique"
+    },
+    {
+      "video": "37448_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.104529,
+      "view": "oblique"
+    },
+    {
+      "video": "37455_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.07486,
+      "view": "oblique"
+    },
+    {
+      "video": "37474_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.055893,
+      "view": "oblique"
+    },
+    {
+      "video": "37483_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "oblique"
+    },
+    {
+      "video": "37491_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.160865,
+      "view": "oblique"
+    },
+    {
+      "video": "37586_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.338563,
+      "view": "oblique"
+    },
+    {
+      "video": "37587_4",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.09402,
+      "view": "oblique"
+    },
+    {
+      "video": "37589_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.064281,
+      "view": "oblique"
+    },
+    {
+      "video": "37596_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.550363,
+      "view": "oblique"
+    },
+    {
+      "video": "37603_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.241466,
+      "view": "oblique"
+    },
+    {
+      "video": "37640_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.14304,
+      "view": "oblique"
+    },
+    {
+      "video": "37663_5",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.138079,
+      "view": "side"
+    },
+    {
+      "video": "37665_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.234443,
+      "view": "oblique"
+    },
+    {
+      "video": "37701_14",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.039059,
+      "view": "oblique"
+    },
+    {
+      "video": "37723_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.201594,
+      "view": "oblique"
+    },
+    {
+      "video": "37741_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "oblique"
+    },
+    {
+      "video": "37756_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.068525,
+      "view": "oblique"
+    },
+    {
+      "video": "37760_1",
+      "depth": "SHALLOW",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.547207,
+      "view": "oblique"
+    },
+    {
+      "video": "37772_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "37791_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.164387,
+      "view": "oblique"
+    },
+    {
+      "video": "37812_2",
+      "depth": "SHALLOW",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "oblique"
+    },
+    {
+      "video": "37823_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.178868,
+      "view": "oblique"
+    },
+    {
+      "video": "37840_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.070686,
+      "view": "oblique"
+    },
+    {
+      "video": "37861_3",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.097915,
+      "view": "oblique"
+    },
+    {
+      "video": "37864_7",
+      "depth": "SHALLOW",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.535402,
+      "view": "side"
+    },
+    {
+      "video": "37880_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 1.235538,
+      "view": "oblique"
+    },
+    {
+      "video": "37904_4",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.053662,
+      "view": "oblique"
+    },
+    {
+      "video": "37908_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.078315,
+      "view": "oblique"
+    },
+    {
+      "video": "37917_4",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "37927_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.023843,
+      "view": "oblique"
+    },
+    {
+      "video": "37936_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.01515,
+      "view": "oblique"
+    },
+    {
+      "video": "37941_3",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "37958_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.077743,
+      "view": "oblique"
+    },
+    {
+      "video": "37970_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.165454,
+      "view": "oblique"
+    },
+    {
+      "video": "37973_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.042706,
+      "view": "oblique"
+    },
+    {
+      "video": "37987_4",
+      "depth": "SHALLOW",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.020158,
+      "view": "side"
+    },
+    {
+      "video": "37998_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.034876,
+      "view": "oblique"
+    },
+    {
+      "video": "38011_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.271357,
+      "view": "oblique"
+    },
+    {
+      "video": "38018_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.061733,
+      "view": "oblique"
+    },
+    {
+      "video": "38029_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.031217,
+      "view": "side"
+    },
+    {
+      "video": "38035_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.144931,
+      "view": "oblique"
+    },
+    {
+      "video": "38061_1",
+      "depth": "SHALLOW",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.133235,
+      "view": "oblique"
+    },
+    {
+      "video": "38090_4",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.053662,
+      "view": "oblique"
+    },
+    {
+      "video": "38091_5",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.251468,
+      "view": "oblique"
+    },
+    {
+      "video": "38092_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.034876,
+      "view": "oblique"
+    },
+    {
+      "video": "38093_4",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "38094_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.160865,
+      "view": "oblique"
+    },
+    {
+      "video": "38095_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "38096_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.015419,
+      "view": "oblique"
+    },
+    {
+      "video": "38097_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.073741,
+      "view": "oblique"
+    },
+    {
+      "video": "38098_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.271984,
+      "view": "oblique"
+    },
+    {
+      "video": "38099_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.10858,
+      "view": "side"
+    },
+    {
+      "video": "38100_5",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.124357,
+      "view": "side"
+    },
+    {
+      "video": "38101_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.164387,
+      "view": "oblique"
+    },
+    {
+      "video": "38102_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.201378,
+      "view": "oblique"
+    },
+    {
+      "video": "38103_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.095079,
+      "view": "oblique"
+    },
+    {
+      "video": "38104_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.104529,
+      "view": "oblique"
+    },
+    {
+      "video": "38105_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "38106_4",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.001588,
+      "view": "oblique"
+    },
+    {
+      "video": "38107_5",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "38108_4",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.773686,
+      "view": "side"
+    },
+    {
+      "video": "38109_14",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.039059,
+      "view": "oblique"
+    },
+    {
+      "video": "38110_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.0782,
+      "view": "front"
+    },
+    {
+      "video": "38111_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.250757,
+      "view": "oblique"
+    },
+    {
+      "video": "38112_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.053245,
+      "view": "oblique"
+    },
+    {
+      "video": "38113_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.073375,
+      "view": "oblique"
+    },
+    {
+      "video": "38114_1",
+      "depth": "SHALLOW",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.15601,
+      "view": "oblique"
+    },
+    {
+      "video": "38115_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.052048,
+      "view": "side"
+    },
+    {
+      "video": "45823_6",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.067156,
+      "view": "oblique"
+    },
+    {
+      "video": "45844_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.030664,
+      "view": "oblique"
+    },
+    {
+      "video": "45879_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.016241,
+      "view": "side"
+    },
+    {
+      "video": "45919_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.031895,
+      "view": "side"
+    },
+    {
+      "video": "45944_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.101952,
+      "view": "oblique"
+    },
+    {
+      "video": "45945_2",
+      "depth": "SHALLOW",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "oblique"
+    },
+    {
+      "video": "45946_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.204665,
+      "view": "oblique"
+    },
+    {
+      "video": "45950_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.078326,
+      "view": "oblique"
+    },
+    {
+      "video": "45952_1",
+      "depth": "SHALLOW",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.067055,
+      "view": "oblique"
+    },
+    {
+      "video": "45959_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.109874,
+      "view": "oblique"
+    },
+    {
+      "video": "45968_3",
+      "depth": "UNCERTAIN",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.000481,
+      "view": "oblique"
+    },
+    {
+      "video": "45970_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.0386,
+      "view": "oblique"
+    },
+    {
+      "video": "46001_4",
+      "depth": "SHALLOW",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.201702,
+      "view": "side"
+    },
+    {
+      "video": "46003_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "46007_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.112226,
+      "view": "oblique"
+    },
+    {
+      "video": "46010_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.184468,
+      "view": "oblique"
+    },
+    {
+      "video": "46026_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.024069,
+      "view": "oblique"
+    },
+    {
+      "video": "46029_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.14815,
+      "view": "oblique"
+    },
+    {
+      "video": "46035_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.134508,
+      "view": "oblique"
+    },
+    {
+      "video": "46036_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": -0.000534,
+      "view": "front"
+    },
+    {
+      "video": "46039_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.019741,
+      "view": "oblique"
+    },
+    {
+      "video": "46051_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.045677,
+      "view": "oblique"
+    },
+    {
+      "video": "46057_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.012938,
+      "view": "oblique"
+    },
+    {
+      "video": "46064_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.058344,
+      "view": "oblique"
+    },
+    {
+      "video": "46067_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.133972,
+      "view": "oblique"
+    },
+    {
+      "video": "46073_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.228197,
+      "view": "oblique"
+    },
+    {
+      "video": "46076_3",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.472892,
+      "view": "oblique"
+    },
+    {
+      "video": "46081_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "46082_4",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "46085_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.54771,
+      "view": "oblique"
+    },
+    {
+      "video": "46087_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.046809,
+      "view": "oblique"
+    },
+    {
+      "video": "46091_6",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.026006,
+      "view": "side"
+    },
+    {
+      "video": "46095_1",
+      "depth": "SHALLOW",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.055001,
+      "view": "oblique"
+    },
+    {
+      "video": "46100_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.037861,
+      "view": "oblique"
+    },
+    {
+      "video": "46101_3",
+      "depth": "SHALLOW",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "oblique"
+    },
+    {
+      "video": "46125_10",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "oblique"
+    },
+    {
+      "video": "46129_9",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "46133_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "46134_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.041368,
+      "view": "oblique"
+    },
+    {
+      "video": "46146_4",
+      "depth": "SHALLOW",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.14528,
+      "view": "side"
+    },
+    {
+      "video": "46159_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.214753,
+      "view": "oblique"
+    },
+    {
+      "video": "46160_1",
+      "depth": "SHALLOW",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.269465,
+      "view": "side"
+    },
+    {
+      "video": "46167_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.018634,
+      "view": "oblique"
+    },
+    {
+      "video": "46174_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.051024,
+      "view": "side"
+    },
+    {
+      "video": "46183_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.050701,
+      "view": "side"
+    },
+    {
+      "video": "46185_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.056684,
+      "view": "oblique"
+    },
+    {
+      "video": "46186_4",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.145688,
+      "view": "side"
+    },
+    {
+      "video": "46187_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.101671,
+      "view": "oblique"
+    },
+    {
+      "video": "46190_11",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "46205_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "46207_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.170474,
+      "view": "oblique"
+    },
+    {
+      "video": "46209_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.046563,
+      "view": "side"
+    },
+    {
+      "video": "46213_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.124861,
+      "view": "oblique"
+    },
+    {
+      "video": "46216_1",
+      "depth": "SHALLOW",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": -0.048069,
+      "view": "oblique"
+    },
+    {
+      "video": "46217_1",
+      "depth": "SHALLOW",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.035511,
+      "view": "oblique"
+    },
+    {
+      "video": "46220_7",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.16571,
+      "view": "oblique"
+    },
+    {
+      "video": "46230_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.019957,
+      "view": "oblique"
+    },
+    {
+      "video": "46233_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": -0.023153,
+      "view": "front"
+    },
+    {
+      "video": "46239_5",
+      "depth": "SHALLOW",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.025367,
+      "view": "oblique"
+    },
+    {
+      "video": "46243_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.001693,
+      "view": "oblique"
+    },
+    {
+      "video": "46247_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.118516,
+      "view": "oblique"
+    },
+    {
+      "video": "46248_5",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.07438,
+      "view": "front"
+    },
+    {
+      "video": "46252_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.010029,
+      "view": "oblique"
+    },
+    {
+      "video": "46264_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 1.401681,
+      "view": "oblique"
+    },
+    {
+      "video": "46278_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.063853,
+      "view": "front"
+    },
+    {
+      "video": "46284_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.081212,
+      "view": "oblique"
+    },
+    {
+      "video": "46286_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.146595,
+      "view": "oblique"
+    },
+    {
+      "video": "46289_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.020127,
+      "view": "oblique"
+    },
+    {
+      "video": "46302_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.034431,
+      "view": "side"
+    },
+    {
+      "video": "46307_6",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.200657,
+      "view": "oblique"
+    },
+    {
+      "video": "46308_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.015552,
+      "view": "oblique"
+    },
+    {
+      "video": "46311_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.146014,
+      "view": "oblique"
+    },
+    {
+      "video": "46312_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.094409,
+      "view": "oblique"
+    },
+    {
+      "video": "46316_6",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.147582,
+      "view": "oblique"
+    },
+    {
+      "video": "46319_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.011116,
+      "view": "oblique"
+    },
+    {
+      "video": "46327_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.18361,
+      "view": "oblique"
+    },
+    {
+      "video": "46332_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.002111,
+      "view": "oblique"
+    },
+    {
+      "video": "46334_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.144701,
+      "view": "oblique"
+    },
+    {
+      "video": "46341_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.12171,
+      "view": "front"
+    },
+    {
+      "video": "46348_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.061132,
+      "view": "oblique"
+    },
+    {
+      "video": "46359_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.179239,
+      "view": "side"
+    },
+    {
+      "video": "46365_5",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.230771,
+      "view": "oblique"
+    },
+    {
+      "video": "46367_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.005885,
+      "view": "oblique"
+    },
+    {
+      "video": "46372_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.194898,
+      "view": "side"
+    },
+    {
+      "video": "46376_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.274007,
+      "view": "oblique"
+    },
+    {
+      "video": "46380_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.063548,
+      "view": "oblique"
+    },
+    {
+      "video": "46382_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.425817,
+      "view": "side"
+    },
+    {
+      "video": "46385_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.026255,
+      "view": "oblique"
+    },
+    {
+      "video": "46407_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.210941,
+      "view": "oblique"
+    },
+    {
+      "video": "46412_5",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.153414,
+      "view": "oblique"
+    },
+    {
+      "video": "46413_4",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.178637,
+      "view": "oblique"
+    },
+    {
+      "video": "46417_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.093393,
+      "view": "front"
+    },
+    {
+      "video": "46424_5",
+      "depth": "SHALLOW",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "oblique"
+    },
+    {
+      "video": "46435_1",
+      "depth": "SHALLOW",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.025931,
+      "view": "oblique"
+    },
+    {
+      "video": "46438_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.069145,
+      "view": "oblique"
+    },
+    {
+      "video": "46445_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.161064,
+      "view": "oblique"
+    },
+    {
+      "video": "46448_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "46449_3",
+      "depth": "SHALLOW",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "side"
+    },
+    {
+      "video": "46462_4",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.16022,
+      "view": "oblique"
+    },
+    {
+      "video": "46465_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.371431,
+      "view": "oblique"
+    },
+    {
+      "video": "46466_3",
+      "depth": "SHALLOW",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.110794,
+      "view": "side"
+    },
+    {
+      "video": "46470_8",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.031599,
+      "view": "oblique"
+    },
+    {
+      "video": "46482_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": -0.10225,
+      "view": "front"
+    },
+    {
+      "video": "46494_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.024132,
+      "view": "oblique"
+    },
+    {
+      "video": "46499_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.047188,
+      "view": "oblique"
+    },
+    {
+      "video": "46504_3",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "oblique"
+    },
+    {
+      "video": "46506_5",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.137984,
+      "view": "oblique"
+    },
+    {
+      "video": "46507_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.086731,
+      "view": "oblique"
+    },
+    {
+      "video": "46509_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.083261,
+      "view": "oblique"
+    },
+    {
+      "video": "46526_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.005979,
+      "view": "oblique"
+    },
+    {
+      "video": "46530_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.25206,
+      "view": "oblique"
+    },
+    {
+      "video": "46546_4",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.206414,
+      "view": "oblique"
+    },
+    {
+      "video": "46549_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "side"
+    },
+    {
+      "video": "46550_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.041497,
+      "view": "oblique"
+    },
+    {
+      "video": "46558_3",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "46569_11",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": -1.240122,
+      "view": "front"
+    },
+    {
+      "video": "46570_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "oblique"
+    },
+    {
+      "video": "46571_3",
+      "depth": "SHALLOW",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.103357,
+      "view": "oblique"
+    },
+    {
+      "video": "46572_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.037491,
+      "view": "side"
+    },
+    {
+      "video": "46579_1",
+      "depth": "SHALLOW",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": -0.005292,
+      "view": "front"
+    },
+    {
+      "video": "46583_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.16055,
+      "view": "oblique"
+    },
+    {
+      "video": "46587_7",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.071024,
+      "view": "front"
+    },
+    {
+      "video": "46610_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.060505,
+      "view": "side"
+    },
+    {
+      "video": "46616_20",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.057238,
+      "view": "front"
+    },
+    {
+      "video": "46619_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.101216,
+      "view": "oblique"
+    },
+    {
+      "video": "46621_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.272681,
+      "view": "side"
+    },
+    {
+      "video": "46626_4",
+      "depth": "UNCERTAIN",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.013898,
+      "view": "side"
+    },
+    {
+      "video": "46627_3",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "46648_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.241355,
+      "view": "side"
+    },
+    {
+      "video": "46651_5",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "oblique"
+    },
+    {
+      "video": "46652_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.164744,
+      "view": "side"
+    },
+    {
+      "video": "46655_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.167072,
+      "view": "oblique"
+    },
+    {
+      "video": "46660_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.058199,
+      "view": "oblique"
+    },
+    {
+      "video": "46667_4",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.109565,
+      "view": "oblique"
+    },
+    {
+      "video": "46669_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.069767,
+      "view": "front"
+    },
+    {
+      "video": "46677_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.004516,
+      "view": "oblique"
+    },
+    {
+      "video": "46684_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.123763,
+      "view": "oblique"
+    },
+    {
+      "video": "46701_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.237985,
+      "view": "oblique"
+    },
+    {
+      "video": "46709_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.080705,
+      "view": "oblique"
+    },
+    {
+      "video": "46714_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.096393,
+      "view": "oblique"
+    },
+    {
+      "video": "46723_2",
+      "depth": "SHALLOW",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "oblique"
+    },
+    {
+      "video": "46724_5",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "front"
+    },
+    {
+      "video": "46725_1",
+      "depth": "SHALLOW",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.316487,
+      "view": "oblique"
+    },
+    {
+      "video": "46726_4",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.043481,
+      "view": "oblique"
+    },
+    {
+      "video": "46734_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.084638,
+      "view": "oblique"
+    },
+    {
+      "video": "46755_1",
+      "depth": "SHALLOW",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.114211,
+      "view": "oblique"
+    },
+    {
+      "video": "46758_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.151829,
+      "view": "oblique"
+    },
+    {
+      "video": "46762_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.151507,
+      "view": "oblique"
+    },
+    {
+      "video": "46772_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "46820_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "46850_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.118544,
+      "view": "oblique"
+    },
+    {
+      "video": "46869_2",
+      "depth": "SHALLOW",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "oblique"
+    },
+    {
+      "video": "46877_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.068984,
+      "view": "oblique"
+    },
+    {
+      "video": "46881_1",
+      "depth": "SHALLOW",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.084155,
+      "view": "side"
+    },
+    {
+      "video": "46889_5",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.370136,
+      "view": "oblique"
+    },
+    {
+      "video": "46896_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.155588,
+      "view": "side"
+    },
+    {
+      "video": "46904_6",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.090825,
+      "view": "oblique"
+    },
+    {
+      "video": "46920_16",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.155195,
+      "view": "oblique"
+    },
+    {
+      "video": "46921_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.241749,
+      "view": "oblique"
+    },
+    {
+      "video": "46923_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.159112,
+      "view": "oblique"
+    },
+    {
+      "video": "46939_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.007733,
+      "view": "oblique"
+    },
+    {
+      "video": "46946_5",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.153471,
+      "view": "oblique"
+    },
+    {
+      "video": "46986_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.196432,
+      "view": "side"
+    },
+    {
+      "video": "47049_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.181181,
+      "view": "oblique"
+    },
+    {
+      "video": "47050_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "47080_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.062699,
+      "view": "oblique"
+    },
+    {
+      "video": "47117_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.011693,
+      "view": "oblique"
+    },
+    {
+      "video": "47124_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.05645,
+      "view": "oblique"
+    },
+    {
+      "video": "47128_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.125131,
+      "view": "side"
+    },
+    {
+      "video": "47130_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "oblique"
+    },
+    {
+      "video": "47186_5",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.235097,
+      "view": "oblique"
+    },
+    {
+      "video": "47193_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.044961,
+      "view": "oblique"
+    },
+    {
+      "video": "47205_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.026539,
+      "view": "oblique"
+    },
+    {
+      "video": "47223_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.014774,
+      "view": "oblique"
+    },
+    {
+      "video": "47227_5",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.370169,
+      "view": "oblique"
+    },
+    {
+      "video": "47243_15",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -5.5e-05,
+      "view": "oblique"
+    },
+    {
+      "video": "47248_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.296293,
+      "view": "oblique"
+    },
+    {
+      "video": "47258_4",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.151804,
+      "view": "side"
+    },
+    {
+      "video": "47272_4",
+      "depth": "UNCERTAIN",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.039267,
+      "view": "side"
+    },
+    {
+      "video": "47276_4",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.112566,
+      "view": "oblique"
+    },
+    {
+      "video": "47288_2",
+      "depth": "SHALLOW",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.203302,
+      "view": "side"
+    },
+    {
+      "video": "47295_5",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.030083,
+      "view": "oblique"
+    },
+    {
+      "video": "47305_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": -0.095164,
+      "view": "oblique"
+    },
+    {
+      "video": "47320_6",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.224392,
+      "view": "oblique"
+    },
+    {
+      "video": "47321_4",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.262916,
+      "view": "oblique"
+    },
+    {
+      "video": "47326_5",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.240888,
+      "view": "oblique"
+    },
+    {
+      "video": "47327_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.042073,
+      "view": "oblique"
+    },
+    {
+      "video": "47347_3",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.183823,
+      "view": "oblique"
+    },
+    {
+      "video": "47453_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.005464,
+      "view": "side"
+    },
+    {
+      "video": "47459_1",
+      "depth": "SHALLOW",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "oblique"
+    },
+    {
+      "video": "47478_7",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.074815,
+      "view": "oblique"
+    },
+    {
+      "video": "47487_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "oblique"
+    },
+    {
+      "video": "47523_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.092534,
+      "view": "side"
+    },
+    {
+      "video": "47534_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.165436,
+      "view": "oblique"
+    },
+    {
+      "video": "47535_3",
+      "depth": "SHALLOW",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.06878,
+      "view": "side"
+    },
+    {
+      "video": "47537_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.097347,
+      "view": "front"
+    },
+    {
+      "video": "47565_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.057244,
+      "view": "oblique"
+    },
+    {
+      "video": "47578_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": -0.035143,
+      "view": "side"
+    },
+    {
+      "video": "47587_2",
+      "depth": "SHALLOW",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "side"
+    },
+    {
+      "video": "47589_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.134522,
+      "view": "oblique"
+    },
+    {
+      "video": "47642_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "oblique"
+    },
+    {
+      "video": "47645_5",
+      "depth": "SHALLOW",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.045154,
+      "view": "side"
+    },
+    {
+      "video": "47658_6",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.004375,
+      "view": "front"
+    },
+    {
+      "video": "47719_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.163501,
+      "view": "oblique"
+    },
+    {
+      "video": "47750_4",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "oblique"
+    },
+    {
+      "video": "47808_1",
+      "depth": "SHALLOW",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.079768,
+      "view": "side"
+    },
+    {
+      "video": "47861_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.051241,
+      "view": "side"
+    },
+    {
+      "video": "47880_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "47910_3",
+      "depth": "UNCERTAIN",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.038922,
+      "view": "oblique"
+    },
+    {
+      "video": "47935_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.028472,
+      "view": "oblique"
+    },
+    {
+      "video": "48101_8",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.03423,
+      "view": "oblique"
+    },
+    {
+      "video": "48110_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "48143_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "oblique"
+    },
+    {
+      "video": "48179_2",
+      "depth": "SHALLOW",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "side"
+    },
+    {
+      "video": "48238_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.044338,
+      "view": "oblique"
+    },
+    {
+      "video": "48281_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.013621,
+      "view": "oblique"
+    },
+    {
+      "video": "48323_3",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "48375_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.221063,
+      "view": "side"
+    },
+    {
+      "video": "48445_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.106598,
+      "view": "oblique"
+    },
+    {
+      "video": "48451_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.109283,
+      "view": "oblique"
+    },
+    {
+      "video": "48504_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "48549_6",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "48563_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.178302,
+      "view": "oblique"
+    },
+    {
+      "video": "48575_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.187468,
+      "view": "oblique"
+    },
+    {
+      "video": "48608_10",
+      "depth": "UNCERTAIN",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.036156,
+      "view": "oblique"
+    },
+    {
+      "video": "48618_1",
+      "depth": "SHALLOW",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": -0.132863,
+      "view": "side"
+    },
+    {
+      "video": "48621_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.086126,
+      "view": "oblique"
+    },
+    {
+      "video": "48638_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.255027,
+      "view": "oblique"
+    },
+    {
+      "video": "48651_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.015926,
+      "view": "side"
+    },
+    {
+      "video": "48652_3",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.310908,
+      "view": "oblique"
+    },
+    {
+      "video": "48720_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.116116,
+      "view": "oblique"
+    },
+    {
+      "video": "48727_8",
+      "depth": "SHALLOW",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.055554,
+      "view": "oblique"
+    },
+    {
+      "video": "48816_4",
+      "depth": "UNCERTAIN",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.020872,
+      "view": "oblique"
+    },
+    {
+      "video": "48970_4",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.254208,
+      "view": "oblique"
+    },
+    {
+      "video": "49000_8",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.10106,
+      "view": "oblique"
+    },
+    {
+      "video": "49125_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.145454,
+      "view": "oblique"
+    },
+    {
+      "video": "49165_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.007158,
+      "view": "side"
+    },
+    {
+      "video": "49191_4",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.016469,
+      "view": "side"
+    },
+    {
+      "video": "49197_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.06901,
+      "view": "oblique"
+    },
+    {
+      "video": "49204_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.092114,
+      "view": "oblique"
+    },
+    {
+      "video": "49234_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.12831,
+      "view": "oblique"
+    },
+    {
+      "video": "49295_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.029789,
+      "view": "oblique"
+    },
+    {
+      "video": "49351_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.070782,
+      "view": "oblique"
+    },
+    {
+      "video": "49387_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.132241,
+      "view": "side"
+    },
+    {
+      "video": "49402_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.129459,
+      "view": "oblique"
+    },
+    {
+      "video": "49408_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.141601,
+      "view": "oblique"
+    },
+    {
+      "video": "49478_1",
+      "depth": "SHALLOW",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.228889,
+      "view": "side"
+    },
+    {
+      "video": "49509_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.040045,
+      "view": "oblique"
+    },
+    {
+      "video": "49539_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.08542,
+      "view": "oblique"
+    },
+    {
+      "video": "49548_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.18259,
+      "view": "oblique"
+    },
+    {
+      "video": "49565_5",
+      "depth": "UNCERTAIN",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.021427,
+      "view": "oblique"
+    },
+    {
+      "video": "49599_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.142419,
+      "view": "oblique"
+    },
+    {
+      "video": "49618_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.293432,
+      "view": "oblique"
+    },
+    {
+      "video": "49646_5",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "oblique"
+    },
+    {
+      "video": "49733_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.02622,
+      "view": "oblique"
+    },
+    {
+      "video": "49734_4",
+      "depth": "SHALLOW",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "oblique"
+    },
+    {
+      "video": "49813_4",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "49833_11",
+      "depth": "SHALLOW",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "side"
+    },
+    {
+      "video": "49857_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.130344,
+      "view": "oblique"
+    },
+    {
+      "video": "49921_3",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.017068,
+      "view": "side"
+    },
+    {
+      "video": "49943_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.050849,
+      "view": "oblique"
+    },
+    {
+      "video": "49949_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.174951,
+      "view": "oblique"
+    },
+    {
+      "video": "50002_2",
+      "depth": "SHALLOW",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "oblique"
+    },
+    {
+      "video": "50122_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "50172_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.139409,
+      "view": "oblique"
+    },
+    {
+      "video": "50174_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.175922,
+      "view": "oblique"
+    },
+    {
+      "video": "50264_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.096331,
+      "view": "oblique"
+    },
+    {
+      "video": "50320_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.025501,
+      "view": "side"
+    },
+    {
+      "video": "50436_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.075919,
+      "view": "oblique"
+    },
+    {
+      "video": "50462_7",
+      "depth": "SHALLOW",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.04261,
+      "view": "oblique"
+    },
+    {
+      "video": "50489_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.022867,
+      "view": "oblique"
+    },
+    {
+      "video": "50522_4",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "50551_10",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": 0.013526,
+      "view": "oblique"
+    },
+    {
+      "video": "50606_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.101068,
+      "view": "side"
+    },
+    {
+      "video": "50705_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.128305,
+      "view": "oblique"
+    },
+    {
+      "video": "50807_3",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "50825_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.248755,
+      "view": "oblique"
+    },
+    {
+      "video": "50829_11",
+      "depth": "SHALLOW",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "side"
+    },
+    {
+      "video": "50833_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.062699,
+      "view": "oblique"
+    },
+    {
+      "video": "50838_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.041362,
+      "view": "oblique"
+    },
+    {
+      "video": "50844_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": 0.299271,
+      "view": "oblique"
+    },
+    {
+      "video": "50846_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.072787,
+      "view": "oblique"
+    },
+    {
+      "video": "50856_1",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "50860_2",
+      "depth": "UNCERTAIN",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": null
+    },
+    {
+      "video": "50862_1",
+      "depth": "SHALLOW",
+      "knees_forward": "UNCERTAIN",
+      "kf_score": null,
+      "view": "oblique"
+    },
+    {
+      "video": "50864_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.16055,
+      "view": "oblique"
+    },
+    {
+      "video": "50865_2",
+      "depth": "AT_DEPTH",
+      "knees_forward": "OBSERVED",
+      "kf_score": 0.050849,
+      "view": "oblique"
+    },
+    {
+      "video": "50867_1",
+      "depth": "AT_DEPTH",
+      "knees_forward": "NOT_OBSERVED",
+      "kf_score": -0.001694,
+      "view": "oblique"
+    }
+  ]
+}
