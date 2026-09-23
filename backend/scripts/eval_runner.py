@@ -26,6 +26,11 @@ REPORTING RULES, NOT OPTIONS
   * disputed labels are counted and reported. 80 corpus videos are
     byte-identical duplicates carrying conflicting labels; an evaluation that
     silently picks one is reporting its own tie-break.
+  * `--splits content` uses the content-level splits (G-44/G-45), where no
+    byte-identical file spans a split and contradictory duplicates are withheld
+    entirely. `--splits user` reproduces the historical, contaminated basis.
+    Whichever is used is printed in the header, because a number quoted without
+    saying which split it came from is not a number.
 
     python backend/scripts/eval_runner.py --target posture
     python backend/scripts/eval_runner.py --target depth --checker depth_parallel_v0
@@ -42,6 +47,8 @@ from typing import Any, Dict, List, Optional
 
 BACKEND = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BACKEND))
+
+CONTENT_SPLITS = BACKEND.parent / "bench" / "results" / "content_level_splits.json"
 
 #: Decision strings that mean "this checker said fault/positive", per target.
 POSITIVE_DECISIONS = {
@@ -93,10 +100,47 @@ def main() -> int:
     ap.add_argument("--checker", default=None)
     ap.add_argument("--split", default=None,
                     choices=["train", "validation", "test"])
+    ap.add_argument("--splits", default="content", choices=["content", "user"],
+                    help="content: leakage-free by hash AND user (G-44/G-45). "
+                         "user: the historical, contaminated basis.")
+    ap.add_argument("--include-conflicted", action="store_true",
+                    help="include videos whose duplicates carry contradictory "
+                         "labels; off by default because scoring them reports "
+                         "this script's tie-break, not the model")
     ap.add_argument("--json", type=Path, default=None)
     args = ap.parse_args()
 
-    data = asyncio.run(_load(args.target, args.checker, args.split))
+    # Content-level basis: restrict to videos the repaired split assigns, and
+    # drop the ones it withholds. Applied to the DECISIONS as well as the
+    # labels, so a video absent from the repaired split cannot enter by either
+    # door.
+    allowed = None
+    basis = args.splits
+    if args.splits == "content":
+        if not CONTENT_SPLITS.exists():
+            print(f"content-level splits not found at {CONTENT_SPLITS}; "
+                  "run bench/build_content_splits.py", file=sys.stderr)
+            return 1
+        built = json.loads(CONTENT_SPLITS.read_text())
+        allowed = set()
+        withheld = 0
+        for r in built["videos"]:
+            if not r["split"]:
+                withheld += 1
+                continue
+            if args.split and r["split"] != args.split:
+                continue
+            if r["content_hash"]:
+                allowed.add(r["content_hash"])
+        print(f"basis: CONTENT-LEVEL splits (mode {built.get('mode')}), "
+              f"{withheld} videos withheld as contradictory duplicates")
+        # Videos with no recorded hash cannot be matched to a decision anyway.
+    else:
+        print("basis: USER-LEVEL splits -- the historical, CONTAMINATED basis "
+              "(G-44). Numbers from this are upper bounds.")
+
+    data = asyncio.run(_load(args.target, args.checker,
+                             args.split if args.splits == "user" else None))
     decisions, labels = data["decisions"], data["labels"]
     label_target = data["label_target"]
 
@@ -113,13 +157,30 @@ def main() -> int:
         print("\nno stored decisions for this target yet -- run some analyses first.")
         return 0
 
+    if allowed is not None:
+        before_d, before_l = len(decisions), len(labels)
+        decisions = [d for d in decisions if d.content_hash in allowed]
+        labels = [l for l in labels if l.content_hash in allowed]
+        print(f"  content-level filter: decisions {before_d} -> {len(decisions)}, "
+              f"labels {before_l} -> {len(labels)}")
+
     resolved = resolve_all(labels, label_target)
+    if not args.include_conflicted:
+        dropped = [h for h, r in resolved.items() if r.disputed]
+        for h in dropped:
+            resolved.pop(h)
+        if dropped:
+            print(f"  excluded {len(dropped)} video(s) whose sources disagree "
+                  f"(use --include-conflicted to score them)")
+
     disputed = [h for h, r in resolved.items() if r.disputed]
     unusable = [h for h, r in resolved.items() if not r.usable]
     print(f"labelled videos {len(resolved)}   disputed {len(disputed)}   "
           f"unusable {len(unusable)}")
 
     out: Dict[str, Any] = {"target": args.target, "label_target": label_target,
+                           "basis": basis,
+                           "conflicted_included": args.include_conflicted,
                            "split": args.split, "n_decisions": len(decisions),
                            "n_labelled": len(resolved),
                            "n_disputed": len(disputed), "checkers": {}}
