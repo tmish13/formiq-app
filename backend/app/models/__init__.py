@@ -12,6 +12,7 @@ from app.models.progress import ExerciseProgress, ProgressSnapshot
 from app.models.squat_session import SquatSession
 from app.models.training_session import TrainingSession
 from app.models.audit import AnalysisRun, CheckerDecision
+from app.models.labels import Label
 from app.models.enums import (
     SubscriptionTier,
     FormCheckStatus,
@@ -41,6 +42,7 @@ __all__ = [
     'TrainingSession',
     'AnalysisRun',
     'CheckerDecision',
+    'Label',
     'SubscriptionTier',
     'FormCheckStatus',
     'FeedbackType',

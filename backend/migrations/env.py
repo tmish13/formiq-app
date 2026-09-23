@@ -169,6 +169,7 @@ from app.models.telemetry import PostureV1InferenceLog
 # import block, and a model missing from it is invisible to autogenerate --
 # which shows up as alembic proposing to DROP a table that is in use.
 from app.models.audit import AnalysisRun, CheckerDecision
+from app.models.labels import Label
 
 # If you have other active models that define tables, import them too.
 # For example, if 'Subscription', 'Workout', etc., are still active, they should be here.

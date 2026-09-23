@@ -1,0 +1,49 @@
+{
+  "target": "posture",
+  "label_target": "posture_fault",
+  "split": null,
+  "n_decisions": 9,
+  "n_labelled": 1382,
+  "n_disputed": 323,
+  "checkers": {
+    "posture_v1": {
+      "fitted": true,
+      "advisory": false,
+      "n": 8,
+      "coverage": {
+        "n": 8,
+        "n_covered": 7,
+        "n_abstained": 1,
+        "coverage": 0.875,
+        "covered_only": {
+          "n": 7,
+          "counts": {
+            "tp": 1,
+            "fp": 1,
+            "tn": 5,
+            "fn": 0
+          },
+          "precision": 0.5,
+          "recall": 1.0,
+          "f1": 0.6666666666666666
+        },
+        "abstain_as_negative": {
+          "counts": {
+            "tp": 1,
+            "fp": 1,
+            "tn": 6,
+            "fn": 0
+          },
+          "precision": 0.5,
+          "recall": 1.0,
+          "f1": 0.6666666666666666
+        }
+      },
+      "trivial_floor": {
+        "prevalence": 0.125,
+        "all_positive_f1": 0.2222222222222222,
+        "majority_class_accuracy": 0.875
+      }
+    }
+  }
+}

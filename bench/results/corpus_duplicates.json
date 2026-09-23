@@ -1,0 +1,1478 @@
+{
+  "n_hashed": 1487,
+  "files_missing": 138,
+  "distinct_content": 1382,
+  "duplicate_hashes": 104,
+  "extra_copies": 105,
+  "cross_split": 45,
+  "cross_user": 104,
+  "conflicting_labels": 80,
+  "conflicting_pairs": {
+    "depth_fault vs good_form": 47,
+    "good_form vs posture_fault": 33
+  },
+  "groups": {
+    "c39ea921a764a7ede6fc04bdeabb256755c7dd623daf8ac69775d1b832d17fb7": [
+      {
+        "video": "37044_4",
+        "split": "train",
+        "user": "37044",
+        "class": "good_form"
+      },
+      {
+        "video": "36836_4",
+        "split": "train",
+        "user": "36836",
+        "class": "depth_fault"
+      }
+    ],
+    "402d3e6f25e8e0a7583624010cf1db541763dda187247c440d75232d607dedfd": [
+      {
+        "video": "50824_2",
+        "split": "train",
+        "user": "50824",
+        "class": "good_form"
+      },
+      {
+        "video": "48298_2",
+        "split": "train",
+        "user": "48298",
+        "class": "posture_fault"
+      }
+    ],
+    "650a0d64868614c20e9b155a178b7e9242147ef3fe14ca2aa4771148aa0280d1": [
+      {
+        "video": "37037_1",
+        "split": "train",
+        "user": "37037",
+        "class": "good_form"
+      },
+      {
+        "video": "36828_1",
+        "split": "train",
+        "user": "36828",
+        "class": "posture_fault"
+      }
+    ],
+    "e9d05e7ec3f2036a26331f97efbe3a0813a69ce017f1c033b5501c4de9c17f98": [
+      {
+        "video": "48602_1",
+        "split": "train",
+        "user": "48602",
+        "class": "posture_fault"
+      },
+      {
+        "video": "50859_1",
+        "split": "train",
+        "user": "50859",
+        "class": "good_form"
+      }
+    ],
+    "0fc5adb73aa775c1ca0a9d09fd50d46af36e02824afb3f3cfa20f0f907b2bcf4": [
+      {
+        "video": "38094_2",
+        "split": "train",
+        "user": "38094",
+        "class": "good_form"
+      },
+      {
+        "video": "37491_2",
+        "split": "test",
+        "user": "37491",
+        "class": "depth_fault"
+      }
+    ],
+    "330d7d5c6a903e641c6786753ca4ae15aa896a2aaa264176ede723eb4f1fe1ef": [
+      {
+        "video": "37714_1",
+        "split": "train",
+        "user": "37714",
+        "class": "depth_fault"
+      },
+      {
+        "video": "38114_1",
+        "split": "train",
+        "user": "38114",
+        "class": "good_form"
+      }
+    ],
+    "ea5f595f6d9d7aea07bf74f607436ac8a7a7ab5a36bd7f12407401a8d417fbca": [
+      {
+        "video": "50717_1",
+        "split": "train",
+        "user": "50717",
+        "class": "posture_fault"
+      },
+      {
+        "video": "50840_1",
+        "split": "train",
+        "user": "50840",
+        "class": "good_form"
+      }
+    ],
+    "222f7b260a5d8b3dabc0c52e67b821d1da0428b8fb36fff82816f0bb58b25502": [
+      {
+        "video": "50857_1",
+        "split": "train",
+        "user": "50857",
+        "class": "good_form"
+      },
+      {
+        "video": "47794_1",
+        "split": "train",
+        "user": "47794",
+        "class": "posture_fault"
+      }
+    ],
+    "409e3c731b606a0e8a247666e0d89b25da3fc2665ef7db1256d26cde5ee6a013": [
+      {
+        "video": "37457_2",
+        "split": "train",
+        "user": "37457",
+        "class": "depth_fault"
+      },
+      {
+        "video": "38095_2",
+        "split": "train",
+        "user": "38095",
+        "class": "good_form"
+      }
+    ],
+    "dbc618463b3e741fad98c444824e0136219d522a466a46e37a8299ea0777c477": [
+      {
+        "video": "50849_1",
+        "split": "train",
+        "user": "50849",
+        "class": "good_form"
+      },
+      {
+        "video": "48374_1",
+        "split": "train",
+        "user": "48374",
+        "class": "good_form"
+      }
+    ],
+    "19d67ac89bb719e7ce5f71759ea1d416a1f131a9a00180e68d3e8f87fdabcb6a": [
+      {
+        "video": "50843_1",
+        "split": "train",
+        "user": "50843",
+        "class": "good_form"
+      },
+      {
+        "video": "48209_1",
+        "split": "train",
+        "user": "48209",
+        "class": "posture_fault"
+      }
+    ],
+    "60e9448c82ec42e6186ee73773d24664e700cf030aca9b59d03e81a2b67dab77": [
+      {
+        "video": "38104_1",
+        "split": "train",
+        "user": "38104",
+        "class": "good_form"
+      },
+      {
+        "video": "37448_1",
+        "split": "test",
+        "user": "37448",
+        "class": "depth_fault"
+      }
+    ],
+    "2938f17f7aa025e7ca87129952f3c3d6b3d931505d4e21191710bc2c8201bbc6": [
+      {
+        "video": "33029_1",
+        "split": "train",
+        "user": "33029",
+        "class": "depth_fault"
+      },
+      {
+        "video": "33919_1",
+        "split": "train",
+        "user": "33919",
+        "class": "good_form"
+      }
+    ],
+    "cf9065cb92d34cc7a201cd9914cfb53224a7fbeddf78353c61836756746476bb": [
+      {
+        "video": "50845_6",
+        "split": "train",
+        "user": "50845",
+        "class": "good_form"
+      },
+      {
+        "video": "47479_6",
+        "split": "train",
+        "user": "47479",
+        "class": "good_form"
+      }
+    ],
+    "a50a311d6f9bd8aaacda9681a0f17e0c56f74ae92222ac3e7cf5e17abb15a97e": [
+      {
+        "video": "47619_1",
+        "split": "train",
+        "user": "47619",
+        "class": "good_form"
+      },
+      {
+        "video": "50827_1",
+        "split": "train",
+        "user": "50827",
+        "class": "good_form"
+      }
+    ],
+    "70e50a7a8b06c499eee0f75803c36f6a3260ab361efe963e9e70bdcd382fc066": [
+      {
+        "video": "50871_2",
+        "split": "train",
+        "user": "50871",
+        "class": "good_form"
+      },
+      {
+        "video": "47527_2",
+        "split": "train",
+        "user": "47527",
+        "class": "good_form"
+      }
+    ],
+    "f946bf6d74e1332f6e01eec2197210298fd5d999a1b22ac1733ab91e7677a0d9": [
+      {
+        "video": "37527_2",
+        "split": "train",
+        "user": "37527",
+        "class": "depth_fault"
+      },
+      {
+        "video": "38111_2",
+        "split": "validation",
+        "user": "38111",
+        "class": "good_form"
+      }
+    ],
+    "7f616be18df7985311ca2799ff4dcb1324d43578ba0e08ec7f3a81f1e6315665": [
+      {
+        "video": "50868_2",
+        "split": "train",
+        "user": "50868",
+        "class": "good_form"
+      },
+      {
+        "video": "50352_2",
+        "split": "train",
+        "user": "50352",
+        "class": "posture_fault"
+      }
+    ],
+    "949a7373b885ab1fc7ef547932b25ca4ac539c8629c67efab6ff6bd9b5b41363": [
+      {
+        "video": "33035_4",
+        "split": "train",
+        "user": "33035",
+        "class": "good_form"
+      },
+      {
+        "video": "33924_4",
+        "split": "test",
+        "user": "33924",
+        "class": "good_form"
+      }
+    ],
+    "b90ccfd6f837a1e6e3e53206e26651f6ee7551138e74df149a1bc06bd06d9913": [
+      {
+        "video": "37976_3",
+        "split": "train",
+        "user": "37976",
+        "class": "depth_fault"
+      },
+      {
+        "video": "38115_3",
+        "split": "test",
+        "user": "38115",
+        "class": "good_form"
+      }
+    ],
+    "8886f78e3df2a0374b8a4885af58890e4c66514f79bcd2b799315314e50532a1": [
+      {
+        "video": "36243_3",
+        "split": "train",
+        "user": "36243",
+        "class": "depth_fault"
+      },
+      {
+        "video": "37049_3",
+        "split": "test",
+        "user": "37049",
+        "class": "good_form"
+      }
+    ],
+    "fb5c9fccd5ed605a953f5fb27ba7f46cd9c34b6e4fab0b12ec3efb58b3bf2e57": [
+      {
+        "video": "37058_2",
+        "split": "train",
+        "user": "37058",
+        "class": "good_form"
+      },
+      {
+        "video": "36493_2",
+        "split": "train",
+        "user": "36493",
+        "class": "depth_fault"
+      }
+    ],
+    "7cb91395ee99afdd4f43a1333dc7c2caf0b2de1e7f7157d7628b403cc18ab770": [
+      {
+        "video": "50834_1",
+        "split": "train",
+        "user": "50834",
+        "class": "good_form"
+      },
+      {
+        "video": "48979_1",
+        "split": "validation",
+        "user": "48979",
+        "class": "posture_fault"
+      }
+    ],
+    "cde8afd5c0728ffd75ba8f575a81d80a6500dd326a357023aa039158d09b10e1": [
+      {
+        "video": "33877_2",
+        "split": "train",
+        "user": "33877",
+        "class": "depth_fault"
+      },
+      {
+        "video": "33950_2",
+        "split": "train",
+        "user": "33950",
+        "class": "good_form"
+      }
+    ],
+    "a64b7eb5af14b23994356d452c77ceb9164822da0bf368980a856661ac1a3142": [
+      {
+        "video": "38097_1",
+        "split": "train",
+        "user": "38097",
+        "class": "good_form"
+      },
+      {
+        "video": "37304_1",
+        "split": "train",
+        "user": "37304",
+        "class": "depth_fault"
+      }
+    ],
+    "9facf4112cb6e3b969839822f1be6bd8fcab31663c31fcc273935e3f23bd0f04": [
+      {
+        "video": "36504_1",
+        "split": "train",
+        "user": "36504",
+        "class": "posture_fault"
+      },
+      {
+        "video": "37045_1",
+        "split": "train",
+        "user": "37045",
+        "class": "good_form"
+      }
+    ],
+    "296f6dc7083453b393593707e433b0af8197c6549de913a6721e94ab0f239b8d": [
+      {
+        "video": "33844_2",
+        "split": "train",
+        "user": "33844",
+        "class": "depth_fault"
+      },
+      {
+        "video": "33933_2",
+        "split": "train",
+        "user": "33933",
+        "class": "good_form"
+      }
+    ],
+    "4d1f5cd249096f00712117e5d4ad4dd60c3e222704d50d40b384bcb7ba9b923e": [
+      {
+        "video": "38107_5",
+        "split": "train",
+        "user": "38107",
+        "class": "good_form"
+      },
+      {
+        "video": "37095_5",
+        "split": "train",
+        "user": "37095",
+        "class": "depth_fault"
+      }
+    ],
+    "c5a525969bf23f183ff602569113e7bc327bd5a2ccdc3ba9028151f580b8b4c8": [
+      {
+        "video": "33305_8",
+        "split": "train",
+        "user": "33305",
+        "class": "good_form"
+      },
+      {
+        "video": "33937_8",
+        "split": "train",
+        "user": "33937",
+        "class": "good_form"
+      }
+    ],
+    "a9b864f6324a47be082ae0eedb4fe2ab023e270cce6f9ca51adb41d2cff008a0": [
+      {
+        "video": "38106_4",
+        "split": "train",
+        "user": "38106",
+        "class": "good_form"
+      },
+      {
+        "video": "38057_4",
+        "split": "train",
+        "user": "38057",
+        "class": "depth_fault"
+      }
+    ],
+    "f8b1cdf953f34a3438ff36daaa15fd3e740246ab90b8a02e878ee9324384ee93": [
+      {
+        "video": "50836_4",
+        "split": "train",
+        "user": "50836",
+        "class": "good_form"
+      },
+      {
+        "video": "50073_4",
+        "split": "train",
+        "user": "50073",
+        "class": "posture_fault"
+      }
+    ],
+    "04b1c3d5f1e1771f09b98158248c60cf0cd7bd8a64e4bbc5c4dd160426386b70": [
+      {
+        "video": "37197_5",
+        "split": "train",
+        "user": "37197",
+        "class": "depth_fault"
+      },
+      {
+        "video": "38091_5",
+        "split": "test",
+        "user": "38091",
+        "class": "good_form"
+      }
+    ],
+    "88e0cf048e7312eac3f0d9732374a64013801eda171b63d86d067115c68ce8cc": [
+      {
+        "video": "33947_3",
+        "split": "train",
+        "user": "33947",
+        "class": "good_form"
+      },
+      {
+        "video": "33133_3",
+        "split": "train",
+        "user": "33133",
+        "class": "depth_fault"
+      }
+    ],
+    "7870b636c53af0670587f24f663b63aa552563b9b72a0185b73c310af33f4348": [
+      {
+        "video": "36124_1",
+        "split": "train",
+        "user": "36124",
+        "class": "posture_fault"
+      },
+      {
+        "video": "37056_1",
+        "split": "train",
+        "user": "37056",
+        "class": "good_form"
+      }
+    ],
+    "7dd213a3be8d9ed013a36e5594330eb6758e8b204c7f7ee2dc93858d4ef2c0f4": [
+      {
+        "video": "33151_1",
+        "split": "train",
+        "user": "33151",
+        "class": "depth_fault"
+      },
+      {
+        "video": "33941_1",
+        "split": "train",
+        "user": "33941",
+        "class": "good_form"
+      }
+    ],
+    "56c69348822fc2eee0bd689724cd93df9f122c9b53dc2d3e2ebb98539ec14a79": [
+      {
+        "video": "37055_1",
+        "split": "train",
+        "user": "37055",
+        "class": "good_form"
+      },
+      {
+        "video": "36740_1",
+        "split": "test",
+        "user": "36740",
+        "class": "depth_fault"
+      }
+    ],
+    "968de8da901579a983566e26956ee1abe3ecef26775bc295a4ec7e1aad41a942": [
+      {
+        "video": "37000_1",
+        "split": "train",
+        "user": "37000",
+        "class": "depth_fault"
+      },
+      {
+        "video": "37052_1",
+        "split": "train",
+        "user": "37052",
+        "class": "good_form"
+      }
+    ],
+    "b347046a6a374c56ef0690c320ceef81c27d0ea423ffad9d4f7e2d9a8666e551": [
+      {
+        "video": "37083_1",
+        "split": "train",
+        "user": "37083",
+        "class": "depth_fault"
+      },
+      {
+        "video": "38113_1",
+        "split": "train",
+        "user": "38113",
+        "class": "good_form"
+      }
+    ],
+    "18a5866d1d7e7f70078ee9b8cc47ee2861e8d6a55ad43e9c35568736496e4e4c": [
+      {
+        "video": "50835_1",
+        "split": "train",
+        "user": "50835",
+        "class": "good_form"
+      },
+      {
+        "video": "46572_1",
+        "split": "train",
+        "user": "46572",
+        "class": "good_form"
+      }
+    ],
+    "f2b3114eb6a42657db7c517a16ca7361ab3356eabdedfd8209836e0830c7719a": [
+      {
+        "video": "37151_1",
+        "split": "train",
+        "user": "37151",
+        "class": "posture_fault"
+      },
+      {
+        "video": "38098_1",
+        "split": "train",
+        "user": "38098",
+        "class": "good_form"
+      }
+    ],
+    "d6a7096933f6fd0fec4d7c824b0895f4900d16ca728e139a4da536959e17c663": [
+      {
+        "video": "50832_1",
+        "split": "train",
+        "user": "50832",
+        "class": "good_form"
+      },
+      {
+        "video": "46621_1",
+        "split": "train",
+        "user": "46621",
+        "class": "posture_fault"
+      }
+    ],
+    "4c2a584da4f6022ae1eb61f484a20f36fa89242a024991c7a2ab74ab25244a6e": [
+      {
+        "video": "49233_2",
+        "split": "train",
+        "user": "49233",
+        "class": "posture_fault"
+      },
+      {
+        "video": "50841_2",
+        "split": "train",
+        "user": "50841",
+        "class": "good_form"
+      }
+    ],
+    "d06e4d63117969b39afb12ea35d7040948e3895395f555ee00070bd881f54d97": [
+      {
+        "video": "37430_2",
+        "split": "train",
+        "user": "37430",
+        "class": "depth_fault"
+      },
+      {
+        "video": "38110_2",
+        "split": "validation",
+        "user": "38110",
+        "class": "good_form"
+      }
+    ],
+    "6da6f1a44a0ced2a99fd605223bcf1f687901b203893aea6753383b63596463e": [
+      {
+        "video": "50837_3",
+        "split": "train",
+        "user": "50837",
+        "class": "good_form"
+      },
+      {
+        "video": "48465_3",
+        "split": "train",
+        "user": "48465",
+        "class": "posture_fault"
+      }
+    ],
+    "acd9ec09f6db1679e8418663e114ea08d100d9ae6cfea06947bd0daf8c0f40c1": [
+      {
+        "video": "37053_4",
+        "split": "train",
+        "user": "37053",
+        "class": "good_form"
+      },
+      {
+        "video": "36602_4",
+        "split": "validation",
+        "user": "36602",
+        "class": "depth_fault"
+      }
+    ],
+    "b0af3596e0df8ee0104fcfe5b0295347de3c836b96b074886952e7b5baa9a262": [
+      {
+        "video": "33944_1",
+        "split": "train",
+        "user": "33944",
+        "class": "good_form"
+      },
+      {
+        "video": "33742_1",
+        "split": "test",
+        "user": "33742",
+        "class": "depth_fault"
+      }
+    ],
+    "07e937e84f5be7d4764918c44659f94b53b7abe05d6fc4b6bed10d44821fc82a": [
+      {
+        "video": "33345_1",
+        "split": "train",
+        "user": "33345",
+        "class": "depth_fault"
+      },
+      {
+        "video": "33943_1",
+        "split": "test",
+        "user": "33943",
+        "class": "good_form"
+      }
+    ],
+    "614d80fc27f51d95b1eca975ac1ce45e7310745fe38aebe5f9139951de0bc45a": [
+      {
+        "video": "36145_1",
+        "split": "train",
+        "user": "36145",
+        "class": "depth_fault"
+      },
+      {
+        "video": "37054_1",
+        "split": "train",
+        "user": "37054",
+        "class": "good_form"
+      }
+    ],
+    "4d9b8853b272fe80e43f008533ebc81ee2b426c209dc3360b85d9b079c802f5e": [
+      {
+        "video": "36212_3",
+        "split": "train",
+        "user": "36212",
+        "class": "depth_fault"
+      },
+      {
+        "video": "37038_3",
+        "split": "train",
+        "user": "37038",
+        "class": "good_form"
+      }
+    ],
+    "50f48276cbb1bafe40af708f7bfabc6cb3d8036b6fb7172fdfc82b6cebf97d57": [
+      {
+        "video": "49626_1",
+        "split": "train",
+        "user": "49626",
+        "class": "posture_fault"
+      },
+      {
+        "video": "50867_1",
+        "split": "test",
+        "user": "50867",
+        "class": "good_form"
+      }
+    ],
+    "17b7ba51be8d91af211346b7e8d3bf3ce67b56f8e55346e1bf8428048656ba43": [
+      {
+        "video": "38109_14",
+        "split": "train",
+        "user": "38109",
+        "class": "good_form"
+      },
+      {
+        "video": "37701_14",
+        "split": "test",
+        "user": "37701",
+        "class": "good_form"
+      }
+    ],
+    "c7f0e6d952c960b609a6a2228eb82a41663099c362599c153418b3043fcb9385": [
+      {
+        "video": "33934_3",
+        "split": "train",
+        "user": "33934",
+        "class": "good_form"
+      },
+      {
+        "video": "33248_3",
+        "split": "train",
+        "user": "33248",
+        "class": "good_form"
+      }
+    ],
+    "cb8b615860707758030fac4ac0673ca926fa428c733e72f510bf411a6d729fb8": [
+      {
+        "video": "38093_4",
+        "split": "train",
+        "user": "38093",
+        "class": "good_form"
+      },
+      {
+        "video": "37917_4",
+        "split": "validation",
+        "user": "37917",
+        "class": "good_form"
+      }
+    ],
+    "6c38008d20de1e202a29bca65e73ba715e04c5d44f69a20a8de406bcf9ea0e4f": [
+      {
+        "video": "50854_1",
+        "split": "train",
+        "user": "50854",
+        "class": "good_form"
+      },
+      {
+        "video": "50606_1",
+        "split": "test",
+        "user": "50606",
+        "class": "posture_fault"
+      }
+    ],
+    "f03ed9448d7a0d944d6156b25f2a0f5e207561ae2c2696222478eb596afabef5": [
+      {
+        "video": "50822_1",
+        "split": "train",
+        "user": "50822",
+        "class": "good_form"
+      },
+      {
+        "video": "46359_1",
+        "split": "train",
+        "user": "46359",
+        "class": "posture_fault"
+      }
+    ],
+    "adec97b4b82eabbdce2bc5bfe1b2acd7833f73badebb527a004491243bb056a1": [
+      {
+        "video": "36978_4",
+        "split": "train",
+        "user": "36978",
+        "class": "depth_fault"
+      },
+      {
+        "video": "37046_4",
+        "split": "train",
+        "user": "37046",
+        "class": "good_form"
+      }
+    ],
+    "afee48d25937deb5b3dd695eaffadb12aae2af9c5f813ea8e4323e871db67d22": [
+      {
+        "video": "33367_1",
+        "split": "train",
+        "user": "33367",
+        "class": "depth_fault"
+      },
+      {
+        "video": "33938_1",
+        "split": "train",
+        "user": "33938",
+        "class": "good_form"
+      }
+    ],
+    "c781e63a978439438b518b7bef4ba9500872f54bb3a343759106849ad16ad24e": [
+      {
+        "video": "50176_1",
+        "split": "train",
+        "user": "50176",
+        "class": "posture_fault"
+      },
+      {
+        "video": "50853_1",
+        "split": "train",
+        "user": "50853",
+        "class": "good_form"
+      }
+    ],
+    "9fce603bc9a374ddcd7b4fab84553ed8cafcd336db0d7c30af2d85de221542e5": [
+      {
+        "video": "38101_1",
+        "split": "train",
+        "user": "38101",
+        "class": "good_form"
+      },
+      {
+        "video": "37791_1",
+        "split": "test",
+        "user": "37791",
+        "class": "depth_fault"
+      }
+    ],
+    "7f5da33e07892269137da4e3d7a19a03c6c1307242ea84eee72fd9c98bbcd182": [
+      {
+        "video": "37979_2",
+        "split": "train",
+        "user": "37979",
+        "class": "depth_fault"
+      },
+      {
+        "video": "38105_2",
+        "split": "train",
+        "user": "38105",
+        "class": "good_form"
+      }
+    ],
+    "b417713c2abfb872f7832973ed4da165fe9f2b35ba58ba355d9bbb380e7bf87a": [
+      {
+        "video": "45970_1",
+        "split": "train",
+        "user": "45970",
+        "class": "posture_fault"
+      },
+      {
+        "video": "50848_1",
+        "split": "train",
+        "user": "50848",
+        "class": "good_form"
+      }
+    ],
+    "abfc32d35f6cebb70462408d8c9f6ab1bc869da559f88d23ad674f8c99310679": [
+      {
+        "video": "37048_2",
+        "split": "train",
+        "user": "37048",
+        "class": "good_form"
+      },
+      {
+        "video": "36887_2",
+        "split": "train",
+        "user": "36887",
+        "class": "depth_fault"
+      }
+    ],
+    "e7fb7db0bf1ad11c84deacc800e07ba580fe20cf8e66191f31457121b8ac0b83": [
+      {
+        "video": "50590_2",
+        "split": "train",
+        "user": "50590",
+        "class": "posture_fault"
+      },
+      {
+        "video": "50860_2",
+        "split": "test",
+        "user": "50860",
+        "class": "good_form"
+      }
+    ],
+    "0c5743ce2c2ff0c8190af8e7036e5b74aba65faa43d1f375a4b70a2c5a2ac730": [
+      {
+        "video": "50858_2",
+        "split": "train",
+        "user": "50858",
+        "class": "good_form"
+      },
+      {
+        "video": "49017_2",
+        "split": "train",
+        "user": "49017",
+        "class": "good_form"
+      }
+    ],
+    "65e45fcf85e4594fe624552145f4e67e8dd73419c06cd12058eb6bde966f231d": [
+      {
+        "video": "37039_1",
+        "split": "train",
+        "user": "37039",
+        "class": "good_form"
+      },
+      {
+        "video": "36113_1",
+        "split": "test",
+        "user": "36113",
+        "class": "depth_fault"
+      }
+    ],
+    "98e88fae32489df742eb57a18d5be322fb432ef844c9e521f7d4790c8765a9c6": [
+      {
+        "video": "37057_3",
+        "split": "train",
+        "user": "37057",
+        "class": "good_form"
+      },
+      {
+        "video": "36365_3",
+        "split": "train",
+        "user": "36365",
+        "class": "depth_fault"
+      }
+    ],
+    "908e1caf6e37aaba111e01e02b16f23ae9da6a4f13b31c28b06c2bf2f72ee285": [
+      {
+        "video": "37051_1",
+        "split": "train",
+        "user": "37051",
+        "class": "good_form"
+      },
+      {
+        "video": "36980_1",
+        "split": "validation",
+        "user": "36980",
+        "class": "posture_fault"
+      }
+    ],
+    "50df1aa9eb44b726b46beead778811e6702568d17224ea72c46a0ba855ace01a": [
+      {
+        "video": "48394_1",
+        "split": "train",
+        "user": "48394",
+        "class": "good_form"
+      },
+      {
+        "video": "50862_1",
+        "split": "test",
+        "user": "50862",
+        "class": "good_form"
+      }
+    ],
+    "a8c44f518fbc0df5e773e87276ac221242f583bb60bb1371814e3b33a6e00140": [
+      {
+        "video": "36910_1",
+        "split": "train",
+        "user": "36910",
+        "class": "depth_fault"
+      },
+      {
+        "video": "37043_1",
+        "split": "validation",
+        "user": "37043",
+        "class": "good_form"
+      }
+    ],
+    "4558adee5e3eb3fd0f6c2500b1a6076e4aaae87ed40fa7119abcb9a193024544": [
+      {
+        "video": "38090_4",
+        "split": "train",
+        "user": "38090",
+        "class": "good_form"
+      },
+      {
+        "video": "37904_4",
+        "split": "test",
+        "user": "37904",
+        "class": "depth_fault"
+      }
+    ],
+    "e7a40d52243be0d314f4529a64378255670a5af180613d5d4a5c72725bdd3bdc": [
+      {
+        "video": "33652_1",
+        "split": "train",
+        "user": "33652",
+        "class": "depth_fault"
+      },
+      {
+        "video": "33948_1",
+        "split": "train",
+        "user": "33948",
+        "class": "good_form"
+      }
+    ],
+    "76e9dabcf4761555dadb219b0b5f4b5414a6e513aedaf942c9544755b2f5a6ac": [
+      {
+        "video": "50851_1",
+        "split": "train",
+        "user": "50851",
+        "class": "good_form"
+      },
+      {
+        "video": "49353_1",
+        "split": "train",
+        "user": "49353",
+        "class": "posture_fault"
+      }
+    ],
+    "469d674e977a4efa0edd1f3be27d3a97f15c9139d8b2d06eaa2e3bf537eaaf91": [
+      {
+        "video": "38096_1",
+        "split": "train",
+        "user": "38096",
+        "class": "good_form"
+      },
+      {
+        "video": "37429_1",
+        "split": "train",
+        "user": "37429",
+        "class": "depth_fault"
+      }
+    ],
+    "2c5c7bcb08e22cdbfab9be9713067dbabf9d74e002b7200bb4e981fe57141752": [
+      {
+        "video": "38100_5",
+        "split": "train",
+        "user": "38100",
+        "class": "good_form"
+      },
+      {
+        "video": "37215_5",
+        "split": "train",
+        "user": "37215",
+        "class": "good_form"
+      }
+    ],
+    "f3318b40b7f177d1e5dc79607e5f3b3e7cf825395bf06773a35fda88fd48f4d1": [
+      {
+        "video": "46583_1",
+        "split": "train",
+        "user": "46583",
+        "class": "posture_fault"
+      },
+      {
+        "video": "50864_1",
+        "split": "test",
+        "user": "50864",
+        "class": "good_form"
+      }
+    ],
+    "71a67e60e2af4c8e9633eab17c55f99cf6b0e970086b8404797ddc700f2f8425": [
+      {
+        "video": "38102_2",
+        "split": "train",
+        "user": "38102",
+        "class": "good_form"
+      },
+      {
+        "video": "37980_2",
+        "split": "train",
+        "user": "37980",
+        "class": "depth_fault"
+      }
+    ],
+    "57356d1a0c135340afbe7b630f25d54667ea4c1dd72fd60ed934e7a383453a7e": [
+      {
+        "video": "36345_3",
+        "split": "train",
+        "user": "36345",
+        "class": "depth_fault"
+      },
+      {
+        "video": "37041_3",
+        "split": "validation",
+        "user": "37041",
+        "class": "good_form"
+      }
+    ],
+    "ca3d4889f65a028752add3b87c5fe058e23a4b4894b32d9225f62baf3244bd28": [
+      {
+        "video": "50828_3",
+        "split": "train",
+        "user": "50828",
+        "class": "good_form"
+      },
+      {
+        "video": "48389_3",
+        "split": "train",
+        "user": "48389",
+        "class": "good_form"
+      }
+    ],
+    "195d0ecbeed3eb11e500cb6817d6e0d6ea74b06c2ff59b089066d49e720fe806": [
+      {
+        "video": "38103_2",
+        "split": "train",
+        "user": "38103",
+        "class": "good_form"
+      },
+      {
+        "video": "37709_2",
+        "split": "train",
+        "user": "37709",
+        "class": "depth_fault"
+      }
+    ],
+    "d8d09d6740a5e0b809ffff99e6814da384d4602bfb810827f067fe14e6027914": [
+      {
+        "video": "37047_2",
+        "split": "train",
+        "user": "37047",
+        "class": "good_form"
+      },
+      {
+        "video": "36049_2",
+        "split": "test",
+        "user": "36049",
+        "class": "posture_fault"
+      }
+    ],
+    "82a65839a2b0db25b34991ee18c8297249e507c2dbd17b510e4ba8441134bbf7": [
+      {
+        "video": "50222_3",
+        "split": "train",
+        "user": "50222",
+        "class": "good_form"
+      },
+      {
+        "video": "50831_3",
+        "split": "validation",
+        "user": "50831",
+        "class": "good_form"
+      }
+    ],
+    "b500abedc3b43ed9142745eb53ede6229d69c9dd449cc891582c595361d6f191": [
+      {
+        "video": "47922_3",
+        "split": "train",
+        "user": "47922",
+        "class": "good_form"
+      },
+      {
+        "video": "50839_3",
+        "split": "validation",
+        "user": "50839",
+        "class": "good_form"
+      }
+    ],
+    "41a1494ea807809bc87ab1217ec6e8b7d8e79103cbf5ca2c0fc55998b1d09ba9": [
+      {
+        "video": "50842_1",
+        "split": "train",
+        "user": "50842",
+        "class": "good_form"
+      },
+      {
+        "video": "49338_1",
+        "split": "validation",
+        "user": "49338",
+        "class": "posture_fault"
+      }
+    ],
+    "aba7bae8a6d71953bf3527601d42b495f0ea001ef4fca70df538d971b4ba9640": [
+      {
+        "video": "50869_5",
+        "split": "train",
+        "user": "50869",
+        "class": "good_form"
+      },
+      {
+        "video": "49565_5",
+        "split": "test",
+        "user": "49565",
+        "class": "good_form"
+      }
+    ],
+    "f8c3e118d4f05e233c95110bd5472dc178f707774680deec402032c32d019f88": [
+      {
+        "video": "50830_1",
+        "split": "train",
+        "user": "50830",
+        "class": "good_form"
+      },
+      {
+        "video": "50813_1",
+        "split": "validation",
+        "user": "50813",
+        "class": "good_form"
+      }
+    ],
+    "6c383b6df474912fd31180eace97f0f33ac6cd3361129fc8415660999ddd3f2f": [
+      {
+        "video": "50279_1",
+        "split": "train",
+        "user": "50279",
+        "class": "good_form"
+      },
+      {
+        "video": "50844_1",
+        "split": "test",
+        "user": "50844",
+        "class": "good_form"
+      }
+    ],
+    "0225230a932c45cb1fe4549c9d10970eb203fc09528eb7d7037b726b8ca64771": [
+      {
+        "video": "37568_2",
+        "split": "train",
+        "user": "37568",
+        "class": "depth_fault"
+      },
+      {
+        "video": "38112_2",
+        "split": "train",
+        "user": "38112",
+        "class": "good_form"
+      }
+    ],
+    "103a7dfe17e992fc2256e98e0c11ec8ef30c8277be1c43fb3ec56828adfbf30f": [
+      {
+        "video": "50826_1",
+        "split": "train",
+        "user": "50826",
+        "class": "good_form"
+      },
+      {
+        "video": "46095_1",
+        "split": "validation",
+        "user": "46095",
+        "class": "good_form"
+      }
+    ],
+    "3340adcb1994d32f0d96ddadf7e6a05c9b86b24d1375cff1fa4cfd04b75de337": [
+      {
+        "video": "47814_1",
+        "split": "train",
+        "user": "47814",
+        "class": "posture_fault"
+      },
+      {
+        "video": "50825_1",
+        "split": "test",
+        "user": "50825",
+        "class": "good_form"
+      }
+    ],
+    "f2518c8ef13ce4d340e42aacebd760e6594e847745a092945b0cdf4decdf91e1": [
+      {
+        "video": "37292_4",
+        "split": "train",
+        "user": "37292",
+        "class": "depth_fault"
+      },
+      {
+        "video": "38108_4",
+        "split": "test",
+        "user": "38108",
+        "class": "good_form"
+      }
+    ],
+    "8dc28f957b475747b8ca6a9ab8acfd6559b0f76b0c546323f9a480cadfc18ed0": [
+      {
+        "video": "37262_2",
+        "split": "train",
+        "user": "37262",
+        "class": "depth_fault"
+      },
+      {
+        "video": "38099_2",
+        "split": "validation",
+        "user": "38099",
+        "class": "good_form"
+      },
+      {
+        "video": "37261_2",
+        "split": "test",
+        "user": "37261",
+        "class": "depth_fault"
+      }
+    ],
+    "9c75b1c9494e006095d2c28614c806a8c22cddd2f23092b46cf81f2b245489aa": [
+      {
+        "video": "46895_1",
+        "split": "train",
+        "user": "46895",
+        "class": "posture_fault"
+      },
+      {
+        "video": "50838_1",
+        "split": "test",
+        "user": "50838",
+        "class": "good_form"
+      }
+    ],
+    "1968a723067d049acf79c0de50e9eba54ed720aed7bb50a07dce86f5f452c292": [
+      {
+        "video": "33921_1",
+        "split": "train",
+        "user": "33921",
+        "class": "good_form"
+      },
+      {
+        "video": "33072_1",
+        "split": "test",
+        "user": "33072",
+        "class": "posture_fault"
+      }
+    ],
+    "e27677a137f0d43e1d8730b1d884db1a99523199cca93c1e0d811836facaa920": [
+      {
+        "video": "38092_1",
+        "split": "train",
+        "user": "38092",
+        "class": "good_form"
+      },
+      {
+        "video": "37998_1",
+        "split": "test",
+        "user": "37998",
+        "class": "depth_fault"
+      }
+    ],
+    "ababa08811928ec834797027e066331595483818c87b6737fcf98be855de8d13": [
+      {
+        "video": "33576_2",
+        "split": "train",
+        "user": "33576",
+        "class": "posture_fault"
+      },
+      {
+        "video": "33961_2",
+        "split": "validation",
+        "user": "33961",
+        "class": "good_form"
+      }
+    ],
+    "8eeeee6b77fdfdc79142dd35447dc41af0feca154d1f4ea4d5045f74ac64e126": [
+      {
+        "video": "36502_2",
+        "split": "validation",
+        "user": "36502",
+        "class": "depth_fault"
+      },
+      {
+        "video": "37042_2",
+        "split": "test",
+        "user": "37042",
+        "class": "good_form"
+      }
+    ],
+    "13e795d1842b3764826dc801b5d4e91a2d377ae32e20f9142cde803b211ed1da": [
+      {
+        "video": "50850_4",
+        "split": "validation",
+        "user": "50850",
+        "class": "good_form"
+      },
+      {
+        "video": "48970_4",
+        "split": "test",
+        "user": "48970",
+        "class": "good_form"
+      }
+    ],
+    "05669fcd1a3a93c6b75a1cc324c54bf7de9820c9e332bc9e1e87946400761887": [
+      {
+        "video": "37040_1",
+        "split": "validation",
+        "user": "37040",
+        "class": "good_form"
+      },
+      {
+        "video": "36552_1",
+        "split": "test",
+        "user": "36552",
+        "class": "depth_fault"
+      }
+    ],
+    "851cc809375cf42f06c26cf7d4f50af2bc36e990f303b51bff6fa1b30817df5b": [
+      {
+        "video": "50863_2",
+        "split": "validation",
+        "user": "50863",
+        "class": "good_form"
+      },
+      {
+        "video": "47587_2",
+        "split": "test",
+        "user": "47587",
+        "class": "posture_fault"
+      }
+    ],
+    "a790b65c6f8ba07c3d68acfb7933fab332c649323e0a3a1076104e2cb8e64155": [
+      {
+        "video": "50829_11",
+        "split": "test",
+        "user": "50829",
+        "class": "good_form"
+      },
+      {
+        "video": "49833_11",
+        "split": "test",
+        "user": "49833",
+        "class": "good_form"
+      }
+    ],
+    "436fa5f513b5977089ba809869ca4c77ab28b2e03ac7b93461c5537472358e5e": [
+      {
+        "video": "50833_2",
+        "split": "test",
+        "user": "50833",
+        "class": "good_form"
+      },
+      {
+        "video": "47080_2",
+        "split": "test",
+        "user": "47080",
+        "class": "posture_fault"
+      }
+    ],
+    "64f5a987a960c1073508dada9276e16e854e20a1acae8d5f2683135d223f9961": [
+      {
+        "video": "50865_2",
+        "split": "test",
+        "user": "50865",
+        "class": "good_form"
+      },
+      {
+        "video": "49943_2",
+        "split": "test",
+        "user": "49943",
+        "class": "posture_fault"
+      }
+    ],
+    "751564f5036730f583cb04e19924523050ef0740c33e9e0269f472f24c1ebc8d": [
+      {
+        "video": "46820_1",
+        "split": "test",
+        "user": "46820",
+        "class": "good_form"
+      },
+      {
+        "video": "50856_1",
+        "split": "test",
+        "user": "50856",
+        "class": "good_form"
+      }
+    ],
+    "8b14187b9f16eea282bdd05da94bd955be92680e9cf6a6c426a157a7dccec4c2": [
+      {
+        "video": "36221_1",
+        "split": "test",
+        "user": "36221",
+        "class": "good_form"
+      },
+      {
+        "video": "37050_1",
+        "split": "test",
+        "user": "37050",
+        "class": "good_form"
+      }
+    ]
+  }
+}

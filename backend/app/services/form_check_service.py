@@ -36,6 +36,7 @@ from app.services.base_service import BaseService
 from app.services.storage_service import StorageService
 from app.services.ai_service import AIService
 from app.core.config import Settings
+from app.core.hashing import HASH_CHUNK_BYTES
 from app.core.exceptions import (
     ValidationError,
     NotFoundException,
@@ -124,7 +125,10 @@ class FormCheckService(BaseService[FormCheck, FormCheckCreate, FormCheckUpdate])
     # same video) and deliberately scoped to one user (one person's upload must
     # never be observable through another's submission).
 
-    _HASH_CHUNK = 1024 * 1024  # 1 MiB
+    # Shared with app/core/hashing.py, which the label importer uses. If the
+    # two ever diverged, labels would silently join to nothing -- and that looks
+    # exactly like "no labels imported yet".
+    _HASH_CHUNK = HASH_CHUNK_BYTES
 
     async def _hash_upload(self, video_file: UploadFile) -> str:
         """sha256 the upload, then rewind so the uploader sees a full stream.
