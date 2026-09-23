@@ -1,0 +1,2102 @@
+[
+  {
+    "video": "32971_2",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "32971",
+    "label_conflict": false
+  },
+  {
+    "video": "32977_1",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "32977",
+    "label_conflict": false
+  },
+  {
+    "video": "32990_6",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "32990",
+    "label_conflict": false
+  },
+  {
+    "video": "33024_2",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "33024",
+    "label_conflict": false
+  },
+  {
+    "video": "33051_1",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "33051",
+    "label_conflict": false
+  },
+  {
+    "video": "33096_3",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "33096",
+    "label_conflict": false
+  },
+  {
+    "video": "33104_4",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "33104",
+    "label_conflict": false
+  },
+  {
+    "video": "33124_2",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "33124",
+    "label_conflict": false
+  },
+  {
+    "video": "33235_2",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "33235",
+    "label_conflict": false
+  },
+  {
+    "video": "33236_3",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "33236",
+    "label_conflict": false
+  },
+  {
+    "video": "33245_2",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "33245",
+    "label_conflict": false
+  },
+  {
+    "video": "33253_2",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "33253",
+    "label_conflict": false
+  },
+  {
+    "video": "33273_1",
+    "class": "depth_fault",
+    "split": "validation",
+    "user_id": "33273",
+    "label_conflict": false
+  },
+  {
+    "video": "33277_10",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "33277",
+    "label_conflict": false
+  },
+  {
+    "video": "33284_1",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "33284",
+    "label_conflict": false
+  },
+  {
+    "video": "33289_4",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "33289",
+    "label_conflict": false
+  },
+  {
+    "video": "33330_3",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "33330",
+    "label_conflict": false
+  },
+  {
+    "video": "33348_2",
+    "class": "depth_fault",
+    "split": "test",
+    "user_id": "33348",
+    "label_conflict": false
+  },
+  {
+    "video": "33364_2",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "33364",
+    "label_conflict": false
+  },
+  {
+    "video": "33374_2",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "33374",
+    "label_conflict": false
+  },
+  {
+    "video": "33466_5",
+    "class": "depth_fault",
+    "split": "validation",
+    "user_id": "33466",
+    "label_conflict": false
+  },
+  {
+    "video": "33513_1",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "33513",
+    "label_conflict": false
+  },
+  {
+    "video": "33547_1",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "33547",
+    "label_conflict": false
+  },
+  {
+    "video": "33554_3",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "33554",
+    "label_conflict": false
+  },
+  {
+    "video": "33555_5",
+    "class": "depth_fault",
+    "split": "test",
+    "user_id": "33555",
+    "label_conflict": false
+  },
+  {
+    "video": "33576_2",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "33576",
+    "label_conflict": true
+  },
+  {
+    "video": "33601_2",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "33601",
+    "label_conflict": false
+  },
+  {
+    "video": "33620_4",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "33620",
+    "label_conflict": false
+  },
+  {
+    "video": "33641_3",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "33641",
+    "label_conflict": false
+  },
+  {
+    "video": "33659_3",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "33659",
+    "label_conflict": false
+  },
+  {
+    "video": "33667_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "33667",
+    "label_conflict": false
+  },
+  {
+    "video": "33725_2",
+    "class": "depth_fault",
+    "split": "test",
+    "user_id": "33725",
+    "label_conflict": false
+  },
+  {
+    "video": "33752_3",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "33752",
+    "label_conflict": false
+  },
+  {
+    "video": "33786_6",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "33786",
+    "label_conflict": false
+  },
+  {
+    "video": "33805_1",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "33805",
+    "label_conflict": false
+  },
+  {
+    "video": "33809_1",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "33809",
+    "label_conflict": false
+  },
+  {
+    "video": "33816_1",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "33816",
+    "label_conflict": false
+  },
+  {
+    "video": "33860_3",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "33860",
+    "label_conflict": false
+  },
+  {
+    "video": "33891_1",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "33891",
+    "label_conflict": false
+  },
+  {
+    "video": "36025_1",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "36025",
+    "label_conflict": false
+  },
+  {
+    "video": "36041_6",
+    "class": "depth_fault",
+    "split": "validation",
+    "user_id": "36041",
+    "label_conflict": false
+  },
+  {
+    "video": "36046_4",
+    "class": "depth_fault",
+    "split": "test",
+    "user_id": "36046",
+    "label_conflict": false
+  },
+  {
+    "video": "36083_1",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "36083",
+    "label_conflict": false
+  },
+  {
+    "video": "36110_8",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "36110",
+    "label_conflict": false
+  },
+  {
+    "video": "36212_3",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "36212",
+    "label_conflict": true
+  },
+  {
+    "video": "36233_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "36233",
+    "label_conflict": false
+  },
+  {
+    "video": "36238_5",
+    "class": "depth_fault",
+    "split": "test",
+    "user_id": "36238",
+    "label_conflict": false
+  },
+  {
+    "video": "36275_2",
+    "class": "depth_fault",
+    "split": "test",
+    "user_id": "36275",
+    "label_conflict": false
+  },
+  {
+    "video": "36276_4",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "36276",
+    "label_conflict": false
+  },
+  {
+    "video": "36308_2",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "36308",
+    "label_conflict": false
+  },
+  {
+    "video": "36309_3",
+    "class": "depth_fault",
+    "split": "test",
+    "user_id": "36309",
+    "label_conflict": false
+  },
+  {
+    "video": "36329_2",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "36329",
+    "label_conflict": false
+  },
+  {
+    "video": "36360_2",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "36360",
+    "label_conflict": false
+  },
+  {
+    "video": "36373_1",
+    "class": "depth_fault",
+    "split": "validation",
+    "user_id": "36373",
+    "label_conflict": false
+  },
+  {
+    "video": "36375_1",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "36375",
+    "label_conflict": false
+  },
+  {
+    "video": "36431_1",
+    "class": "depth_fault",
+    "split": "validation",
+    "user_id": "36431",
+    "label_conflict": false
+  },
+  {
+    "video": "36434_2",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "36434",
+    "label_conflict": false
+  },
+  {
+    "video": "36504_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "36504",
+    "label_conflict": true
+  },
+  {
+    "video": "36506_1",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "36506",
+    "label_conflict": false
+  },
+  {
+    "video": "36533_5",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "36533",
+    "label_conflict": false
+  },
+  {
+    "video": "36563_2",
+    "class": "good_form",
+    "split": "test",
+    "user_id": "36563",
+    "label_conflict": false
+  },
+  {
+    "video": "36585_1",
+    "class": "depth_fault",
+    "split": "test",
+    "user_id": "36585",
+    "label_conflict": false
+  },
+  {
+    "video": "36598_10",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "36598",
+    "label_conflict": false
+  },
+  {
+    "video": "36613_2",
+    "class": "depth_fault",
+    "split": "validation",
+    "user_id": "36613",
+    "label_conflict": false
+  },
+  {
+    "video": "36663_1",
+    "class": "depth_fault",
+    "split": "validation",
+    "user_id": "36663",
+    "label_conflict": false
+  },
+  {
+    "video": "36746_1",
+    "class": "depth_fault",
+    "split": "test",
+    "user_id": "36746",
+    "label_conflict": false
+  },
+  {
+    "video": "36748_2",
+    "class": "depth_fault",
+    "split": "test",
+    "user_id": "36748",
+    "label_conflict": false
+  },
+  {
+    "video": "36784_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "36784",
+    "label_conflict": false
+  },
+  {
+    "video": "36788_2",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "36788",
+    "label_conflict": false
+  },
+  {
+    "video": "36819_6",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "36819",
+    "label_conflict": false
+  },
+  {
+    "video": "36858_1",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "36858",
+    "label_conflict": false
+  },
+  {
+    "video": "36885_2",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "36885",
+    "label_conflict": false
+  },
+  {
+    "video": "36907_1",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "36907",
+    "label_conflict": false
+  },
+  {
+    "video": "36910_1",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "36910",
+    "label_conflict": true
+  },
+  {
+    "video": "36943_3",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "36943",
+    "label_conflict": false
+  },
+  {
+    "video": "36953_1",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "36953",
+    "label_conflict": false
+  },
+  {
+    "video": "36975_1",
+    "class": "posture_fault",
+    "split": "test",
+    "user_id": "36975",
+    "label_conflict": false
+  },
+  {
+    "video": "36978_4",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "36978",
+    "label_conflict": true
+  },
+  {
+    "video": "36979_1",
+    "class": "posture_fault",
+    "split": "validation",
+    "user_id": "36979",
+    "label_conflict": false
+  },
+  {
+    "video": "36997_1",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "36997",
+    "label_conflict": false
+  },
+  {
+    "video": "37000_1",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "37000",
+    "label_conflict": true
+  },
+  {
+    "video": "37037_1",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "37037",
+    "label_conflict": true
+  },
+  {
+    "video": "37044_4",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "37044",
+    "label_conflict": true
+  },
+  {
+    "video": "37047_2",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "37047",
+    "label_conflict": true
+  },
+  {
+    "video": "37057_3",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "37057",
+    "label_conflict": true
+  },
+  {
+    "video": "37072_3",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "37072",
+    "label_conflict": false
+  },
+  {
+    "video": "37092_1",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "37092",
+    "label_conflict": false
+  },
+  {
+    "video": "37099_7",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "37099",
+    "label_conflict": false
+  },
+  {
+    "video": "37114_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "37114",
+    "label_conflict": false
+  },
+  {
+    "video": "37120_3",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "37120",
+    "label_conflict": false
+  },
+  {
+    "video": "37151_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "37151",
+    "label_conflict": true
+  },
+  {
+    "video": "37193_1",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "37193",
+    "label_conflict": false
+  },
+  {
+    "video": "37197_5",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "37197",
+    "label_conflict": true
+  },
+  {
+    "video": "37214_1",
+    "class": "depth_fault",
+    "split": "test",
+    "user_id": "37214",
+    "label_conflict": false
+  },
+  {
+    "video": "37223_1",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "37223",
+    "label_conflict": false
+  },
+  {
+    "video": "37238_1",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "37238",
+    "label_conflict": false
+  },
+  {
+    "video": "37251_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "37251",
+    "label_conflict": false
+  },
+  {
+    "video": "37265_1",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "37265",
+    "label_conflict": false
+  },
+  {
+    "video": "37292_4",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "37292",
+    "label_conflict": true
+  },
+  {
+    "video": "37300_6",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "37300",
+    "label_conflict": false
+  },
+  {
+    "video": "37367_2",
+    "class": "depth_fault",
+    "split": "validation",
+    "user_id": "37367",
+    "label_conflict": false
+  },
+  {
+    "video": "37389_1",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "37389",
+    "label_conflict": false
+  },
+  {
+    "video": "37421_2",
+    "class": "depth_fault",
+    "split": "validation",
+    "user_id": "37421",
+    "label_conflict": false
+  },
+  {
+    "video": "37457_2",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "37457",
+    "label_conflict": true
+  },
+  {
+    "video": "37483_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "37483",
+    "label_conflict": false
+  },
+  {
+    "video": "37500_6",
+    "class": "depth_fault",
+    "split": "validation",
+    "user_id": "37500",
+    "label_conflict": false
+  },
+  {
+    "video": "37526_1",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "37526",
+    "label_conflict": false
+  },
+  {
+    "video": "37535_2",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "37535",
+    "label_conflict": false
+  },
+  {
+    "video": "37555_3",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "37555",
+    "label_conflict": false
+  },
+  {
+    "video": "37556_3",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "37556",
+    "label_conflict": false
+  },
+  {
+    "video": "37568_2",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "37568",
+    "label_conflict": true
+  },
+  {
+    "video": "37605_7",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "37605",
+    "label_conflict": false
+  },
+  {
+    "video": "37618_2",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "37618",
+    "label_conflict": false
+  },
+  {
+    "video": "37630_4",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "37630",
+    "label_conflict": false
+  },
+  {
+    "video": "37670_1",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "37670",
+    "label_conflict": false
+  },
+  {
+    "video": "37676_1",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "37676",
+    "label_conflict": false
+  },
+  {
+    "video": "37720_2",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "37720",
+    "label_conflict": false
+  },
+  {
+    "video": "37723_2",
+    "class": "posture_fault",
+    "split": "test",
+    "user_id": "37723",
+    "label_conflict": false
+  },
+  {
+    "video": "37756_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "37756",
+    "label_conflict": false
+  },
+  {
+    "video": "37760_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "37760",
+    "label_conflict": false
+  },
+  {
+    "video": "37774_1",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "37774",
+    "label_conflict": false
+  },
+  {
+    "video": "37788_4",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "37788",
+    "label_conflict": false
+  },
+  {
+    "video": "37820_1",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "37820",
+    "label_conflict": false
+  },
+  {
+    "video": "37839_1",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "37839",
+    "label_conflict": false
+  },
+  {
+    "video": "37844_1",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "37844",
+    "label_conflict": false
+  },
+  {
+    "video": "37908_2",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "37908",
+    "label_conflict": false
+  },
+  {
+    "video": "37941_3",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "37941",
+    "label_conflict": false
+  },
+  {
+    "video": "37973_1",
+    "class": "depth_fault",
+    "split": "test",
+    "user_id": "37973",
+    "label_conflict": false
+  },
+  {
+    "video": "37987_4",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "37987",
+    "label_conflict": false
+  },
+  {
+    "video": "38000_1",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "38000",
+    "label_conflict": false
+  },
+  {
+    "video": "38029_1",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "38029",
+    "label_conflict": false
+  },
+  {
+    "video": "38102_2",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "38102",
+    "label_conflict": true
+  },
+  {
+    "video": "38103_2",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "38103",
+    "label_conflict": true
+  },
+  {
+    "video": "38104_1",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "38104",
+    "label_conflict": true
+  },
+  {
+    "video": "45919_1",
+    "class": "posture_fault",
+    "split": "validation",
+    "user_id": "45919",
+    "label_conflict": false
+  },
+  {
+    "video": "45968_3",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "45968",
+    "label_conflict": false
+  },
+  {
+    "video": "46007_3",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "46007",
+    "label_conflict": false
+  },
+  {
+    "video": "46026_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "46026",
+    "label_conflict": false
+  },
+  {
+    "video": "46036_1",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "46036",
+    "label_conflict": false
+  },
+  {
+    "video": "46076_3",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "46076",
+    "label_conflict": false
+  },
+  {
+    "video": "46081_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "46081",
+    "label_conflict": false
+  },
+  {
+    "video": "46085_2",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "46085",
+    "label_conflict": false
+  },
+  {
+    "video": "46100_3",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "46100",
+    "label_conflict": false
+  },
+  {
+    "video": "46125_10",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "46125",
+    "label_conflict": false
+  },
+  {
+    "video": "46159_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "46159",
+    "label_conflict": false
+  },
+  {
+    "video": "46183_3",
+    "class": "good_form",
+    "split": "test",
+    "user_id": "46183",
+    "label_conflict": false
+  },
+  {
+    "video": "46205_1",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "46205",
+    "label_conflict": false
+  },
+  {
+    "video": "46213_1",
+    "class": "good_form",
+    "split": "test",
+    "user_id": "46213",
+    "label_conflict": false
+  },
+  {
+    "video": "46264_2",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "46264",
+    "label_conflict": false
+  },
+  {
+    "video": "46307_6",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "46307",
+    "label_conflict": false
+  },
+  {
+    "video": "46316_6",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "46316",
+    "label_conflict": false
+  },
+  {
+    "video": "46332_3",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "46332",
+    "label_conflict": false
+  },
+  {
+    "video": "46372_1",
+    "class": "good_form",
+    "split": "validation",
+    "user_id": "46372",
+    "label_conflict": false
+  },
+  {
+    "video": "46412_5",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "46412",
+    "label_conflict": false
+  },
+  {
+    "video": "46449_3",
+    "class": "good_form",
+    "split": "validation",
+    "user_id": "46449",
+    "label_conflict": false
+  },
+  {
+    "video": "46462_4",
+    "class": "posture_fault",
+    "split": "validation",
+    "user_id": "46462",
+    "label_conflict": false
+  },
+  {
+    "video": "46465_3",
+    "class": "posture_fault",
+    "split": "test",
+    "user_id": "46465",
+    "label_conflict": false
+  },
+  {
+    "video": "46470_8",
+    "class": "good_form",
+    "split": "validation",
+    "user_id": "46470",
+    "label_conflict": false
+  },
+  {
+    "video": "46570_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "46570",
+    "label_conflict": false
+  },
+  {
+    "video": "46627_3",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "46627",
+    "label_conflict": false
+  },
+  {
+    "video": "46684_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "46684",
+    "label_conflict": false
+  },
+  {
+    "video": "46701_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "46701",
+    "label_conflict": false
+  },
+  {
+    "video": "46725_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "46725",
+    "label_conflict": false
+  },
+  {
+    "video": "46726_4",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "46726",
+    "label_conflict": false
+  },
+  {
+    "video": "46762_2",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "46762",
+    "label_conflict": false
+  },
+  {
+    "video": "46773_3",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "46773",
+    "label_conflict": false
+  },
+  {
+    "video": "46787_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "46787",
+    "label_conflict": false
+  },
+  {
+    "video": "46839_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "46839",
+    "label_conflict": false
+  },
+  {
+    "video": "46856_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "46856",
+    "label_conflict": false
+  },
+  {
+    "video": "46881_1",
+    "class": "good_form",
+    "split": "test",
+    "user_id": "46881",
+    "label_conflict": false
+  },
+  {
+    "video": "46896_3",
+    "class": "good_form",
+    "split": "test",
+    "user_id": "46896",
+    "label_conflict": false
+  },
+  {
+    "video": "46923_2",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "46923",
+    "label_conflict": false
+  },
+  {
+    "video": "46939_1",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "46939",
+    "label_conflict": false
+  },
+  {
+    "video": "47004_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "47004",
+    "label_conflict": false
+  },
+  {
+    "video": "47021_2",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "47021",
+    "label_conflict": false
+  },
+  {
+    "video": "47124_2",
+    "class": "good_form",
+    "split": "validation",
+    "user_id": "47124",
+    "label_conflict": false
+  },
+  {
+    "video": "47193_2",
+    "class": "good_form",
+    "split": "validation",
+    "user_id": "47193",
+    "label_conflict": false
+  },
+  {
+    "video": "47234_2",
+    "class": "posture_fault",
+    "split": "validation",
+    "user_id": "47234",
+    "label_conflict": false
+  },
+  {
+    "video": "47248_1",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "47248",
+    "label_conflict": false
+  },
+  {
+    "video": "47326_5",
+    "class": "good_form",
+    "split": "validation",
+    "user_id": "47326",
+    "label_conflict": false
+  },
+  {
+    "video": "47352_1",
+    "class": "posture_fault",
+    "split": "validation",
+    "user_id": "47352",
+    "label_conflict": false
+  },
+  {
+    "video": "47396_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "47396",
+    "label_conflict": false
+  },
+  {
+    "video": "47415_3",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "47415",
+    "label_conflict": false
+  },
+  {
+    "video": "47419_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "47419",
+    "label_conflict": false
+  },
+  {
+    "video": "47453_1",
+    "class": "good_form",
+    "split": "validation",
+    "user_id": "47453",
+    "label_conflict": false
+  },
+  {
+    "video": "47476_4",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "47476",
+    "label_conflict": false
+  },
+  {
+    "video": "47535_3",
+    "class": "good_form",
+    "split": "test",
+    "user_id": "47535",
+    "label_conflict": false
+  },
+  {
+    "video": "47565_1",
+    "class": "good_form",
+    "split": "test",
+    "user_id": "47565",
+    "label_conflict": false
+  },
+  {
+    "video": "47578_1",
+    "class": "good_form",
+    "split": "validation",
+    "user_id": "47578",
+    "label_conflict": false
+  },
+  {
+    "video": "47594_1",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "47594",
+    "label_conflict": false
+  },
+  {
+    "video": "47619_1",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "47619",
+    "label_conflict": false
+  },
+  {
+    "video": "47631_4",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "47631",
+    "label_conflict": false
+  },
+  {
+    "video": "47681_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "47681",
+    "label_conflict": false
+  },
+  {
+    "video": "47750_4",
+    "class": "good_form",
+    "split": "test",
+    "user_id": "47750",
+    "label_conflict": false
+  },
+  {
+    "video": "47827_2",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "47827",
+    "label_conflict": false
+  },
+  {
+    "video": "47871_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "47871",
+    "label_conflict": false
+  },
+  {
+    "video": "47877_2",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "47877",
+    "label_conflict": false
+  },
+  {
+    "video": "47909_3",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "47909",
+    "label_conflict": false
+  },
+  {
+    "video": "47935_1",
+    "class": "good_form",
+    "split": "validation",
+    "user_id": "47935",
+    "label_conflict": false
+  },
+  {
+    "video": "47960_1",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "47960",
+    "label_conflict": false
+  },
+  {
+    "video": "47977_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "47977",
+    "label_conflict": false
+  },
+  {
+    "video": "48054_13",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "48054",
+    "label_conflict": false
+  },
+  {
+    "video": "48101_8",
+    "class": "good_form",
+    "split": "test",
+    "user_id": "48101",
+    "label_conflict": false
+  },
+  {
+    "video": "48106_2",
+    "class": "posture_fault",
+    "split": "validation",
+    "user_id": "48106",
+    "label_conflict": false
+  },
+  {
+    "video": "48143_1",
+    "class": "good_form",
+    "split": "test",
+    "user_id": "48143",
+    "label_conflict": false
+  },
+  {
+    "video": "48176_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "48176",
+    "label_conflict": false
+  },
+  {
+    "video": "48179_2",
+    "class": "posture_fault",
+    "split": "test",
+    "user_id": "48179",
+    "label_conflict": false
+  },
+  {
+    "video": "48248_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "48248",
+    "label_conflict": false
+  },
+  {
+    "video": "48301_1",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "48301",
+    "label_conflict": false
+  },
+  {
+    "video": "48302_2",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "48302",
+    "label_conflict": false
+  },
+  {
+    "video": "48347_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "48347",
+    "label_conflict": false
+  },
+  {
+    "video": "48367_1",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "48367",
+    "label_conflict": false
+  },
+  {
+    "video": "48371_2",
+    "class": "good_form",
+    "split": "validation",
+    "user_id": "48371",
+    "label_conflict": false
+  },
+  {
+    "video": "48372_1",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "48372",
+    "label_conflict": false
+  },
+  {
+    "video": "48379_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "48379",
+    "label_conflict": false
+  },
+  {
+    "video": "48382_4",
+    "class": "good_form",
+    "split": "validation",
+    "user_id": "48382",
+    "label_conflict": false
+  },
+  {
+    "video": "48410_4",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "48410",
+    "label_conflict": false
+  },
+  {
+    "video": "48484_7",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "48484",
+    "label_conflict": false
+  },
+  {
+    "video": "48504_1",
+    "class": "posture_fault",
+    "split": "test",
+    "user_id": "48504",
+    "label_conflict": false
+  },
+  {
+    "video": "48514_2",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "48514",
+    "label_conflict": false
+  },
+  {
+    "video": "48524_7",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "48524",
+    "label_conflict": false
+  },
+  {
+    "video": "48537_1",
+    "class": "posture_fault",
+    "split": "validation",
+    "user_id": "48537",
+    "label_conflict": false
+  },
+  {
+    "video": "48548_2",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "48548",
+    "label_conflict": false
+  },
+  {
+    "video": "48549_6",
+    "class": "good_form",
+    "split": "test",
+    "user_id": "48549",
+    "label_conflict": false
+  },
+  {
+    "video": "48658_1",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "48658",
+    "label_conflict": false
+  },
+  {
+    "video": "48659_2",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "48659",
+    "label_conflict": false
+  },
+  {
+    "video": "48683_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "48683",
+    "label_conflict": false
+  },
+  {
+    "video": "48713_1",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "48713",
+    "label_conflict": false
+  },
+  {
+    "video": "48718_4",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "48718",
+    "label_conflict": false
+  },
+  {
+    "video": "48762_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "48762",
+    "label_conflict": false
+  },
+  {
+    "video": "48816_4",
+    "class": "posture_fault",
+    "split": "test",
+    "user_id": "48816",
+    "label_conflict": false
+  },
+  {
+    "video": "48835_5",
+    "class": "good_form",
+    "split": "validation",
+    "user_id": "48835",
+    "label_conflict": false
+  },
+  {
+    "video": "48859_3",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "48859",
+    "label_conflict": false
+  },
+  {
+    "video": "48952_2",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "48952",
+    "label_conflict": false
+  },
+  {
+    "video": "48992_1",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "48992",
+    "label_conflict": false
+  },
+  {
+    "video": "48993_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "48993",
+    "label_conflict": false
+  },
+  {
+    "video": "49055_4",
+    "class": "good_form",
+    "split": "validation",
+    "user_id": "49055",
+    "label_conflict": false
+  },
+  {
+    "video": "49066_5",
+    "class": "good_form",
+    "split": "validation",
+    "user_id": "49066",
+    "label_conflict": false
+  },
+  {
+    "video": "49123_5",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49123",
+    "label_conflict": false
+  },
+  {
+    "video": "49127_2",
+    "class": "good_form",
+    "split": "validation",
+    "user_id": "49127",
+    "label_conflict": false
+  },
+  {
+    "video": "49140_4",
+    "class": "posture_fault",
+    "split": "validation",
+    "user_id": "49140",
+    "label_conflict": false
+  },
+  {
+    "video": "49143_1",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "49143",
+    "label_conflict": false
+  },
+  {
+    "video": "49160_1",
+    "class": "posture_fault",
+    "split": "validation",
+    "user_id": "49160",
+    "label_conflict": false
+  },
+  {
+    "video": "49175_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49175",
+    "label_conflict": false
+  },
+  {
+    "video": "49176_5",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "49176",
+    "label_conflict": false
+  },
+  {
+    "video": "49203_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49203",
+    "label_conflict": false
+  },
+  {
+    "video": "49286_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49286",
+    "label_conflict": false
+  },
+  {
+    "video": "49294_3",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49294",
+    "label_conflict": false
+  },
+  {
+    "video": "49295_2",
+    "class": "good_form",
+    "split": "test",
+    "user_id": "49295",
+    "label_conflict": false
+  },
+  {
+    "video": "49318_4",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "49318",
+    "label_conflict": false
+  },
+  {
+    "video": "49363_1",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "49363",
+    "label_conflict": false
+  },
+  {
+    "video": "49431_1",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "49431",
+    "label_conflict": false
+  },
+  {
+    "video": "49435_4",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49435",
+    "label_conflict": false
+  },
+  {
+    "video": "49474_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49474",
+    "label_conflict": false
+  },
+  {
+    "video": "49490_5",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49490",
+    "label_conflict": false
+  },
+  {
+    "video": "49536_6",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "49536",
+    "label_conflict": false
+  },
+  {
+    "video": "49539_2",
+    "class": "posture_fault",
+    "split": "test",
+    "user_id": "49539",
+    "label_conflict": false
+  },
+  {
+    "video": "49543_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49543",
+    "label_conflict": false
+  },
+  {
+    "video": "49577_3",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "49577",
+    "label_conflict": false
+  },
+  {
+    "video": "49716_1",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "49716",
+    "label_conflict": false
+  },
+  {
+    "video": "49746_5",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49746",
+    "label_conflict": false
+  },
+  {
+    "video": "49859_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49859",
+    "label_conflict": false
+  },
+  {
+    "video": "49881_2",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "49881",
+    "label_conflict": false
+  },
+  {
+    "video": "49892_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49892",
+    "label_conflict": false
+  },
+  {
+    "video": "49897_1",
+    "class": "posture_fault",
+    "split": "validation",
+    "user_id": "49897",
+    "label_conflict": false
+  },
+  {
+    "video": "49918_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49918",
+    "label_conflict": false
+  },
+  {
+    "video": "49951_5",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49951",
+    "label_conflict": false
+  },
+  {
+    "video": "49956_1",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "49956",
+    "label_conflict": false
+  },
+  {
+    "video": "50027_5",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "50027",
+    "label_conflict": false
+  },
+  {
+    "video": "50033_2",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "50033",
+    "label_conflict": false
+  },
+  {
+    "video": "50051_4",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "50051",
+    "label_conflict": false
+  },
+  {
+    "video": "50063_2",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "50063",
+    "label_conflict": false
+  },
+  {
+    "video": "50071_2",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "50071",
+    "label_conflict": false
+  },
+  {
+    "video": "50122_2",
+    "class": "posture_fault",
+    "split": "test",
+    "user_id": "50122",
+    "label_conflict": false
+  },
+  {
+    "video": "50174_1",
+    "class": "posture_fault",
+    "split": "test",
+    "user_id": "50174",
+    "label_conflict": false
+  },
+  {
+    "video": "50222_3",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "50222",
+    "label_conflict": false
+  },
+  {
+    "video": "50262_4",
+    "class": "posture_fault",
+    "split": "validation",
+    "user_id": "50262",
+    "label_conflict": false
+  },
+  {
+    "video": "50264_2",
+    "class": "posture_fault",
+    "split": "test",
+    "user_id": "50264",
+    "label_conflict": false
+  },
+  {
+    "video": "50280_3",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "50280",
+    "label_conflict": false
+  },
+  {
+    "video": "50326_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "50326",
+    "label_conflict": false
+  },
+  {
+    "video": "50331_4",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "50331",
+    "label_conflict": false
+  },
+  {
+    "video": "50367_4",
+    "class": "good_form",
+    "split": "validation",
+    "user_id": "50367",
+    "label_conflict": false
+  },
+  {
+    "video": "50436_1",
+    "class": "posture_fault",
+    "split": "test",
+    "user_id": "50436",
+    "label_conflict": false
+  },
+  {
+    "video": "50481_9",
+    "class": "good_form",
+    "split": "validation",
+    "user_id": "50481",
+    "label_conflict": false
+  },
+  {
+    "video": "50522_4",
+    "class": "good_form",
+    "split": "test",
+    "user_id": "50522",
+    "label_conflict": false
+  },
+  {
+    "video": "50544_3",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "50544",
+    "label_conflict": false
+  },
+  {
+    "video": "50559_2",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "50559",
+    "label_conflict": false
+  },
+  {
+    "video": "50579_2",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "50579",
+    "label_conflict": false
+  },
+  {
+    "video": "50581_2",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "50581",
+    "label_conflict": false
+  },
+  {
+    "video": "50583_5",
+    "class": "posture_fault",
+    "split": "validation",
+    "user_id": "50583",
+    "label_conflict": false
+  },
+  {
+    "video": "50599_3",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "50599",
+    "label_conflict": false
+  },
+  {
+    "video": "50622_1",
+    "class": "good_form",
+    "split": "validation",
+    "user_id": "50622",
+    "label_conflict": false
+  },
+  {
+    "video": "50655_5",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "50655",
+    "label_conflict": false
+  },
+  {
+    "video": "50745_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "50745",
+    "label_conflict": false
+  },
+  {
+    "video": "50823_1",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "50823",
+    "label_conflict": false
+  },
+  {
+    "video": "50828_3",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "50828",
+    "label_conflict": false
+  },
+  {
+    "video": "50832_1",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "50832",
+    "label_conflict": true
+  },
+  {
+    "video": "50834_1",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "50834",
+    "label_conflict": true
+  },
+  {
+    "video": "50854_1",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "50854",
+    "label_conflict": true
+  },
+  {
+    "video": "50863_2",
+    "class": "good_form",
+    "split": "validation",
+    "user_id": "50863",
+    "label_conflict": true
+  }
+]
