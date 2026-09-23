@@ -86,6 +86,46 @@ where essentially everyone's femur goes well past horizontal.** `P_target = 0.85
 is not reachable through parallel here, because by the parallel standard nearly every clip is at
 depth — including the ones a human called a depth fault.
 
+## 3b. There is no depth contrast in the corpus -- on any axis
+
+Run on train + validation, 457 clips with a usable bottom (`bench/corpus_axes.py`).
+**Test was not opened**: the knee-valgus work uses the same split structure, so looking at test
+for a depth question would contaminate the next target too.
+
+**Knee flexion at the bottom, by class:**
+
+| class | n | p10 | p25 | median | p75 | p90 |
+|---|---|---|---|---|---|---|
+| good_form | 145 | 7.8 | 29.7 | **47.1** | 65.4 | 82.4 |
+| depth_fault | 149 | 7.6 | 33.9 | **43.4** | 54.2 | 69.1 |
+| posture_fault | 159 | 6.8 | 30.1 | **44.9** | 60.6 | 76.4 |
+
+The distributions overlap almost completely -- medians within 4°, p10s within 1°. And **the 90th
+percentile of every class is still below parallel** (69–82° against ~90–100°). There is no
+subpopulation of shallow squats in this corpus to find.
+
+**Separability, good_form vs depth_fault, AUROC per axis** (0.5 = indistinguishable):
+
+| axis | AUROC | \|dev\| | good_form | depth_fault |
+|---|---|---|---|---|
+| knee_ankle_x_max | 0.578 | 0.078 | 0.332 | 0.380 |
+| hip_drop_ratio | 0.573 | 0.073 | 0.940 | 1.000 |
+| knee_flexion_median | 0.431 | 0.069 | 55.02 | 51.63 |
+| trunk_lean_max_deg | 0.450 | 0.050 | 29.27 | 25.93 |
+| knee_flexion_min | 0.458 | 0.042 | 47.13 | 43.44 |
+| hip_knee_delta_max | 0.531 | 0.031 | 0.159 | 0.161 |
+| hip_flexion_min | 0.510 | 0.010 | 44.34 | 47.00 |
+| clip_frames | 0.511 | 0.011 | 95 | 95 |
+
+**Nothing reaches \|dev\| ≥ 0.10.** Not depth, not lean, not tempo, not clip length, not scale.
+The strongest signal in the corpus is knee-ankle x displacement at 0.578 -- barely above chance,
+and notably that is the *valgus* axis rather than a depth one.
+
+This settles the question raised in §4 below. It is not that the definitional criterion was the
+wrong choice of depth measure: **no measure separates these classes**, so the `depth_fault` label
+does not encode anything recoverable from these keypoints. A different depth formulation would
+not have worked either.
+
 ## 4. What `depth_fault` therefore means
 
 Not "failed to reach parallel". The remaining candidates, in order of plausibility:
@@ -107,16 +147,18 @@ be a checker that disagrees with its own ground truth in the wrong direction.
 
 Three honest options, none of which is "fit an offset until it works":
 
-- **Ship it as what it is.** A *parallel* checker, measuring an objective, defensible geometric
-  fact, evaluated against a label that does not encode parallel. Report the disagreement as a
-  property of the label rather than of the rule. This is intellectually clean but the rule then
-  has no validated relationship to the product's notion of a depth fault.
-- **Change the target.** If `depth_fault` is relative depth, the rule needs a per-lifter
-  reference (e.g. the deepest squat that lifter achieves elsewhere), which this corpus cannot
-  supply at one clip per user.
-- **Abandon depth as the first rule** and pick a fault whose definition and label agree. The
-  corpus also carries `error_knees_forward.json` and `error_knees_inward.json` — interval-level
-  knee-valgus annotations over 1,623 videos, a different and possibly better-posed target.
+- ~~**Ship it as a parallel checker.**~~ **Rejected.** `depth_score` stays absent rather than
+  carrying a verdict the data does not support. A checker that measures a real geometric fact
+  but has no validated relationship to the product's notion of a depth fault is worse than no
+  checker: it looks authoritative and is unvalidatable.
+- ~~**Change the target to relative depth.**~~ **Dead.** It needs a per-lifter reference, and the
+  split verification established **one clip per user** — the corpus cannot supply one.
+- **Abandon depth and pick a fault whose definition and label agree.** ← taken. The corpus
+  carries `error_knees_forward.json` and `error_knees_inward.json`: interval-level knee
+  annotations over 1,623 videos. Structurally better posed — temporal intervals rather than a
+  single video-level judgement, and "knee travels inside the foot" is geometrically checkable in
+  a way "deep enough" demonstrably is not in this population. §3b also shows knee-ankle x
+  displacement is the *strongest* axis in the corpus, weak as it is.
 
 ## 6. What stands regardless
 
