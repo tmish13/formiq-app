@@ -34,6 +34,11 @@ from sqlalchemy.ext.asyncio import AsyncSession # ADDED FOR TYPE HINT
 from app.services.dynamic_form_analysis_service import DynamicFormAnalysisService # RE-ADDED
 from app.services.video_service import VideoService
 from app.services.decisions import COMBINER_VERSION, CheckerOutcome, combine
+from app.services.decisions.adapters import (
+    depth_outcome,
+    keypoint_digest,
+    knees_forward_outcome,
+)
 from app.services.decisions.recorder import (
     RUN_STATUS_COMPLETED,
     RUN_STATUS_FAILED,
@@ -1559,43 +1564,20 @@ async def _process_form_check_task_async(self, video_id_str: str, form_check_id_
                                              _rule_fps, _kf_params)
                 _rules_ms = (time.monotonic() - _rules_t0) * 1000.0
 
+                # Mapping lives in app/services/decisions/adapters.py, not
+                # inline here: when it was inline, depth's `score` was left out
+                # and every stored depth decision had a NULL score while the
+                # identical offline computation produced a real one. Nothing
+                # raised -- the field existed on all three sides and simply was
+                # not connected. A unit test now asserts the mapping is total.
+                # One digest of the exact array both checkers saw, so two
+                # stored decisions can be compared without re-running anything.
+                _kp_digest = keypoint_digest(keypoint_sequence_for_classification)
                 _checker_outcomes.extend([
-                    CheckerOutcome(
-                        checker_name="depth_parallel_v0",
-                        checker_kind="rule",
-                        checker_version=_dv.params_id,
-                        target="depth",
-                        decision=_dv.verdict,
-                        fitted=bool(_depth_params.get("fitted")),
-                        advisory=True,
-                        abstained=_dv.abstained,
-                        abstain_reason=_dv.abstain_reason,
-                        confidence=_dv.confidence,
-                        coverage=_dv.coverage,
-                        indicators=_dv.indicators,
-                        quality={"scale_ref": _dv.scale_ref, "view": _dv.view,
-                                 "bottom": _dv.bottom},
-                        latency_ms=round(_rules_ms, 3),
-                    ),
-                    CheckerOutcome(
-                        checker_name="knees_forward_v0",
-                        checker_kind="rule",
-                        checker_version=_kv.params_id,
-                        target="knees_forward",
-                        decision=_kv.decision,
-                        fitted=bool(_kv.fitted),
-                        advisory=True,
-                        abstained=_kv.abstained,
-                        abstain_reason=_kv.abstain_reason,
-                        score=_kv.score,
-                        confidence=_kv.confidence,
-                        coverage=_kv.coverage,
-                        threshold=_kv.threshold,
-                        indicators=_kv.indicators,
-                        quality={"scale_ref": _kv.scale_ref, "view": _kv.view,
-                                 "bottom": _kv.bottom},
-                        latency_ms=round(_rules_ms, 3),
-                    ),
+                    depth_outcome(_dv, _depth_params, round(_rules_ms, 3),
+                                  inputs_digest=_kp_digest),
+                    knees_forward_outcome(_kv, round(_rules_ms, 3),
+                                          inputs_digest=_kp_digest),
                 ])
                 # Recorded under its own key, never in depth_score. Writing an
                 # unfitted verdict into a user-visible column is the exact
@@ -1828,6 +1810,9 @@ async def _process_form_check_task_async(self, video_id_str: str, form_check_id_
                 error_message=(analysis_output_for_finalize or {}).get("error_message"),
                 latency_ms=round((time.monotonic() - _run_started_monotonic) * 1000.0, 3),
                 pose_pass_id=_pose_pass,
+                n_frames=(len(keypoint_sequence_for_classification)
+                          if "keypoint_sequence_for_classification" in dir()
+                          and keypoint_sequence_for_classification else None),
             )
 
         if transient_exc is not None and form_check_id and db_session:

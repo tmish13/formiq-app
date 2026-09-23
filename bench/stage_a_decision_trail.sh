@@ -12,6 +12,14 @@
 #   A4  no run is left open after the batch drains
 #   A5  depth_score is NULL everywhere                     (no unfitted verdict ships)
 #   A6  every rule decision is recorded fitted=false AND advisory=true
+#   A7  every decision that is NOT an abstention carries its score/prob
+#   A8  every decision records the digest of the keypoints it saw
+#   A9  every closed run records how many frames it judged
+#
+# A7-A9 exist because A1-A6 asserted rows EXIST and never that they were
+# FILLED. They were not: depth's score was dropped by the outcome mapping and
+# inputs_digest/n_frames were never written at all, on every row, silently.
+# A green row-count check is not a green audit trail.
 #
 #   bash bench/stage_a_decision_trail.sh
 #
@@ -120,6 +128,29 @@ chk 6 "rule decisions not marked unfitted+advisory" \
   "$(psql_q "SELECT count(*) FROM checker_decisions d JOIN analysis_runs r ON r.id = d.run_id
              WHERE r.form_check_id IN ($IDS) AND d.checker_kind = 'rule'
              AND NOT (d.fitted = false AND d.advisory = true);")" 0
+
+chk 7 "answered rule decisions with no score" \
+  "$(psql_q "SELECT count(*) FROM checker_decisions d JOIN analysis_runs r ON r.id = d.run_id
+             WHERE r.form_check_id IN ($IDS) AND d.checker_kind = 'rule'
+             AND d.abstained = false AND d.score IS NULL;")" 0
+chk 8 "decisions with no inputs_digest" \
+  "$(psql_q "SELECT count(*) FROM checker_decisions d JOIN analysis_runs r ON r.id = d.run_id
+             WHERE r.form_check_id IN ($IDS) AND d.checker_kind = 'rule'
+             AND d.inputs_digest IS NULL;")" 0
+chk 9 "completed runs with no n_frames" \
+  "$(psql_q "SELECT count(*) FROM analysis_runs WHERE form_check_id IN ($IDS)
+             AND status = 'completed' AND n_frames IS NULL;")" 0
+
+echo
+echo "--- determinism: same inputs_digest => same decision? ---"
+psql_q "SELECT '  ' || d.checker_name || ' ' || d.inputs_digest || ' -> '
+             || count(DISTINCT d.decision || ':' || COALESCE(d.score::text,'-'))
+             || ' distinct verdict(s) over ' || count(*) || ' rows'
+        FROM checker_decisions d JOIN analysis_runs r ON r.id = d.run_id
+        WHERE r.form_check_id IN ($IDS) AND d.inputs_digest IS NOT NULL
+        GROUP BY d.checker_name, d.inputs_digest
+        HAVING count(*) > 1;"
+echo "  (more than 1 distinct verdict for one digest = nondeterminism)"
 
 echo
 [ "$fail" = "0" ] && echo "=== ALL ASSERTIONS PASS ===" || echo "=== FAILURES ABOVE ==="
