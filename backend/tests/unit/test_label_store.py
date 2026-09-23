@@ -5,6 +5,7 @@ The corpus makes both of these load-bearing rather than theoretical:
 80 of them carrying conflicting labels (bench/corpus_duplicates.py).
 """
 import uuid
+from pathlib import Path
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -198,3 +199,54 @@ class TestAlignment:
         resolved = resolve_all([_lab(content_hash=H1, value=1)], "depth_fault")
         _, _, hashes = to_binary_arrays(resolved, {H1: 0})
         assert hashes == [H1]
+
+
+class TestDisputeIsTrustTierAware:
+    """A lower-trust source contradicting a higher-trust one is a RESOLVED
+    question, not an open one.
+
+    Treating it as open was badly wrong on this corpus: `category` (the folder
+    a clip was collected into) and `multilabel_targets` (the class it was
+    assigned) disagree on nearly every `depth_fault` video, because depth_fault
+    is precisely the class that was reassigned from other folders. Counting
+    those as disputes excluded 374 of 418 depth_fault videos (89.5%) while
+    dropping 5.7% of posture_fault -- a filter that looks class-neutral and is
+    not.
+    """
+
+    def test_equal_trust_disagreement_is_a_dispute(self):
+        rows = [_lab(value=1, source_ref="a", trust=0.6),
+                _lab(value=0, source_ref="b", trust=0.6)]
+        assert resolve(rows, "depth_fault").disputed is True
+
+    def test_a_lower_trust_contradiction_is_not_a_dispute(self):
+        """The depth_fault case: provenance disagreeing with a judgement."""
+        rows = [_lab(value=1, source_ref="targets", trust=0.6),
+                _lab(value=0, source_ref="category", trust=0.3)]
+        r = resolve(rows, "depth_fault")
+        assert r.disputed is False
+        assert r.value == 1, "the higher-trust source must still win"
+
+    def test_the_losing_source_is_still_recorded(self):
+        """Not a dispute is not the same as not visible."""
+        rows = [_lab(value=1, source_ref="targets", trust=0.6),
+                _lab(value=0, source_ref="category", trust=0.3)]
+        assert len(resolve(rows, "depth_fault").contenders) == 2
+
+    def test_three_tiers_only_compare_the_top(self):
+        rows = [_lab(value=1, source_ref="expert", trust=1.0),
+                _lab(value=0, source_ref="targets", trust=0.6),
+                _lab(value=0, source_ref="category", trust=0.3)]
+        assert resolve(rows, "depth_fault").disputed is False
+
+    def test_a_single_source_is_never_disputed(self):
+        assert resolve([_lab(value=1)], "depth_fault").disputed is False
+
+
+def test_the_importer_gives_provenance_less_trust_than_judgement():
+    """A folder is not a judgement. Pinned so a re-import cannot flatten them
+    back to equal trust and silently re-disqualify 89.5% of depth_fault."""
+    src = (Path(__file__).resolve().parents[2] / "scripts"
+           / "import_labels.py").read_text()
+    assert "category_trust" in src
+    assert "A FOLDER IS NOT A JUDGEMENT" in src

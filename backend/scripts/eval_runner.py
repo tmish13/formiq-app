@@ -48,7 +48,21 @@ from typing import Any, Dict, List, Optional
 BACKEND = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BACKEND))
 
-CONTENT_SPLITS = BACKEND.parent / "bench" / "results" / "content_level_splits.json"
+def _content_splits_path() -> Path:
+    """The repaired splits, from either layout.
+
+    On the host the repo root is BACKEND.parent. In a container only `backend/`
+    is mounted at /app, so BACKEND.parent is "/" and the repo is bind-mounted
+    somewhere else -- /repo by convention in this project's run commands.
+    """
+    for cand in (BACKEND.parent / "bench" / "results" / "content_level_splits.json",
+                 Path("/repo/bench/results/content_level_splits.json")):
+        if cand.exists():
+            return cand
+    return BACKEND.parent / "bench" / "results" / "content_level_splits.json"
+
+
+CONTENT_SPLITS = _content_splits_path()
 
 #: Decision strings that mean "this checker said fault/positive", per target.
 POSITIVE_DECISIONS = {

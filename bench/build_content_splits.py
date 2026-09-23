@@ -59,7 +59,16 @@ from pathlib import Path
 from typing import Dict, List
 
 REPO = Path(__file__).resolve().parent.parent
+sys_path = str(REPO / "backend")
+import sys
+if sys_path not in sys.path:
+    sys.path.insert(0, sys_path)
+
 DUPS = REPO / "bench" / "results" / "corpus_duplicates.json"
+VIDEO_ROOTS = [
+    Path("/videos"),
+    Path.home() / "Desktop" / "Squat More" / "Labeled_Dataset" / "videos",
+]
 SPLITS_CANDIDATES = [
     Path("/splits/user_level_multilabel_splits.json"),
     Path.home() / "FORMIQ Form Analysis Model" / "data" / "squat_processed"
@@ -117,14 +126,38 @@ def main() -> int:
             videos[name] = {"video": name, "user_id": str(uid), "class": cls,
                             "original_split": split}
 
+    # Hash EVERY video, not only the duplicates.
+    #
+    # An earlier version took hashes from corpus_duplicates.json, which by
+    # construction lists only videos that HAVE a duplicate. Every unique video
+    # therefore got content_hash=null, and the downstream filter in
+    # eval_runner.py -- which restricts to the hashes this file assigns --
+    # silently collapsed 316 decisions to 7. It produced a "clean number" on
+    # n=5. Caught only because the filter prints its before/after counts.
+    from app.core.hashing import sha256_file
+
+    video_root = next((p for p in VIDEO_ROOTS if p.exists()), None)
     hash_of: Dict[str, str] = {}
+    no_file = 0
+    if video_root is not None:
+        for name in videos:
+            f = video_root / f"{name}.mp4"
+            if f.exists():
+                hash_of[name] = sha256_file(f)
+            else:
+                no_file += 1
+    else:
+        print("  WARNING: no video directory found; falling back to the "
+              "duplicates report, which covers ONLY duplicated videos")
+        for h, members in groups.items():
+            for m in members:
+                hash_of[m["video"]] = h
+
     conflicted: set = set()
     for h, members in groups.items():
         classes = {m["class"] for m in members}
-        for m in members:
-            hash_of[m["video"]] = h
-            if len(classes) > 1:
-                conflicted.add(m["video"])
+        if len(classes) > 1:
+            conflicted.update(m["video"] for m in members)
 
     # ---- components: linked by shared hash OR shared user --------------------
     uf = Union()
@@ -147,10 +180,15 @@ def main() -> int:
         comps[uf.find(name)].append(name)
 
     # ---- drop contradictory groups entirely ----------------------------------
-    usable_comps, dropped_comps = {}, {}
+    usable_comps, dropped_comps, unhashed_comps = {}, {}, {}
     for root, members in comps.items():
         if any(m in conflicted for m in members):
             dropped_comps[root] = members
+        elif not any(m in hash_of for m in members):
+            # No file on disk anywhere in the component, so nothing here can be
+            # joined to a stored decision. Withheld with its own reason rather
+            # than assigned to a split it could never be evaluated on.
+            unhashed_comps[root] = members
         else:
             usable_comps[root] = members
 
@@ -206,7 +244,10 @@ def main() -> int:
                          "split": assigned.get(name),
                          "usable": name in assigned,
                          "reason": None if name in assigned
-                                   else "contradictory duplicate labels (G-44)"})
+                                   else ("contradictory duplicate labels (G-44)"
+                                         if name in conflicted
+                                         else "no video file on disk; cannot be "
+                                              "joined to a stored decision")})
 
     cls_by_split = defaultdict(Counter)
     for r in out_rows:
@@ -216,8 +257,9 @@ def main() -> int:
     print(f"CONTENT-LEVEL SPLITS  (mode: {args.mode})")
     print("=" * 64)
     print(f"  videos total        : {len(videos)}")
-    print(f"  components          : {len(comps)}  "
-          f"(usable {len(usable_comps)}, dropped {len(dropped_comps)})")
+    print(f"  hashed              : {len(hash_of)}   (no file on disk: {no_file})")
+    print(f"  components          : {len(comps)}  (usable {len(usable_comps)}, "
+          f"label-conflict {len(dropped_comps)}, no-file {len(unhashed_comps)})")
     print(f"  assigned            : {len(assigned)}")
     print(f"  withheld (conflict) : {len(videos) - len(assigned)}")
     print(f"  moved from original : {moved} ({moved / max(len(assigned),1):.1%})"
@@ -251,6 +293,8 @@ def main() -> int:
         "n_videos": len(videos), "n_assigned": len(assigned),
         "n_withheld": len(videos) - len(assigned),
         "n_components": len(comps),
+        "n_withheld_label_conflict": sum(len(m) for m in dropped_comps.values()),
+        "n_withheld_no_file": sum(len(m) for m in unhashed_comps.values()),
         "sizes": dict(sizes),
         "class_by_split": {s: dict(c) for s, c in cls_by_split.items()},
         "videos": out_rows,

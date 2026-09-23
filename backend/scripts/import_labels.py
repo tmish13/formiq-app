@@ -144,6 +144,13 @@ def _rows_from_splits(limit: Optional[int],
                           subject_id=str(uid), split=split,
                           source=SOURCE_DATASET,
                           trust=SOURCE_TRUST[SOURCE_DATASET])
+            # A FOLDER IS NOT A JUDGEMENT. `category` records where a clip was
+            # collected; `multilabel_targets` records the class it was assigned.
+            # Importing both at equal trust made every reassignment look like a
+            # disagreement, and since depth_fault is almost entirely
+            # reassignments, it disqualified 89.5% of that class from
+            # evaluation. Provenance gets its own, lower trust.
+            category_trust = round(SOURCE_TRUST[SOURCE_DATASET] / 2, 3)
 
             # 1. the assigned class, one row per target so the evaluation join
             #    is `WHERE target = ?` rather than an index lookup into a list.
@@ -159,11 +166,13 @@ def _rows_from_splits(limit: Optional[int],
                 for cls in CLASSES:
                     rows.append({**common, "target": cls,
                                  "value": int(cls == mapped), "usable": True,
+                                 "trust": category_trust,
                                  "source_ref": _ref(REF_CATEGORY, name),
-                                 "notes": f"collected under category={cat!r}"})
+                                 "notes": f"collected under category={cat!r} "
+                                          "(provenance, not a judgement)"})
             else:
                 rows.append({**common, "target": TARGET_ALL, "value": None,
-                             "usable": True,
+                             "usable": True, "trust": category_trust,
                              "source_ref": _ref(REF_CATEGORY, name),
                              "notes": (f"collected under category={cat!r}, which "
                                        "has no class in the three-class scheme")})

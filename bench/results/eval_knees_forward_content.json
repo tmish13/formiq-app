@@ -1,0 +1,51 @@
+{
+  "target": "knees_forward",
+  "label_target": "depth_fault",
+  "basis": "content",
+  "conflicted_included": false,
+  "split": null,
+  "n_decisions": 291,
+  "n_labelled": 928,
+  "n_disputed": 0,
+  "checkers": {
+    "knees_forward_v0": {
+      "fitted": false,
+      "advisory": true,
+      "n": 195,
+      "coverage": {
+        "n": 195,
+        "n_covered": 125,
+        "n_abstained": 70,
+        "coverage": 0.6410256410256411,
+        "covered_only": {
+          "n": 125,
+          "counts": {
+            "tp": 3,
+            "fp": 75,
+            "tn": 45,
+            "fn": 2
+          },
+          "precision": 0.038461538461538464,
+          "recall": 0.6,
+          "f1": 0.07228915662650603
+        },
+        "abstain_as_negative": {
+          "counts": {
+            "tp": 3,
+            "fp": 75,
+            "tn": 114,
+            "fn": 3
+          },
+          "precision": 0.038461538461538464,
+          "recall": 0.5,
+          "f1": 0.07142857142857144
+        }
+      },
+      "trivial_floor": {
+        "prevalence": 0.03076923076923077,
+        "all_positive_f1": 0.059701492537313446,
+        "majority_class_accuracy": 0.9692307692307692
+      }
+    }
+  }
+}

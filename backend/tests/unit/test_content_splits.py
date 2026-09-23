@@ -54,13 +54,30 @@ def test_no_user_spans_two_splits(assigned):
     assert not offenders, f"{len(offenders)} users span splits"
 
 
-def test_contradictory_duplicates_are_withheld_not_guessed(built):
-    """80 duplicate groups carry conflicting labels. A representative cannot be
-    chosen without inventing an answer, so they land in no split."""
+def test_every_withheld_video_says_why(built):
+    """Two reasons, both legitimate, neither silent:
+
+      * contradictory duplicate labels -- a representative cannot be chosen
+        without inventing an answer;
+      * no video file on disk -- it can never be joined to a stored decision,
+        so assigning it to a split would promise an evaluation that cannot
+        happen.
+    """
     withheld = [r for r in built["videos"] if not r["split"]]
     assert withheld, "expected some videos to be withheld"
     assert all(r["usable"] is False for r in withheld)
-    assert all("contradictory" in (r["reason"] or "") for r in withheld)
+    unexplained = [r["video"] for r in withheld if not r["reason"]]
+    assert not unexplained, f"withheld with no reason: {unexplained[:5]}"
+    kinds = {("contradictory" in r["reason"]) or ("no video file" in r["reason"])
+             for r in withheld}
+    assert kinds == {True}, "a withheld video has an unrecognised reason"
+
+
+def test_contradictory_duplicates_are_withheld_not_guessed(built):
+    """80 duplicate groups carry conflicting labels."""
+    conflict = [r for r in built["videos"]
+                if r["reason"] and "contradictory" in r["reason"]]
+    assert len(conflict) == built["n_withheld_label_conflict"] > 0
 
 
 def test_withheld_videos_are_recorded_not_deleted(built):

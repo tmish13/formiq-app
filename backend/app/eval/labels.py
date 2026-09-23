@@ -42,10 +42,34 @@ class ResolvedLabel:
     #: rather than silently resolved. The corpus's two dataset fields disagree
     #: on 600 of 1,625 videos; a reader that cannot see that will not ask why.
     contenders: Tuple[Tuple[str, str, Optional[int]], ...] = ()
+    #: Trust of each contender, positionally aligned with `contenders`.
+    contender_trust: Tuple[float, ...] = ()
 
     @property
     def disputed(self) -> bool:
-        vals = {v for _, _, v in self.contenders if v is not None}
+        """Do the sources at the WINNING trust tier disagree?
+
+        Not "do any two sources disagree". A lower-trust source contradicting a
+        higher-trust one is a resolved question, not an open one, and treating
+        it as open was badly wrong here: `category` is the folder a clip was
+        collected into and `multilabel_targets` is the class it was assigned.
+        They disagree on nearly every `depth_fault` video, because depth_fault
+        is precisely the class that was REASSIGNED from other folders (293 from
+        posture_faults, 128 from good_form).
+
+        Counting those as disputes excluded **374 of 418 depth_fault videos
+        (89.5%)** from evaluation while dropping only 5.7% of posture_fault --
+        a filter that looks class-neutral and is not. It collapsed depth
+        prevalence from ~32% to 3.1% and made the depth evaluation meaningless
+        for a reason that had nothing to do with the rule.
+        """
+        if not self.contenders:
+            return False
+        trusts = self.contender_trust or tuple(
+            self.trust or 0.0 for _ in self.contenders)
+        top = max(trusts)
+        vals = {v for (_, _, v), t in zip(self.contenders, trusts)
+                if v is not None and t >= top}
         return len(vals) > 1
 
 
@@ -102,6 +126,7 @@ def resolve(rows: Iterable[Any], target: str) -> Optional[ResolvedLabel]:
         usable=True, source=best.source, source_ref=best.source_ref,
         trust=float(best.trust or 0.0),
         contenders=tuple((c.source, c.source_ref, c.value) for c in candidates),
+        contender_trust=tuple(float(c.trust or 0.0) for c in candidates),
     )
 
 
