@@ -140,6 +140,43 @@ Note the annotation provenance established in Stage 0: `labels_shallow_depth.jso
 splits file's `depth_frames` are the **same annotation surfaced twice** (1552/1552 identical).
 There is no second opinion in the corpus to arbitrate this against.
 
+## 4b. Part of this ceiling is in the labels, not the geometry
+
+*Added 2026-09-23, after G-44.*
+
+The corpus contains **105 byte-identical duplicate videos** filed under different names
+(`bench/corpus_duplicates.py`). **47 of those pairs carry both `depth_fault` and
+`good_form`** — the same file, the same pixels, two opposite labels.
+
+**No function of the pixels can separate classes when the same pixels sit in both.**
+
+That is not a rhetorical point, it is an upper bound on any geometric rule, including a
+perfect one. For those 47 pairs the Bayes-optimal classifier is wrong exactly half the
+time no matter what it measures, because the label is a coin flip conditioned on the
+filename rather than on the content.
+
+So the AUROC 0.578 ceiling in section 3b is **partly irreducible**, and the negative result
+gets *stronger*: the rule was not badly designed and the indicators were not badly chosen.
+Some of the signal being looked for does not exist in the data at all.
+
+**The honest scope.** 47 pairs is 94 videos against 1,625 — it does not by itself explain a
+ceiling of 0.578, and it would be overclaiming to say it does. What changed is the kind of
+explanation available: before G-44 the only account of the ceiling was *"the label means
+something other than depth"* (section 4), which is an inference. This is a **measured**
+mechanism, and the first evidence that any part of the gap is irreducible rather than
+unmodelled.
+
+It also sharpens what the 80 conflicting pairs are as annotation signal: **every one involves
+`good_form`** (47 `depth_fault` vs `good_form`, 33 `good_form` vs `posture_fault`) and **none
+is fault-vs-a-different-fault**. Annotators disagree about *whether there is a fault at all*
+and never about which one — which is consistent with section 4's reading that `depth_fault`
+encodes a judgement of degree against a standard that is not in the geometry.
+
+**This does not license re-running the measurement.** De-duplicating the corpus and
+re-measuring would produce a number that looks better for a reason unrelated to the rule,
+which is how a negative result quietly becomes a positive one. The numbers in this file stand
+as measured. Full finding: `bench/results/2026-09-23-corpus-duplicates.md`.
+
 ## 5. Consequences
 
 **The definitional criterion is not shippable as a depth checker against this label.** It would

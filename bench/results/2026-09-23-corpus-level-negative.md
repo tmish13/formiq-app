@@ -54,6 +54,18 @@ By view: oblique 166/198 (**84%**), front 12/17 (71%), side 37/53 (70%).
 classifier that calls every squat positive scores **F1 0.812**. A video-level rule at 0.572
 cannot beat that in any useful way.
 
+### And part of the depth ceiling is irreducible
+
+*Added 2026-09-23, after G-44.* The corpus holds 105 byte-identical duplicate videos under
+different names, and **47 pairs carry both `depth_fault` and `good_form`** — same file, same
+pixels, opposite labels. **No function of the pixels can separate classes when the same
+pixels sit in both.** For those pairs even a perfect rule is wrong half the time, so the
+AUROC 0.578 ceiling above is partly a property of the labels rather than of the geometry.
+Scope honestly: 94 videos against 1,625 does not explain the whole ceiling, but it is the
+first *measured* evidence that any of it is irreducible rather than merely unmodelled. The
+numbers here are **not** re-measured on a de-duplicated corpus — that would improve them for
+a reason unrelated to the rule. See `2026-09-23-corpus-duplicates.md`.
+
 ## The pattern, stated once
 
 **The predicate knows WHEN the fault happens. It does not know WHICH clips have it.**
