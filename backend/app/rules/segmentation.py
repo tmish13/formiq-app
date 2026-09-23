@@ -64,6 +64,8 @@ def find_bottom(
     max_window_seconds: float,
     min_window_frames: int,
     fallback_fps: float,
+    scale_ref: float,
+    min_descent_ratio: float,
 ) -> Optional[BottomWindow]:
     """The single deepest moment, and the frames around it worth measuring.
 
@@ -87,6 +89,15 @@ def find_bottom(
     if not np.isfinite(depth_at_bottom) or depth_at_bottom <= _EPS:
         # Flat trajectory: no descent to speak of. Not a bottom.
         return None
+
+    # The hip must actually TRAVEL, measured against the person's own torso.
+    # MEASURED FAILURE: 37941_3 has a hip_y range of 0.003 -- the subject barely
+    # moves -- yet depth_at_bottom > _EPS passed and the rule confidently
+    # measured "the bottom" of a clip containing no squat, scoring -0.747.
+    # An epsilon test asks "did anything change"; this asks "was that a rep".
+    if scale_ref and scale_ref > _EPS:
+        if (depth_at_bottom / scale_ref) < min_descent_ratio:
+            return None
 
     cutoff = sm[bottom] - band_frac * depth_at_bottom
 

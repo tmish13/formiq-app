@@ -148,20 +148,32 @@ def moving_average(x: np.ndarray, window: int) -> np.ndarray:
 
 
 def scale_reference(
-    kp: np.ndarray, min_vis: float, standing_quantile: float
+    kp: np.ndarray,
+    min_vis: float,
+    standing_quantile: float,
+    min_usable_frames: int,
+    min_standing_frames: int,
 ) -> Optional[float]:
     """Median standing torso length -- fixed for the clip.
 
     "Standing" = the frames with the SMALLEST hip_y (highest hips). Using the
     standing torso rather than the per-frame torso is deliberate: see the module
     docstring, divergence 1.
+
+    MEASURED FAILURE this guards against: 38107_5 had 6 usable frames out of 117.
+    The standing decile was then max(1, 6//10) = ONE frame, which happened to be
+    a compressed detection -- scale_ref came out 0.238 against a true median
+    torso of 0.451. Halving the scale doubles every ratio, and that clip scored
+    -1.068 torso-lengths, which is physically impossible for a squat. A scale
+    estimated from one frame is not an estimate.
     """
     ys = hip_y_series(kp, min_vis)
     valid = np.flatnonzero(np.isfinite(ys))
-    if valid.size < 2:
+    if valid.size < min_usable_frames:
         return None
     order = valid[np.argsort(ys[valid], kind="mergesort")]   # stable
-    k = max(1, int(round(order.size * standing_quantile)))
+    k = max(min_standing_frames, int(round(order.size * standing_quantile)))
+    k = min(k, order.size)
     torsos: List[float] = []
     for t in order[:k]:
         frame = kp[t]

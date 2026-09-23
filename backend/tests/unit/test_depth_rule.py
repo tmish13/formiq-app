@@ -92,7 +92,8 @@ class TestCoordinateConvention:
     def test_bottom_is_the_max_hip_y_frame(self):
         pose = squat(0.75, n=41)
         kp = to_array(pose)
-        w = find_bottom(kp, 30.0, 0.4, 0.15, 0.1, 0.15, 0.5, 3, 30.0)
+        w = find_bottom(kp, 30.0, 0.4, 0.15, 0.1, 0.15, 0.5, 3, 30.0,
+                    scale_ref=0.20, min_descent_ratio=0.15)
         assert w is not None
         ys = [f[23]["y"] for f in pose]
         assert abs(w.index - int(np.argmax(ys))) <= 2
@@ -198,6 +199,32 @@ class TestAbstention:
                 f[sh] = {**f[sh], "x": f[hp]["x"], "y": f[hp]["y"]}
             flat.append(f)
         v = evaluate_depth(flat, 30.0, params)
+        assert v.verdict == UNCERTAIN
+        assert v.abstain_reason == ABSTAIN_BAD_SCALE
+
+    def test_a_clip_with_no_descent_is_not_a_rep(self, params):
+        """Regression: 37941_3 had a hip_y range of 0.003 and still got a verdict.
+
+        depth_at_bottom > EPS asks "did anything move". min_descent_ratio asks
+        "was that a rep", measured against the subject's own torso.
+        """
+        import numpy as np
+        pose = [_frame(0.550 + 0.0005 * np.sin(i), 0.60) for i in range(60)]
+        v = evaluate_depth(pose, 30.0, params)
+        assert v.verdict == UNCERTAIN
+        assert v.abstain_reason == ABSTAIN_NO_BOTTOM
+
+    def test_too_few_usable_frames_abstains_rather_than_scaling_off_one(self, params):
+        """Regression: 38107_5 had 6 usable frames of 117.
+
+        The standing decile became ONE frame, scale_ref came out 0.238 against a
+        true median torso of 0.451, and the clip scored -1.068 torso-lengths --
+        physically impossible. A scale estimated from one frame is not an
+        estimate.
+        """
+        good = squat(0.70, knee_y=0.60, n=6)
+        blind = [None] * 60
+        v = evaluate_depth(good + blind, 30.0, params)
         assert v.verdict == UNCERTAIN
         assert v.abstain_reason == ABSTAIN_BAD_SCALE
 

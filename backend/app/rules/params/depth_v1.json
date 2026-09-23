@@ -81,5 +81,9 @@
     "_why": "The gate measured a +0.0108 torso-length bias between the dataset's pose pass and the container's, with all six verdict disagreements running the same direction. Calibrating on dataset keypoints would bake that bias into serving."
   },
   "fallback_fps": 30.0,
-  "_fallback_fps_note": "Used only when a clip reports no usable fps. The corpus is 30fps (depth_frames are frame_index/30, verified exactly)."
+  "_fallback_fps_note": "Used only when a clip reports no usable fps. The corpus is 30fps (depth_frames are frame_index/30, verified exactly).",
+  "min_usable_frames_for_scale": 10,
+  "min_standing_frames": 3,
+  "min_descent_ratio": 0.15,
+  "_guards_note": "Added after two measured failures on real clips. 38107_5: 6 usable frames of 117 -> standing decile was ONE frame -> scale_ref 0.238 vs true median torso 0.451 -> score -1.068, impossible. 37941_3: hip_y range 0.003, no squat at all, yet a bottom was found and scored -0.747. min_descent_ratio asks 'was that a rep', not 'did anything move'."
 }

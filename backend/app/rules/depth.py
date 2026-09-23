@@ -105,7 +105,11 @@ def evaluate_depth(
     if kp.shape[0] == 0:
         return _abstain(ABSTAIN_NO_FRAMES, params, spec_hash)
 
-    scale = scale_reference(kp, min_vis, params["standing_quantile"])
+    scale = scale_reference(
+        kp, min_vis, params["standing_quantile"],
+        min_usable_frames=params["min_usable_frames_for_scale"],
+        min_standing_frames=params["min_standing_frames"],
+    )
     if scale is None or scale < _EPS:
         return _abstain(ABSTAIN_BAD_SCALE, params, spec_hash)
 
@@ -117,6 +121,8 @@ def evaluate_depth(
         max_window_seconds=params["max_window_seconds"],
         min_window_frames=params["min_window_frames"],
         fallback_fps=params["fallback_fps"],
+        scale_ref=scale,
+        min_descent_ratio=params["min_descent_ratio"],
     )
     if window is None:
         return _abstain(ABSTAIN_NO_BOTTOM, params, spec_hash, scale_ref=_round(scale))
