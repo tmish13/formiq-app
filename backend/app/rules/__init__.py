@@ -8,22 +8,37 @@ See app/rules/depth.py for why the threshold is not fitted, and
 bench/results/2026-09-22-label-polarity.md for what the labels actually mean.
 """
 from app.rules.depth import evaluate_depth
+from app.rules.knees_forward import evaluate_knees_forward
 from app.rules.spec import (
     RULES_SPEC_VERSION,
     build_manifest,
+    load_knees_forward_params,
     load_params,
     rules_spec_hash,
 )
-from app.rules.types import AT_DEPTH, SHALLOW, UNCERTAIN, DepthVerdict
+from app.rules.types import (
+    AT_DEPTH,
+    NOT_OBSERVED,
+    OBSERVED,
+    SHALLOW,
+    UNCERTAIN,
+    DepthVerdict,
+    RuleVerdict,
+)
 
 __all__ = [
     "evaluate_depth",
+    "evaluate_knees_forward",
     "load_params",
+    "load_knees_forward_params",
     "rules_spec_hash",
     "build_manifest",
     "RULES_SPEC_VERSION",
     "DepthVerdict",
+    "RuleVerdict",
     "SHALLOW",
     "AT_DEPTH",
     "UNCERTAIN",
+    "OBSERVED",
+    "NOT_OBSERVED",
 ]

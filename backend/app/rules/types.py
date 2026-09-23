@@ -23,6 +23,12 @@ ABSTAIN_NO_BOTTOM = "no_bottom_found"
 ABSTAIN_LOW_COVERAGE = "low_coverage"
 ABSTAIN_NEAR_PARALLEL = "near_parallel"
 
+# Descriptive outcomes, for checkers that measure a quantity without judging it.
+# OBSERVED does not mean "fault": see app/rules/knees_forward.py for why that
+# distinction is the whole point of the module.
+OBSERVED = "OBSERVED"
+NOT_OBSERVED = "NOT_OBSERVED"
+
 
 @dataclass(frozen=True)
 class IndicatorResult:
@@ -83,6 +89,46 @@ class DepthVerdict:
     @property
     def abstained(self) -> bool:
         return self.verdict == UNCERTAIN
+
+    def as_dict(self) -> Dict[str, Any]:
+        d = asdict(self)
+        d["abstained"] = self.abstained
+        return d
+
+
+@dataclass(frozen=True)
+class RuleVerdict:
+    """A verdict from any deterministic checker, for any target.
+
+    `DepthVerdict` predates this and is kept as-is; new checkers use this shape,
+    which differs in two ways that matter:
+
+      * `target` is explicit, so one run can carry several checkers' answers and
+        a combiner can key on it rather than on the checker's name.
+      * `fitted` travels WITH the verdict. A caller that drops it cannot then
+        write a decision row that looks calibrated. The constants live in a
+        params file, but by the time a verdict has been passed through two
+        layers the params file is long out of sight.
+    """
+    target: str
+    decision: str                   # target-specific, or UNCERTAIN
+    abstain_reason: Optional[str]
+    score: Optional[float]
+    confidence: Optional[float]
+    coverage: float
+    scale_ref: Optional[float]
+    view: Optional[Dict[str, Any]]
+    bottom: Optional[Dict[str, Any]]
+    indicators: List[Dict[str, Any]]
+    rules_spec_version: str
+    rules_spec_hash: str
+    params_id: str
+    fitted: bool = False
+    threshold: Optional[float] = None
+
+    @property
+    def abstained(self) -> bool:
+        return self.decision == UNCERTAIN
 
     def as_dict(self) -> Dict[str, Any]:
         d = asdict(self)

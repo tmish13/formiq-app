@@ -1,0 +1,69 @@
+{
+  "params_id": "knees_forward_v0_unfitted",
+  "fitted": false,
+  "_status": "HAND-SET, NEVER FITTED. Every number below was chosen by a person from biomechanical reasoning, not selected against data. `observation_cut` in particular is a descriptive cut, not a decision boundary: it says 'the knee went this far past the toes', not 'this is a fault'.",
+
+  "label_semantics": {
+    "source": "~/Desktop/Squat More/Labeled_Dataset/Labels/error_knees_forward.json",
+    "granularity": "intervals in seconds within a clip",
+    "meaning": "a human marked the moments where knee-forward travel became excessive -- a judgement about DEGREE, against a standard that is not in the geometry",
+    "why_not_fitted": "1109 of 1623 clips are positive (68.3%), so an all-positive classifier scores F1 0.812. Between-video AUROC of the peak predicate is 0.572. There is nothing to fit that beats saying yes to everything."
+  },
+
+  "measured": {
+    "within_video_agreement": 0.802,
+    "within_video_n_clips": 268,
+    "within_video_median_delta_torso_lengths": 0.0785,
+    "by_view_agreement": {"oblique": 0.84, "front": 0.71, "side": 0.70},
+    "between_video_auroc_peak": 0.572,
+    "between_video_auroc_median": 0.519,
+    "prevalence": 0.683,
+    "trivial_floor_f1": 0.812,
+    "split": "train + validation; test not opened",
+    "evidence": "bench/results/2026-09-23-corpus-level-negative.md",
+    "script": "bench/knees_forward_polarity.py",
+    "conclusion": "polarity confirmed, video-level separation refuted"
+  },
+
+  "observation_cut": 0.05,
+  "_observation_cut_note": "Torso-lengths of knee-past-toe travel at the bottom. Set at 0.05 because the measured within-interval median delta was +0.0785 and half of that is a conservative 'clearly more than nothing'. It was NOT selected by sweeping against labels and no claim is made that it separates anything. Changing it changes a description, not a verdict.",
+
+  "min_foot_length": 1e-06,
+  "_min_foot_length_note": "Below this the heel and toe landmarks are effectively coincident and the sign of the foot direction is noise, which would silently invert the measurement.",
+
+  "min_measured_frames": 3,
+  "coverage_floor": 0.35,
+  "_coverage_note": "Same floor as depth_v1: below this, too little of the bottom window was measurable to describe anything. Coverage = measurable-frame fraction x foot visibility ramp x view weight.",
+
+  "min_visibility": 0.4,
+  "visibility_partial": 0.4,
+  "visibility_trusted": 0.7,
+  "_visibility_note": "From app/ml/posture_v1/visibility.py, so the codebase keeps one visibility vocabulary.",
+
+  "standing_quantile": 0.1,
+  "smooth_seconds": 0.15,
+  "baseline_quantile": 0.1,
+  "bottom_band_frac": 0.15,
+  "max_window_seconds": 0.5,
+  "min_window_frames": 3,
+  "fallback_fps": 30.0,
+  "min_usable_frames_for_scale": 10,
+  "min_standing_frames": 3,
+  "min_descent_ratio": 0.15,
+  "_segmentation_note": "Identical to depth_v1.json on purpose: the same bottom window, so the two checkers describe the same instant of the same rep. If these diverge the two decision rows stop being comparable.",
+
+  "view_side_max": 0.35,
+  "view_front_min": 0.75,
+  "view_floors": {
+    "knees_forward": {"side": 1.0, "oblique": 1.0, "front": 0.3}
+  },
+  "_view_floors_note": "Knee-past-toe is a SAGITTAL-plane measurement, so it is weakest head-on. Measured agreement was oblique 84%, front 71%, side 70% -- note that side did NOT win, contrary to the prediction made before the run. The front floor is down-weighted on the geometry, not on those numbers, which are too few per cell to fit on.",
+
+  "provenance": {
+    "author": "hand-set",
+    "fitted_at": null,
+    "fitted_against": null,
+    "advisory": true,
+    "advisory_reason": "The combiner must treat this checker as evidence only. It may never set a verdict, because its video-level separation was measured and refuted."
+  }
+}

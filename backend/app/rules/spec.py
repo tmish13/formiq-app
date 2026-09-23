@@ -26,6 +26,7 @@ RULES_SPEC_VERSION = "depth_rule_definitional_v1"
 
 PARAMS_DIR = Path(__file__).resolve().parent / "params"
 DEFAULT_PARAMS = PARAMS_DIR / "depth_v1.json"
+KNEES_FORWARD_PARAMS = PARAMS_DIR / "knees_forward_v0.json"
 
 # Keys every params file must define. Missing one is an error at load time, not
 # a KeyError three layers into a verdict.
@@ -57,11 +58,45 @@ REQUIRED_KEYS = (
 )
 
 
+# Keys the knees-forward checker must define. It shares the segmentation and
+# visibility constants (deliberately -- both checkers must describe the same
+# instant of the same rep) and adds its own descriptive cut.
+KNEES_FORWARD_REQUIRED_KEYS = (
+    "params_id",
+    "fitted",
+    "label_semantics",
+    "observation_cut",
+    "min_foot_length",
+    "min_measured_frames",
+    "coverage_floor",
+    "min_visibility",
+    "visibility_partial",
+    "visibility_trusted",
+    "standing_quantile",
+    "smooth_seconds",
+    "baseline_quantile",
+    "bottom_band_frac",
+    "max_window_seconds",
+    "min_window_frames",
+    "fallback_fps",
+    "min_usable_frames_for_scale",
+    "min_standing_frames",
+    "min_descent_ratio",
+    "view_side_max",
+    "view_front_min",
+    "view_floors",
+)
+
+
 class ParamsError(ValueError):
     """Raised when a params file is missing or malformed."""
 
 
-def load_params(path: Optional[Path] = None) -> Dict[str, Any]:
+def load_params(
+    path: Optional[Path] = None,
+    required: tuple = REQUIRED_KEYS,
+    require_indicator_weights: bool = True,
+) -> Dict[str, Any]:
     p = Path(path) if path else DEFAULT_PARAMS
     if not p.exists():
         raise ParamsError(
@@ -73,13 +108,38 @@ def load_params(path: Optional[Path] = None) -> Dict[str, Any]:
     except json.JSONDecodeError as e:
         raise ParamsError(f"{p} is not valid JSON: {e}") from e
 
-    missing = [k for k in REQUIRED_KEYS if k not in params]
+    missing = [k for k in required if k not in params]
     if missing:
         raise ParamsError(f"{p} is missing required keys: {missing}")
 
-    for name in INDICATOR_ORDER:
-        if name not in params["indicator_weights"]:
-            raise ParamsError(f"{p} has no weight for indicator {name}")
+    if require_indicator_weights:
+        for name in INDICATOR_ORDER:
+            if name not in params["indicator_weights"]:
+                raise ParamsError(f"{p} has no weight for indicator {name}")
+    return params
+
+
+def load_knees_forward_params(path: Optional[Path] = None) -> Dict[str, Any]:
+    """The knees-forward checker's constants. Unfitted, and asserted so.
+
+    The assertion is not defensive clutter: this checker exists because its
+    video-level separation was measured and refuted (AUROC 0.572 against a
+    trivial floor of F1 0.812). If someone later fits constants into this file,
+    they must also revisit the advisory status in the combiner, and this is
+    where that decision gets forced rather than missed.
+    """
+    params = load_params(
+        path or KNEES_FORWARD_PARAMS,
+        required=KNEES_FORWARD_REQUIRED_KEYS,
+        require_indicator_weights=False,
+    )
+    if params.get("fitted"):
+        raise ParamsError(
+            f"{path or KNEES_FORWARD_PARAMS} declares fitted=true. This checker "
+            "is advisory precisely because it was never fitted; making it fitted "
+            "requires revisiting app/services/decisions/combiner.py, not just "
+            "this flag."
+        )
     return params
 
 
@@ -88,6 +148,14 @@ def rules_spec_hash(params: Dict[str, Any]) -> str:
 
     Sorted keys so the hash is insensitive to file formatting but sensitive to
     every value that can change a verdict.
+
+    ONE HASH FOR THE WHOLE RULES LAYER, not one per checker. `analysis_runs`
+    carries a single `rules_spec_hash`, and the question it answers is "which
+    version of the rules package, with which constants, produced this run".
+    That makes it over-sensitive -- editing a depth indicator changes the hash
+    a knees-forward verdict is stored under -- which is the safe direction:
+    an unnecessary re-analysis costs compute, a missed one serves a stale
+    verdict under a new rule.
     """
     payload = {
         "rules_spec_version": RULES_SPEC_VERSION,
