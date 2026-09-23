@@ -1,0 +1,85 @@
+{
+  "params_id": "depth_v1_provisional",
+  "fitted": false,
+  "_status": "PROVISIONAL -- offsets are 0.0, so the rule is PURELY DEFINITIONAL: AT_DEPTH iff (hip_y - knee_y)/S >= deadband. bench/depth_rule_calibrate.py replaces the fitted block and sets fitted=true. Structural constants below are inherited or declared, not tuned; which is which is noted per key.",
+  "label_semantics": {
+    "source": "Shallow_Squat_Error_Dataset/labels_shallow_depth.json",
+    "label_1": "human-marked depth-fault instant == bottom frame of a rep that was too shallow",
+    "label_0": "NOT a marked instant; mostly non-bottom frames. NOT a synonym for at-depth",
+    "identity_with_depth_frames": "1552/1552 (100.0%)",
+    "positive_class": "SHALLOW",
+    "negative_class_construction": "bottom frames of good_form videos, via find_bottom()",
+    "p_target_class": "AT_DEPTH",
+    "p_target": 0.85,
+    "resolved_by": "bench/results/2026-09-22-label-polarity.md",
+    "_why_it_matters": "Training on label 1 vs 0 directly yields a REP-PHASE detector, not a depth checker: label-1 frames sit at median depth-percentile 0.964 of their own clip, label-0 at 0.62-0.78."
+  },
+  "min_visibility": 0.4,
+  "visibility_partial": 0.4,
+  "visibility_trusted": 0.7,
+  "_visibility_note": "INHERITED from app/ml/posture_v1/visibility.py (VISIBILITY_PARTIAL / VISIBILITY_TRUSTED) so the codebase keeps one visibility vocabulary. Not tuned here.",
+  "standing_quantile": 0.1,
+  "smooth_seconds": 0.15,
+  "baseline_quantile": 0.1,
+  "bottom_band_frac": 0.15,
+  "max_window_seconds": 0.5,
+  "min_window_frames": 3,
+  "min_bottom_frames": 3,
+  "_structural_note": "DECLARED, to be validated against depth_frames IoU rather than tuned against the verdict. smooth_seconds is in SECONDS so smoothing is fps-invariant without resampling landmarks.",
+  "view_side_max": 0.35,
+  "view_front_min": 0.75,
+  "_view_note": "PROVISIONAL. There are no view labels anywhere in the corpus, so these two cut points are fitted as ordinary rule parameters on the train split, selected by held-out performance.",
+  "view_floors": {
+    "I1_femur_incline": {
+      "side": 1.0,
+      "oblique": 0.6,
+      "front": 0.2
+    },
+    "I2_hip_knee_delta": {
+      "side": 1.0,
+      "oblique": 0.7,
+      "front": 0.3
+    },
+    "I3_knee_flexion": {
+      "side": 1.0,
+      "oblique": 0.9,
+      "front": 0.7
+    },
+    "I4_hip_flexion": {
+      "side": 1.0,
+      "oblique": 0.8,
+      "front": 0.5
+    },
+    "I5_hip_drop_ratio": {
+      "side": 1.0,
+      "oblique": 0.95,
+      "front": 0.9
+    }
+  },
+  "_view_floors_note": "PROVISIONAL. Ordering is physical: indicators reading the femur in the image plane (I1, I2) are foreshortened front-on; I3 is an interior angle and degrades least; I5 is near view-flat. Magnitudes to be fitted.",
+  "indicator_weights": {
+    "I1_femur_incline": 0.15,
+    "I2_hip_knee_delta": 0.4,
+    "I3_knee_flexion": 0.25,
+    "I4_hip_flexion": 0.1,
+    "I5_hip_drop_ratio": 0.1
+  },
+  "_weights_note": "PROVISIONAL, and these weight COVERAGE/confidence only -- the verdict itself is a sign test on I2 alone. I1 is weighted low because it failed the provenance gate at n=30 (r=0.8952) and passed at n=40 (r=0.9124); a gate verdict that moves with sample size is not load-bearing.",
+  "offset_by_view": {
+    "side": 0.0,
+    "oblique": 0.0,
+    "front": 0.0
+  },
+  "_offset_note": "THE ONLY FITTED QUANTITY IN THE DECISION. 0.0 means no correction: pure definitional parallel. Corrects (a) MediaPipe landmark 23/24 not being the anatomical hip crease and 25/26 not the knee top, and (b) femur foreshortening off-axis. The THRESHOLD stays 0 and is never fitted.",
+  "deadband": 0.08,
+  "_deadband_note": "PROVISIONAL but evidence-backed: the Stage 0b provenance gate measured verdict agreement between pose passes of 80.0% raw, 91.7% at 0.02, and 100.0% at 0.08 (at 56.7% coverage). Final value swept on validation subject to precision >= 0.85 on AT_DEPTH.",
+  "coverage_floor": 0.35,
+  "_coverage_note": "PROVISIONAL. Below this the evidence is too thin to call, regardless of where the score sits.",
+  "provenance": {
+    "gate_report": "bench/results/2026-09-22-keypoint-provenance.md",
+    "keypoint_source": "container MediaPipe complexity 2, live path _extract_pose_from_video",
+    "_why": "The gate measured a +0.0108 torso-length bias between the dataset's pose pass and the container's, with all six verdict disagreements running the same direction. Calibrating on dataset keypoints would bake that bias into serving."
+  },
+  "fallback_fps": 30.0,
+  "_fallback_fps_note": "Used only when a clip reports no usable fps. The corpus is 30fps (depth_frames are frame_index/30, verified exactly)."
+}
