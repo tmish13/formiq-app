@@ -1,7 +1,7 @@
 # The definitional parallel criterion does not match this annotation
 
 **Date:** 2026-09-23 · **Branch:** `audit/phase2-depth-rule` · **Status:** NEGATIVE RESULT
-**Data:** partial train split (133 `good_form`, 61 `depth_fault`), live-extracted keypoints
+**Data:** FULL train selection, 133 per class, live-extracted keypoints (extraction finished: 711 clips, 0 errors, MediaPipe 0.10.18 complexity 2)
 
 This is the outcome that was pre-declared as possible in `bench/depth_rule_calibrate.py`
 before any fitting:
@@ -14,18 +14,36 @@ It is that case, and more strongly than anticipated: the class difference runs *
 
 ## 1. The result
 
-`AT_DEPTH ⟺ (hip_y − knee_y)/S ≥ 0`, zero fitted parameters:
+`AT_DEPTH ⟺ (hip_y − knee_y)/S ≥ 0`, zero fitted parameters, full train selection:
 
 ```
-precision(SHALLOW)   0.2381
-recall(SHALLOW)      0.1020
-F1(SHALLOW)          0.1429
-precision(AT_DEPTH)  0.6207     <- P_target is 0.85
-coverage             70.6%      (137/194, 57 abstained)
+precision(SHALLOW)   0.4074
+recall(SHALLOW)      0.1068
+F1(SHALLOW)          0.1692
+precision(AT_DEPTH)  0.4390     <- P_target is 0.85
+coverage             71.8%      (191/266, 75 abstained)
 ```
 
-Class separation is **+0.0417 torso-lengths in the wrong direction**: clips labelled
+Median score by class -- the ordering is the finding:
+
+| class | n | median |
+|---|---|---|
+| posture_fault | 128 | +0.1408 |
+| good_form | 115 | +0.1536 |
+| **depth_fault** | 120 | **+0.1719** |
+
+Class separation is **+0.0179 torso-lengths in the wrong direction**: clips labelled
 `depth_fault` score *deeper* than clips labelled `good_form`.
+
+### The number that settles it
+
+Stop calling the offset a correction and simply fit a threshold — the best it achieves is
+**F1 0.686**. The classes are balanced 133/133, so the trivial all-positive classifier
+("call every squat shallow") scores **2·0.5/1.5 = 0.667**.
+
+**A fully fitted threshold beats thinking about nothing by 0.019 F1.** The fitted offset is
+−0.30 at the grid edge, which is **1678% of the class separation** — there is no threshold
+anywhere in the sweep that extracts a usable signal, because the signal is not there.
 
 ## 2. It is not a measurement bug
 
@@ -111,11 +129,15 @@ Three honest options, none of which is "fit an offset until it works":
 The rule works. The label does not mean what the rule measures, and that was measurable before
 anything was fitted to hide it.
 
-## Caveat
+## Status
 
-These are **partial-train** numbers (194 of 1137 clips); extraction was still running. The
-direction is consistent across every cut tried, but the magnitudes will move. Nothing here
-touched validation or test.
+These are **final train-split numbers**, 133 per class, from the completed extraction (711
+clips, 0 errors). The partial-data run at 194 clips showed the same direction with a larger
+separation (+0.0417); the full data narrows it to +0.0179 and leaves it backwards.
+
+**Validation and test were never opened.** There is nothing to look at them for: a rule whose
+fitted ceiling is 0.019 F1 above the trivial floor on train does not earn a held-out
+measurement.
 
 ## Reproduce
 
