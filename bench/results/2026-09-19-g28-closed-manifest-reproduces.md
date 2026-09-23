@@ -6,6 +6,23 @@
 > multilabel truth, and honest precision is 0.76, not 0.54. The provenance table and the FP-by-class
 > decomposition stand.
 
+> **⚠️ G-44 — these figures were measured on contaminated data.** 45 cross-split
+> byte-identical duplicate videos were discovered *after* this was written. 27 of the
+> 224 videos in the pinned evaluation (12.0%) have a byte-identical twin in the TRAIN
+> split — 19 share the `posture_fault` label (memorisation, optimistic) and 8 carry a
+> conflicting label (direction unclear), so the bias is predominantly but not purely
+> optimistic. The duplicate scan covered 1,487 of 1,625 corpus entries, so 27 is a
+> **lower bound**. Every number below is an **upper bound on true performance, not an
+> estimate**. Deliberately **not re-measured**: re-measuring after a data change is how a
+> negative result quietly becomes a positive one.
+> See `bench/results/2026-09-23-corpus-duplicates.md` and `bench/contamination_scope.py`.
+>
+> **This file's own population: 18 of the 173 reconstructed binary-task videos (10.4%)
+> have a byte-identical twin in train.** The manifest records `test_samples: 162`, so
+> the overlap is approximate. G-28's conclusion — that the manifest's FP count
+> reproduces exactly (19 = 19) — is unaffected: it is a statement about which
+> *population* was scored, not about the score's magnitude.
+
 # G-28 closed — the manifest's 0.724 reproduces. It was measured on a different population.
 
 **Date:** 2026-09-19 · **Bench only** · supersedes the "precision-shaped shortfall" reading in

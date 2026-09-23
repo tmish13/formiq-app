@@ -1,5 +1,23 @@
 # Face-block ablation — where does PostureV1's signal actually come from?
 
+> **⚠️ G-44 — these figures were measured on contaminated data.** 45 cross-split
+> byte-identical duplicate videos were discovered *after* this was written. 27 of the
+> 224 videos in the pinned evaluation (12.0%) have a byte-identical twin in the TRAIN
+> split — 19 share the `posture_fault` label (memorisation, optimistic) and 8 carry a
+> conflicting label (direction unclear), so the bias is predominantly but not purely
+> optimistic. The duplicate scan covered 1,487 of 1,625 corpus entries, so 27 is a
+> **lower bound**. Every number below is an **upper bound on true performance, not an
+> estimate**. Deliberately **not re-measured**: re-measuring after a data change is how a
+> negative result quietly becomes a positive one.
+> See `bench/results/2026-09-23-corpus-duplicates.md` and `bench/contamination_scope.py`.
+>
+> **This file's own population: 7 of its 50 fixtures (14.0%) have a byte-identical
+> twin in train.** `test_eval_split_integrity.py::test_every_ablation_fixture_is_held_out`
+> passes on all seven, because it checks split membership by *name* rather than by
+> content (G-45). The 0.769 baseline was already retracted for a separate reason
+> (G-25: an n=50 balanced-fixture run is not comparable to natural prevalence); this
+> is a second, independent defect in the same number.
+
 **Date:** 2026-09-19
 **Script:** `bench/ablate_face_block.py` (bench only — the serving path was not touched)
 **Raw summary:** `2026-09-19-ablation-summary.json`

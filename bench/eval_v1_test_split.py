@@ -11,6 +11,14 @@ keypoints available. The missing 20 are exactly the Penn Action clips in the
 split; the 224 present are all Fitness-AQA. So this is a
 "224/244, Fitness-AQA only" number, never "the test F1".
 
+G-44 -- THIS NUMBER IS CONTAMINATED. 27 of the 224 videos it is computed on
+(12.0%) have a byte-identical twin in the TRAIN split: 19 share the
+posture_fault label (memorisation, optimistic), 8 conflict (direction unclear).
+The duplicate scan covered 1,487 of 1,625 corpus entries, so 27 is a lower
+bound. It stands as an UPPER BOUND, deliberately not re-measured -- re-running
+the model after a data change is how a negative becomes a positive.
+See bench/results/2026-09-23-corpus-duplicates.md.
+
 Bench only.
     docker compose -f backend/deployment/docker-compose.yml exec -T app \
         python - < bench/eval_v1_test_split.py

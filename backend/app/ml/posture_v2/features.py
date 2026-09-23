@@ -14,7 +14,16 @@ signal: your head drops as you squat, so nose/eye y is a crude proxy for depth
 and trunk lean. It is a shortcut, because the values are raw frame coordinates --
 the same squat filmed two feet further back produces different numbers.
 
-Measured (bench/results/2026-09-19-face-block-ablation.md, n=50 held-out):
+Measured (bench/results/2026-09-19-face-block-ablation.md, n=50) -- and that
+baseline carries TWO defects, so this delta is indicative, not exact:
+  * G-25: an n=50 balanced-fixture run is not comparable to a natural-prevalence
+    number; the 0.769 headline was retracted on those grounds.
+  * G-44: 7 of those 50 fixtures (14.0%) have a byte-identical twin in TRAIN, so
+    they were not held out at all. The test that asserts they were checks split
+    membership by NAME, not by content (G-45).
+The ARGUMENT below survives both -- it is a relative comparison between two arms
+scored on the same fixtures, and the contamination is common to both -- but the
+absolute figures are upper bounds and are not re-measured.
     baseline                     F1 0.7692
     face block frozen [0:87]     F1 0.7170   (-0.052)
 So the face block is worth ~0.05 F1. v2 does not simply delete it -- that would

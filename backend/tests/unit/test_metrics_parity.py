@@ -13,6 +13,26 @@ DB, no container, deterministic.
 The CI is the sharp test. `bootstrap_ci` draws one `rng.integers(0, N, N)` per
 iteration from `default_rng(0)` and nothing else touches the stream. Vectorise
 the loop, add a draw, or reorder, and [0.5291, 0.6872] stops reproducing.
+
+G-44 -- WHAT THESE NUMBERS ARE, AND ARE NOT
+--------------------------------------------
+This file pins REPRODUCIBILITY, not validity. The figures below were measured
+on an evaluation set that was partly in training: 27 of the 224 videos (12.0%)
+have a byte-identical twin in the TRAIN split, because the corpus holds 105
+byte-identical duplicate videos under different names and the split was
+partitioned by user id. 19 of those twins share the `posture_fault` label
+(memorisation, optimistic); 8 carry a conflicting label (direction unclear), so
+the bias is predominantly but not purely optimistic. 138 corpus files were not
+on disk and went unscanned, so 27 is a LOWER bound.
+
+They are therefore an UPPER BOUND on true performance, not an estimate, and
+they are deliberately NOT re-measured -- re-running the model after a data
+change is how a negative result quietly becomes a positive one. A pinned number
+carrying a stated defect is fine; a pinned number quoted clean is a false
+claim, which `test_contamination_caveat.py` now makes a build failure.
+
+Scope: `bench/contamination_scope.py`. Finding:
+`bench/results/2026-09-23-corpus-duplicates.md`.
 """
 from __future__ import annotations
 
@@ -40,6 +60,9 @@ SCORES = (
 
 # Frozen at bench/results/2026-09-19-v1-held-out-evaluation.md. Changing any of
 # these means the published number changed; that is a decision, not a test fix.
+#
+# G-44: contaminated -- 27 of the 224 (12.0%) have a byte-identical twin in
+# train. Upper bound, not an estimate. See the module docstring.
 PINNED = {
     "n": 224,
     "positives": 86,
@@ -202,3 +225,29 @@ class TestNoSurvivingDuplicates:
         p, r = 6 / 8, 6 / 10
         assert f_beta(c, 0.5) == pytest.approx(
             (1.25 * p * r) / (0.25 * p + r))
+
+
+def test_the_contamination_caveat_travels_with_the_numbers():
+    """The defect must be stated where the numbers are pinned.
+
+    Not a style check: this file is the single most likely place for someone to
+    read 0.6131 and quote it, because it is the file that asserts the value is
+    correct. Correct and valid are different claims, and only one of them holds.
+    """
+    from app.eval.provenance import CONTAMINATION_CAVEAT_ID
+
+    src = Path(__file__).read_text()
+    assert CONTAMINATION_CAVEAT_ID in src
+    assert "UPPER BOUND" in src or "upper bound" in src
+    assert "not re-measured" in src.lower()
+
+
+def test_the_pinned_population_matches_the_recorded_contamination_scope():
+    """If the pinned n ever stops matching the scope analysis, one of them moved
+    and the caveat's 12.0% silently stops describing this set."""
+    from app.eval.provenance import CONTAMINATED_EVALUATIONS
+
+    scope = CONTAMINATED_EVALUATIONS["pinned_v1_224"]
+    assert scope["n"] == PINNED["n"] == 224
+    assert scope["contaminated"] == 27
+    assert scope["same_label"] + scope["conflicting_label"] == 27

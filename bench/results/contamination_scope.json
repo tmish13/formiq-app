@@ -1,0 +1,89 @@
+{
+  "_contamination_note": "G-44: this file MEASURES the contamination rather than claiming a clean number. Every figure it names is an upper bound, not an estimate, and none is re-measured. See bench/results/2026-09-23-corpus-duplicates.md.",
+  "source": "bench/results/corpus_duplicates.json",
+  "definition": "has a byte-identical twin in the train split",
+  "lower_bound_note": "the duplicate scan covered 1487 of 1625 corpus entries; 138 files were absent from disk",
+  "evaluations": {
+    "pinned_v1_224": {
+      "what": "F1 0.6131 / AUROC 0.7184, bench/results/2026-09-19-v1-held-out-evaluation.md",
+      "n": 224,
+      "contaminated": 27,
+      "rate": 0.1205,
+      "same_label": 19,
+      "conflicting_label": 8,
+      "conflicting": [
+        {
+          "video": "50860_2",
+          "class": "good_form",
+          "train_twin": "50590_2",
+          "twin_class": "posture_fault"
+        },
+        {
+          "video": "36049_2",
+          "class": "posture_fault",
+          "train_twin": "37047_2",
+          "twin_class": "good_form"
+        },
+        {
+          "video": "50838_1",
+          "class": "good_form",
+          "train_twin": "46895_1",
+          "twin_class": "posture_fault"
+        },
+        {
+          "video": "33072_1",
+          "class": "posture_fault",
+          "train_twin": "33921_1",
+          "twin_class": "good_form"
+        },
+        {
+          "video": "50825_1",
+          "class": "good_form",
+          "train_twin": "47814_1",
+          "twin_class": "posture_fault"
+        },
+        {
+          "video": "50864_1",
+          "class": "good_form",
+          "train_twin": "46583_1",
+          "twin_class": "posture_fault"
+        },
+        {
+          "video": "50606_1",
+          "class": "posture_fault",
+          "train_twin": "50854_1",
+          "twin_class": "good_form"
+        },
+        {
+          "video": "50867_1",
+          "class": "good_form",
+          "train_twin": "49626_1",
+          "twin_class": "posture_fault"
+        }
+      ]
+    },
+    "manifest_binary": {
+      "what": "F1 0.7237, backend/app/ml/posture_v1/artifacts/posture_v1_manifest.json",
+      "n": 173,
+      "contaminated": 18,
+      "rate": 0.104,
+      "note": "the manifest records test_samples 162; this reconstructs the population as test-minus-depth_fault and gets 173, so the overlap is approximate"
+    },
+    "ablation_fixtures": {
+      "what": "F1 0.7692 baseline, bench/results/2026-09-19-face-block-ablation.md",
+      "n": 50,
+      "contaminated": 7,
+      "rate": 0.14,
+      "videos": [
+        "33072_1",
+        "36049_2",
+        "38108_4",
+        "50838_1",
+        "50844_1",
+        "50860_2",
+        "50862_1"
+      ],
+      "note": "backend/tests/unit/test_eval_split_integrity.py::test_every_ablation_fixture_is_held_out passes on all of these, because it checks split membership by NAME, not by content"
+    }
+  }
+}

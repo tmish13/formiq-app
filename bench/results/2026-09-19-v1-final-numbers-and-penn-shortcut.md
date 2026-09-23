@@ -1,5 +1,21 @@
 # v1 — corrected numbers on all 244 held-out videos, and the Penn-domain shortcut
 
+> **⚠️ G-44 — these figures were measured on contaminated data.** 45 cross-split
+> byte-identical duplicate videos were discovered *after* this was written. 27 of the
+> 224 videos in the pinned evaluation (12.0%) have a byte-identical twin in the TRAIN
+> split — 19 share the `posture_fault` label (memorisation, optimistic) and 8 carry a
+> conflicting label (direction unclear), so the bias is predominantly but not purely
+> optimistic. The duplicate scan covered 1,487 of 1,625 corpus entries, so 27 is a
+> **lower bound**. Every number below is an **upper bound on true performance, not an
+> estimate**. Deliberately **not re-measured**: re-measuring after a data change is how a
+> negative result quietly becomes a positive one.
+> See `bench/results/2026-09-23-corpus-duplicates.md` and `bench/contamination_scope.py`.
+>
+> **The Penn-shortcut finding itself is unaffected.** It is a *relative* comparison
+> between two domains scored by the same model, and contamination does not run
+> preferentially to one domain. The absolute F1/AUROC figures quoted alongside it are
+> upper bounds.
+
 **Date:** 2026-09-19 · **Bench only** · **Supersedes** the quotable numbers and three claims in
 `2026-09-19-g28-closed-manifest-reproduces.md` (corrections listed at the bottom).
 **Raw:** `2026-09-19-v1-test-per-video-scores.json`, `2026-09-19-penn-shortcut-test.json`

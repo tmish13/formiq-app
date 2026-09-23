@@ -1,5 +1,16 @@
 # The MediaPipe tracker carries state between videos — confirmed
 
+> **⚠️ G-44 — these figures were measured on contaminated data.** 45 cross-split
+> byte-identical duplicate videos were discovered *after* this was written. 27 of the
+> 224 videos in the pinned evaluation (12.0%) have a byte-identical twin in the TRAIN
+> split — 19 share the `posture_fault` label (memorisation, optimistic) and 8 carry a
+> conflicting label (direction unclear), so the bias is predominantly but not purely
+> optimistic. The duplicate scan covered 1,487 of 1,625 corpus entries, so 27 is a
+> **lower bound**. Every number below is an **upper bound on true performance, not an
+> estimate**. Deliberately **not re-measured**: re-measuring after a data change is how a
+> negative result quietly becomes a positive one.
+> See `bench/results/2026-09-23-corpus-duplicates.md` and `bench/contamination_scope.py`.
+
 **Date:** 2026-09-19 · **Phase 0** · **Bench only, nothing changed**
 **Script:** `bench/mediapipe_state_leak_test.py`
 **Explains:** the 17/20 parity failure in `2026-09-19-celery-parity-20.json`

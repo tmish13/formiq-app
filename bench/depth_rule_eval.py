@@ -14,6 +14,12 @@ Two things this exists to prevent:
       (a) all classes        -- deployment reality, pessimistic
       (b) good_form vs depth_fault -- the clean depth contrast
 
+G-44 -- THE PINNED NUMBERS ARE CONTAMINATED. 27 of those 224 videos (12.0%)
+have a byte-identical twin in the TRAIN split, so the model was fitted on bytes
+it is then scored on. 19 twins share the posture_fault label (memorisation,
+optimistic); 8 conflict (direction unclear). Not re-measured, by choice. Treat
+them as an upper bound. See bench/results/2026-09-23-corpus-duplicates.md.
+
 The pinned dataset-keypoint numbers (F1 0.6131 / AUROC 0.7184 on n=224) are
 printed alongside rather than replaced. The delta between those and PostureV1
 re-scored here is the POSE-PASS contribution to the train/serve gap, which is
@@ -59,7 +65,13 @@ NOISY_NEGATIVE = "posture_fault"
 # Frozen at bench/results/2026-09-19-v1-held-out-evaluation.md, on DATASET
 # keypoints and n=224. Printed for contrast, never as this run's result.
 PINNED_V1 = {"n": 224, "f1": 0.6131, "ci95": (0.5291, 0.6872), "auroc": 0.7184,
-             "threshold": 0.525, "floor_f1": 0.5548, "prevalence": 0.3839}
+             "threshold": 0.525, "floor_f1": 0.5548, "prevalence": 0.3839,
+             # G-44: 27 of these 224 (12.0%) have a byte-identical twin in
+             # train. Upper bound, not an estimate. Deliberately not
+             # re-measured. bench/results/2026-09-23-corpus-duplicates.md
+             "contaminated": 27,
+             "caveat": "G-44 -- upper bound, not an estimate; 12.0% of this "
+                       "set has a byte-identical twin in train"}
 
 
 def splits_path() -> Path:
