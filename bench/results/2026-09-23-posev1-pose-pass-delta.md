@@ -25,8 +25,8 @@ Both runs restricted to the videos they share, so this is not a comparison acros
 
 | | delta | 95% CI |
 |---|---|---|
-| F1 | −0.0246 | **[−0.0786, +0.0296]** |
-| AUROC | −0.0279 | **[−0.0697, +0.0142]** |
+| F1 | −0.0249 | **[−0.0786, +0.0296]** |
+| AUROC | −0.0275 | **[−0.0697, +0.0142]** |
 
 **Both CIs include zero.** On aggregate the pose pass is not measurably costing anything. The
 honest statement is: *the pose-pass contribution to the train/serve gap is around −0.025 F1 and
@@ -34,6 +34,9 @@ is not distinguishable from zero at this sample size.*
 
 The pinned figures for reference (n=224, dataset keypoints): F1 0.6131 CI [0.5291, 0.6872],
 AUROC 0.7184.
+
+> The point estimates above are the exact paired deltas. Earlier drafts quoted −0.0246 /
+> −0.0279, which were the bootstrap distribution means; the CIs are unchanged.
 
 ## The number that matters more
 
@@ -47,6 +50,10 @@ AUROC 0.7184.
 One in seven users would receive a different verdict depending on which MediaPipe pass ran, on
 byte-identical input, from the same model at the same threshold. The population-level metric
 conceals that completely, because the flips go both ways and cancel.
+
+**Written up in full, with the threshold-jitter analysis, in
+`2026-09-23-pose-pass-verdict-instability.md`** — that note is the headline, this one is the
+aggregate it hides behind.
 
 This is the same failure mode as the Phase 1 tracker leak — same bytes, different verdict — from a
 different cause. There the predecessor video moved the score by up to 0.214; here the pose pass
@@ -72,6 +79,8 @@ that conclusion; it makes it slightly starker.
 
 ## Reproduce
 
+The live scores came from the single `--final` run against test:
+
 ```bash
 docker run --rm -m 6g --network deployment_default \
   -v $PWD/backend:/app -v $PWD:/repo \
@@ -82,7 +91,14 @@ docker run --rm -m 6g --network deployment_default \
   python /repo/bench/depth_rule_eval.py --split test --final
 ```
 
-Raw: `bench/results/depth_rule_eval_test.json`
+The paired comparison and every number in this note are then reproduced offline, with no
+container, by joining that output against the frozen dataset-pass scores:
+
+```bash
+python bench/posepass_flip.py
+```
+
+Raw: `bench/results/depth_rule_eval_test.json`, `bench/results/posepass_flip.json`
 
 ## Note on the test split
 
