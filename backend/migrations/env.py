@@ -165,6 +165,10 @@ from app.models.exercise import ExerciseTemplate
 from app.models.exercise_config import ExerciseConfig
 from app.models.user_settings import UserSettings
 from app.models.telemetry import PostureV1InferenceLog
+# Registered HERE as well as in app/models/__init__.py. env.py keeps its own
+# import block, and a model missing from it is invisible to autogenerate --
+# which shows up as alembic proposing to DROP a table that is in use.
+from app.models.audit import AnalysisRun, CheckerDecision
 
 # If you have other active models that define tables, import them too.
 # For example, if 'Subscription', 'Workout', etc., are still active, they should be here.

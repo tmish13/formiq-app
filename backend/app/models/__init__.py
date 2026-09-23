@@ -11,6 +11,7 @@ from app.models.exercise_config import ExerciseConfig, ExerciseConfigSchema
 from app.models.progress import ExerciseProgress, ProgressSnapshot
 from app.models.squat_session import SquatSession
 from app.models.training_session import TrainingSession
+from app.models.audit import AnalysisRun, CheckerDecision
 from app.models.enums import (
     SubscriptionTier,
     FormCheckStatus,
@@ -38,6 +39,8 @@ __all__ = [
     'ProgressSnapshot',
     'SquatSession',
     'TrainingSession',
+    'AnalysisRun',
+    'CheckerDecision',
     'SubscriptionTier',
     'FormCheckStatus',
     'FeedbackType',
