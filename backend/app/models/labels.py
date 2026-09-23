@@ -8,10 +8,17 @@ dies the moment the video is re-analysed under a new model -- which is exactly
 when you most want to compare the new answer against the old ground truth.
 
 `subject_id` is carried explicitly rather than derived. The splits are
-user-level (1625 videos = 1625 users, verified zero leakage), and subject-level
-grouping is the thing that makes a train/test split honest. Storing it makes
-"is this evaluation leaking?" a query rather than a cross-reference against a
-JSON file on someone's desktop.
+user-level (1625 videos = 1625 users), so no SUBJECT spans splits. Storing the
+subject makes "is this evaluation leaking?" a query rather than a
+cross-reference against a JSON file on someone's desktop.
+
+Subject-level is necessary and NOT sufficient. This docstring used to claim
+leakage had been ruled out entirely, which was wrong (G-44). 105 corpus videos are
+byte-identical duplicates under different names, 45 spanning splits and 104
+filed under different USER IDS -- so the user-level partition is clean and the
+content-level one is not. That is exactly why labels are keyed on
+`content_hash`: the hash is the identifier that would have caught it, and a
+subject id cannot.
 
 TRUST IS A NUMBER, NOT A HIERARCHY
 ----------------------------------

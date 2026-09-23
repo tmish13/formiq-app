@@ -122,7 +122,9 @@ G-25 should therefore move off "pipeline investigation" and onto:
   (`data/squat_processed/user_level_multilabel_splits.json`) into
   `backend/app/ml/posture_v1/artifacts/posture_v1_splits.json`. **All 50 fixtures
   are in the TEST split**, and the split is `user_level_splits: true` (one video
-  per user, 1625 users), so there is no subject leakage. Validation/test sizes
+  per user, 1625 users), so no SUBJECT spans splits. **That is not the same as no
+  content spanning splits, and 7 of these 50 fixtures have a byte-identical twin in
+  train (G-44/G-45).** Validation/test sizes
   (244/244) match the model manifest exactly.
 
   **The 0.769 baseline is therefore a legitimate held-out number**, and it is

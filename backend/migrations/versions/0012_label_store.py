@@ -61,9 +61,13 @@ def upgrade() -> None:
 
             sa.Column("content_hash", sa.String(64), nullable=False),
             sa.Column("video_name", sa.String(255), nullable=True),
-            # The splits are user-level. Storing the subject makes "is this
-            # evaluation leaking?" a query instead of a cross-reference against
-            # a JSON file on somebody's desktop.
+            # The splits are user-level, so no SUBJECT spans splits. Storing
+            # the subject makes "is this evaluation leaking?" a query instead
+            # of a cross-reference against a JSON file on somebody's desktop.
+            #
+            # Necessary, not sufficient: 45 byte-identical videos DO span
+            # splits under different user ids (G-44). The content_hash column
+            # is the identifier that catches that; subject_id cannot.
             sa.Column("subject_id", sa.String(64), nullable=True),
             sa.Column("split", sa.String(16), nullable=True),
 

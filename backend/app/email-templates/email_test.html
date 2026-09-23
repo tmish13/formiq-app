@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>FormIQ — Test Email</title></head>
+<body style="font-family:sans-serif;padding:32px;background:#f9f9f9;">
+  <div style="max-width:480px;margin:0 auto;background:#fff;border-radius:8px;padding:32px;border:1px solid #e5e7eb;">
+    <h2 style="color:#4f46e5;margin-top:0;">FormIQ — Test Email</h2>
+    <p>If you received this, your SMTP configuration is working correctly.</p>
+    <table style="width:100%;border-collapse:collapse;margin-top:16px;">
+      <tr><td style="padding:6px 0;color:#6b7280;font-size:13px;">SMTP server</td><td style="padding:6px 0;font-size:13px;font-weight:500;">{{ smtp_server }}</td></tr>
+      <tr><td style="padding:6px 0;color:#6b7280;font-size:13px;">Username</td><td style="padding:6px 0;font-size:13px;font-weight:500;">{{ smtp_username }}</td></tr>
+      <tr><td style="padding:6px 0;color:#6b7280;font-size:13px;">Environment</td><td style="padding:6px 0;font-size:13px;font-weight:500;">{{ environment }}</td></tr>
+    </table>
+    <p style="margin-top:24px;color:#9ca3af;font-size:12px;">&copy; {{ year }} FormIQ. This is a test email sent from the /debug/email-test endpoint.</p>
+  </div>
+</body>
+</html>

@@ -112,7 +112,11 @@ class TestSchema:
     def test_subject_id_is_stored_so_leakage_is_queryable(self):
         """The splits are user-level. Storing the subject makes 'is this
         evaluation leaking?' a query rather than a cross-reference against a
-        JSON file on somebody's desktop."""
+        JSON file on somebody's desktop.
+
+        Subject-level grouping is necessary and NOT sufficient (G-44): 45
+        byte-identical videos span splits under different user ids. That is why
+        the table is keyed on content_hash and not on subject_id."""
         assert "subject_id" in Label.__table__.c
 
     def test_trust_defaults_rank_the_sources(self):

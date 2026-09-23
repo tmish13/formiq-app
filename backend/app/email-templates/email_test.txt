@@ -1,0 +1,9 @@
+FormIQ — Test Email
+
+If you received this, your SMTP configuration is working correctly.
+
+SMTP server: {{ smtp_server }}
+Username: {{ smtp_username }}
+Environment: {{ environment }}
+
+This is a test email sent from the /debug/email-test endpoint.
