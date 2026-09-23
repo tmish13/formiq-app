@@ -163,21 +163,34 @@ class TestNoSurvivingDuplicates:
     )
 
     @staticmethod
-    def _repo():
+    def _find(rel: str):
+        """Locate a repo file from either checkout layout.
+
+        On the host the repo root is three levels up from this test. In the
+        worker image only `backend/` is mounted, at /app, so `bench/` does not
+        exist there at all -- these files are bench and script tooling, not
+        shipped code. Skip rather than fail: a test that cannot see its subject
+        has not found a defect.
+        """
         from pathlib import Path
-        return Path(__file__).resolve().parents[3]
+        here = Path(__file__).resolve()
+        backend = here.parents[2]
+        for cand in (backend.parent / rel, backend / rel.split("/", 1)[-1]):
+            if cand.exists():
+                return cand
+        pytest.skip(f"{rel} not present in this layout")
 
     @pytest.mark.parametrize("rel", FILES)
     def test_the_f1_formula_is_not_re_derived(self, rel):
         import re
-        src = (self._repo() / rel).read_text()
+        src = self._find(rel).read_text()
         # `2 * p * r / (p + r)` in any spelling of the variable names.
         hits = re.findall(r"2\s*\*\s*\w+\s*\*\s*\w+\s*/\s*\(\s*\w+\s*\+\s*\w+\s*\)", src)
         assert not hits, f"{rel} re-derives F1: {hits}"
 
     @pytest.mark.parametrize("rel", FILES)
     def test_it_imports_the_shared_module(self, rel):
-        src = (self._repo() / rel).read_text()
+        src = self._find(rel).read_text()
         assert "from app.eval.metrics import" in src, (
             f"{rel} computes metrics without importing app.eval.metrics")
 
