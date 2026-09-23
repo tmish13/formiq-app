@@ -29,28 +29,20 @@ KP_DIR = Path("/keypoints")
 POSTURE_IDX = 1  # class_names = [good_form, posture_fault, depth_fault]
 
 
-def prf(tp, fp, fn):
-    p = tp / (tp + fp) if (tp + fp) else 0.0
-    r = tp / (tp + fn) if (tp + fn) else 0.0
-    f = 2 * p * r / (p + r) if (p + r) else 0.0
-    return p, r, f
-
-
-def counts(y, pred):
-    tp = int(((pred == 1) & (y == 1)).sum()); fp = int(((pred == 1) & (y == 0)).sum())
-    tn = int(((pred == 0) & (y == 0)).sum()); fn = int(((pred == 0) & (y == 1)).sum())
-    return tp, fp, tn, fn
-
-
-def bootstrap_f1(y, prob, thr, n=2000, seed=0):
-    rng = np.random.default_rng(seed)
-    N = len(y); out = []
-    for _ in range(n):
-        idx = rng.integers(0, N, N)
-        yy, pp = y[idx], (prob[idx] >= thr).astype(int)
-        tp, fp, tn, fn = counts(yy, pp)
-        out.append(prf(tp, fp, fn)[2])
-    return float(np.percentile(out, 2.5)), float(np.percentile(out, 97.5))
+# The confusion matrix, the bootstrap and the trivial floor used to be defined
+# here, and again in three other scripts, each with its own zero-denominator
+# convention. `app.eval.metrics` is now the single implementation; this file's
+# published numbers (F1 0.6131, CI [0.5291, 0.6872], AUROC 0.7184) are pinned
+# against it bit-for-bit by tests/unit/test_metrics_parity.py, which replays the
+# stored per-video scores. If the refactor had changed the RNG call order the
+# CI would have moved and that test would fail.
+from app.eval.metrics import (
+    auroc as auroc_of,
+    bootstrap_ci,
+    counts,
+    precision_recall_f1,
+    trivial_floor,
+)
 
 
 def main():
@@ -86,19 +78,16 @@ def main():
 
     y = np.array(ys); prob = np.array(probs)
     pred = (prob >= thr).astype(int)
-    tp, fp, tn, fn = counts(y, pred)
-    p, r, f1 = prf(tp, fp, fn)
-    lo, hi = bootstrap_f1(y, prob, thr)
+    c = counts(y, pred)
+    tp, fp, tn, fn = c.tp, c.fp, c.tn, c.fn
+    p, r, f1 = precision_recall_f1(c)
+    lo, hi = bootstrap_ci(y, prob, thr, metric="f1", n=2000, seed=0)
 
-    prev = float(y.mean())
-    tp0, fp0, _, fn0 = counts(y, np.ones_like(y))
-    _, _, f1_all = prf(tp0, fp0, fn0)
+    floor = trivial_floor(y)
+    prev, f1_all = floor["prevalence"], floor["all_positive_f1"]
 
-    try:
-        from sklearn.metrics import roc_auc_score
-        auroc = float(roc_auc_score(y, prob))
-    except Exception:
-        auroc = float("nan")
+    # Rank-based and tie-corrected, so no sklearn import to fall back from.
+    auroc = auroc_of(y, prob)
 
     print(f"evaluated {len(y)}/244 test videos   (missing {len(missing)})")
     print(f"prevalence (posture_fault): {y.sum()}/{len(y)} = {prev:.3f}")

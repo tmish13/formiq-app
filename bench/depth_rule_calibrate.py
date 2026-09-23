@@ -103,11 +103,12 @@ def evaluate_split(split: str, params: dict, split_map: Dict[str, Tuple[str, str
     return rows
 
 
-def _prf(tp, fp, fn):
-    p = tp / (tp + fp) if (tp + fp) else 0.0
-    r = tp / (tp + fn) if (tp + fn) else 0.0
-    f = 2 * p * r / (p + r) if (p + r) else 0.0
-    return p, r, f
+# A fifth copy of the confusion matrix lived here until C.1. Written during
+# Phase 2, after the other four had already been identified as duplicates --
+# which is the argument for deleting them rather than noting them.
+def _prf(tp, fp, fn, tn=0):
+    from app.eval.metrics import Counts, precision_recall_f1
+    return precision_recall_f1(Counts(tp=tp, fp=fp, tn=tn, fn=fn))
 
 
 def score_at_offset(rows, offset: float, deadband: float) -> Dict:

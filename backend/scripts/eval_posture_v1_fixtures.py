@@ -40,12 +40,18 @@ def load_fixture(directory: Path, name: str) -> list:
 
 
 def compute_metrics(tp: int, fp: int, fn: int, tn: int) -> dict:
-    """Compute P/R/F1/F0.5/accuracy from confusion matrix counts."""
-    precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
-    recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
-    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
-    f05 = (1.25 * precision * recall) / (0.25 * precision + recall) if (0.25 * precision + recall) > 0 else 0.0
-    accuracy = (tp + tn) / (tp + fp + fn + tn) if (tp + fp + fn + tn) > 0 else 0.0
+    """P/R/F1/F0.5/accuracy from confusion matrix counts.
+
+    Delegates to app.eval.metrics. This file used to compute F0.5 by hand with
+    the 1.25/0.25 constants inlined; `f_beta` derives them from beta, so the
+    two cannot disagree about what F0.5 means.
+    """
+    from app.eval.metrics import Counts, f_beta, precision_recall_f1
+
+    c = Counts(tp=tp, fp=fp, tn=tn, fn=fn)
+    precision, recall, f1 = precision_recall_f1(c)
+    f05 = f_beta(c, beta=0.5)
+    accuracy = (c.tp + c.tn) / c.n if c.n else 0.0
     return {
         "precision": round(precision, 4),
         "recall": round(recall, 4),

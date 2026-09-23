@@ -71,29 +71,28 @@ ARMS = {
 
 
 def metrics(rows, arm):
-    """rows: list of (label, prob_fault). Positive class = fault."""
-    tp = fp = tn = fn = 0
-    for label, prob in rows:
-        pred_fault = prob >= THRESHOLD
-        is_fault = label == POSITIVE_LABEL
-        if pred_fault and is_fault:
-            tp += 1
-        elif pred_fault and not is_fault:
-            fp += 1
-        elif not pred_fault and is_fault:
-            fn += 1
-        else:
-            tn += 1
-    prec = tp / (tp + fp) if (tp + fp) else 0.0
-    rec = tp / (tp + fn) if (tp + fn) else 0.0
-    f1 = 2 * prec * rec / (prec + rec) if (prec + rec) else 0.0
-    acc = (tp + tn) / len(rows) if rows else 0.0
+    """rows: list of (label, prob_fault). Positive class = fault.
+
+    The confusion matrix and P/R/F1 come from app.eval.metrics rather than being
+    counted again here. This file's own copy used `acc = (tp+tn)/len(rows)`,
+    which silently differed from the other three scripts' conventions on an
+    empty arm.
+    """
+    from app.eval.metrics import counts, precision_recall_f1, trivial_floor
+
+    y = [1 if label == POSITIVE_LABEL else 0 for label, _ in rows]
     probs = np.array([p for _, p in rows])
+    pred = (probs >= THRESHOLD).astype(int)
+    c = counts(y, pred)
+    prec, rec, f1 = precision_recall_f1(c)
+    acc = (c.tp + c.tn) / c.n if c.n else 0.0
     return {
         "arm": arm, "n": len(rows),
-        "TP": tp, "FP": fp, "TN": tn, "FN": fn,
+        "TP": c.tp, "FP": c.fp, "TN": c.tn, "FN": c.fn,
         "precision": round(prec, 4), "recall": round(rec, 4),
         "f1": round(f1, 4), "accuracy": round(acc, 4),
+        # Quoting F1 without the floor is how a useless model looks fine.
+        "trivial_floor_f1": round(trivial_floor(y)["all_positive_f1"], 4),
         "prob_mean": round(float(probs.mean()), 4),
         "prob_std": round(float(probs.std()), 4),
     }

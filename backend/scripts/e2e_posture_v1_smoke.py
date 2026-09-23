@@ -482,16 +482,37 @@ def _compute_metrics(results: list, threshold: float = 0.525, scope: str = "all"
                 FP += 1
                 errors.append({**r, "_error_type": "FP"})
 
+    # The counting loop above encodes this script's scope and abstention
+    # POLICY; the arithmetic below comes from app.eval.metrics, which is the
+    # single implementation. Four scripts each had their own copy, with
+    # different zero-denominator conventions.
+    from app.eval.metrics import Counts, coverage_metrics, precision_recall_f1, trivial_floor
+
     n = len(scorable)
     decided = TP + FP + TN + FN
-    prec = TP / (TP + FP) if (TP + FP) else 0.0
-    rec = TP / (TP + FN) if (TP + FN) else 0.0
-    f1 = 2 * prec * rec / (prec + rec) if (prec + rec) else 0.0
+    c = Counts(tp=TP, fp=FP, tn=TN, fn=FN)
+    prec, rec, f1 = precision_recall_f1(c)
     acc = (TP + TN) / decided if decided else 0.0
     unc_rate = (unc_fault + unc_good) / n if n else 0.0
 
+    # These numbers were the COVERED-ONLY view and were reported alone, which
+    # flatters a checker that declines whenever it is unsure: the videos it
+    # refused simply vanished from the denominator. An unanswered video is an
+    # unflagged video, so the abstain-as-negative view is what a user actually
+    # experiences. Both are reported now, always, plus the floor.
+    _y, _dec = [], []
+    for r in scorable:
+        _y.append(1 if r["label_used"] in in_scope_fault else 0)
+        _pred = r.get("decision") or "unknown"
+        _dec.append("uncertain" if _pred == "uncertain"
+                    else (1 if _pred == "fault" else 0))
+    _cov = coverage_metrics(_y, _dec, abstain_value="uncertain") if _y else None
+    _floor = trivial_floor(_y) if _y else None
+
     return {
         "scope": scope,
+        "coverage_view": _cov,
+        "trivial_floor": _floor,
         "scorable_n": n,
         "TP": TP, "FP": FP, "TN": TN, "FN": FN,
         "uncertain_fault": unc_fault, "uncertain_good": unc_good,

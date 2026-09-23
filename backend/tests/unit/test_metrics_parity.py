@@ -142,3 +142,50 @@ def test_summarize_always_reports_the_floor(v1):
     y, s, thr = v1
     res = summarize(y, y_score=s, threshold=thr, bootstrap=False)
     assert "floor" in res and res["floor"]["all_positive_f1"] is not None
+
+
+class TestNoSurvivingDuplicates:
+    """C.1's actual deliverable: one implementation, not five.
+
+    Five scripts each counted their own confusion matrix, with different
+    zero-denominator conventions and, in one case, the F0.5 constants inlined.
+    The fifth was written during Phase 2 -- AFTER the other four had been
+    identified as duplicates -- which is the argument for deleting them rather
+    than noting them.
+    """
+
+    FILES = (
+        "bench/eval_v1_test_split.py",
+        "bench/ablate_face_block.py",
+        "bench/depth_rule_calibrate.py",
+        "backend/scripts/eval_posture_v1_fixtures.py",
+        "backend/scripts/e2e_posture_v1_smoke.py",
+    )
+
+    @staticmethod
+    def _repo():
+        from pathlib import Path
+        return Path(__file__).resolve().parents[3]
+
+    @pytest.mark.parametrize("rel", FILES)
+    def test_the_f1_formula_is_not_re_derived(self, rel):
+        import re
+        src = (self._repo() / rel).read_text()
+        # `2 * p * r / (p + r)` in any spelling of the variable names.
+        hits = re.findall(r"2\s*\*\s*\w+\s*\*\s*\w+\s*/\s*\(\s*\w+\s*\+\s*\w+\s*\)", src)
+        assert not hits, f"{rel} re-derives F1: {hits}"
+
+    @pytest.mark.parametrize("rel", FILES)
+    def test_it_imports_the_shared_module(self, rel):
+        src = (self._repo() / rel).read_text()
+        assert "from app.eval.metrics import" in src, (
+            f"{rel} computes metrics without importing app.eval.metrics")
+
+    def test_f_half_is_derived_from_beta_not_inlined(self):
+        """eval_posture_v1_fixtures.py hard-coded 1.25 and 0.25. f_beta derives
+        them, so the two cannot disagree about what F0.5 means."""
+        from app.eval.metrics import Counts, f_beta
+        c = Counts(tp=6, fp=2, tn=10, fn=4)
+        p, r = 6 / 8, 6 / 10
+        assert f_beta(c, 0.5) == pytest.approx(
+            (1.25 * p * r) / (0.25 * p + r))
