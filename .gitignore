@@ -147,3 +147,7 @@ test_single_squat_video.py
 batch_process_squat_videos.py
 process_videos_with_updates.py
 update_summary.py
+
+# Live-extracted keypoints: regenerable from bench/extract_keypoints.py, and the
+# manifest records the exact extraction contract needed to reproduce them.
+bench/cache/
