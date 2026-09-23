@@ -72,7 +72,8 @@ def _stuck_since(threshold: timedelta) -> datetime:
 
 async def _reap_stuck_form_checks(threshold: timedelta = STUCK_THRESHOLD) -> Dict[str, Any]:
     cutoff = _stuck_since(threshold)
-    summary: Dict[str, Any] = {"scanned": 0, "redispatched": 0, "failed": 0, "errors": 0}
+    summary: Dict[str, Any] = {"scanned": 0, "redispatched": 0, "failed": 0,
+                               "errors": 0, "runs_abandoned": 0}
 
     async with get_async_session_for_celery() as session:
         # updated_at has onupdate but NO server_default (form_check.py:95), so it
@@ -101,6 +102,7 @@ async def _reap_stuck_form_checks(threshold: timedelta = STUCK_THRESHOLD) -> Dic
         )
         summary["scanned"] = len(rows)
         if not rows:
+            summary["runs_abandoned"] = await _abandon_unclosed_runs(session, threshold)
             return summary
 
         for row in rows:
@@ -123,11 +125,68 @@ async def _reap_stuck_form_checks(threshold: timedelta = STUCK_THRESHOLD) -> Dic
                 )
                 await session.rollback()
 
+        summary["runs_abandoned"] = await _abandon_unclosed_runs(session, threshold)
+
     logger.info(
         "[Reaper] scanned=%(scanned)d redispatched=%(redispatched)d "
-        "failed=%(failed)d errors=%(errors)d", summary,
+        "failed=%(failed)d errors=%(errors)d runs_abandoned=%(runs_abandoned)d",
+        summary,
     )
     return summary
+
+
+#: How long past the stuck threshold a run may stay open before it is declared
+#: abandoned. Doubled because a run is opened BEFORE the work and closed AFTER
+#: it: a task that is legitimately slow, or has just been re-dispatched by this
+#: same sweep, must not have its trail rewritten underneath it.
+RUN_ABANDON_FACTOR = 2
+
+
+async def _abandon_unclosed_runs(session, threshold: timedelta) -> int:
+    """Close runs no worker ever closed.
+
+    A SIGKILLed worker runs no `finally`, so its run sits `running` with
+    `finished_at` NULL forever. That is not a cosmetic gap: an unclosed run is
+    indistinguishable from one still in flight, so "how many analyses died?" has
+    no answer without this sweep.
+
+    Unconditional on the form check. The `analysis_runs` table deliberately has
+    no foreign key, so a run whose form check was deleted is still here and
+    still needs closing -- and it is exactly the row a per-form-check sweep
+    would miss.
+    """
+    from app.models.audit import RUN_STATUS_ABANDONED, RUN_STATUS_RUNNING, AnalysisRun
+
+    cutoff = _stuck_since(threshold * RUN_ABANDON_FACTOR)
+    try:
+        result = await session.execute(
+            sa_update(AnalysisRun)
+            .where(AnalysisRun.status == RUN_STATUS_RUNNING)
+            .where(AnalysisRun.finished_at.is_(None))
+            .where(AnalysisRun.started_at < cutoff)
+            .values(
+                status=RUN_STATUS_ABANDONED,
+                finished_at=datetime.now(timezone.utc),
+                error_type="abandoned",
+                error_message=(
+                    "no worker closed this run; swept by reap_stuck_form_checks"
+                ),
+            )
+        )
+        await session.commit()
+        n = int(result.rowcount or 0)
+        if n:
+            logger.warning("[Reaper] abandoned %d unclosed analysis run(s) "
+                           "started before %s", n, cutoff.isoformat())
+        return n
+    except Exception as e:
+        # Never abort the sweep over the audit table -- form checks matter more.
+        logger.error("[Reaper] could not sweep unclosed runs: %s", e, exc_info=True)
+        try:
+            await session.rollback()
+        except Exception:
+            pass
+        return 0
 
 
 async def _redispatch(session, row, details, stuck_at) -> None:

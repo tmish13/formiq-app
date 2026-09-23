@@ -132,6 +132,21 @@ class TestScan:
 
 
 class TestPolicy:
+    @staticmethod
+    def _last_form_check_update(session):
+        """The last UPDATE against form_checks.
+
+        Not `call_args_list[-1]`: the sweep also closes unclosed analysis_runs,
+        and that statement is issued after this one. A test that means "the
+        form check update" must say so, or it silently starts asserting about a
+        different table the next time a statement is appended.
+        """
+        for call in reversed(session.execute.call_args_list):
+            stmt = call.args[0]
+            if "form_checks" in str(stmt) and "UPDATE" in str(stmt).upper():
+                return stmt
+        raise AssertionError("no UPDATE against form_checks was issued")
+
     @pytest.mark.asyncio
     async def test_first_strike_redispatches(self):
         row = _row(details=None)
@@ -141,7 +156,10 @@ class TestPolicy:
         ) as mock_task:
             summary = await mt._reap_stuck_form_checks()
 
-        assert summary == {"scanned": 1, "redispatched": 1, "failed": 0, "errors": 0}
+        assert summary["scanned"] == 1
+        assert summary["redispatched"] == 1
+        assert summary["failed"] == 0
+        assert summary["errors"] == 0
         mock_task.delay.assert_called_once_with(str(row.video_id), str(row.id))
 
     @pytest.mark.asyncio
@@ -157,7 +175,7 @@ class TestPolicy:
         assert summary["redispatched"] == 0
         mock_task.delay.assert_not_called()
 
-        values = session.execute.call_args_list[-1].args[0].compile().params
+        values = self._last_form_check_update(session).compile().params
         assert values["status"] == FormCheckStatus.FAILED
 
     @pytest.mark.asyncio
@@ -172,7 +190,7 @@ class TestPolicy:
 
         mock_task.delay.assert_not_called()
         assert summary["redispatched"] == 1  # counted as handled by the first strike
-        values = session.execute.call_args_list[-1].args[0].compile().params
+        values = self._last_form_check_update(session).compile().params
         assert values["status"] == FormCheckStatus.FAILED
 
     @pytest.mark.asyncio
@@ -213,3 +231,84 @@ def test_the_reaper_task_is_not_a_coroutine_function():
     import inspect
 
     assert not inspect.iscoroutinefunction(mt.reap_stuck_form_checks_task.run)
+
+
+class TestUnclosedRunSweep:
+    """A SIGKILLed worker runs no `finally`, so its analysis_runs row sits
+    `running` with `finished_at` NULL forever. Until it is swept, an unclosed
+    run is indistinguishable from one still in flight, so "how many analyses
+    died?" has no answer.
+    """
+
+    @staticmethod
+    def _run_update(session):
+        for call in reversed(session.execute.call_args_list):
+            stmt = str(call.args[0])
+            if "analysis_runs" in stmt and "UPDATE" in stmt.upper():
+                return call.args[0]
+        raise AssertionError("no UPDATE against analysis_runs was issued")
+
+    @pytest.mark.asyncio
+    async def test_the_sweep_runs_even_when_no_form_check_is_stuck(self):
+        """A run whose form check completed normally but whose worker died
+        between the two is exactly the case a form-check-driven sweep misses."""
+        session = _session([])
+        with _patch_session(session):
+            summary = await mt._reap_stuck_form_checks()
+        assert "runs_abandoned" in summary
+        self._run_update(session)
+
+    @pytest.mark.asyncio
+    async def test_it_only_touches_runs_that_are_running_and_unclosed(self):
+        session = _session([])
+        with _patch_session(session):
+            await mt._reap_stuck_form_checks()
+        sql = str(self._run_update(session).compile(
+            compile_kwargs={"literal_binds": True})).lower()
+        assert "finished_at is null" in sql
+        assert "status" in sql and "running" in sql
+        assert "started_at <" in sql
+
+    @pytest.mark.asyncio
+    async def test_it_sets_a_terminal_status_and_a_finish_time(self):
+        session = _session([])
+        with _patch_session(session):
+            await mt._reap_stuck_form_checks()
+        params = self._run_update(session).compile().params
+        assert params["status"] == "abandoned"
+        assert params["finished_at"] is not None
+        assert params["error_type"] == "abandoned"
+
+    @pytest.mark.asyncio
+    async def test_it_is_not_keyed_on_the_form_check(self):
+        """analysis_runs deliberately has no foreign key, so a run whose form
+        check was deleted still exists and still needs closing -- and it is
+        precisely the row a per-form-check sweep would never reach."""
+        session = _session([])
+        with _patch_session(session):
+            await mt._reap_stuck_form_checks()
+        # The WHERE clause only. The SET clause carries the string
+        # "swept by reap_stuck_form_checks", which is prose, not a join.
+        sql = str(self._run_update(session).compile(
+            compile_kwargs={"literal_binds": True})).lower()
+        where = sql.split(" where ", 1)[1]
+        assert "form_check" not in where
+
+    def test_the_run_cutoff_is_later_than_the_form_check_cutoff(self):
+        """A run is opened BEFORE the work and closed AFTER it, so it is open
+        for longer than its form check is stale. Sweeping both at the same
+        cutoff would abandon the trail of a task this same sweep has just
+        re-dispatched."""
+        assert mt.RUN_ABANDON_FACTOR >= 2
+
+    @pytest.mark.asyncio
+    async def test_a_failure_in_the_sweep_does_not_abort_the_reaper(self):
+        """Form checks matter more than the audit table."""
+        session = AsyncMock()
+        select_result = MagicMock()
+        select_result.scalars.return_value.all.return_value = []
+        session.execute = AsyncMock(side_effect=[select_result, RuntimeError("boom")])
+        with _patch_session(session):
+            summary = await mt._reap_stuck_form_checks()
+        assert summary["runs_abandoned"] == 0
+        assert summary["errors"] == 0      # not a form-check error

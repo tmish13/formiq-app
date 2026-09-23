@@ -3,6 +3,7 @@ import asyncio
 import logging
 import os
 import threading
+import time
 from uuid import UUID
 from tempfile import NamedTemporaryFile
 from typing import Optional, Dict, Any, List
@@ -32,6 +33,15 @@ from app.core.exceptions import NotFoundException
 from sqlalchemy.ext.asyncio import AsyncSession # ADDED FOR TYPE HINT
 from app.services.dynamic_form_analysis_service import DynamicFormAnalysisService # RE-ADDED
 from app.services.video_service import VideoService
+from app.services.decisions import COMBINER_VERSION, CheckerOutcome, combine
+from app.services.decisions.recorder import (
+    RUN_STATUS_COMPLETED,
+    RUN_STATUS_FAILED,
+    RUN_STATUS_RELEASED,
+    close_run,
+    open_run,
+    record_decisions,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -631,6 +641,14 @@ async def _process_form_check_task_async(self, video_id_str: str, form_check_id_
     # Set only when the failure is worth retrying; see _is_transient().
     transient_exc: Optional[TransientTaskError] = None
     analyzed_form_check_model: Optional[FormCheck] = None # To store the result from DFAS
+    # Bound here rather than only inside the try, so the `finally` can read it
+    # on the paths that failed before it was fetched.
+    form_check: Optional[FormCheck] = None
+    # Decision trail (Stage A). Best-effort throughout: a missing audit row is
+    # a missing explanation, never a failed analysis.
+    run_id = None
+    _checker_outcomes: List[CheckerOutcome] = []
+    _run_started_monotonic = time.monotonic()
 
     try:
         _session_cm = get_task_db_session()
@@ -695,6 +713,38 @@ async def _process_form_check_task_async(self, video_id_str: str, form_check_id_
         # downstream reads form_check.status.
         await db_session.refresh(form_check)
         logger.info(f"[CeleryTask] FormCheck ID {form_check_id} claimed; status updated to PROCESSING.")
+
+        # ---- Open the decision trail (Stage A) ----------------------------
+        # Immediately after the claim, with its own commit, so a worker killed
+        # one instruction later still leaves `running` + finished_at NULL --
+        # which is exactly what the reaper sweeps. Opened inside the task's main
+        # transaction it would vanish on rollback, and the run most worth
+        # explaining (the one that died) would be the one with no record.
+        #
+        # pose_pass_id is not known yet: MediaPipe's effective complexity is only
+        # settled once the AIService has built its tracker, and a run stamped
+        # with the CONFIGURED complexity would silently misattribute every
+        # verdict from a worker that fell back to complexity 1. It is written on
+        # close instead. See app/core/pose_pass.py and G-39.
+        _rules_spec_hash = None
+        try:
+            from app.rules import load_params, rules_spec_hash as _rsh
+            _rules_spec_hash = _rsh(load_params())
+        except Exception:
+            pass   # the rules layer is advisory; its absence must not matter here
+        run_id = await open_run(
+            db_session,
+            form_check_id=form_check_id,
+            video_id=video_id,
+            user_id=getattr(form_check, "user_id", None),
+            celery_task_id=getattr(getattr(self, "request", None), "id", None),
+            attempt=getattr(getattr(self, "request", None), "retries", 0) or 0,
+            content_hash=getattr(form_check, "content_hash", None),
+            model_version=getattr(form_check, "model_version", None),
+            spec_hash=getattr(form_check, "spec_hash", None),
+            rules_spec_hash=_rules_spec_hash,
+            combiner_version=COMBINER_VERSION,
+        )
 
         # Fetch the Video object (Phase 3 fix: use base get_async, not missing method)
         video_model = await video_service.get_async(id=video_id)
@@ -1362,6 +1412,43 @@ async def _process_form_check_task_async(self, video_id_str: str, form_check_id_
                 except Exception as telem_exc:
                     logger.warning(f"[PostureV1 Telemetry] Failed to write telemetry row: {telem_exc}")
 
+                # ---- Decision trail (Stage A) -----------------------------
+                # Dual-written beside the legacy telemetry row, which is kept
+                # rather than migrated: its 103 existing rows have no run_id to
+                # invent. Removing it is a separate branch.
+                #
+                # PostureV1 is the one FITTED checker, so it is the only one
+                # allowed to be authoritative. `advisory` tracks shadow mode:
+                # in shadow it answers for the record and changes nothing.
+                try:
+                    _checker_outcomes.append(CheckerOutcome(
+                        checker_name="posture_v1",
+                        checker_kind="model",
+                        checker_version=posture_v1_result.get("model_version"),
+                        target="posture",
+                        decision=str(pv1_decision).upper(),
+                        fitted=True,
+                        advisory=bool(_is_shadow),
+                        abstained=(pv1_decision == "uncertain"),
+                        abstain_reason=("model_uncertain"
+                                        if pv1_decision == "uncertain" else None),
+                        prob=pv1_prob,
+                        confidence=pv1_confidence,
+                        threshold=posture_v1_result.get("threshold"),
+                        indicators=scoring.get("top_signals"),
+                        quality={
+                            "quality_flags": posture_v1_result.get("quality_flags"),
+                            "quality_ok": posture_v1_result.get("quality_ok"),
+                            "angle_validity": posture_v1_result.get("angle_validity"),
+                            "threshold_mode": _threshold_mode,
+                            "posture_v1_mode": _posture_v1_mode,
+                        },
+                        latency_ms=posture_v1_result.get("latency_ms"),
+                    ))
+                except Exception as audit_exc:
+                    logger.warning("[Audit] could not build the PostureV1 outcome: %s",
+                                   audit_exc)
+
                 # Restore threshold on shared loader so the next task is not
                 # affected by this task's per-form-check threshold override.
                 posture_v1_loader._fault_threshold = _saved_pv1_threshold
@@ -1395,6 +1482,22 @@ async def _process_form_check_task_async(self, video_id_str: str, form_check_id_
                 except Exception as telem_exc:
                     logger.warning(f"[PostureV1 Telemetry] Failed to write error telemetry: {telem_exc}")
 
+                # An errored checker is still a checker that ran. Recording it
+                # is what distinguishes "PostureV1 threw" from "PostureV1 never
+                # executed", which the legacy table could not tell apart either.
+                try:
+                    _checker_outcomes.append(CheckerOutcome(
+                        checker_name="posture_v1",
+                        checker_kind="model",
+                        target="posture",
+                        decision="ERROR",
+                        fitted=True,
+                        advisory=True,
+                        error=str(pv1_exc)[:2000],
+                    ))
+                except Exception:
+                    pass
+
         elif _run_posture_v1 and not _is_squat and keypoint_sequence_for_classification:
             logger.info(f"[CeleryTask] Exercise '{_exercise_slug}' is not squat — skipping PostureV1 (FormCheck {form_check_id})")
             existing_results = form_check.results or {}
@@ -1403,6 +1506,114 @@ async def _process_form_check_task_async(self, video_id_str: str, form_check_id_
             await db_session.merge(form_check)
         elif not _run_posture_v1:
             logger.debug("[CeleryTask] PostureV1 disabled via USE_POSTURE_V1=false")
+
+        # ---- Unfitted rule checkers (Stage A) -----------------------------
+        # Two hand-set rules, both `fitted: false`, both ADVISORY. They exist to
+        # carry the two-checker path end to end and to record evidence; the
+        # combiner will not let either set a verdict or move a score, and
+        # `depth_score` stays NULL.
+        #
+        # Not because of caution in the abstract. All three fault rules were
+        # measured and refuted at the video level on train:
+        #   depth          -- best AUROC 0.578 of ten axes tried
+        #   knee valgus    -- real signal, ~5% front view, 4 positive examples
+        #   knees forward  -- 80.2% within-video, 0.572 between, floor F1 0.812
+        # See bench/results/2026-09-23-corpus-level-negative.md.
+        #
+        # Its own try/except and its own guard: a rules failure must not touch a
+        # PostureV1 result that already succeeded.
+        if _is_squat and keypoint_sequence_for_classification:
+            try:
+                from app.rules import (
+                    evaluate_depth,
+                    evaluate_knees_forward,
+                    load_knees_forward_params,
+                    load_params,
+                )
+                _rules_t0 = time.monotonic()
+                _depth_params = load_params()
+                _kf_params = load_knees_forward_params()
+                # From video_model, not from _fps_used: that name is bound
+                # inside the PostureV1 block, so reading it here would make the
+                # rules layer silently never run whenever PostureV1 is disabled
+                # or failed early. Same source as analysis_tasks.py:1103.
+                _rule_fps = float(video_model.fps or 0.0) or _kf_params["fallback_fps"]
+
+                _dv = evaluate_depth(keypoint_sequence_for_classification,
+                                     _rule_fps, _depth_params)
+                _kv = evaluate_knees_forward(keypoint_sequence_for_classification,
+                                             _rule_fps, _kf_params)
+                _rules_ms = (time.monotonic() - _rules_t0) * 1000.0
+
+                _checker_outcomes.extend([
+                    CheckerOutcome(
+                        checker_name="depth_parallel_v0",
+                        checker_kind="rule",
+                        checker_version=_dv.params_id,
+                        target="depth",
+                        decision=_dv.verdict,
+                        fitted=bool(_depth_params.get("fitted")),
+                        advisory=True,
+                        abstained=_dv.abstained,
+                        abstain_reason=_dv.abstain_reason,
+                        confidence=_dv.confidence,
+                        coverage=_dv.coverage,
+                        indicators=_dv.indicators,
+                        quality={"scale_ref": _dv.scale_ref, "view": _dv.view,
+                                 "bottom": _dv.bottom},
+                        latency_ms=round(_rules_ms, 3),
+                    ),
+                    CheckerOutcome(
+                        checker_name="knees_forward_v0",
+                        checker_kind="rule",
+                        checker_version=_kv.params_id,
+                        target="knees_forward",
+                        decision=_kv.decision,
+                        fitted=bool(_kv.fitted),
+                        advisory=True,
+                        abstained=_kv.abstained,
+                        abstain_reason=_kv.abstain_reason,
+                        score=_kv.score,
+                        confidence=_kv.confidence,
+                        coverage=_kv.coverage,
+                        threshold=_kv.threshold,
+                        indicators=_kv.indicators,
+                        quality={"scale_ref": _kv.scale_ref, "view": _kv.view,
+                                 "bottom": _kv.bottom},
+                        latency_ms=round(_rules_ms, 3),
+                    ),
+                ])
+                # Recorded under its own key, never in depth_score. Writing an
+                # unfitted verdict into a user-visible column is the exact
+                # mistake analysis_tasks.py already made once, when movement
+                # consistency was written into depth_score.
+                _existing = form_check.results or {}
+                _existing["rules_shadow"] = {
+                    "depth": _dv.as_dict(),
+                    "knees_forward": _kv.as_dict(),
+                    "fitted": False,
+                    "advisory": True,
+                    "note": ("unfitted hand-set rules, recorded as evidence only; "
+                             "no user-visible field is derived from them"),
+                }
+                form_check.results = _existing
+                await db_session.merge(form_check)
+                logger.info(
+                    "[Rules] FormCheck %s depth=%s(%s) knees_forward=%s(%s) in %.1fms",
+                    form_check_id, _dv.verdict, _dv.abstain_reason,
+                    _kv.decision, _kv.abstain_reason, _rules_ms,
+                )
+            except Exception as rules_exc:
+                logger.warning("[Rules] rules layer failed for FormCheck %s: %s",
+                               form_check_id, rules_exc, exc_info=True)
+                try:
+                    _checker_outcomes.append(CheckerOutcome(
+                        checker_name="rules_layer", checker_kind="rule",
+                        target="rules", decision="ERROR", fitted=False,
+                        advisory=True, error=str(rules_exc)[:2000],
+                    ))
+                except Exception:
+                    pass
 
         # Phase 4 (Option A): DFAS requires calculated_angles — skip gracefully when absent.
         # PostureV1 results are already written to form_check.results above; they are not lost.
@@ -1525,6 +1736,73 @@ async def _process_form_check_task_async(self, video_id_str: str, form_check_id_
                     reason = f"{reason} (gave up after {retries_so_far} retries)"
                 analysis_output_for_finalize["error_message"] = reason
     finally:
+        # ---- Close the decision trail (Stage A) ---------------------------
+        # At the TOP of the finally, before the transient/finalize branching, so
+        # every exit path closes its run: a retried task closes as `released`
+        # rather than being left open and swept as abandoned by the reaper.
+        #
+        # Two statements, deliberately. The decision rows go first in their own
+        # transaction; close_run then rolls back and issues a bare UPDATE,
+        # because by this point the ORM session may be poisoned by whatever put
+        # us here. Both are best-effort: an audit write must never be the reason
+        # an analysis fails.
+        if run_id is not None and db_session is not None:
+            try:
+                _combined = combine(_checker_outcomes)
+                _written = await record_decisions(
+                    db_session, run_id=run_id, outcomes=_checker_outcomes,
+                    form_check_id=form_check_id,
+                    content_hash=getattr(form_check, "content_hash", None),
+                )
+                await db_session.commit()
+                logger.info(
+                    "[Audit] run %s: %d checker decision(s), %d contributor(s), "
+                    "%d advisory, score=%s",
+                    run_id, _written, len(_combined.contributors),
+                    len(_combined.advisory), _combined.score,
+                )
+            except Exception as audit_exc:
+                logger.warning("[Audit] could not write decisions for run %s: %s",
+                               run_id, audit_exc)
+                _combined = None
+                try:
+                    await db_session.rollback()
+                except Exception:
+                    pass
+
+            if transient_exc is not None:
+                _run_status, _err_type = RUN_STATUS_RELEASED, type(
+                    transient_exc.original).__name__
+            elif final_status == FormCheckStatus.COMPLETED:
+                _run_status, _err_type = RUN_STATUS_COMPLETED, None
+            else:
+                _run_status, _err_type = RUN_STATUS_FAILED, None
+
+            _pose_pass = None
+            try:
+                # Resolved HERE, not at open: the effective MediaPipe complexity
+                # is only settled once the tracker is built, and a worker that
+                # fell back to complexity 1 produced different keypoints (G-39).
+                from app.core.pose_pass import extraction_contract, pose_pass_id
+                _pose_pass = pose_pass_id(extraction_contract(
+                    ai_service=_ai_service_instance, settings=settings_obj))
+            except Exception:
+                pass
+
+            await close_run(
+                db_session,
+                run_id=run_id,
+                status=_run_status,
+                outcome_status=getattr(final_status, "value", None),
+                final_decision=((_combined.verdicts or {}).get("posture")
+                                if _combined else None),
+                final_score=(_combined.score if _combined else None),
+                error_type=_err_type,
+                error_message=(analysis_output_for_finalize or {}).get("error_message"),
+                latency_ms=round((time.monotonic() - _run_started_monotonic) * 1000.0, 3),
+                pose_pass_id=_pose_pass,
+            )
+
         if transient_exc is not None and form_check_id and db_session:
             # Put the row back to PENDING so the retry's guard lets it through.
             # Without this the row stays PROCESSING and the retry skips it,
