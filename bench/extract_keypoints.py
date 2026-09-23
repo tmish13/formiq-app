@@ -163,29 +163,16 @@ def select(pass_spec: dict) -> tuple:
 
 
 def contract(ai, settings) -> dict:
-    """Guarantee 2 — everything needed to reproduce this extraction."""
-    import mediapipe as mp
-    return {
-        "mediapipe_version": getattr(mp, "__version__", "unknown"),
-        "model_complexity_configured": settings.AI_MODEL_COMPLEXITY,
-        "model_complexity_used": ai._pose_complexity_used,
-        "complexity_fallback": ai._pose_complexity_fallback,
-        "static_image_mode": False,
-        "min_detection_confidence": settings.AI_MIN_DETECTION_CONFIDENCE,
-        "min_tracking_confidence": settings.AI_MIN_TRACKING_CONFIDENCE,
-        "max_frames_per_video": getattr(
-            settings, "AI_MAX_FRAMES_PER_VIDEO_ANALYSIS", 300),
-        "fps_resampling": "none at extraction; source fps recorded per video. "
-                          "Resampling to 30fps happens downstream in app/rules.",
-        "fresh_tracker_per_video": True,
-        "fresh_tracker_mechanism": "app.tasks.analysis_tasks._extract_pose_from_video "
-                                   "calls AIService.reset_pose_tracker() before frame 0 "
-                                   "(Phase 1, G-31)",
-        "extraction_path": "app.tasks.analysis_tasks._extract_pose_from_video",
-        "landmark_count": 33,
-        "landmark_fields": ["x", "y", "z", "visibility"],
-        "coordinate_note": "MediaPipe normalized image coords; y increases DOWNWARD",
-    }
+    """Guarantee 2 -- everything needed to reproduce this extraction.
+
+    Delegates to app.core.pose_pass so that this corpus and a production
+    verdict are identified by the SAME function. If the two drifted, a stored
+    `pose_pass_id` could not be compared against the pass a rule was
+    calibrated on, which is the only reason the id exists.
+    """
+    from app.core.pose_pass import extraction_contract, pose_pass_id
+    c = extraction_contract(ai_service=ai, settings=settings)
+    return {"pose_pass_id": pose_pass_id(c), **c}
 
 
 # -------------------------------------------------------------------- main --
