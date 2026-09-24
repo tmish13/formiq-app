@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Re-run the Stage A decision-trail report (THE TRAIL + assertions A1-A9 + determinism)
+# Re-run the Stage A decision-trail report (THE TRAIL + assertions A1-A10 + determinism)
 # over every form check owned by users whose email matches a SQL LIKE pattern.
 #
 # stage_a_decision_trail.sh submits a batch and then polls up to TIMEOUT_S; on a batch
@@ -58,6 +58,23 @@ chk 8 "decisions with no inputs_digest" "$(psql_q "SELECT count(*) FROM checker_
   WHERE r.form_check_id IN ($IDS) AND d.checker_kind = 'rule' AND d.inputs_digest IS NULL;")" 0
 chk 9 "completed runs with no n_frames" "$(psql_q "SELECT count(*) FROM analysis_runs WHERE form_check_id IN ($IDS)
   AND status = 'completed' AND n_frames IS NULL;")" 0
+# A10 (G-48): a terminal row must agree with its latest closed run, and no video may have been
+# judged twice for real. form_checks.status holds the enum NAME ('COMPLETED'); analysis_runs.
+# outcome_status holds the VALUE written at close ('completed'). A duplicate dispatch that flipped a
+# finished row never opened a run, so "status disagrees with the latest closed run" is exactly the
+# flip -- queryable today, no new column. The second term counts videos with more than one real
+# (non-cache) completed run: double processing.
+chk 10 "terminal rows disagreeing with their latest closed run, or judged twice" "$(psql_q "
+  SELECT (SELECT count(*) FROM form_checks f
+            JOIN LATERAL (SELECT outcome_status FROM analysis_runs r
+                          WHERE r.form_check_id = f.id AND r.status IN ('completed','failed')
+                          ORDER BY finished_at DESC LIMIT 1) lr ON true
+           WHERE f.id IN ($IDS) AND f.status IN ('COMPLETED','FAILED')
+             AND upper(lr.outcome_status) <> f.status::text)
+       + (SELECT count(*) FROM (SELECT form_check_id FROM analysis_runs
+                                WHERE form_check_id IN ($IDS) AND status = 'completed'
+                                  AND COALESCE(pose_source,'') <> 'cache'
+                                GROUP BY form_check_id HAVING count(*) > 1) d);")" 0
 echo; echo "--- determinism: digests with more than one distinct verdict ---"
 psql_q "SELECT '  ' || d.checker_name || ' ' || d.inputs_digest || ' -> '
              || count(DISTINCT d.decision || ':' || COALESCE(d.score::text,'-')) || ' distinct over ' || count(*) || ' rows'
