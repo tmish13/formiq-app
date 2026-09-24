@@ -50,7 +50,9 @@ sys.path.insert(0, "/app")
 
 VIDEOS = Path("/videos")
 SPLITS = Path("/splits/user_level_multilabel_splits.json")
-OUT_DIR = Path("/repo/bench/cache/keypoints_live")
+# KEYPOINT_CACHE_DIR: a second pass (e.g. AI_MODEL_COMPLEXITY=1) writes to its own cache so
+# two passes over the same clips can be compared per item (flip rate, ACCEPTANCE_BAR A2).
+OUT_DIR = Path(os.getenv("KEYPOINT_CACHE_DIR", "/repo/bench/cache/keypoints_live"))
 MANIFEST = OUT_DIR / "_manifest.json"
 
 CLASSES = ("good_form", "depth_fault", "posture_fault")
@@ -183,6 +185,8 @@ def main():
     ap.add_argument("--limit", type=int, default=None, help="smoke-test a few videos")
     ap.add_argument("--min-free-gb", type=float, default=40.0)
     ap.add_argument("--skip-disk-check", action="store_true")
+    ap.add_argument("--only", type=Path, default=None,
+                    help="file with one video name per line; restricts the pass to those clips")
     args = ap.parse_args()
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -198,6 +202,9 @@ def main():
 
     spec = PASS1 if args.pass_no == 1 else PASS2
     names, summary, excluded = select(spec)
+    if args.only:
+        keep = {l.strip() for l in args.only.read_text().splitlines() if l.strip()}
+        names = [n for n in names if n in keep]
     if args.limit:
         names = names[:args.limit]
     todo = [n for n in names if not (OUT_DIR / f"{n}.json.gz").exists()]

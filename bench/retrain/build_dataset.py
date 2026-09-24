@@ -117,7 +117,8 @@ def main() -> int:
     for s in ("train", "validation", "test"):
         if s in manifest["n"]:
             print(f"  {s:11s} n={manifest['n'][s]:4d}  prevalence {manifest['prevalence'][s]}")
-    dims = {arm: int(np.load(args.out / f"{arm}_train.npz")["X"].shape[1]) for arm in ARMS}
+    _any = next(s for s in ("train", "validation", "test") if (args.out / f"{ARMS[0]}_{s}.npz").exists())
+    dims = {arm: int(np.load(args.out / f"{arm}_{_any}.npz")["X"].shape[1]) for arm in ARMS}   # a second-pass cache may hold only test
     print(f"  dims {dims}")
     print(f"wrote {args.out}")
     return 0

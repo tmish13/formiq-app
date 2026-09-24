@@ -1,0 +1,49 @@
+{
+  "n": 196,
+  "pass_a": "/repo/bench/cache/keypoints_live",
+  "pass_b": "/repo/bench/cache/keypoints_pass_c1",
+  "pose_pass_ids": {
+    "a": "pp1_f9850424580ae186",
+    "b": "pp1_0d1b7d0af7e9509e"
+  },
+  "primary_posture_fault": {
+    "threshold": 0.35,
+    "flips": 50,
+    "flip_rate": 0.2551,
+    "ci95": [
+      0.1939,
+      0.3163
+    ],
+    "median_abs_prob_move": 0.1179
+  },
+  "primary_posture_collapsed": {
+    "threshold": 0.31,
+    "flips": 50,
+    "flip_rate": 0.2551,
+    "ci95": [
+      0.199,
+      0.3163
+    ],
+    "median_abs_prob_move": 0.128
+  },
+  "incumbent": {
+    "threshold": 0.525,
+    "flips": 30,
+    "flip_rate": 0.1531,
+    "ci95": [
+      0.107,
+      0.2041
+    ],
+    "median_abs_prob_move": 0.0674
+  },
+  "primary": {
+    "threshold": 0.35,
+    "flips": 50,
+    "flip_rate": 0.2551,
+    "ci95": [
+      0.1939,
+      0.3163
+    ],
+    "median_abs_prob_move": 0.1179
+  }
+}
