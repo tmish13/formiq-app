@@ -1,0 +1,53 @@
+{
+  "model_type": "BinarySquatCNNLSTM_Enhanced",
+  "task": "binary_posture_classification",
+  "labels": [
+    "good_form",
+    "posture_fault"
+  ],
+  "enhancements": {
+    "regularization": {
+      "cnn_dropout": 0.4,
+      "mlp_dropout": 0.4,
+      "lstm_hidden": 96,
+      "weight_decay": 0.0005
+    },
+    "threshold_tuning": {
+      "enabled": true,
+      "best_threshold": 0.5250000000000001,
+      "validation_f0_5_gain": -0.018723872937996044,
+      "threshold_range_tested": [
+        0.2,
+        0.8
+      ],
+      "num_thresholds_tested": 25
+    },
+    "class_weights": {
+      "enabled": true,
+      "mode": "weighted"
+    }
+  },
+  "training": {
+    "epochs": 21,
+    "best_val_f0_5": 0.7362637362637363,
+    "final_train_loss": 0.5786780541692284,
+    "final_val_loss": 0.5707029569439772,
+    "early_stopping": true,
+    "patience": 15
+  },
+  "test_results": {
+    "loss": 0.5856977535618676,
+    "posture_precision": 0.7432432432432432,
+    "posture_recall": 0.7051282051282052,
+    "posture_f1": 0.7236842105263158,
+    "posture_f05": 0.7352941176470589,
+    "posture_f0_5": 0.7352941176470589,
+    "labeled_samples": 162,
+    "processed_batches": 41,
+    "total_samples": 162,
+    "masked_samples": 0,
+    "threshold_used": 0.5250000000000001
+  },
+  "model_path": "/Users/tarpanmishra/FORMIQ Form Analysis Model/runs/best_cnn_lstm_binary_enhanced_cw_f0.5_0.736.pt",
+  "timestamp": "2026-02-11T11:24:44.055006"
+}
