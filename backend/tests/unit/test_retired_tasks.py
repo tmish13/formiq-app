@@ -103,7 +103,7 @@ def test_the_worker_registers_only_the_live_tasks():
         "n for n in celery_app.tasks if not n.startswith('celery.'))))"
     )
     out = subprocess.run(
-        [sys.executable, "-c", probe], capture_output=True, text=True, cwd="/app"
+        [sys.executable, "-c", probe], capture_output=True, text=True, cwd=str(Path(__file__).resolve().parents[2])
     )
     marker = [ln for ln in out.stdout.splitlines() if ln.startswith("RESULT")]
     assert marker, f"probe produced no result. stderr={out.stderr[-800:]!r}"

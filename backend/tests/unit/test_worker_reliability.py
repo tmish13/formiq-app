@@ -5,6 +5,7 @@ Tests for Celery worker reliability fixes:
   2. Coaching-feedback gating — the coaching block is skipped (no import attempted)
      when COACHING_FEEDBACK_ENABLED is False.
 """
+from pathlib import Path
 import asyncio
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -33,7 +34,7 @@ class TestCelerySessionNullPool:
             "print('BUILT' if d._celery_async_engine is not None else 'LAZY')"
         )
         out = subprocess.run(
-            [sys.executable, "-c", probe], capture_output=True, text=True, cwd="/app"
+            [sys.executable, "-c", probe], capture_output=True, text=True, cwd=str(Path(__file__).resolve().parents[2])
         )
         assert "LAZY" in out.stdout, (
             f"Celery engine was created at import time. stdout={out.stdout!r} "

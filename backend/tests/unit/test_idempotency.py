@@ -7,6 +7,7 @@ compute the same answer, so returning the existing row is not a shortcut -- it i
 the same result for none of the cost. A model or spec upgrade changes the key, so
 the video is re-analysed under the new version with no explicit invalidation.
 """
+from pathlib import Path
 import hashlib
 import io
 from types import SimpleNamespace
@@ -166,7 +167,7 @@ class TestModelIdentity:
             "print('TORCH_LOADED' if 'torch' in sys.modules else 'NO_TORCH')"
         )
         out = subprocess.run(
-            [sys.executable, "-c", probe], capture_output=True, text=True, cwd="/app"
+            [sys.executable, "-c", probe], capture_output=True, text=True, cwd=str(Path(__file__).resolve().parents[2])
         )
         assert "NO_TORCH" in out.stdout, (
             f"stdout={out.stdout!r} stderr={out.stderr[-500:]!r}"
