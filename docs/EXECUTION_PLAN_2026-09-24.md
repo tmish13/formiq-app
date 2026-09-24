@@ -106,5 +106,5 @@ mains-power validation; the stage *split* held, the absolute times did not.
 | B2 model card | `ml/model-card` | `backend/app/ml/posture_v1/MODEL_CARD.md` |
 | B3 manifest provenance | `ml/manifest-provenance` | `provenance` block + `test_posture_v1_artifact_integrity.py` |
 | B4 one variable | `ml/ml-dir-env` | `FORMIQ_ML_DIR` replaces 17 hard-coded paths |
-| B5 seeded trainer | — | **pending** |
+| B5 seeded trainer | `ml/trainer-port` | dataset from the serving pose pass (912/218/196), the notebook's recipe seeded with a deep-copied best state, guarded single test read, exporter with provenance; architecture parity with the shipped checkpoint and a loader round trip tested; 5-seed train/val run started (`2026-09-24-trainer-port.md`) |
 | A pilot | — | sheets ready, annotators arranged, 0 rows graded yet |
