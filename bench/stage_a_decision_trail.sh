@@ -115,6 +115,7 @@ chk 1 "terminal form checks with no run row" \
              AND NOT EXISTS (SELECT 1 FROM analysis_runs r WHERE r.form_check_id = f.id);")" 0
 chk 2 "runs with no checker decision" \
   "$(psql_q "SELECT count(*) FROM analysis_runs r WHERE r.form_check_id IN ($IDS)
+             AND r.pose_source IS DISTINCT FROM 'cache'
              AND NOT EXISTS (SELECT 1 FROM checker_decisions d WHERE d.run_id = r.id);")" 0
 chk 3 "closed runs missing a pose_pass_id" \
   "$(psql_q "SELECT count(*) FROM analysis_runs WHERE form_check_id IN ($IDS)

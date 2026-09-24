@@ -280,7 +280,7 @@ class StorageService:
             
             # Cache the result
             if cache_service.available:
-                await cache_service.set(cache_key, info, expire=3600)  # Cache for 1 hour
+                await cache_service.set(cache_key, info, expires_in=3600)  # Cache for 1 hour
                 
             return info
             

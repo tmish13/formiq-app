@@ -12,6 +12,7 @@ from fastapi import UploadFile, HTTPException, status, Depends
 from enum import Enum
 from datetime import datetime, timedelta
 import asyncio
+import time
 from sqlalchemy.orm import selectinload
 from sqlalchemy import and_
 
@@ -197,6 +198,64 @@ class FormCheckService(BaseService[FormCheck, FormCheckCreate, FormCheckUpdate])
         )
         return (await self.db.execute(stmt)).scalars().first()
 
+    async def _current_pose_pass(self) -> Optional[str]:
+        """The pose pass the worker is producing right now: the latest completed run's id.
+
+        The API process cannot compute the pass itself (no MediaPipe here); the
+        trail knows it.
+        """
+        from app.models.audit import AnalysisRun
+        stmt = (select(AnalysisRun.pose_pass_id)
+                .where(AnalysisRun.status == "completed")
+                .where(AnalysisRun.pose_source.is_distinct_from("cache"))
+                .where(AnalysisRun.pose_pass_id.isnot(None))
+                .order_by(AnalysisRun.finished_at.desc()).limit(1))
+        return (await self.db.execute(stmt)).scalar_one_or_none()
+
+    async def _reuse_as_cache_hit(self, existing: FormCheck) -> bool:
+        """The DB idempotency lookup IS the cache (D3). Make a hit visible and safe.
+
+        Reuse only if the stored verdict came from the pose pass in service --
+        a verdict from another pass is a different measurement (G-39: 15% of
+        verdicts flip between passes). A reused verdict leaves a trail row
+        (analysis_runs, pose_source='cache') that copies the source run's
+        decision, so "how many uploads hit the cache" is a query and a cache
+        hit is never a silent gap in the trail. Returns False to fall through
+        to a fresh submission.
+        """
+        from app.models.audit import AnalysisRun
+        from app.services.decisions.recorder import close_run, open_run
+        stmt = (select(AnalysisRun)
+                .where(AnalysisRun.form_check_id == existing.id)
+                .where(AnalysisRun.status == "completed")
+                .order_by(AnalysisRun.finished_at.desc()).limit(1))
+        src = (await self.db.execute(stmt)).scalars().first()
+        if src is None:
+            # Never judged (still queued, or predates the trail): the pending row
+            # is still the right answer; nothing to copy.
+            return True
+        current = await self._current_pose_pass()
+        if src.pose_pass_id and current and src.pose_pass_id != current:
+            logger.info("Duplicate bytes for user %s but pose pass changed (%s -> %s): re-running.",
+                        existing.user_id, src.pose_pass_id, current)
+            return False
+        t0 = time.monotonic()
+        run_id = await open_run(
+            self.db, form_check_id=existing.id, video_id=existing.video_id, user_id=existing.user_id,
+            content_hash=existing.content_hash, model_version=existing.model_version,
+            spec_hash=existing.spec_hash, pose_pass_id=src.pose_pass_id,
+        )
+        await close_run(
+            self.db, run_id=run_id, status="completed", outcome_status="completed",
+            final_decision=src.final_decision, final_score=src.final_score,
+            pose_source="cache", pose_pass_id=src.pose_pass_id, n_frames=src.n_frames,
+            latency_ms=round((time.monotonic() - t0) * 1000.0, 3),
+            settings_snapshot={"cache_hit_of_run": str(src.id)},
+        )
+        logger.info("Cache hit: user %s re-uploaded FormCheck %s bytes; verdict reused from run %s (pass %s).",
+                    existing.user_id, existing.id, src.id, src.pose_pass_id)
+        return True
+
     async def submit_form_check(
         self,
         user_id: UUID,
@@ -227,13 +286,7 @@ class FormCheckService(BaseService[FormCheck, FormCheckCreate, FormCheckUpdate])
             model_version=model_version,
             spec_hash=spec_hash,
         )
-        if existing is not None:
-            logger.info(
-                "Duplicate submission for user %s (content_hash=%s, model=%s): "
-                "returning existing FormCheck %s instead of re-uploading and "
-                "re-running inference.",
-                user_id, content_hash[:12], model_version, existing.id,
-            )
+        if existing is not None and await self._reuse_as_cache_hit(existing):
             return self.response_schema.from_orm(existing)
 
         try:
@@ -507,26 +560,8 @@ class FormCheckService(BaseService[FormCheck, FormCheckCreate, FormCheckUpdate])
         # Refresh to load relationships if needed by the response schema
         await self.db.refresh(updated_form_check, attribute_names=['feedback_items'])
         
-        # Handle caching if applicable (example from existing FCS code)
-        if self.cache_service and status == FormCheckStatus.COMPLETED:
-            # Assuming video_hash can be derived or is part of analysis_results or form_check
-            # For example, if AIService adds a video_hash to its results:
-            video_hash = analysis_results.get("video_hash") 
-            if not video_hash and updated_form_check.details and isinstance(updated_form_check.details, dict):
-                 video_hash = updated_form_check.details.get("video_file_hash") # Or however it's stored
-
-            if video_hash:
-                # Prepare data for caching, might be the analysis_results itself or a specific format
-                cacheable_results = {
-                    "score": updated_form_check.score,
-                    "summary": updated_form_check.summary,
-                    "details": updated_form_check.details,
-                    "feedback_items": [FeedbackItemResponse.from_orm(fi).model_dump() for fi in updated_form_check.feedback_items]
-                }
-                await self.cache_analysis_results(video_hash, cacheable_results)
-            else:
-                logger.warning(f"Video hash not available for FormCheck ID {form_check_id}, skipping caching.")
-
+        # The dead Redis analysis cache that used to sit here never wrote or read a
+        # value (no hash was ever supplied); the DB idempotency lookup is the cache (D3).
         return self.response_schema.from_orm(updated_form_check)
 
     async def get_form_check_details(self, form_check_id: UUID, user_id: UUID, is_superuser: bool) -> Optional[FormCheckResponse]:
@@ -723,34 +758,6 @@ class FormCheckService(BaseService[FormCheck, FormCheckCreate, FormCheckUpdate])
         await self.db.delete(item_db)
         await self.db.commit()
         return True
-
-    async def get_cached_analysis(self, video_hash: str) -> Optional[Dict[str, Any]]:
-        if not self.cache_service or not await self.cache_service.is_available(): # Make is_available async if it involves IO
-            logger.debug("Cache service not available or not configured.")
-            return None
-        
-        cache_key = f"form_check_analysis:{video_hash}"
-        try:
-            cached_data = await self.cache_service.get(cache_key)
-            if cached_data:
-                logger.info(f"Retrieved cached analysis for video hash: {video_hash}")
-                return cached_data # Assuming it's stored as a dict
-            return None
-        except Exception as e:
-            logger.error(f"Error retrieving from cache for key {cache_key}: {e}", exc_info=True)
-            return None # Treat cache errors as a cache miss
-        
-    async def cache_analysis_results(self, video_hash: str, analysis_results: Dict[str, Any], ttl: int = 86400 * 7) -> None: # Cache for 7 days
-        if not self.cache_service or not await self.cache_service.is_available():
-            logger.debug("Cache service not available, skipping caching analysis results.")
-            return
-            
-        cache_key = f"form_check_analysis:{video_hash}"
-        try:
-            await self.cache_service.set(cache_key, analysis_results, expire=ttl)
-            logger.info(f"Cached analysis results for video hash: {video_hash}")
-        except Exception as e:
-            logger.error(f"Error caching analysis results for key {cache_key}: {e}", exc_info=True)
 
     async def get_user_form_checks(
         self,
@@ -986,53 +993,9 @@ class FormCheckService(BaseService[FormCheck, FormCheckCreate, FormCheckUpdate])
             obj_in=update_data
         )
         
-        # Cache analysis results for future use
-        try:
-            # Get full form check with feedback items
-            form_check_with_feedback = self.form_check_repository.get(id=form_check_id)
-            feedback_items = self.feedback_repository.get_by_form_check(form_check_id=form_check_id)
-            
-            # Create cache entry
-            cache_data = {
-                "overall_feedback": updated_form_check.overall_feedback,
-                "score": updated_form_check.score,
-                "confidence_score": updated_form_check.confidence_score,
-                "form_metadata": updated_form_check.form_metadata,
-                "results": updated_form_check.results,
-                "feedback_items": [
-                    {
-                        "type": item.type,
-                        "message": item.message,
-                        "timestamp": item.timestamp,
-                        "severity": item.severity,
-                        "joint_angles": item.joint_angles,
-                        "suggestions": item.suggestions
-                    }
-                    for item in feedback_items
-                ]
-            }
-            
-            # Get video hash from metadata if available
-            video_hash = None
-            if updated_form_check.form_metadata and "video_hash" in updated_form_check.form_metadata:
-                video_hash = updated_form_check.form_metadata["video_hash"]
-            elif updated_form_check.video_url:
-                # If no hash stored, try to get it from the URL
-                try:
-                    storage = StorageService()
-                    file_info = await storage.get_file_info(updated_form_check.video_url)
-                    if file_info and file_info.get("Metadata", {}).get("video_hash"):
-                        video_hash = file_info["Metadata"]["video_hash"]
-                except:
-                    pass
-            
-            # Cache if we have a video hash
-            if video_hash:
-                await self.cache_analysis_results(video_hash, cache_data)
-                logger.info(f"Cached analysis results for video {video_hash}")
-        except Exception as e:
-            logger.error(f"Failed to cache analysis results: {str(e)}", exc_info=True)
-        
+        # (A second dead Redis cache write lived here; it needed a video hash that
+        # was never stored. Removed with the first one -- the DB is the cache.)
+
         return updated_form_check
 
     async def delete_form_check(self, form_check_id: UUID, user_id: UUID) -> None:

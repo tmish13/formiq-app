@@ -49,7 +49,8 @@ echo; echo "=== ASSERTIONS ==="
 chk 1 "terminal form checks with no run row" "$(psql_q "SELECT count(*) FROM form_checks f WHERE f.id IN ($IDS)
   AND f.status IN ('COMPLETED','FAILED') AND NOT EXISTS (SELECT 1 FROM analysis_runs r WHERE r.form_check_id = f.id);")" 0
 chk 2 "completed runs with no checker decision" "$(psql_q "SELECT count(*) FROM analysis_runs r WHERE r.form_check_id IN ($IDS)
-  AND r.status='completed' AND NOT EXISTS (SELECT 1 FROM checker_decisions d WHERE d.run_id = r.id);")" 0
+  AND r.status='completed' AND r.pose_source IS DISTINCT FROM 'cache'
+  AND NOT EXISTS (SELECT 1 FROM checker_decisions d WHERE d.run_id = r.id);")" 0
 chk 3 "closed runs missing a pose_pass_id" "$(psql_q "SELECT count(*) FROM analysis_runs WHERE form_check_id IN ($IDS)
   AND finished_at IS NOT NULL AND status='completed' AND pose_pass_id IS NULL;")" 0
 chk 4 "runs still open" "$(psql_q "SELECT count(*) FROM analysis_runs WHERE form_check_id IN ($IDS) AND finished_at IS NULL;")" 0

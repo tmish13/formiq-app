@@ -105,7 +105,7 @@ class AnalyticsService:
             
             cache_key = f"exercise:analysis:{user_id}:{exercise_id}"
             if self.cache_svc:
-                await self.cache_svc.set(cache_key, analysis_dict, expire=3600)
+                await self.cache_svc.set(cache_key, analysis_dict, expires_in=3600)
             
             return analysis_dict
         except Exception as e:
@@ -182,7 +182,7 @@ class AnalyticsService:
             }
             
             if self.cache_svc:
-                await self.cache_svc.set(cache_key, progress_data, expire=3600)
+                await self.cache_svc.set(cache_key, progress_data, expires_in=3600)
             
             return progress_data
         except Exception as e:
@@ -252,7 +252,7 @@ class AnalyticsService:
             # Logic would be more complex in a real app
             
             if self.cache_svc:
-                await self.cache_svc.set(cache_key, recommendations, expire=3600)
+                await self.cache_svc.set(cache_key, recommendations, expires_in=3600)
             
             return recommendations
         except Exception as e:

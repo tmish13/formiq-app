@@ -190,3 +190,72 @@ class TestMigration:
 
         assert len(module.revision) <= 32, module.revision
         assert module.down_revision == "0008_seed_exercise_templates"
+
+
+class TestCacheHitIsATrailRow:
+    """D3 (audit/cache-is-the-db): the DB idempotency lookup IS the cache. A hit must be
+    visible in the trail and must not reuse a verdict from another pose pass (G-39)."""
+
+    @staticmethod
+    def _existing():
+        return SimpleNamespace(id=uuid4(), video_id=uuid4(), user_id=uuid4(), status="PENDING",
+                               content_hash="c" * 64, model_version="posture_v1", spec_hash="s" * 64)
+
+    @staticmethod
+    def _run(pass_id):
+        return SimpleNamespace(id=uuid4(), pose_pass_id=pass_id, final_decision="posture_fault",
+                               final_score=0.61, n_frames=120)
+
+    @staticmethod
+    def _db_returns(service, row):
+        result = MagicMock()
+        result.scalars.return_value.first.return_value = row
+        service.db.execute = AsyncMock(return_value=result)
+
+    async def test_a_row_never_judged_is_reused_without_a_trail_row(self, service):
+        self._db_returns(service, None)  # still queued: nothing to copy, nothing to record
+        with patch("app.services.decisions.recorder.open_run", new=AsyncMock()) as open_run:
+            assert await service._reuse_as_cache_hit(self._existing()) is True
+        open_run.assert_not_awaited()
+
+    async def test_a_verdict_from_another_pose_pass_is_not_reused(self, service):
+        self._db_returns(service, self._run("pp1_0d1b7d0af7e9509e"))
+        service._current_pose_pass = AsyncMock(return_value="pp1_f9850424580ae186")
+        with patch("app.services.decisions.recorder.open_run", new=AsyncMock()) as open_run:
+            assert await service._reuse_as_cache_hit(self._existing()) is False
+        open_run.assert_not_awaited()
+
+    async def test_same_pass_hit_records_a_cache_run_copying_the_verdict(self, service):
+        src = self._run("pp1_f9850424580ae186")
+        self._db_returns(service, src)
+        service._current_pose_pass = AsyncMock(return_value="pp1_f9850424580ae186")
+        existing = self._existing()
+        run_id = uuid4()
+        with patch("app.services.decisions.recorder.open_run",
+                   new=AsyncMock(return_value=run_id)) as open_run, \
+             patch("app.services.decisions.recorder.close_run",
+                   new=AsyncMock(return_value=True)) as close_run:
+            assert await service._reuse_as_cache_hit(existing) is True
+        open_run.assert_awaited_once()
+        okw = open_run.await_args.kwargs
+        assert okw["form_check_id"] == existing.id
+        assert okw["pose_pass_id"] == "pp1_f9850424580ae186"
+        assert okw["content_hash"] == existing.content_hash
+        ckw = close_run.await_args.kwargs
+        assert ckw["run_id"] == run_id
+        assert ckw["pose_source"] == "cache"
+        assert (ckw["status"], ckw["outcome_status"]) == ("completed", "completed")
+        assert (ckw["final_decision"], ckw["final_score"], ckw["n_frames"]) == ("posture_fault", 0.61, 120)
+        assert ckw["settings_snapshot"] == {"cache_hit_of_run": str(src.id)}
+        assert ckw["latency_ms"] >= 0
+
+    async def test_an_empty_trail_has_no_current_pass_and_still_reuses(self, service):
+        # Fresh DB: no completed run anywhere. Refusing here would disable the cache
+        # entirely, and there is no second pass to disagree with.
+        src = self._run("pp1_f9850424580ae186")
+        self._db_returns(service, src)
+        service._current_pose_pass = AsyncMock(return_value=None)
+        with patch("app.services.decisions.recorder.open_run", new=AsyncMock(return_value=uuid4())), \
+             patch("app.services.decisions.recorder.close_run", new=AsyncMock(return_value=True)) as close_run:
+            assert await service._reuse_as_cache_hit(self._existing()) is True
+        assert close_run.await_args.kwargs["pose_source"] == "cache"
