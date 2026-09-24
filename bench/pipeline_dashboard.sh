@@ -18,10 +18,10 @@ psql_q "SELECT 'videos=' || count(*) || '  videos/min=' || round(count(*)*60.0/G
 echo "--- per-stage wall time, ms (runs that carry stage_ms) ---"
 psql_q "SELECT rpad(k,18) || ' n=' || count(*) || '  p50=' || percentile_cont(0.5) WITHIN GROUP (ORDER BY v::float)::int
                || '  p90=' || percentile_cont(0.9) WITHIN GROUP (ORDER BY v::float)::int
-               || '  share_of_p50_total=' || round(100.0 * percentile_cont(0.5) WITHIN GROUP (ORDER BY v::float)
+               || '  share_of_p50_total=' || round((100.0 * percentile_cont(0.5) WITHIN GROUP (ORDER BY v::float)
                     / NULLIF((SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY latency_ms) FROM analysis_runs r2
-                              WHERE r2.form_check_id IN ($IDS) AND r2.status='completed' AND r2.settings_snapshot IS NOT NULL),0), 1) || '%'
-        FROM analysis_runs r, json_each_text(r.settings_snapshot->'stage_ms') AS s(k, v)
+                              WHERE r2.form_check_id IN ($IDS) AND r2.status='completed' AND r2.settings_snapshot IS NOT NULL),0))::numeric, 1) || '%'
+        FROM analysis_runs r, json_each_text((r.settings_snapshot::json)->'stage_ms') AS s(k, v)
         WHERE r.form_check_id IN ($IDS) AND r.status='completed' AND r.settings_snapshot IS NOT NULL
         GROUP BY k ORDER BY percentile_cont(0.5) WITHIN GROUP (ORDER BY v::float) DESC;"
 psql_q "SELECT 'completed runs without stage_ms: ' || count(*) FROM analysis_runs WHERE form_check_id IN ($IDS) AND status='completed' AND settings_snapshot IS NULL;"

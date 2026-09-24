@@ -14,8 +14,13 @@ From the 600-video validation batch (2026-09-24, worker 3 children × 2 threads,
 | whole task (fetch → pose → model → rules → finalize) | **p50 9.7 s**, p90 16.9 s | 100 % | `analysis_runs.latency_ms` |
 | PostureV1 inference | **p50 39 ms** (465 ms cold, first call) | **0.4 %** | `results.posture_v1.latency_ms` |
 | frames per clip | p50 106 (cap 300) | — | `analysis_runs.n_frames` |
-| pose extraction (MediaPipe, complexity 2) | ≈ 46 ms/frame ⇒ **≈ 5 s** at 106 frames | **≈ 50 %** | `bench/results/2026-09-19-day1.md` (4.16 s of 7.41 s on a single run) |
-| everything else: video fetch/decode, DB writes, rules, finalize | ≈ 4–5 s | ≈ 45 % | by subtraction; per-stage timings (plan D6) would split it |
+| pose extraction (MediaPipe, complexity 2) | **95.5 % of the task** (p50 23.5 s of 24.6 s on the 50-video stage batch; 97.8 % on the first) | **≈ 95 %** | `analysis_runs.settings_snapshot.stage_ms`, `bench/results/2026-09-24-stage-timings.md` |
+| everything else: claim, open_run, video fetch, post-model, decisions | p50 0.37 s | **≈ 1.5 %** | same; measured, no longer by subtraction |
+
+The two bottom rows were first written by subtraction ("pose ≈ 50 %, other ≈ 45 %"); the measured
+split replaced them on 2026-09-24. Note the stage batch ran on battery with macOS Low Power Mode on
+and was 2.6× slower per frame than the validation above; the split held, the absolute times did not
+(details in the results note).
 
 Three children on 8 vCPUs deliver 9.25 videos/min; one child alone does a video in ≈ 7.4 s, so
 three could in principle do ≈ 24/min — the gap is CPU contention among MediaPipe threads, not
@@ -42,9 +47,9 @@ queueing. The machine is the limit.
    goes through the acceptance bar with its own pre-registration, not through ops.
 3. **Fewer frames** — the 300-frame cap and 30 fps resampling are what the model was trained on;
    sampling at 15 fps halves pose time and is, again, a new pose pass to measure, not a free knob.
-4. **The other 45 %** — per-stage timings (plan D6, deferred) will say whether decode, DB writes or
-   finalize carry avoidable seconds; that is where a cheap win may hide, and it needs a measurement
-   before an opinion.
+4. **The other 45 %** did not exist. Measured per stage, everything outside pose extraction and the
+   model is ≈ 0.4 s of a 10–25 s task (`bench/results/2026-09-24-stage-timings.md`). There is no cheap
+   win in decode, DB writes or finalize; the only levers are the three above, all of them pose passes.
 
 ## When a split would be right
 
