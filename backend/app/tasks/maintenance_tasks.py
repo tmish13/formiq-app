@@ -7,11 +7,21 @@ already acked and nothing left to notice.
 
 Two stuck shapes, both scanned here:
 
-  PENDING for too long
+  PENDING for too long, AND absent from the broker
       The task was accepted but never claimed. This is the exact shape of the
       gevent failure -- the task raised inside asyncio.run() before it ever set
       PROCESSING, so the row never moved. Late acks (celery_app.py) fix the
       cause; this catches whatever still slips through.
+
+      G-48: a PENDING row that is merely WAITING ITS TURN looks identical by age.
+      The threshold below bounds a task's processing time; nothing bounds queue
+      wait, and a 1,021-video batch at ~6/min put 772 healthy rows past it. The
+      reaper re-dispatched them as duplicates and, one sweep later, FAILED 261
+      of them unrun. So a PENDING row is only stranded if its task is not on the
+      broker: the sweep takes one snapshot of the queue and the unacked set per
+      tick and DEFERS every PENDING row whose id appears in it -- or every
+      PENDING row, when the broker cannot be read. PROCESSING rows keep the
+      age-based policy: a claimed row past the processing bound is stuck.
 
   PROCESSING for too long
       The worker claimed the row and then vanished -- SIGKILL, OOM, the hard
@@ -25,7 +35,7 @@ forever would hide a real defect behind an infinite loop.
 import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from sqlalchemy import func, or_, select, update as sa_update
 
@@ -36,7 +46,10 @@ from app.models.form_check import FormCheck
 
 logger = logging.getLogger(__name__)
 
-# How long a row may sit in a non-terminal state before it is considered stranded.
+# How long a CLAIMED row may sit in PROCESSING before it is considered stranded,
+# and the minimum age at which an UNQUEUED PENDING row is. It bounds processing
+# time; it says nothing about queue wait, which is why the PENDING sweep is
+# gated on the broker (G-48) and not on this number alone.
 #
 # This MUST exceed the worst case for legitimately-running work:
 #   task_time_limit * (1 + max_retries) + backoff
@@ -51,6 +64,31 @@ MAX_ROWS_PER_RUN = 100
 # Counter kept in FormCheck.details. There is no column for it and adding one for
 # a rare recovery path is not worth a migration.
 REDISPATCH_KEY = "reaper_redispatch_count"
+
+
+def _broker_snapshot() -> Optional[str]:
+    """Every queued and every delivered-but-unacked message, as one string.
+
+    Two O(queue) reads on the broker, once per tick and only when the sweep has
+    PENDING candidates: LRANGE of the default queue (waiting) and HVALS of kombu's
+    `unacked` hash (delivered under acks_late, not yet acknowledged). Celery's
+    protocol-v2 headers carry `argsrepr` in plaintext, so a row's task is present
+    iff the row id appears in the text. Returns None when the broker cannot be
+    read -- and None means "do not touch PENDING rows", never "reap them".
+    """
+    try:
+        import redis
+        from app.core.config import get_settings
+
+        client = redis.Redis.from_url(get_settings().CELERY_BROKER_URL, socket_timeout=2)
+        queue = celery_app.conf.task_default_queue or "celery"
+        parts = list(client.lrange(queue, 0, -1)) + list(client.hvals("unacked"))
+        return "\n".join(
+            p.decode("utf-8", "replace") if isinstance(p, bytes) else str(p) for p in parts
+        )
+    except Exception as e:  # unreachable broker, auth, timeout -- all mean "unknown"
+        logger.warning("[Reaper] broker snapshot unavailable (%s); PENDING rows left alone.", e)
+        return None
 
 
 @celery_app.task(
@@ -73,7 +111,7 @@ def _stuck_since(threshold: timedelta) -> datetime:
 async def _reap_stuck_form_checks(threshold: timedelta = STUCK_THRESHOLD) -> Dict[str, Any]:
     cutoff = _stuck_since(threshold)
     summary: Dict[str, Any] = {"scanned": 0, "redispatched": 0, "failed": 0,
-                               "errors": 0, "runs_abandoned": 0}
+                               "deferred": 0, "errors": 0, "runs_abandoned": 0}
 
     async with get_async_session_for_celery() as session:
         # updated_at has onupdate but NO server_default (form_check.py:95), so it
@@ -105,7 +143,19 @@ async def _reap_stuck_form_checks(threshold: timedelta = STUCK_THRESHOLD) -> Dic
             summary["runs_abandoned"] = await _abandon_unclosed_runs(session, threshold)
             return summary
 
+        # One broker read per tick, only if a PENDING row is in the candidate set.
+        snapshot: Optional[str] = ""
+        if any(r.status == FormCheckStatus.PENDING for r in rows):
+            snapshot = _broker_snapshot()
+
         for row in rows:
+            if row.status == FormCheckStatus.PENDING and (
+                snapshot is None or str(row.id) in snapshot
+            ):
+                # Its task is still on the broker (or we cannot tell). Queue wait
+                # is not a fault; leave it for the worker. G-48.
+                summary["deferred"] += 1
+                continue
             details = dict(row.details or {})
             redispatched = int(details.get(REDISPATCH_KEY, 0) or 0)
             stuck_at = row.updated_at or row.created_at
@@ -129,7 +179,8 @@ async def _reap_stuck_form_checks(threshold: timedelta = STUCK_THRESHOLD) -> Dic
 
     logger.info(
         "[Reaper] scanned=%(scanned)d redispatched=%(redispatched)d "
-        "failed=%(failed)d errors=%(errors)d runs_abandoned=%(runs_abandoned)d",
+        "failed=%(failed)d deferred=%(deferred)d errors=%(errors)d "
+        "runs_abandoned=%(runs_abandoned)d",
         summary,
     )
     return summary

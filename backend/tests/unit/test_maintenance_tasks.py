@@ -60,6 +60,10 @@ class TestThresholdInvariant:
     def test_threshold_exceeds_the_worst_case_for_live_work(self):
         """If this ever inverts, the reaper starts killing running tasks.
 
+        This bounds PROCESSING time only. It says nothing about how long a
+        healthy row may wait in the queue -- that is unbounded, and the PENDING
+        sweep is gated on the broker instead (TestBrokerGate, G-48).
+
         Worst case for work that is legitimately still running:
           task_time_limit * (1 + max_retries) + retry backoff
         """
@@ -312,3 +316,103 @@ class TestUnclosedRunSweep:
             summary = await mt._reap_stuck_form_checks()
         assert summary["runs_abandoned"] == 0
         assert summary["errors"] == 0      # not a form-check error
+
+
+class TestBrokerGate:
+    """G-48. A PENDING row whose task is still on the broker is waiting, not
+    stranded. On the first batch deeper than the threshold the age-only sweep
+    re-dispatched 772 healthy rows and then FAILED 261 of them unrun."""
+
+    @staticmethod
+    def _snapshot(*ids):
+        # Shaped like the broker text: celery v2 headers carry argsrepr in plaintext.
+        return "\n".join(
+            '{"headers": {"argsrepr": "(\'vid\', \'%s\')"}}' % i for i in ids
+        )
+
+    @pytest.mark.asyncio
+    async def test_a_queued_pending_row_is_deferred_not_reaped(self):
+        row = _row(status=FormCheckStatus.PENDING, details=None)
+        session = _session([row])
+        with _patch_session(session), patch(
+            "app.tasks.analysis_tasks.process_form_check_task"
+        ) as mock_task, patch.object(mt, "_broker_snapshot", return_value=self._snapshot(row.id)):
+            summary = await mt._reap_stuck_form_checks()
+
+        assert summary["deferred"] == 1
+        assert summary["redispatched"] == 0 and summary["failed"] == 0
+        mock_task.delay.assert_not_called()
+        # "UPDATE" alone would match the SELECT's `updated_at` column.
+        assert not any(
+            str(c.args[0]).lstrip().upper().startswith("UPDATE") and "form_checks" in str(c.args[0])
+            for c in session.execute.call_args_list
+        ), "a deferred row must not be written"
+
+    @pytest.mark.asyncio
+    async def test_a_queued_second_strike_row_is_still_not_failed(self):
+        """The 261 were exactly this: re-dispatched once, still queued, then FAILED."""
+        row = _row(status=FormCheckStatus.PENDING, details={mt.REDISPATCH_KEY: 1})
+        session = _session([row])
+        with _patch_session(session), patch(
+            "app.tasks.analysis_tasks.process_form_check_task"
+        ) as mock_task, patch.object(mt, "_broker_snapshot", return_value=self._snapshot(row.id)):
+            summary = await mt._reap_stuck_form_checks()
+
+        assert summary["failed"] == 0 and summary["deferred"] == 1
+        mock_task.delay.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_an_unreadable_broker_defers_every_pending_row(self):
+        row = _row(status=FormCheckStatus.PENDING, details=None)
+        session = _session([row])
+        with _patch_session(session), patch(
+            "app.tasks.analysis_tasks.process_form_check_task"
+        ) as mock_task, patch.object(mt, "_broker_snapshot", return_value=None):
+            summary = await mt._reap_stuck_form_checks()
+
+        assert summary["deferred"] == 1 and summary["redispatched"] == 0
+        mock_task.delay.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_a_pending_row_absent_from_an_empty_broker_is_reaped_as_before(self):
+        """The original failure: message acked, row never claimed, nothing queued."""
+        row = _row(status=FormCheckStatus.PENDING, details=None)
+        session = _session([row])
+        with _patch_session(session), patch(
+            "app.tasks.analysis_tasks.process_form_check_task"
+        ) as mock_task, patch.object(mt, "_broker_snapshot", return_value=""):
+            summary = await mt._reap_stuck_form_checks()
+
+        assert summary["deferred"] == 0 and summary["redispatched"] == 1
+        mock_task.delay.assert_called_once_with(str(row.video_id), str(row.id))
+
+    @pytest.mark.asyncio
+    async def test_a_pending_row_absent_from_a_busy_broker_is_reaped(self):
+        """Other work on the queue does not shield a row whose own task is gone."""
+        row = _row(status=FormCheckStatus.PENDING, details=None)
+        session = _session([row])
+        with _patch_session(session), patch(
+            "app.tasks.analysis_tasks.process_form_check_task"
+        ) as mock_task, patch.object(mt, "_broker_snapshot", return_value=self._snapshot(uuid4(), uuid4())):
+            summary = await mt._reap_stuck_form_checks()
+
+        assert summary["redispatched"] == 1 and summary["deferred"] == 0
+
+    @pytest.mark.asyncio
+    async def test_processing_rows_keep_the_age_policy(self):
+        """A claimed row past the processing bound is stuck even if its message
+        is still unacked (acks_late): the worker that held it is gone."""
+        row = _row(status=FormCheckStatus.PROCESSING, details=None)
+        session = _session([row])
+        with _patch_session(session), patch(
+            "app.tasks.analysis_tasks.process_form_check_task"
+        ) as mock_task, patch.object(mt, "_broker_snapshot", return_value=self._snapshot(row.id)) as snap:
+            summary = await mt._reap_stuck_form_checks()
+
+        assert summary["redispatched"] == 1 and summary["deferred"] == 0
+        snap.assert_not_called()          # no PENDING candidate -> no broker read
+
+    def test_snapshot_returns_none_when_the_broker_is_unreachable(self):
+        with patch("app.core.config.get_settings") as gs:
+            gs.return_value.CELERY_BROKER_URL = "redis://256.0.0.1:1/0"
+            assert mt._broker_snapshot() is None
