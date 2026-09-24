@@ -324,9 +324,12 @@ metric; the F1 rows are reported because they were pre-registered, and they are 
   As pre-registered: the Phase 2 depth negative stands regardless of features.
 - **any_fault**: F1 0.78–0.83 against a floor of 0.830 — nothing beats all-positive; AUROC
   0.58–0.68. The pre-registered "modest gain on any_fault" **did not materialise**.
-- **stability_fault** (20 positives): the only head with air above its floor — F1 0.31 [0.13,
-  0.48] vs 0.185, AUROC 0.74 [0.62, 0.85] — and the widest intervals on the page. It was never
-  shipped (G-42); this is the first measured number for it and it is not a shippable one.
+- **stability_fault** (20 positives): the rule-selected artifact (C / hgb, best median validation
+  AUROC 0.7933) scores **F1 0.16 [0.04, 0.31] vs a floor of 0.185 — below it** — at AUROC 0.68
+  [0.54, 0.81]. Other artifacts score higher on test (A / logreg: F1 0.31, AUROC 0.74), but those
+  are test-selected numbers and are not the result; the widest intervals on the page. Never shipped
+  (G-42); this is the first measured number for it and it is not a shippable one.
+  *(Corrected 2026-09-23: the first version of this bullet quoted the best-on-test artifact.)*
 
 ## 5. Verdict — NEGATIVE, and what it does and does not say
 
