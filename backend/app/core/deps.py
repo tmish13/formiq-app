@@ -239,9 +239,33 @@ async def get_async_subscription_service(
 async def get_storage_service() -> StorageService:
     return StorageService()
 
+class LazyAIService:
+    """AIService built on first *use*, never on injection (G-54).
+
+    Every submit resolves the form-check service, which takes an AIService, but the API never
+    runs inference -- the Celery worker does. Building AIService at injection (MediaPipe Pose at
+    complexity 2, torch, the model loaders) cost +407 MiB per gunicorn worker on its first
+    request, measured with one 0.5 MB upload; four workers doing it at once under a burst was
+    the OOM kill behind G-36. This proxy is what gets injected; the real service is constructed
+    once per process, the first time a method is actually called (the legacy in-API analysis
+    paths still work, and still pay, when used).
+    """
+
+    _instance: Optional[AIService] = None
+
+    def __getattr__(self, name: str) -> Any:
+        if LazyAIService._instance is None:
+            logger.info("[AIService] first real use in this process (.%s): initialising MediaPipe/torch", name)
+            LazyAIService._instance = AIService()
+        return getattr(LazyAIService._instance, name)
+
+
+lazy_ai_service = LazyAIService()
+
+
 async def get_ai_service() -> AIService:
-    # AIService __init__ uses global settings
-    return AIService()
+    """The process's AIService, built lazily on first use (G-54)."""
+    return lazy_ai_service  # type: ignore[return-value]
 
 def get_cache_service() -> CacheService:
     """Returns the global cache_service instance."""

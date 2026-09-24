@@ -130,20 +130,16 @@ async def get_cache_service() -> Optional[CacheService]:
     return None # Return None if cache is not configured/available
 
 # ---------------------------------------------------------------------------
-# AIService singleton — MediaPipe/TFLite loads once on first ML request,
-# NOT on every read-only API call (history, dashboard, analytics).
-# Per-request AIService() was the primary cause of Render memory-limit restarts.
+# AIService: injected as a lazy proxy, built on first real use (G-54; see app/core/deps.py).
+# The eager per-process singleton that lived here cost +407 MiB per gunicorn worker on its
+# first request although the API never runs inference.
 # ---------------------------------------------------------------------------
-_ai_service_instance: Optional[AIService] = None
+from app.core.deps import lazy_ai_service
+
 
 def get_ai_service() -> AIService:
-    """Return the AIService singleton. MediaPipe initializes on first call only."""
-    global _ai_service_instance
-    if _ai_service_instance is None:
-        logger.info("[AIService] Singleton: first-use initialization (MediaPipe + TFLite loading)...")
-        _ai_service_instance = AIService()
-        logger.info("[AIService] Singleton ready.")
-    return _ai_service_instance
+    """The process's AIService, built lazily on first use (G-54)."""
+    return lazy_ai_service  # type: ignore[return-value]
 
 async def get_storage_service() -> StorageService:
     """Return StorageService backed by the live global storage provider (S3 in production).
