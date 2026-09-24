@@ -71,6 +71,7 @@ RUN python -c "import mediapipe as mp; p = mp.solutions.pose.Pose(model_complexi
 # Copy application code as the appuser
 # Ensure .dockerignore is properly configured to exclude unnecessary files
 COPY --chown=appuser:appgroup . .
+RUN chmod +x /app/deployment/entrypoint.sh
 
 # Set permissions for potentially created directories after code copy
 # RUN chown -R appuser:appgroup /app 
@@ -91,9 +92,6 @@ ENV PYTHONUNBUFFERED=1 \
 
 # Run the application using Gunicorn
 # Use environment variables for host/port/workers if possible
-# --timeout: a worker is killed only after 120 s without a heartbeat (a 100 MB upload on a slow
-# link is not a hang); --graceful-timeout lets in-flight uploads finish on redeploy;
-# --max-requests recycles a worker before a slow leak in a long-lived process compounds (G-36).
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "4", "--worker-class", "uvicorn.workers.UvicornWorker", \
-     "--timeout", "120", "--graceful-timeout", "30", "--max-requests", "500", "--max-requests-jitter", "50", \
-     "app.main:app"] 
+# The API starts through deployment/entrypoint.sh: alembic upgrade head, then gunicorn (G-23).
+# The gunicorn flags live in that script; worker and beat override the command in compose.
+CMD ["/app/deployment/entrypoint.sh"]

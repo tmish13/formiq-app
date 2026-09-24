@@ -25,6 +25,11 @@ from app.services.scheduler_service import scheduler
 
 logger = get_logger(__name__)
 
+def schema_owner_is_alembic(environment: str) -> bool:
+    """True everywhere except ENVIRONMENT=test, where SQLite unit tests need create_all()."""
+    return environment != "test"
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
@@ -96,8 +101,9 @@ async def lifespan(app: FastAPI):
             # Log but never block startup — the app can still serve other endpoints.
             logger.warning(f"Exercise template seed check failed (non-fatal): {seed_err}")
         
-        # Initialize database tables if needed (dev/test environments)
-        if settings.ENVIRONMENT in ["development", "test"]:
+        # G-23: Alembic owns the schema (deployment/entrypoint.sh runs `alembic upgrade head`);
+        # only the SQLite unit-test environment creates tables from the models.
+        if not schema_owner_is_alembic(settings.ENVIRONMENT):
             try:
                 await init_db()
                 logger.info("Database tables initialized")
