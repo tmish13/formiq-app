@@ -17,10 +17,10 @@ FormIQ is an exercise form analysis application that uses machine learning to ev
 4. **Evaluation & Integration**: Validating the model and integrating with the biomechanical analysis pipeline
 
 ## Repository Structure
-- `notebooks/`: Jupyter notebooks for model development
-  - `01_squat_model_development.ipynb`: Initial development notebook
-  - `02_enhanced_squat_model.ipynb`: Main development notebook with ML implementation
-  - `03_enhanced_squat_model_demo.ipynb`: Demo notebook for presentation
+- `backend/`: the FastAPI API, the Celery worker and beat, the served model (`backend/app/ml/posture_v1/`, see its `MODEL_CARD.md`)
+- `backend/ml_training/posture_v1/provenance/`: the notebook codebase PostureV1 was trained with, imported unchanged with hashes (`PROVENANCE.md`); there is no `notebooks/` directory in this repository
+- `bench/`: measurement scripts; every number in the audits has a note in `bench/results/`
+- `frontend/`: the React app
 - `src/`: Source code modules
   - `camera_angle_detection/`: Detects camera view (front/side/back/diagonal)
   - `joint_angle_calculator/`: Calculates biomechanically relevant angles
@@ -33,8 +33,8 @@ FormIQ is an exercise form analysis application that uses machine learning to ev
 1. Set up a virtual environment: `python -m venv venv`
 2. Activate the environment: `source venv/bin/activate`
 3. Install dependencies: `pip install -r requirements.txt`
-4. Run Jupyter notebook: `jupyter notebook`
-5. Open `notebooks/02_enhanced_squat_model.ipynb` to see the implementation
+4. Run the stack: `docker compose -f backend/deployment/docker-compose.yml up -d` (the only deployable description, see `infrastructure/README.md`)
+5. Where things stand: `docs/EXECUTION_PLAN_2026-09-24.md` and `docs/ml/ACCEPTANCE_BAR.md`
 
 ## ML Model Architecture
 The model uses a multi-output neural network architecture to:

@@ -23,7 +23,7 @@ FormIQ is a comprehensive AI-powered exercise form analysis application that use
 
 #### Phase 1.2: Comprehensive ML-Driven Form Analysis
 - **Step 1.2.1**: Design and Develop Comprehensive Form Analysis ML Model
-  - **Current Status**: Working in separate Jupyter notebook codebase
+  - **Current Status** (2026-09-24): PostureV1 is trained and served, labelled experimental because it is below the acceptance bar (`docs/ml/ACCEPTANCE_BAR.md`); its notebook codebase is imported as provenance under `backend/ml_training/`; the next lever is the graded relabelling pilot (`bench/relabel/`), not another training run
   - **Focus**: Squat classification (good_form vs bad_form with fault analysis)
   - **Model Output**: Posture fault, stability fault, depth fault classification
   - **Next**: Integrate trained model into AIService
@@ -162,7 +162,7 @@ npm test
 ## Next Priority Tasks
 
 ### Immediate (Phase 1.2.1 Completion)
-1. **Integrate ML Model**: Move trained squat model from Jupyter notebook to AIService
+1. ~~Integrate ML Model~~ done: PostureV1 is served by the worker (`app/ml/posture_v1/`); the API injects a lazy proxy and never loads it (G-54)
 2. **Database Schema**: Enhance FormCheck model for ML scores (posture_score, stability_score, depth_score)
 3. **Testing**: Complete end-to-end pipeline testing
 
@@ -186,7 +186,7 @@ npm test
 - **ML Models**: Validate all frame data before saving; discard low-confidence frames
 
 ### Current Focus
-You are currently working on **Phase 1.2.1** - developing the comprehensive ML model for squat analysis in a separate Jupyter notebook environment. The next major milestone is integrating this trained model into the main FormIQ backend to complete the core AI pipeline.
+The pipeline goals (trail, batch reliability, cache, backpressure, schema and image checks, CI) are met and measured; see `docs/EXECUTION_PLAN_2026-09-24.md` §0 for the goals verdict and §1a for status. The model is below the bar; the open experiment is the relabelling pilot, and the trainer port (`backend/ml_training/posture_v1/`) is what will consume its labels. Rules that hold for every change: one gap per branch, evidence in `bench/results/`, one logged test read per model, numbers never rounded up.
 
 ### Key Files to Reference
 - **Primary Planning**: `docs/planning/backend_ai_pipeline_integration_plan.md`
