@@ -1,8 +1,10 @@
 # backend-tests.yml
 #
-# Three-gate CI for the FormIQ backend:
+# The one backend workflow (G-17). Until 2026-09-24 every workflow in this repo failed on every push;
+# this one died importing conftest because its SECRET_KEY was 27 characters (Settings requires 32).
 #
 #   Job 1 — unit_api_tests  (every push / PR, fast)
+#     image check (G-43), alembic upgrade head && alembic check (G-38),
 #     pytest -m "not integration and not e2e and not slow"
 #
 #   Job 2 — integration_tests  (main branch + `run-integration` label)
@@ -16,7 +18,6 @@ name: Backend Tests
 
 on:
   push:
-    branches: [main, staging]
     paths:
       - "backend/**"
       - ".github/workflows/backend-tests.yml"
@@ -41,8 +42,57 @@ jobs:
     name: "Unit & API Tests"
     runs-on: ubuntu-latest
 
+    # Postgres and Redis back the schema check and the API tests that open a real connection;
+    # they mirror the compose stack the suite is run against locally (POSTGRES_* names, not URLs).
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: formiq
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:6
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      ENVIRONMENT: test
+      # Settings.SECRET_KEY enforces min_length=32 (app/core/config.py). A shorter value here
+      # made every run fail before a single test ran.
+      SECRET_KEY: ci-test-secret-key-not-real-but-long-enough-32
+      POSTGRES_SERVER: localhost
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: formiq
+      REDIS_URL: "redis://localhost:6379/0"
+      REDIS_HOST: "localhost"
+      REDIS_PORT: "6379"
+      AWS_ACCESS_KEY_ID: "dummy"
+      AWS_SECRET_ACCESS_KEY: "dummy"
+      AWS_REGION: "us-east-1"
+      S3_BUCKET_NAME: "dummy-bucket"
+
     steps:
       - uses: actions/checkout@v4
+
+      - name: System packages (what the image installs, plus what OpenCV needs on a runner)
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends ffmpeg libpq-dev libmagic1 libgl1 libglib2.0-0
 
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
@@ -58,21 +108,16 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt -r requirements-test.txt
 
+      - name: Installed packages match requirements.txt (G-43)
+        run: python -m app.core.image_check
+
+      - name: Schema matches the models (G-38)
+        run: |
+          alembic upgrade head
+          alembic check
+
       - name: Run unit / API tests
         # Uses pytest.ini addopts but overrides marker filter to the unit gate.
-        env:
-          ENVIRONMENT: test
-          SECRET_KEY: ci-test-secret-key-not-real
-          # Provide dummy values so config doesn't error at import time
-          DATABASE_URL: "postgresql+asyncpg://noop:noop@localhost:5432/noop"
-          TEST_DATABASE_URL: "postgresql+asyncpg://noop:noop@localhost:5432/noop"
-          REDIS_URL: "redis://localhost:6379/0"
-          REDIS_HOST: "localhost"
-          REDIS_PORT: "6379"
-          AWS_ACCESS_KEY_ID: "dummy"
-          AWS_SECRET_ACCESS_KEY: "dummy"
-          AWS_REGION: "us-east-1"
-          S3_BUCKET_NAME: "dummy-bucket"
         run: |
           pytest -q \
             -m "not integration and not e2e and not slow" \
@@ -138,7 +183,7 @@ jobs:
       - name: Run integration tests
         env:
           ENVIRONMENT: test
-          SECRET_KEY: ci-test-secret-key-not-real
+          SECRET_KEY: ci-test-secret-key-not-real-but-long-enough-32
           TEST_DATABASE_URL: "postgresql+asyncpg://formiq_test:formiq_test@localhost:5434/formiq_test_db"
           REDIS_URL: "redis://localhost:6380/0"
           REDIS_HOST: "localhost"
@@ -217,7 +262,7 @@ jobs:
       - name: Run E2E tests
         env:
           ENVIRONMENT: test
-          SECRET_KEY: ci-test-secret-key-not-real
+          SECRET_KEY: ci-test-secret-key-not-real-but-long-enough-32
           TEST_DATABASE_URL: "postgresql+asyncpg://formiq_test:formiq_test@localhost:5434/formiq_test_db"
           REDIS_URL: "redis://localhost:6380/0"
           REDIS_HOST: "localhost"
