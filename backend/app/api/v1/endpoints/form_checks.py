@@ -1,5 +1,7 @@
 """Form Check endpoints."""
+import asyncio
 import logging
+import os
 from typing import List, Optional
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Query, Path, status
@@ -33,6 +35,15 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Form Checks"])
 
+# G-36: a bounded number of uploads in flight per API process. The storage layer still
+# reads each upload into memory (streaming is deferred), so unbounded concurrency was
+# unbounded memory: at 20 simultaneous uploads gunicorn workers were OOM-killed and
+# 2-7 requests vanished with no server-side log. Above the bound the client gets a
+# 503 with Retry-After BEFORE the file is read, instead of a dropped socket.
+# Per process; with gunicorn's 4 workers the deployment admits 4 x 4 = 16.
+UPLOAD_MAX_INFLIGHT = max(1, int(os.getenv("UPLOAD_MAX_INFLIGHT", "4")))
+_upload_slots = asyncio.Semaphore(UPLOAD_MAX_INFLIGHT)
+
 @router.post(
     "/submit",
     response_model=FormCheckResponse,
@@ -60,7 +71,8 @@ router = APIRouter(tags=["Form Checks"])
         413: {"description": "File too large", "content": {"application/json": {"example": {"detail": "File size exceeds 100MB limit"}}}},
         422: {"$ref": "#/components/responses/RequestValidationError"},
         429: {"$ref": "#/components/responses/RateLimitError"},
-        500: {"$ref": "#/components/responses/ServerError"}
+        500: {"$ref": "#/components/responses/ServerError"},
+        503: {"description": "Too many uploads in flight on this server; retry after the Retry-After seconds."}
     }
 )
 async def submit_form_check_for_analysis(
@@ -103,32 +115,39 @@ async def submit_form_check_for_analysis(
         )
     exercise_type_enum = ExerciseType.SQUAT
 
-    try:
-        form_check_record = await form_check_service.submit_form_check(
-            user_id=current_user.id,
-            video_file=video_upload,
-            exercise_type_enum=exercise_type_enum,
-            notes=notes,
-            threshold_mode=threshold_mode,
-            posture_v1_mode=posture_v1_mode,
-            weight_kg=weight_kg,
-            reps=reps,
+    if _upload_slots.locked():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Too many uploads in flight on this server (limit {UPLOAD_MAX_INFLIGHT}); retry shortly.",
+            headers={"Retry-After": "5"},
         )
-        return form_check_record
-    except HTTPException as he:
-        raise he
-    except ValueError as ve:
-        logger.error(f"ValueError during form check submission: {str(ve)}", exc_info=True)
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(ve))
-    except NotFoundException as nfe:
-        logger.warning(f"NotFoundException during form check submission: {str(nfe)}")
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(nfe))
-    except ServerErrorException as se:
-        logger.error(f"ServerErrorException during form check submission: {str(se)}", exc_info=True)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(se))
-    except Exception as e:
-        logger.error(f"Unexpected error during form check submission: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An unexpected error occurred.")
+    async with _upload_slots:
+        try:
+            form_check_record = await form_check_service.submit_form_check(
+                user_id=current_user.id,
+                video_file=video_upload,
+                exercise_type_enum=exercise_type_enum,
+                notes=notes,
+                threshold_mode=threshold_mode,
+                posture_v1_mode=posture_v1_mode,
+                weight_kg=weight_kg,
+                reps=reps,
+            )
+            return form_check_record
+        except HTTPException as he:
+            raise he
+        except ValueError as ve:
+            logger.error(f"ValueError during form check submission: {str(ve)}", exc_info=True)
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(ve))
+        except NotFoundException as nfe:
+            logger.warning(f"NotFoundException during form check submission: {str(nfe)}")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(nfe))
+        except ServerErrorException as se:
+            logger.error(f"ServerErrorException during form check submission: {str(se)}", exc_info=True)
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(se))
+        except Exception as e:
+            logger.error(f"Unexpected error during form check submission: {str(e)}", exc_info=True)
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An unexpected error occurred.")
 
 @router.get(
     "/history",

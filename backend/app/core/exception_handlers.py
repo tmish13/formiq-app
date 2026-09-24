@@ -65,9 +65,13 @@ def setup_exception_handlers(app: FastAPI) -> None:
                 "status": exc.status_code
             }
         
+        # Forward the exception's headers. Without this every header an endpoint
+        # attaches to an HTTPException was dropped on the floor: Retry-After on a
+        # 503 (upload backpressure, G-36), WWW-Authenticate on a 401.
         return JSONResponse(
             status_code=exc.status_code,
-            content=content
+            content=content,
+            headers=getattr(exc, "headers", None) or None,
         )
     
     @app.exception_handler(StarletteHTTPException)
@@ -89,7 +93,9 @@ def setup_exception_handlers(app: FastAPI) -> None:
             status_code=exc.status_code,
             content={
                 "code": "HTTP_ERROR",
-                "message": str(exc.detail),
+                "message": str(exc.detail,
+            headers=getattr(exc, "headers", None) or None,
+        ),
                 "status": exc.status_code
             }
         )
