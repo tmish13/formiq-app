@@ -1,0 +1,9 @@
+{"key": "A_v2_body__logreg", "read_at": "2026-09-24T04:37:17", "n": 196, "forced": false, "reason": null}
+{"key": "A_v2_body__hgb", "read_at": "2026-09-24T04:37:39", "n": 196, "forced": false, "reason": null}
+{"key": "A_v2_body__mlp", "read_at": "2026-09-24T04:38:38", "n": 196, "forced": false, "reason": null}
+{"key": "B_temporal64__logreg", "read_at": "2026-09-24T04:39:15", "n": 196, "forced": false, "reason": null}
+{"key": "B_temporal64__hgb", "read_at": "2026-09-24T04:39:50", "n": 196, "forced": false, "reason": null}
+{"key": "B_temporal64__mlp", "read_at": "2026-09-24T04:40:26", "n": 196, "forced": false, "reason": null}
+{"key": "C_incumbent151__logreg", "read_at": "2026-09-24T04:41:02", "n": 196, "forced": false, "reason": null}
+{"key": "C_incumbent151__hgb", "read_at": "2026-09-24T04:41:38", "n": 196, "forced": false, "reason": null}
+{"key": "C_incumbent151__mlp", "read_at": "2026-09-24T04:42:13", "n": 196, "forced": false, "reason": null}

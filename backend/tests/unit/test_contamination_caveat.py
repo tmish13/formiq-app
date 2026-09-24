@@ -37,6 +37,10 @@ _SKIP_DIRS = {
 #: than claims made to a reader. Keep this list short and justified: every
 #: entry is a place the caveat is NOT shown to whoever opens the file.
 _ALLOWED = {
+    "bench/results/retrain/C_incumbent151__mlp__FINAL.json":
+        "a fresh 2026-09-23 test read on the CLEAN content-level split whose "
+        "posture F1 coincidentally equals 0.7692 to four decimals; not a quote "
+        "of the contaminated ablation figure (see the retrain note)",
     "bench/results/2026-09-19-v1-test-per-video-scores.json":
         "raw per-video probabilities; the input the pinned figures were "
         "computed FROM, not a statement of them",

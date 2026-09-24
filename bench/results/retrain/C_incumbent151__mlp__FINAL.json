@@ -1,0 +1,343 @@
+{
+  "key": "C_incumbent151__mlp",
+  "read_at": "2026-09-24T04:42:13",
+  "n_test": 196,
+  "forced_second_read": false,
+  "reason": null,
+  "heads": {
+    "posture_fault": {
+      "auroc": 0.6712,
+      "auroc_ci95": [
+        0.5976,
+        0.7439
+      ],
+      "threshold": 0.06,
+      "precision": 0.625,
+      "recall": 1.0,
+      "f1": 0.7692,
+      "f1_ci95": [
+        0.7133,
+        0.8173
+      ],
+      "counts": {
+        "tp": 120,
+        "fp": 72,
+        "tn": 4,
+        "fn": 0
+      },
+      "floor_f1": 0.7595,
+      "majority_acc": 0.6122,
+      "prevalence": 0.6122,
+      "accuracy": 0.6327,
+      "artifact_sha256": "a8230030bead6a9d"
+    },
+    "stability_fault": {
+      "auroc": 0.5344,
+      "auroc_ci95": [
+        0.404,
+        0.6671
+      ],
+      "threshold": 0.13,
+      "precision": 0.1154,
+      "recall": 0.75,
+      "f1": 0.2,
+      "f1_ci95": [
+        0.1127,
+        0.2875
+      ],
+      "counts": {
+        "tp": 15,
+        "fp": 115,
+        "tn": 61,
+        "fn": 5
+      },
+      "floor_f1": 0.1852,
+      "majority_acc": 0.898,
+      "prevalence": 0.102,
+      "accuracy": 0.3878,
+      "artifact_sha256": "8c9057eda19757ba"
+    },
+    "depth_fault": {
+      "auroc": 0.5824,
+      "auroc_ci95": [
+        0.4941,
+        0.6672
+      ],
+      "threshold": 0.06,
+      "precision": 0.3158,
+      "recall": 0.9836,
+      "f1": 0.4781,
+      "f1_ci95": [
+        0.4,
+        0.5496
+      ],
+      "counts": {
+        "tp": 60,
+        "fp": 130,
+        "tn": 5,
+        "fn": 1
+      },
+      "floor_f1": 0.4747,
+      "majority_acc": 0.6888,
+      "prevalence": 0.3112,
+      "accuracy": 0.3316,
+      "artifact_sha256": "b4916b0759242029"
+    },
+    "any_fault": {
+      "auroc": 0.5813,
+      "auroc_ci95": [
+        0.4917,
+        0.6662
+      ],
+      "threshold": 0.18,
+      "precision": 0.7077,
+      "recall": 0.9928,
+      "f1": 0.8263,
+      "f1_ci95": [
+        0.7788,
+        0.8671
+      ],
+      "counts": {
+        "tp": 138,
+        "fp": 57,
+        "tn": 0,
+        "fn": 1
+      },
+      "floor_f1": 0.8299,
+      "majority_acc": 0.7092,
+      "prevalence": 0.7092,
+      "accuracy": 0.7041,
+      "artifact_sha256": "5301b6307475e8ee"
+    },
+    "posture_collapsed": {
+      "auroc": 0.6786,
+      "auroc_ci95": [
+        0.599,
+        0.7535
+      ],
+      "threshold": 0.38,
+      "precision": 0.4952,
+      "recall": 0.6667,
+      "f1": 0.5683,
+      "f1_ci95": [
+        0.479,
+        0.6529
+      ],
+      "counts": {
+        "tp": 52,
+        "fp": 53,
+        "tn": 65,
+        "fn": 26
+      },
+      "floor_f1": 0.5693,
+      "majority_acc": 0.602,
+      "prevalence": 0.398,
+      "accuracy": 0.5969,
+      "artifact_sha256": "e39e17272b117dfc"
+    }
+  },
+  "incumbent": {
+    "posture_fault": {
+      "by_threshold": {
+        "shipped_0.525": {
+          "auroc": 0.7306,
+          "threshold": 0.525,
+          "precision": 0.7619,
+          "recall": 0.6667,
+          "f1": 0.7111,
+          "f1_ci95": [
+            0.6411,
+            0.7753
+          ],
+          "counts": {
+            "tp": 80,
+            "fp": 25,
+            "tn": 51,
+            "fn": 40
+          },
+          "paired_delta_f1": {
+            "delta": 0.0581,
+            "ci95": [
+              -0.0107,
+              0.1288
+            ],
+            "includes_zero": true
+          }
+        },
+        "notebook_val_opt_0.475": {
+          "auroc": 0.7306,
+          "threshold": 0.475,
+          "precision": 0.7373,
+          "recall": 0.725,
+          "f1": 0.7311,
+          "f1_ci95": [
+            0.6667,
+            0.7918
+          ],
+          "counts": {
+            "tp": 87,
+            "fp": 31,
+            "tn": 45,
+            "fn": 33
+          },
+          "paired_delta_f1": {
+            "delta": 0.0381,
+            "ci95": [
+              -0.0244,
+              0.1025
+            ],
+            "includes_zero": true
+          }
+        },
+        "content_val_opt_0.27": {
+          "auroc": 0.7306,
+          "threshold": 0.27,
+          "precision": 0.6463,
+          "recall": 0.8833,
+          "f1": 0.7465,
+          "f1_ci95": [
+            0.6866,
+            0.8
+          ],
+          "counts": {
+            "tp": 106,
+            "fp": 58,
+            "tn": 18,
+            "fn": 14
+          },
+          "paired_delta_f1": {
+            "delta": 0.0228,
+            "ci95": [
+              -0.0128,
+              0.0598
+            ],
+            "includes_zero": true
+          }
+        }
+      },
+      "auroc": {
+        "auroc": 0.7306,
+        "auroc_ci95": [
+          0.6616,
+          0.7995
+        ],
+        "paired_delta_auroc": {
+          "delta": -0.0594,
+          "ci95": [
+            -0.1169,
+            -0.0075
+          ],
+          "includes_zero": false
+        }
+      },
+      "label": "posture_fault",
+      "verdict": "NEGATIVE: retrain AUROC 0.6712 is not above the incumbent's point estimate 0.7306 (paired delta -0.0594 [-0.1169, -0.0075])",
+      "secondary_f1_criterion": {
+        "retrain_f1": 0.7692,
+        "incumbent_strongest_f1_lower_bound": 0.6866,
+        "passes": true
+      }
+    },
+    "posture_collapsed": {
+      "by_threshold": {
+        "shipped_0.525": {
+          "auroc": 0.7159,
+          "threshold": 0.525,
+          "precision": 0.5333,
+          "recall": 0.7179,
+          "f1": 0.612,
+          "f1_ci95": [
+            0.5301,
+            0.6911
+          ],
+          "counts": {
+            "tp": 56,
+            "fp": 49,
+            "tn": 69,
+            "fn": 22
+          },
+          "paired_delta_f1": {
+            "delta": -0.0437,
+            "ci95": [
+              -0.1257,
+              0.0319
+            ],
+            "includes_zero": true
+          }
+        },
+        "notebook_val_opt_0.475": {
+          "auroc": 0.7159,
+          "threshold": 0.475,
+          "precision": 0.5169,
+          "recall": 0.7821,
+          "f1": 0.6224,
+          "f1_ci95": [
+            0.5424,
+            0.6984
+          ],
+          "counts": {
+            "tp": 61,
+            "fp": 57,
+            "tn": 61,
+            "fn": 17
+          },
+          "paired_delta_f1": {
+            "delta": -0.0541,
+            "ci95": [
+              -0.1369,
+              0.0228
+            ],
+            "includes_zero": true
+          }
+        },
+        "content_val_opt_0.69": {
+          "auroc": 0.7159,
+          "threshold": 0.69,
+          "precision": 0.6393,
+          "recall": 0.5,
+          "f1": 0.5612,
+          "f1_ci95": [
+            0.4545,
+            0.649
+          ],
+          "counts": {
+            "tp": 39,
+            "fp": 22,
+            "tn": 96,
+            "fn": 39
+          },
+          "paired_delta_f1": {
+            "delta": 0.0072,
+            "ci95": [
+              -0.0883,
+              0.1124
+            ],
+            "includes_zero": true
+          }
+        }
+      },
+      "auroc": {
+        "auroc": 0.7159,
+        "auroc_ci95": [
+          0.6388,
+          0.7893
+        ],
+        "paired_delta_auroc": {
+          "delta": -0.0373,
+          "ci95": [
+            -0.1085,
+            0.0273
+          ],
+          "includes_zero": true
+        }
+      },
+      "label": "posture_collapsed",
+      "verdict": "NEGATIVE: retrain AUROC 0.6786 is not above the incumbent's point estimate 0.7159 (paired delta -0.0373 [-0.1085, +0.0273])",
+      "secondary_f1_criterion": {
+        "retrain_f1": 0.5683,
+        "incumbent_strongest_f1_lower_bound": 0.5424,
+        "passes": true
+      }
+    }
+  }
+}

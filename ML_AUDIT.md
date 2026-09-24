@@ -701,3 +701,20 @@ A second cycle turn at this n (`bench/cycle_turn.py`) is still a negative: thres
 validation, ΔF1 on test −0.0509 [−0.1349, +0.0272]. The interval halved and the answer did not
 change: the incumbent's threshold is not the lever. The controlled retrain (§11c) is the next step
 and was pre-registered before this addendum was written (`bench/retrain/PREREGISTRATION.md`).
+
+## Addendum 2 — §11c executed: the controlled retrain is a NEGATIVE (2026-09-23, branch `ml/retrain-body-only-multilabel`)
+
+Pre-registered (`bench/retrain/PREREGISTRATION.md`, three dated amendments, all before the read),
+nine artifacts, one logged test read each, incumbent scored on the same cached test keypoints.
+
+| comparison (content-level test, n = 196) | retrain AUROC [95 % CI] | incumbent AUROC [95 % CI] | paired Δ [95 % CI] | verdict |
+|---|---|---|---|---|
+| primary: B / hgb on `posture_fault` (prev 0.612) | 0.6802 [0.6067, 0.7526] | 0.7306 [0.6616, 0.7995] | −0.0504 [−0.1150, +0.0112] | **NEGATIVE** |
+| co-primary: B / hgb on `posture_collapsed` (prev 0.398) | 0.6914 [0.6153, 0.7633] | 0.7159 [0.6388, 0.7893] | −0.0244 [−0.0967, +0.0417] | **NEGATIVE** |
+
+Eight of nine artifacts below the incumbent's point estimate on the primary label, two
+significantly; the ninth not distinguishable. Depth: no floor cleared (as expected). `any_fault`:
+at its floor (the expected modest gain did not materialise). Validation (n=218) over-promised by
+0.05–0.10. Reading against §10: causes 2 and 4 were fixed by construction and the number did not
+move, so the ceiling is cause 1 — the label. §11c's re-scoping stands. Full write-up:
+`bench/results/2026-09-23-retrain-controlled.md`.
