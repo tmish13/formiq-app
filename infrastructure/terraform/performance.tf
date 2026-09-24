@@ -175,29 +175,9 @@ resource "aws_acm_certificate" "main" {
   }
 }
 
-# ECS Auto Scaling
-resource "aws_appautoscaling_target" "ecs_target" {
-  max_capacity       = 4
-  min_capacity       = 2
-  resource_id        = "service/${aws_ecs_cluster.main.name}/${aws_ecs_service.backend.name}"
-  scalable_dimension = "ecs:service:DesiredCount"
-  service_namespace  = "ecs"
-}
-
-resource "aws_appautoscaling_policy" "ecs_policy" {
-  name               = "formiq-ecs-autoscaling"
-  policy_type        = "TargetTrackingScaling"
-  resource_id        = aws_appautoscaling_target.ecs_target.resource_id
-  scalable_dimension = aws_appautoscaling_target.ecs_target.scalable_dimension
-  service_namespace  = aws_appautoscaling_target.ecs_target.service_namespace
-
-  target_tracking_scaling_policy_configuration {
-    predefined_metric_specification {
-      predefined_metric_type = "ECSServiceAverageCPUUtilization"
-    }
-    target_value = 70.0
-  }
-}
+# ECS auto scaling removed 2026-09-24 (audit/manifests-one-truth): it targeted
+# aws_ecs_service.backend, which no file in this directory defines, so this configuration
+# could never plan. Add the service first, then scaling, from a measured need.
 
 # RDS Read Replica
 resource "aws_db_instance" "replica" {
