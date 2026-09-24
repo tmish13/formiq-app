@@ -155,6 +155,10 @@ def initialize_worker_services(**kwargs):
     """
     global _shared_storage_service
     logger.info("Celery worker process starting — lightweight services only...")
+    # G-43: is this the image requirements.txt describes? Logs an ERROR naming each
+    # pin that is missing or mismatched; never raises.
+    from app.core.image_check import run_and_log as _image_check
+    _image_check("worker")
     # A previously killed worker cannot have run its cleanup blocks; clear what it left.
     _sweep_stale_temp_files()
     # Build this child's own async engine here, after the fork, so no engine

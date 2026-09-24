@@ -19,6 +19,7 @@ from app.core.logging import init_logging
 from app.core.cache import init_cache
 from app.core.storage import init_storage
 from app.core.security import init_security
+from app.core.image_check import run_and_log as _image_check
 from app.api.deps import register_deps
 from app.services.scheduler_service import scheduler
 
@@ -55,6 +56,8 @@ async def lifespan(app: FastAPI):
         await init_cache()
         await init_storage()
         init_security()
+        # G-43: say at startup whether this image matches requirements.txt. Logs; never raises.
+        _image_check("api")
         
         # Test database connection
         async with engine.connect() as conn:
