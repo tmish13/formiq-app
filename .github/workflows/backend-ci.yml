@@ -49,6 +49,17 @@ jobs:
     - name: Image matches requirements.txt (G-43)
       working-directory: backend
       run: python -m app.core.image_check
+    - name: Schema matches the models (G-38)
+      working-directory: backend
+      env:
+        POSTGRES_SERVER: localhost
+        POSTGRES_PORT: "5432"
+        POSTGRES_USER: postgres
+        POSTGRES_PASSWORD: postgres
+        POSTGRES_DB: formiq_test
+      run: |
+        alembic upgrade head
+        alembic check
     
     - name: Run tests
       env:

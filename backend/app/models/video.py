@@ -15,7 +15,7 @@ class Video(BaseModel):
     __tablename__ = "videos"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     filename = Column(String, nullable=False)
     object_key = Column(String, nullable=True, unique=True)
     url = Column(String, nullable=True)
@@ -26,7 +26,7 @@ class Video(BaseModel):
     duration = Column(Float, nullable=True)  # Duration in seconds
     resolution = Column(String, nullable=True)  # Resolution, e.g., "1280x720"
     fps = Column(Float, nullable=True)  # Frames per second
-    status = Column(SQLAEnum(VideoStatus), default=VideoStatus.UPLOADED, nullable=False)
+    status = Column(SQLAEnum(VideoStatus), default=VideoStatus.UPLOADED, nullable=False, index=True)
     processing_errors = Column(JSON, nullable=True) # Store detailed error information, potentially structured
     error_message = Column(Text, nullable=True) # For simple, top-level error messages
     processed_object_key = Column(String, nullable=True) # S3 key for the processed/normalized video

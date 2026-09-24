@@ -62,7 +62,7 @@ class BaseModel(Base):
     """
     __abstract__ = True
 
-    id = Column(SQLiteUUID(), primary_key=True, default=uuid.uuid4, index=True)
+    id = Column(SQLiteUUID(), primary_key=True, default=uuid.uuid4)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 

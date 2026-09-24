@@ -24,7 +24,7 @@ class ExerciseTemplate(BaseModel):
 
     __tablename__ = "exercise_templates"
 
-    id = Column(SQLiteUUID(), primary_key=True, default=uuid.uuid4, index=True)
+    id = Column(SQLiteUUID(), primary_key=True, default=uuid.uuid4)
     name = Column(String, nullable=False, index=True)
     description = Column(Text, nullable=True)
     video_url = Column(String)

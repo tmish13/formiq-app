@@ -10,7 +10,7 @@ class ExerciseProgress(Base):
     """Model for tracking exercise progress."""
     __tablename__ = "exercise_progress"
     
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True)
     user_id = Column(SQLiteUUID(), ForeignKey("users.id"), nullable=False)
     exercise_type = Column(String(50), nullable=False)
     form_score = Column(Float, nullable=False, default=0.0)
@@ -30,7 +30,7 @@ class ProgressSnapshot(Base):
     """Model for storing progress snapshots."""
     __tablename__ = "progress_snapshots"
     
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True)
     progress_id = Column(Integer, ForeignKey("exercise_progress.id"), nullable=False)
     timestamp = Column(DateTime, nullable=False)
     form_score = Column(Float, nullable=False)

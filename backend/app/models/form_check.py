@@ -1,6 +1,6 @@
 """Form check models for storing exercise analysis data."""
 from typing import Optional, Dict, Any, List
-from sqlalchemy import Column, Integer, String, DateTime, JSON, ForeignKey, Float, Enum, Text
+from sqlalchemy import Column, Integer, String, DateTime, JSON, ForeignKey, Float, Enum, Text, Index, text
 from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, validates
@@ -54,16 +54,27 @@ class FormCheck(BaseModel):
         depth_score (float): Depth/range of motion score (0-100)
     """
     __tablename__ = "form_checks"
+    # G-38: the indexes the database has carried since migrations 0002-0009, declared here so
+    # `alembic check` stops proposing to drop them. The partial unique index is the idempotency
+    # key (0009): one non-failed row per (user, upload bytes, model, spec).
+    __table_args__ = (
+        Index("ix_form_checks_status_updated_at", "status", "updated_at"),
+        Index(
+            "uq_form_checks_user_content_model_spec",
+            "user_id", "content_hash", "model_version", "spec_hash",
+            unique=True, postgresql_where=text("content_hash IS NOT NULL"),
+        ),
+    )
 
-    id = Column(SQLiteUUID(), primary_key=True, index=True)
+    id = Column(SQLiteUUID(), primary_key=True)
     video_url = Column(String, nullable=False)
     exercise_id = Column(SQLiteUUID(), ForeignKey("exercise_templates.id"), nullable=False)
-    user_id = Column(SQLiteUUID(), ForeignKey("users.id"), nullable=False)
-    video_id = Column(SQLiteUUID(), ForeignKey("videos.id"), nullable=True)
+    user_id = Column(SQLiteUUID(), ForeignKey("users.id"), nullable=False, index=True)
+    video_id = Column(SQLiteUUID(), ForeignKey("videos.id"), nullable=True, index=True)
     feedback = Column(String)  # DEPRECATED: Use overall_feedback for summary and FeedbackItem for specifics.
     score = Column(Float)
     keypoints = Column(JSON)
-    status = Column(Enum(FormCheckStatus), default=FormCheckStatus.PENDING, nullable=False)
+    status = Column(Enum(FormCheckStatus), default=FormCheckStatus.PENDING, nullable=False, index=True)
     analysis_url = Column(String(1024), nullable=True)
     overall_feedback = Column(String(2048), nullable=True)
     issues = Column(JSON, nullable=True)  # DEPRECATED: Use FeedbackItem with details_payload for structured issues.
@@ -93,7 +104,7 @@ class FormCheck(BaseModel):
 
     # V1 Stabilization fields
     video_key = Column(String, nullable=True)       # S3 object key for fresh URL generation
-    exercise_type = Column(String, nullable=True)    # denormalized ("squat"), default None
+    exercise_type = Column(String, nullable=True, index=True)    # denormalized ("squat"), default None
     weight_kg = Column(Float, nullable=True)         # user-entered weight
     reps = Column(Integer, nullable=True)            # user-entered reps
 
@@ -108,7 +119,7 @@ class FormCheck(BaseModel):
     model_version = Column(String(50), nullable=True)
     spec_hash = Column(String(64), nullable=True)
 
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     # NOTE: onupdate but no server_default, so this is NULL until the row is
     # first updated. Anything scanning for staleness must use
     # COALESCE(updated_at, created_at) -- see app/tasks/maintenance_tasks.py.
@@ -254,11 +265,12 @@ class FeedbackItem(BaseModel):
     """
     __tablename__ = "feedback_items"
 
-    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     form_check_id = Column(
         SQLiteUUID(),
         ForeignKey("form_checks.id", ondelete="CASCADE"),
-        nullable=False
+        nullable=False,
+        index=True,
     )
     type = Column(Enum(FeedbackType), nullable=False)
     message = Column(String(1024), nullable=False)

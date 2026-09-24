@@ -1,6 +1,6 @@
 """User model module for managing user data and relationships."""
 from typing import Optional, List, Dict, Any
-from sqlalchemy import Column, Integer, String, Boolean, Enum, DateTime, ForeignKey, JSON, Float
+from sqlalchemy import Column, Integer, String, Boolean, Enum, DateTime, ForeignKey, JSON, Float, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, validates
 from datetime import datetime
@@ -53,8 +53,12 @@ class User(BaseModel):
         locked_until (datetime): When the user account will be unlocked
     """
     __tablename__ = "users"
+    # G-38: the (provider, id) uniqueness the database enforces (0004) but the model never said.
+    __table_args__ = (
+        UniqueConstraint("social_provider", "social_id", name="uq_users_social_provider_social_id"),
+    )
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4, index=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     email = Column(String, unique=True, index=True, nullable=False)
     username = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)

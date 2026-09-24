@@ -31,7 +31,7 @@ class UserSession(BaseModel):
     """
     __tablename__ = "user_sessions"
 
-    id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     session_id = Column(PGUUID(as_uuid=True), unique=True, index=True, nullable=False, default=uuid.uuid4)
     user_agent = Column(String, nullable=True)

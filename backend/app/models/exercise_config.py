@@ -41,7 +41,7 @@ class ExerciseConfig(BaseModel):
     """
     __tablename__ = "exercise_configs"
 
-    id = Column(SQLiteUUID(), primary_key=True, default=uuid.uuid4, index=True)
+    id = Column(SQLiteUUID(), primary_key=True, default=uuid.uuid4)
     name = Column(String(255), nullable=False)
     exercise_id = Column(SQLiteUUID(), ForeignKey("exercise_templates.id"), nullable=False)
     version = Column(Integer, default=1)

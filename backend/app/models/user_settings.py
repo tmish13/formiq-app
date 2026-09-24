@@ -29,7 +29,7 @@ class UserSettings(BaseModel):
     """
     __tablename__ = "user_settings"
 
-    id = Column(SQLiteUUID(), primary_key=True, default=uuid.uuid4, index=True)
+    id = Column(SQLiteUUID(), primary_key=True, default=uuid.uuid4)
     user_id = Column(SQLiteUUID(), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True)
     
     # Settings fields stored as JSON

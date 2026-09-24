@@ -32,7 +32,7 @@ class Subscription(BaseModel):
     """
     __tablename__ = "subscriptions"
 
-    id = Column(SQLiteUUID(), primary_key=True, index=True)
+    id = Column(SQLiteUUID(), primary_key=True)
     user_id = Column(SQLiteUUID(), ForeignKey("users.id"), nullable=False)
     tier = Column(SQLEnum(SubscriptionTier), nullable=False)
     start_date = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
