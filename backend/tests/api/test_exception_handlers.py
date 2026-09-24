@@ -51,3 +51,29 @@ def test_fastapi_exception_headers_are_forwarded(client):
         app.router.routes[:] = [r for r in app.router.routes if getattr(r, "path", "") != "/__test_fastapi_headers"]
     assert resp.status_code == 401
     assert resp.headers.get("WWW-Authenticate") == "Bearer"
+
+
+def test_a_validation_failure_on_register_does_not_log_the_submitted_password(client):
+    """G-16: pydantic's error objects carry `input`, i.e. the whole submitted body. The app's
+    loggers do not propagate to root, so the handler's logger is observed directly."""
+    from unittest.mock import MagicMock, patch
+    from app.core.redis import get_redis
+
+    app.dependency_overrides[get_redis] = lambda: MagicMock()
+    try:
+        with patch("app.core.exception_handlers.logger") as lg:
+            resp = client.post(
+                "/api/v1/auth/register",
+                json={"email": "not-an-email", "password": "hunter2-secret-value",
+                      "confirm_password": "hunter2-secret-value", "full_name": "X"},
+            )
+    finally:
+        app.dependency_overrides.pop(get_redis, None)
+    assert resp.status_code == 422
+    calls = [c for c in lg.warning.call_args_list if "Request validation failed" in str(c.args[0])]
+    assert calls, "the validation handler did not log"
+    for c in calls:
+        assert "hunter2-secret-value" not in str(c.args[0])
+        errors = c.kwargs["extra"]["validation_errors"]
+        assert errors and all("input" not in e for e in errors)
+        assert "hunter2-secret-value" not in str(errors)

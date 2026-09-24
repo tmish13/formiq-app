@@ -22,6 +22,8 @@ LOG_DIR = os.path.join(os.getcwd(), "logs")
 LOG_FILE = os.path.join(LOG_DIR, "app.log")
 ERROR_LOG_FILE = os.path.join(LOG_DIR, "error.log")
 
+from app.core.redaction import redact_event
+
 # Custom processor to add trace context to logs
 def add_trace_context(logger, method_name, event_dict):
     """Add OpenTelemetry trace context to log records."""
@@ -47,6 +49,7 @@ structlog.configure(
         add_trace_context,  # Add OpenTelemetry trace context
         # Add environment to the log output if needed by all logs
         structlog.processors.dict_tracebacks, # For better tracebacks in JSON
+        redact_event,  # G-16: credentials and e-mail local parts never reach the renderer
         structlog.processors.JSONRenderer()  # Renders the final dict to JSON string
     ],
     logger_factory=structlog.stdlib.LoggerFactory(),
@@ -87,15 +90,21 @@ def setup_logging(
                  "datefmt": "%Y-%m-%d %H:%M:%S"
             }
         },
+        "filters": {
+            # G-16: every handler scrubs stdlib records too (structlog records are scrubbed upstream)
+            "redact": {"()": "app.core.redaction.RedactingFilter"}
+        },
         "handlers": {
             "console": {
                 "class": "logging.StreamHandler",
+                "filters": ["redact"],
                 "formatter": "standard_dev" if environment == "development" else "passthrough",
                 "stream": sys.stdout,
                 "level": numeric_level
             },
             "file": {
                 "class": "logging.handlers.RotatingFileHandler",
+                "filters": ["redact"],
                 "formatter": "passthrough", # structlog provides JSON
                 "filename": log_file,
                 "maxBytes": settings.LOG_MAX_BYTES,
@@ -104,6 +113,7 @@ def setup_logging(
             },
             "error_file": {
                 "class": "logging.handlers.RotatingFileHandler",
+                "filters": ["redact"],
                 "formatter": "passthrough", # structlog provides JSON
                 "filename": ERROR_LOG_FILE,
                 "maxBytes": settings.LOG_MAX_BYTES,

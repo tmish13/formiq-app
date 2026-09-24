@@ -105,12 +105,15 @@ def setup_exception_handlers(app: FastAPI) -> None:
         exc: RequestValidationError
     ) -> JSONResponse:
         """Handle Pydantic validation errors from request parsing."""
+        # Never log `input`: pydantic echoes the submitted value, and on the auth routes that
+        # value is the password (G-16). `loc`, `msg` and `type` say everything a debugger needs.
+        safe_errors = [{k: v for k, v in e.items() if k != "input"} for e in exc.errors()]
         logger.warning(
-            f"Request validation failed: {exc.errors()}",
+            f"Request validation failed: {safe_errors}",
             extra={
                 "path": request.url.path,
                 "method": request.method,
-                "validation_errors": exc.errors()
+                "validation_errors": safe_errors
             }
         )
         
