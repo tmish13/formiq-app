@@ -88,6 +88,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          lfs: true   # posture_v1.pt and the scaler are Git LFS objects; a plain checkout leaves pointers (KeyError: 118 = 'v' of 'version https://git-lfs')
 
       - name: System packages (what the image installs, plus what OpenCV needs on a runner)
         run: |
@@ -141,6 +143,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          lfs: true   # posture_v1.pt and the scaler are Git LFS objects; a plain checkout leaves pointers (KeyError: 118 = 'v' of 'version https://git-lfs')
 
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
@@ -220,6 +224,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          lfs: true   # posture_v1.pt and the scaler are Git LFS objects; a plain checkout leaves pointers (KeyError: 118 = 'v' of 'version https://git-lfs')
 
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
