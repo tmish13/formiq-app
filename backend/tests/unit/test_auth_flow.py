@@ -280,14 +280,22 @@ class TestVerifyEmail:
 def _register_client():
     from app.main import app
     from app.api import deps
+    from app.core.redis import get_redis
 
     async def _stub_db():
         yield AsyncMock()
 
+    # The register endpoint's dependency tree resolves get_redis, which PINGs
+    # Redis at resolution time; with no Redis in a unit test that raised
+    # ConnectionError and the error handler answered 503 before the endpoint
+    # ran. This test is about the duplicate-email contract, so Redis is stubbed
+    # like the DB is. (G-35: red on main since before Phase 1 for this reason.)
     app.dependency_overrides[deps.get_async_db] = _stub_db
+    app.dependency_overrides[get_redis] = lambda: MagicMock()
     with TestClient(app, raise_server_exceptions=False) as c:
         yield c
     app.dependency_overrides.pop(deps.get_async_db, None)
+    app.dependency_overrides.pop(get_redis, None)
 
 
 class TestRegisterEndpoint:
