@@ -65,3 +65,26 @@ the model is below the bar. The honest product today is knees-forward localisati
 
 Order is by value per hour with the human-dependent item running in parallel. Items 9–11 are
 last because the batch already holds without them.
+
+### 1a. Status, 2026-09-24 evening (every item ran; each has a note in `bench/results/`)
+
+| # | branch | commit | outcome |
+|---|---|---|---|
+| 1 | `audit/g01-measured-claims` | 497c8ca | done — `docs/CV_CLAIMS.md` |
+| 2 | `docs/evidence-map` | c13b396 | done — `docs/EVIDENCE_MAP.md` |
+| 3 | `audit/stage-timings` + `audit/stage-timings-results` | 30fd788, 8b54bb9 | done — pose extraction is **95.5 %** of the task; the "45 % unexplained" withdrawn (`2026-09-24-stage-timings.md`) |
+| 4 | `audit/build-hygiene` | 57d885b | done — `bench/rebuild_images.sh` refuses below 15 GB free |
+| 5 | `audit/g35-red-tests` | dcd115e, c4002da | done — suite in the worker image **1,406 passed, 33 skipped, 0 failed** on the final tree |
+| 6 | `audit/g06-g07-retire-demo` | 6b95873 | done — demo model quarantined, `EVAL.md` |
+| 7 | `audit/ship-per-bar` | 5040caa | done — `/ml-analysis` localisation + `verdict_status`; posture score labelled experimental |
+| 8 | `audit/g38-alembic` | 33c950e | done — `alembic check`: **No new upgrade operations detected.**; three UNIQUE indexes the app assumed now exist (`2026-09-24-g38-alembic.md`) |
+| 9 | `audit/upload-streaming` → `audit/g54-api-loads-ml` | c76393a, 2142608 | streaming alone was a **negative** (peak 4,656 → 4,322 MiB, kill persisted); the cause was **G-54**: each API worker built MediaPipe/torch on its first request (+407 MiB). Fixed: the same 20-upload burst went **14 accepted / 6 dropped / 1 kill / 4,656 MiB → 20 / 0 / 0 / 972 MiB** (`2026-09-24-g54-api-loads-ml.md`) |
+| 10 | `audit/cache-is-the-db` | fc1b0c6 | done — G-53: 20 files twice → 20 real runs, 20 `pose_source='cache'` rows, 0 cross-pass, 0 second inference, cache row p50 2.28 ms |
+| 11 | `audit/manifests-one-truth` | c6a6f78 | done — one compose file; k8s probes on real routes; dangling terraform scaling removed; `infrastructure/README.md` |
+| — | pilot (humans) | — | **waiting on two annotators**; kit and gates ready |
+
+Open, deliberately: G-55 (committed self-signed, expired TLS keys — user's call), the rate-limit
+middleware guard (`main_setup.py:58`, enabling it is a behaviour change), `DashboardPage.tsx:220`
+copy (the user's own uncommitted edit). Caveat for every timing quoted today after 11:55 PDT: the
+laptop was on battery with Low Power Mode on and ran pose extraction 2.6× slower per frame than the
+mains-power validation; the stage *split* held, the absolute times did not.
