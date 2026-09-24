@@ -43,10 +43,12 @@ services:
     # stayed PENDING forever. Prefork gives each task its own process and a
     # fresh event loop; the same 20 then completed with zero errors.
     # Concurrency and per-process BLAS/OpenMP threads are env-tunable so the same
-    # file can run bench/worker_matrix.sh. Four prefork children each spawning
-    # their own thread pool on 8 vCPUs is oversubscription; 2 threads per child
-    # is the default until the matrix says otherwise.
-    command: celery -A app.core.celery_app.celery_app worker -l info -P prefork --concurrency=${WORKER_CONCURRENCY:-4}
+    # file can run bench/worker_matrix.sh. Measured 2026-09-24 (80 videos/cell,
+    # bench/results/worker_matrix/matrix.tsv): 3 children x 2 threads = 8.6 videos/min,
+    # p50 19.5 s, peak RSS 3.5 GiB; 4 x 1 = 9.1/min but p50 23.9 s and 4.6 GiB on a
+    # 7.65 GiB VM shared with the API. 3 x 2 is the default: 5% less throughput for
+    # 1.1 GiB of headroom against the kills that cost 30 minutes each.
+    command: celery -A app.core.celery_app.celery_app worker -l info -P prefork --concurrency=${WORKER_CONCURRENCY:-3}
     # A cgroup limit kills the LARGEST child, not the parent; the parent respawns
     # it and the redelivered message reclaims the row (analysis_tasks.py, G-46).
     mem_limit: ${WORKER_MEM_LIMIT:-6g}
@@ -68,7 +70,7 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/1
       - CELERY_SHARED_DATA_PATH=/var/formiq_celery_shared
-      - CELERY_WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-4}
+      - CELERY_WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-3}
       - OMP_NUM_THREADS=${WORKER_THREADS:-2}
       - OPENBLAS_NUM_THREADS=${WORKER_THREADS:-2}
       - MKL_NUM_THREADS=${WORKER_THREADS:-2}
