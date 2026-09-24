@@ -1246,7 +1246,7 @@ export default function AnalysisPage() {
             <div className="flex items-center justify-between mb-3">
               <div>
                 <h1 className="text-xl font-bold mb-0.5">
-                  {mlAnalysis?.posture_v1?.decision === 'uncertain' ? 'Analysis Unavailable' : 'Analysis Complete'}
+                  {mlAnalysis?.posture_v1?.decision === 'uncertain' ? 'Analysis Unavailable' : 'Analysis'}
                 </h1>
                 <p className="text-blue-100 text-sm">
                   {exerciseDisplayName}
@@ -1261,7 +1261,9 @@ export default function AnalysisPage() {
                 <div className={`w-20 h-20 bg-white/20 rounded-full flex items-center justify-center mb-1 transition-all duration-300 ${scorePulse ? 'ring-4 ring-white/40 scale-105' : ''}`}>
                   <span className="text-3xl font-bold">{overallScore !== null ? overallScore : '—'}</span>
                 </div>
-                <p className="text-xs text-blue-100">Form Score</p>
+                <p className="text-xs text-blue-100">
+                  Form Score{mlAnalysis?.verdict_status && !mlAnalysis.verdict_status.meets_acceptance_bar ? ' · experimental' : ''}
+                </p>
                 {mlAnalysis?.posture_v1?.decision !== 'uncertain' && mlAnalysis?.calibrated_confidence?.label === 'Low' && (
                   <div className="mt-1 bg-white/20 rounded-full px-2 py-0.5 text-center" data-testid="low-confidence-badge">
                     <p className="text-[10px] text-white font-medium leading-tight">Low confidence</p>
@@ -1306,13 +1308,13 @@ export default function AnalysisPage() {
               <p className="text-sm text-blue-100">
                 {mlAnalysis?.posture_v1?.decision === 'uncertain'
                   ? 'Video could not be scored — see tips below'
-                  : 'Instant AI feedback on your rep'}
+                  : 'Measured from your rep'}
               </p>
               <div className="flex items-center space-x-2 flex-wrap gap-1">
                 {mlAnalysis?.posture_v1?.decision !== 'uncertain' && (
                   <Badge className="bg-green-500/20 text-green-100 border-green-400">
                     <TrendingUp className="w-3 h-3 mr-1" />
-                    AI Analyzed
+                    Analysed
                   </Badge>
                 )}
                 {mlAnalysis?.posture_v1?.decision !== 'uncertain' && mlAnalysis?.delta && !mlAnalysis.delta.baseline_session && mlAnalysis.delta.overall_score_delta != null && (
@@ -1452,6 +1454,44 @@ export default function AnalysisPage() {
           </Card>
         )}
 
+        {/* Where the knees travelled — the one claim the data supports (ACCEPTANCE_BAR §A3) */}
+        {mlAnalysis?.localisation?.knees_forward && (
+          <Card className="border-slate-200 dark:border-slate-700">
+            <CardContent className="p-4">
+              {(() => {
+                const kf = mlAnalysis.localisation!.knees_forward!;
+                const t = kf.peak_time_sec;
+                const travel = kf.travel_torso_lengths;
+                const headline = kf.decision === 'OBSERVED'
+                  ? `Knees travelled past the toe line${t != null ? ` at ${t.toFixed(1)} s` : ''}`
+                  : kf.decision === 'NOT_OBSERVED'
+                    ? 'Knees stayed behind the toe line through the descent'
+                    : 'Could not see the feet well enough to say';
+                const detail = kf.decision === 'OBSERVED'
+                  ? `by ${travel != null ? (travel * 100).toFixed(0) : '?'}% of torso length${kf.view ? `, ${kf.view} view` : ''}`
+                  : kf.decision === 'UNCERTAIN' && kf.abstain_reason
+                    ? `(${kf.abstain_reason.replace(/_/g, ' ')})`
+                    : kf.view ? `${kf.view} view` : '';
+                return (
+                  <>
+                    <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Where your knees went</p>
+                    <p className="font-medium text-slate-900 dark:text-slate-100">{headline}</p>
+                    {detail && <p className="text-sm text-slate-600 dark:text-slate-300 mt-0.5">{detail}</p>}
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2">
+                      This is a measurement of where the knees moved, not a verdict on the squat. It agrees with itself on 80% of re-runs.
+                    </p>
+                  </>
+                );
+              })()}
+            </CardContent>
+          </Card>
+        )}
+        {mlAnalysis?.verdict_status && !mlAnalysis.verdict_status.meets_acceptance_bar && (
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 px-1">
+            The form score is experimental: on a held-out test it separates faults from good form at AUROC {mlAnalysis.verdict_status.auroc.toFixed(2)}
+            {' '}({mlAnalysis.verdict_status.auroc_ci95[0].toFixed(2)}–{mlAnalysis.verdict_status.auroc_ci95[1].toFixed(2)}), below the bar we set for a verdict.
+          </p>
+        )}
         {/* Context banners — always visible */}
         {mlAnalysis?.posture_v1?.status === 'not_supported' && (
           <Card className="border-blue-200 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-700">

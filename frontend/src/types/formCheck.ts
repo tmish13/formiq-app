@@ -142,7 +142,37 @@ export interface PostureV1Result {
   weights_used?: Record<string, number>;
 }
 
+export interface KneesForwardLocalisation {
+  decision: 'OBSERVED' | 'NOT_OBSERVED' | 'UNCERTAIN' | null;
+  observed: boolean;
+  peak_time_sec: number | null;
+  peak_frame: number | null;
+  travel_torso_lengths: number | null;
+  threshold_torso_lengths: number | null;
+  view: string | null;
+  coverage: number | null;
+  abstain_reason: string | null;
+  validated: string;
+  presentation: string;
+}
+
+/** ACCEPTANCE_BAR §A3: what the posture score may be presented as. */
+export interface VerdictStatus {
+  meets_acceptance_bar: boolean;
+  tier1_statistical: boolean;
+  tier2_product: boolean;
+  measured: string;
+  test_n: number;
+  auroc: number;
+  auroc_ci95: [number, number];
+  bar: string;
+  presentation: 'experimental' | 'banded' | 'verdict';
+  note: string;
+}
+
 export interface MLAnalysisResponse {
+  verdict_status?: VerdictStatus;
+  localisation?: { knees_forward: KneesForwardLocalisation | null };
   ml_scores: {
     posture_score: number | null;
     stability_score: number | null;

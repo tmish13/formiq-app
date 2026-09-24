@@ -386,8 +386,35 @@ async def get_ml_analysis(
         # Include shadow results if present
         posture_v1_shadow = results.get("posture_v1_shadow")
 
+        # ACCEPTANCE_BAR §A3: what the data supports is the knees-forward
+        # LOCALISATION ("knees travelled past the toe line at 1.3 s"), which the
+        # rules layer already records on every run (results.rules_shadow). It is
+        # surfaced here as measured evidence with its own validation caveat, and
+        # the posture verdict travels with its bar status so the UI cannot show
+        # it as more than it is.
+        from app.ml.posture_v1.status import LOCALISATION_STATUS, POSTURE_VERDICT_STATUS
+        _kf = ((results.get("rules_shadow") or {}).get("knees_forward") or {})
+        _ind = ((_kf.get("indicators") or [{}])[0]) or {}
+        _det = _ind.get("detail") or {}
+        localisation = {
+            "knees_forward": {
+                "decision": _kf.get("decision"),                       # OBSERVED | NOT_OBSERVED | UNCERTAIN | None
+                "observed": _kf.get("decision") == "OBSERVED",
+                "peak_time_sec": _det.get("peak_time_sec"),
+                "peak_frame": _det.get("peak_frame"),
+                "travel_torso_lengths": _kf.get("score"),
+                "threshold_torso_lengths": _kf.get("threshold"),
+                "view": (_kf.get("view") or {}).get("kind"),
+                "coverage": _kf.get("coverage"),
+                "abstain_reason": _kf.get("abstain_reason"),
+                **LOCALISATION_STATUS,
+            } if _kf else None,
+        }
+
         # Return real ML analysis data
         ml_analysis = {
+            "verdict_status": POSTURE_VERDICT_STATUS,
+            "localisation": localisation,
             "ml_scores": {
                 "posture_score": getattr(form_check, 'posture_score', None),
                 "stability_score": getattr(form_check, 'stability_score', None),
