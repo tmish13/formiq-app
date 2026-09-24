@@ -153,3 +153,17 @@ The full trail report (`bash bench/trail_report.sh 'w2val_%'`):
 | API under load | 20 concurrent: 202 + 503 = 20, 0 dropped, 0 SIGKILL | 17 + 3 = 20, 0, 0 |
 | e2e | passes against the running stack | 2 passed, 13.9 s |
 | cache · images · observability | (deferred by the user's Week-2 scope) | — |
+
+## 8. What the regression gate caught
+
+The full unit + API suite in the rebuilt image, run after §6: **3 failed / 1,376 passed** against a
+baseline of 2 pre-existing failures (G-35). The third, `test_correlation_id_in_error_responses`,
+was green before Week 2: the header-forwarding edit to `core/exception_handlers.py` had mangled the
+*Starlette* handler into `str(exc.detail, headers=…)` — syntactically valid, a `TypeError` at runtime,
+and every unknown route on the live API answered **500 instead of 404 from ~02:00 to ~11:50 PDT**.
+The FastAPI handler had a test; the Starlette one did not. Fixed (`f63eae3`), three handler tests
+added (unknown route → 404 with the error body; headers forwarded by both handlers), API restarted,
+`GET /api/v1/nonexistent → 404` verified live. Re-run: **1,380 passed, 2 failed** (the G-35 pair).
+
+The lesson is the one this repository keeps teaching: an edit that parses is not an edit that works,
+and a test on one of two twins guards one twin.
