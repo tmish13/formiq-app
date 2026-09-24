@@ -93,11 +93,10 @@ def setup_exception_handlers(app: FastAPI) -> None:
             status_code=exc.status_code,
             content={
                 "code": "HTTP_ERROR",
-                "message": str(exc.detail,
-            headers=getattr(exc, "headers", None) or None,
-        ),
+                "message": str(exc.detail),
                 "status": exc.status_code
-            }
+            },
+            headers=getattr(exc, "headers", None) or None,
         )
     
     @app.exception_handler(RequestValidationError)
