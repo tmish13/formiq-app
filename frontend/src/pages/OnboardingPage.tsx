@@ -152,7 +152,7 @@ export default function OnboardingPage() {
                 icon: <Camera className="w-5 h-5 text-purple-600" />,
                 bg: 'bg-purple-50 dark:bg-purple-900/20',
                 title: 'AI Form Scoring',
-                desc: 'Record one squat rep. Get depth, stability, and lean scored instantly.',
+                desc: 'Record one squat rep. Get a posture score and see where your knees travelled forward.',
               },
               {
                 icon: <TrendingUp className="w-5 h-5 text-emerald-600" />,

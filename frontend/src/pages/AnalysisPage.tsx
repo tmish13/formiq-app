@@ -1459,10 +1459,9 @@ export default function AnalysisPage() {
               <div className="flex items-start space-x-3">
                 <Info className="w-5 h-5 text-blue-600 mt-0.5" />
                 <div>
-                  <p className="font-medium text-blue-800 dark:text-blue-200">AI Scoring Coming Soon</p>
+                  <p className="font-medium text-blue-800 dark:text-blue-200">Squat only, for now</p>
                   <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">
-                    AI-powered form analysis for {mlAnalysis.posture_v1.exercise_type || 'this exercise'} is not yet available.
-                    Currently supported: Squat.
+                    Form analysis is built and measured for the squat. {mlAnalysis.posture_v1.exercise_type || 'This exercise'} is not analysed.
                   </p>
                 </div>
               </div>
