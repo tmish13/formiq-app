@@ -88,3 +88,23 @@ middleware guard (`main_setup.py:58`, enabling it is a behaviour change), `Dashb
 copy (the user's own uncommitted edit). Caveat for every timing quoted today after 11:55 PDT: the
 laptop was on battery with Low Power Mode on and ran pose extraction 2.6× slower per frame than the
 mains-power validation; the stage *split* held, the absolute times did not.
+
+### 1b. The second pass, same evening (plan "what comes after the pipeline", Track C and Track B1–B4)
+
+| item | branch | outcome |
+|---|---|---|
+| C1 CI that runs | `audit/g17-ci-truth` → `g17-tests-cwd` → `g17-frontend-workflow` → `frontend-typecheck` → `g17-ci-lfs` | **green**: run 36069257793 — image check, alembic check, 1,490 tests on a GitHub runner; seven dead workflows deleted (`2026-09-24-ci-truth.md`) |
+| C2 keys | `audit/g55-keys` | removed; README says certificates are issued at deploy time |
+| C3 log redaction | `audit/g16-log-redaction` | structlog processor + stdlib filter; the validation handler no longer logs `input`; 0 clear e-mails / passwords / JWTs in the live segment (`2026-09-24-log-redaction.md`) |
+| C4 schema owner | `audit/g23-schema-owner` | API image starts through `deployment/entrypoint.sh` (`alembic upgrade head`, then gunicorn); `create_all` only under test; boot from an empty DB verified (`2026-09-24-schema-owner.md`) |
+| C5 health routes | `audit/health-routes` | `/health/metrics` is a real exposition, `/health/rate-limits` gone (`2026-09-24-health-routes.md`) |
+| C6 burst at 4 slots | `audit/burst-4-slots` | 14 × 202 + 6 × 503, 0 dropped, 0 kills, 1,072 MiB (`2026-09-24-burst-4-slots.md`) |
+| C7 frontend recorded | `audit/frontend-tests-recorded`, `audit/frontend-typecheck` | typecheck green after one config line; jest 17/32 suites red — **G-56 filed, not fixed** (`2026-09-24-frontend-tests.md`) |
+| C8 dead-code sweep | — | not done (optional) |
+| C9 documents | `docs/truth-2026-09-24`, `audit/rate-limit-guard-log` | README, CLAUDE.md, AUDIT rows corrected; the rate-limit log line tells the truth |
+| B1 provenance | `ml/provenance` | notebook codebase imported with hashes, recipe, environment, discrepancies (`backend/ml_training/posture_v1/provenance/PROVENANCE.md`) |
+| B2 model card | `ml/model-card` | `backend/app/ml/posture_v1/MODEL_CARD.md` |
+| B3 manifest provenance | `ml/manifest-provenance` | `provenance` block + `test_posture_v1_artifact_integrity.py` |
+| B4 one variable | `ml/ml-dir-env` | `FORMIQ_ML_DIR` replaces 17 hard-coded paths |
+| B5 seeded trainer | — | **pending** |
+| A pilot | — | sheets ready, annotators arranged, 0 rows graded yet |
