@@ -10,7 +10,11 @@
 #   bash bench/trail_report.sh 'gate1b_%'
 set -uo pipefail
 LIKE="${1:?usage: trail_report.sh <email LIKE pattern>}"
-COMPOSE="${COMPOSE:-backend/deployment/docker-compose.yml}"
+# Resolved from this script's location, not the caller's cwd: run from anywhere else and
+# `docker compose` silently found no file, every query returned "", and every assertion
+# printed `got , want 0` -- a report that fails without saying why.
+COMPOSE="${COMPOSE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/backend/deployment/docker-compose.yml}"
+[ -f "$COMPOSE" ] || { echo "compose file not found: $COMPOSE" >&2; exit 2; }
 psql_q() { docker compose -f "$COMPOSE" exec -T db psql -U postgres -d formiq -tAc "$1" 2>/dev/null; }
 IDS="SELECT id FROM form_checks WHERE user_id IN (SELECT id FROM users WHERE email LIKE '$LIKE')"
 
