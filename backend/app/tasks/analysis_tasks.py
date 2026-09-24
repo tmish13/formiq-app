@@ -209,6 +209,14 @@ def _get_shared_posture_loader() -> Any:
                 if getattr(settings_obj, "USE_POSTURE_V1", True):
                     logger.info("Loading PostureV1 model (first task use)...")
                     from app.ml.posture_v1.loader import PostureV1TorchLoader
+                    # Cap torch's intra-op pool per child (it otherwise takes every core,
+                    # and four children then fight for eight). Same knob the compose file
+                    # sets for BLAS/OpenMP; bench/worker_matrix.sh measures the cells.
+                    try:
+                        import os as _os, torch as _torch
+                        _torch.set_num_threads(max(1, int(_os.getenv("OMP_NUM_THREADS", "2"))))
+                    except Exception as _e_threads:
+                        logger.warning("torch.set_num_threads skipped: %s", _e_threads)
                     _loader = PostureV1TorchLoader(settings_obj)
                     _loader._ensure_loaded()
                     _shared_posture_v1_loader = _loader
@@ -359,6 +367,11 @@ async def _extract_pose_from_video(
     """
     import asyncio
     import cv2
+    import os as _os
+    try:
+        cv2.setNumThreads(max(1, int(_os.getenv("OMP_NUM_THREADS", "2"))))
+    except Exception:
+        pass
 
     max_frames: int = getattr(settings_obj, "AI_MAX_FRAMES_PER_VIDEO_ANALYSIS", 300) or 300
 

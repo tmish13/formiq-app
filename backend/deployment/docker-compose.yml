@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   app:
     build:
@@ -44,7 +42,15 @@ services:
     # running event loop" and the task dies. Measured: 17 of 20 tasks died and
     # stayed PENDING forever. Prefork gives each task its own process and a
     # fresh event loop; the same 20 then completed with zero errors.
-    command: celery -A app.core.celery_app.celery_app worker -l info -P prefork --concurrency=4
+    # Concurrency and per-process BLAS/OpenMP threads are env-tunable so the same
+    # file can run bench/worker_matrix.sh. Four prefork children each spawning
+    # their own thread pool on 8 vCPUs is oversubscription; 2 threads per child
+    # is the default until the matrix says otherwise.
+    command: celery -A app.core.celery_app.celery_app worker -l info -P prefork --concurrency=${WORKER_CONCURRENCY:-4}
+    # A cgroup limit kills the LARGEST child, not the parent; the parent respawns
+    # it and the redelivered message reclaims the row (analysis_tasks.py, G-46).
+    mem_limit: ${WORKER_MEM_LIMIT:-6g}
+    restart: unless-stopped
     volumes:
       - ..:/app
       - ../../.env:/app/.env:ro
@@ -62,6 +68,12 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/1
       - CELERY_SHARED_DATA_PATH=/var/formiq_celery_shared
+      - CELERY_WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-4}
+      - OMP_NUM_THREADS=${WORKER_THREADS:-2}
+      - OPENBLAS_NUM_THREADS=${WORKER_THREADS:-2}
+      - MKL_NUM_THREADS=${WORKER_THREADS:-2}
+      - CELERY_WORKER_MAX_TASKS_PER_CHILD=${WORKER_MAX_TASKS:-40}
+      - CELERY_WORKER_MAX_MEMORY_PER_CHILD_KB=${WORKER_MAX_MEM_KB:-1500000}
       - ENVIRONMENT=${ENVIRONMENT:-development}
       - DEBUG=${DEBUG:-true}
       # min_length=32 enforced by Settings.SECRET_KEY (app/core/config.py:177).
@@ -127,6 +139,11 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
 
 volumes:
   postgres_data:

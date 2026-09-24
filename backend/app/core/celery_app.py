@@ -69,6 +69,13 @@ celery_app.conf.update(
     # never exhaust PostgreSQL connections.  Override via CELERY_WORKER_CONCURRENCY
     # env var or --concurrency flag at worker startup.
     worker_concurrency=int(os.getenv("CELERY_WORKER_CONCURRENCY", "4")),
+    # G-46: MediaPipe/PyTorch memory grows across tasks inside a long-lived prefork
+    # child; on the 8-vCPU / 7.65 GiB VM that ended as 7 SIGKILLs per 900 videos,
+    # clustered late in each batch. Recycle a child after N tasks, or once its RSS
+    # passes the ceiling -- both checked BETWEEN tasks, so no task is killed
+    # mid-flight. Env-tunable; bench/worker_matrix.sh measures the cells.
+    worker_max_tasks_per_child=int(os.getenv("CELERY_WORKER_MAX_TASKS_PER_CHILD", "40")),
+    worker_max_memory_per_child=int(os.getenv("CELERY_WORKER_MAX_MEMORY_PER_CHILD_KB", "1500000")),  # KiB
 )
 
 # Optional: If you want to use a custom Celery Task base class for all tasks
