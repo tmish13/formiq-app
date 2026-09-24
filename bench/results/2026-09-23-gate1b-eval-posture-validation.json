@@ -1,0 +1,66 @@
+{
+  "target": "posture",
+  "label_target": "posture_fault",
+  "basis": "content",
+  "conflicted_included": false,
+  "split": "validation",
+  "n_decisions": 212,
+  "n_labelled": 212,
+  "n_disputed": 0,
+  "checkers": {
+    "posture_v1": {
+      "fitted": true,
+      "advisory": false,
+      "n": 212,
+      "coverage": {
+        "n": 212,
+        "n_covered": 189,
+        "n_abstained": 23,
+        "coverage": 0.8915094339622641,
+        "covered_only": {
+          "n": 189,
+          "counts": {
+            "tp": 57,
+            "fp": 51,
+            "tn": 66,
+            "fn": 15
+          },
+          "precision": 0.5277777777777778,
+          "recall": 0.7916666666666666,
+          "f1": 0.6333333333333333
+        },
+        "abstain_as_negative": {
+          "counts": {
+            "tp": 57,
+            "fp": 51,
+            "tn": 79,
+            "fn": 25
+          },
+          "precision": 0.5277777777777778,
+          "recall": 0.6951219512195121,
+          "f1": 0.5999999999999999
+        }
+      },
+      "trivial_floor": {
+        "prevalence": 0.3867924528301887,
+        "all_positive_f1": 0.5578231292517007,
+        "majority_class_accuracy": 0.6132075471698113
+      },
+      "intervals": {
+        "covered_only_f1_ci95": [
+          0.5483716868707622,
+          0.7096854838709677
+        ],
+        "covered_only_auroc": 0.7782526115859449,
+        "covered_only_auroc_ci95": [
+          0.7072230874000122,
+          0.846908787455364
+        ],
+        "abstain_as_negative_f1_ci95": [
+          0.5161290322580644,
+          0.6796116504854369
+        ]
+      }
+    }
+  }
+}

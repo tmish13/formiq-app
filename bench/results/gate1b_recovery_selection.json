@@ -1,0 +1,2369 @@
+[
+  {
+    "video": "33063_6",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "33063",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "823ccbef9119a327d2f591c75107d96a9507b6d868f710caa556737889b7ca12"
+  },
+  {
+    "video": "36963_1",
+    "class": "depth_fault",
+    "split": "test",
+    "user_id": "36963",
+    "label_conflict": false,
+    "content_split": "test",
+    "content_hash": "ec3fc661da2313334f2d5ef64c65c3b8b025589039db911345984f9a51af5c02"
+  },
+  {
+    "video": "37412_1",
+    "class": "depth_fault",
+    "split": "train",
+    "user_id": "37412",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "93728841b4d0e96235a5762f532369654427c5a10e52e8e465face2b5bcee184"
+  },
+  {
+    "video": "37665_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "37665",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "1bd4a0dae663ee2d8a5816ac1023630d3bd7a0d20278ea8beb083ee0ea45be17"
+  },
+  {
+    "video": "47485_5",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "47485",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "234402840c27933e3aac11b5034c4551b9cc3667bac317a50c82092b5660fed0"
+  },
+  {
+    "video": "47487_2",
+    "class": "posture_fault",
+    "split": "test",
+    "user_id": "47487",
+    "label_conflict": false,
+    "content_split": "test",
+    "content_hash": "2669bff2c9593f4b8e73720c9c436d29c3ba9cde6ba5900940f2d5a33ac8857f"
+  },
+  {
+    "video": "47501_2",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "47501",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "979d5d7a3d4d7359e4c7fbae37e66e02eba6b9b1a27d3e876e7e7c3f9f913b64"
+  },
+  {
+    "video": "47514_5",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "47514",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "9215e82a47e33e0c77fda24efb459b1ea04fbe09839ec4a54b9a3aa97bdaa10a"
+  },
+  {
+    "video": "47519_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "47519",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "baec1f61ddbb689ac7be21e43715742eccac0680a8bdad9cc8cbaa5b1db1d79d"
+  },
+  {
+    "video": "47523_1",
+    "class": "posture_fault",
+    "split": "test",
+    "user_id": "47523",
+    "label_conflict": false,
+    "content_split": "test",
+    "content_hash": "f80d9358d4cfc5bdf71a08755e4c1567d53834e8d90443da3cf1663a3f03377c"
+  },
+  {
+    "video": "47531_5",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "47531",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "0d8a3bb231be82d3cf3e946a9f94b78e85a023e14df816fb39b8af10106057cc"
+  },
+  {
+    "video": "47534_1",
+    "class": "posture_fault",
+    "split": "test",
+    "user_id": "47534",
+    "label_conflict": false,
+    "content_split": "test",
+    "content_hash": "cf0f13fbe3adb1e797816d0cafaea3b479adece7f4ace213fc150c5f3de2617c"
+  },
+  {
+    "video": "47537_2",
+    "class": "posture_fault",
+    "split": "test",
+    "user_id": "47537",
+    "label_conflict": false,
+    "content_split": "test",
+    "content_hash": "6e15598816f19bb9977a84ffd5e6052c6ef1aa3317aa80a119a3e8976c88f135"
+  },
+  {
+    "video": "47544_2",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "47544",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "1cfd881110624494cd50678093dcb6d73fdb7fb0c112ec6ff73d5d356273d4bf"
+  },
+  {
+    "video": "47548_1",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "47548",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "04cfa0a5e44cdbfe9922e71a24364fbff96439e42a2d2a3163f1fd66a5909669"
+  },
+  {
+    "video": "47559_3",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "47559",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "9106c5599930ce9eb7afe5a88804a6566eaf5d109b3eb8cc2e92b2f5ad672408"
+  },
+  {
+    "video": "47569_11",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "47569",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "aae0d78467aa97b0e3819181b696a30050f9063491394ba2c849c7489a462c67"
+  },
+  {
+    "video": "47570_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "47570",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "325134d18f8eadafb574daee2f0fa0fdffe8c8a1831a57bb32282d1f54d63e8b"
+  },
+  {
+    "video": "47589_2",
+    "class": "posture_fault",
+    "split": "test",
+    "user_id": "47589",
+    "label_conflict": false,
+    "content_split": "test",
+    "content_hash": "4f7017fb17d42739dbe0394dc82524cf8f9a62492e0af61ad5e9d1eac9b278ff"
+  },
+  {
+    "video": "47591_2",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "47591",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "b03e6f2940ed3c2ee025bbf981cec1633c5b4a55e23863284713813707ec85b6"
+  },
+  {
+    "video": "47636_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "47636",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "026f6c968cfd0e467e57c91efd979f1a7fb3b54afded16c6098db5f05f4b2d24"
+  },
+  {
+    "video": "47642_2",
+    "class": "good_form",
+    "split": "validation",
+    "user_id": "47642",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "51a95c4b5bcd624337008bb0691717bb1a78258c9b45b13b4b2c76e01e2960fb"
+  },
+  {
+    "video": "47645_5",
+    "class": "good_form",
+    "split": "test",
+    "user_id": "47645",
+    "label_conflict": false,
+    "content_split": "test",
+    "content_hash": "608c12e91f6d4b4906910a740351ce9f9589814ec483b69246cb905120cb12ab"
+  },
+  {
+    "video": "47646_1",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "47646",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "2147fa3298e2f4867069b24a4b5ac98246f8ed7409219343226848a25598484a"
+  },
+  {
+    "video": "47649_1",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "47649",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "3ea298c41efbcc42827857d6bfbd3433df5a919255f2eb3fd699e526f88449c4"
+  },
+  {
+    "video": "47650_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "47650",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "780441b04c451ccb0d0c2e0e2066b5622c204f0b7a2be9bbc0cfcce30608ec65"
+  },
+  {
+    "video": "47658_6",
+    "class": "posture_fault",
+    "split": "test",
+    "user_id": "47658",
+    "label_conflict": false,
+    "content_split": "test",
+    "content_hash": "baa55692ecbc8f40405618ae175d6dfdd3a14f525f50c6d4c3ffd2864bd23798"
+  },
+  {
+    "video": "47666_2",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "47666",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "88c9d5e63b3aff6af7e8592c50dbd7159a7f9873b40c4716c3794fbbc6fd043a"
+  },
+  {
+    "video": "47679_3",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "47679",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "5733031d49cf4ebdda93c434c89b688b4e31b0e2a9b87359f78dc57e31289cc8"
+  },
+  {
+    "video": "47703_2",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "47703",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "4e3fdbf42900b9420a0cb0868541c40cb1dbcccd40d6197b40fa210b1d43e173"
+  },
+  {
+    "video": "47716_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "47716",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "0576ae1e5a5447ca3bddb9ce324b5b577bd0193e06de5b6f3699e8d0d65fc17d"
+  },
+  {
+    "video": "47717_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "47717",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "573cd61135fa170902dd791858356fd4e40249fdbab4324bea9891bc953e99fc"
+  },
+  {
+    "video": "47719_1",
+    "class": "posture_fault",
+    "split": "test",
+    "user_id": "47719",
+    "label_conflict": false,
+    "content_split": "test",
+    "content_hash": "2caa7931f08df21c0663fd4cf100b8a38539eeb390dac69494dcea5c2ebdb6ad"
+  },
+  {
+    "video": "47732_1",
+    "class": "posture_fault",
+    "split": "validation",
+    "user_id": "47732",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "552b4fcf6c87a3642329caecc9ec19ad31fc208ec5510e560ff5455d070c6a07"
+  },
+  {
+    "video": "47735_2",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "47735",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "8dad3ab05fe087e5e445d9a3d2bc3f9edb28bc3e3e9460915d0961f4051fd76a"
+  },
+  {
+    "video": "47742_2",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "47742",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "2da9dc74bbc4804b4a24eb35ce90ebcb7ffb567efd99c6554fc03971ed45b769"
+  },
+  {
+    "video": "47744_1",
+    "class": "posture_fault",
+    "split": "validation",
+    "user_id": "47744",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "37deb10096fcb3e583d1a10c1e70b754676e18f0e0457e8e960b2e098416c9ca"
+  },
+  {
+    "video": "47760_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "47760",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "8a5b38f30ad08e1f96c39753637f894ef267bca1c279820acd3502c7e8cc5e70"
+  },
+  {
+    "video": "47779_3",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "47779",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "1bec2cebe972d5f41889b645af54d47da7b3192a8d4875c1bc973e01e1ba924c"
+  },
+  {
+    "video": "47795_3",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "47795",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "30764033ff995a3fad1918366729c36a117642243f91fd2995b2956151ad7f7c"
+  },
+  {
+    "video": "47833_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "47833",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "2ee0721b325418fa2ebe6d2f4b1f8aff5e7096e07cf79678fa8ff07fa03649a4"
+  },
+  {
+    "video": "48141_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "48141",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "291c85840c0f1f2142ada53e2f41e6275582c76e47baebbdbb107e41ad9e180c"
+  },
+  {
+    "video": "48144_3",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "48144",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "e15b03f8509402fae2f9c12cd5005b1056da2cedc3b466686725bde399f1239f"
+  },
+  {
+    "video": "48148_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "48148",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "69e363329208db3a0a3916d7067dc3732212ee369d62a1c2a42e8abf742d6509"
+  },
+  {
+    "video": "48154_2",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "48154",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "e1e462b9f8d3cbaf6c9c1730efcef5231dfa502becb819aa64f05cd3f5748eeb"
+  },
+  {
+    "video": "48163_1",
+    "class": "posture_fault",
+    "split": "validation",
+    "user_id": "48163",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "be35830c43cdb323097a5ed9d27bc40d60a040451fb91eb68968aefa95537d66"
+  },
+  {
+    "video": "48175_2",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "48175",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "c35cea6231ab27ac4211957546d17222c3d9973b2fbba772d629f6d98369c4b4"
+  },
+  {
+    "video": "48183_1",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "48183",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "be0b578ec5c1eeb909c72f223801266dd5bbe1cad88b36f1d7c91ebfd8951e48"
+  },
+  {
+    "video": "48208_3",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "48208",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "e1c3fb300a797f919b14022a41240c04b4126ecb1129d818fdf3526971ae83a9"
+  },
+  {
+    "video": "48233_1",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "48233",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "1a5fd424c8c3a216b289f9de6b7f2e8f5e2cec01aa82d3d4952f65e1214dd14a"
+  },
+  {
+    "video": "48238_3",
+    "class": "good_form",
+    "split": "test",
+    "user_id": "48238",
+    "label_conflict": false,
+    "content_split": "test",
+    "content_hash": "c209a3f13f40fc692076c79a24f9434fbd42938510639ab21f13bf43df345a9a"
+  },
+  {
+    "video": "48250_2",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "48250",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "6f91216d280453b3206914c1890184c6946c62ab6dea127274be297ac0b58933"
+  },
+  {
+    "video": "48253_2",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "48253",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "fc95fc808839e6570d7c6253ba13e3c06ade00c04bfbba6c970c45c724059c66"
+  },
+  {
+    "video": "48260_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "48260",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "d55ca1b4727d49500a9a298a165ff03935a876e6caeca55d1e0211edda57a877"
+  },
+  {
+    "video": "48261_1",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "48261",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "475175bb357c1975f2338b6949967fb1cba25c8968b211bea9b696e6e184bd7f"
+  },
+  {
+    "video": "48263_10",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "48263",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "25fff97c21dd8e68765cae6d65f6a99fc96e157c455bf97b0041e980f9cf5b2c"
+  },
+  {
+    "video": "48265_1",
+    "class": "good_form",
+    "split": "validation",
+    "user_id": "48265",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "6b107fa20ebfe1b64f0d7da2c74a4778ee505eae0b6c46f3f632f4137b024937"
+  },
+  {
+    "video": "48281_2",
+    "class": "posture_fault",
+    "split": "test",
+    "user_id": "48281",
+    "label_conflict": false,
+    "content_split": "test",
+    "content_hash": "df06a365736d8fa35317ea427fadeff17dbd34781aa96858fb07e359a52543fc"
+  },
+  {
+    "video": "48293_2",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "48293",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "414e9acc558caea15e24b4fdff65e8f917b94465c005bb367473e1780130c7dc"
+  },
+  {
+    "video": "48294_3",
+    "class": "good_form",
+    "split": "validation",
+    "user_id": "48294",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "1f42390006de960bb27f962f517a18c54dbde3387196512d0de7900f31b4d92e"
+  },
+  {
+    "video": "48297_3",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "48297",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "fcaf97e346b034fdf868c6cd738d4d202de4c0fe92d452be3550577db732e141"
+  },
+  {
+    "video": "48311_1",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "48311",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "08485194f9c38eb4bff9679aedd1212ca99bc1620b402148c28e808520fddebd"
+  },
+  {
+    "video": "48312_2",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "48312",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "e7cfd600027574f8eefa613c90b8858ec78a6f23dbafe66ba82670026605f217"
+  },
+  {
+    "video": "48314_5",
+    "class": "good_form",
+    "split": "validation",
+    "user_id": "48314",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "5b2f75eaeee6fbedc96d216d05b9592be18522750f1439c65326e2470be1804c"
+  },
+  {
+    "video": "48323_3",
+    "class": "posture_fault",
+    "split": "test",
+    "user_id": "48323",
+    "label_conflict": false,
+    "content_split": "test",
+    "content_hash": "629fcf77c48dfb9cf53694dd57a78d6117286608b98b5c1b15effcca3f9aa2d6"
+  },
+  {
+    "video": "48331_1",
+    "class": "posture_fault",
+    "split": "validation",
+    "user_id": "48331",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "6a4a84dc4813b9c20878b73639ca933f35f2883c82213e95c26dd43bbd5ecfd7"
+  },
+  {
+    "video": "48343_4",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "48343",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "8af2e584c76c870ee55137e9700622beece1917daf303b2b4fc0024f19827e93"
+  },
+  {
+    "video": "48360_2",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "48360",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "d1d6092350d04172b396d8d5e452d371d20b149291df685c8759b36cba1d4036"
+  },
+  {
+    "video": "48361_1",
+    "class": "posture_fault",
+    "split": "validation",
+    "user_id": "48361",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "bf65acbf9fd4f44d87d50375c61b3a5af5f5069d9201e04c0efb04dfc64e7011"
+  },
+  {
+    "video": "48375_3",
+    "class": "posture_fault",
+    "split": "test",
+    "user_id": "48375",
+    "label_conflict": false,
+    "content_split": "test",
+    "content_hash": "a382dcd0a9e46c5b2e0d8ec222ec818ae43cad86132ad773385439b65286f1d6"
+  },
+  {
+    "video": "48380_1",
+    "class": "posture_fault",
+    "split": "validation",
+    "user_id": "48380",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "1f0c64bf047e48228904cf026654b7c4787b98fd25c7c6b86f8b029d9163eb1e"
+  },
+  {
+    "video": "48394_1",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "48394",
+    "label_conflict": false,
+    "content_split": "test",
+    "content_hash": "50df1aa9eb44b726b46beead778811e6702568d17224ea72c46a0ba855ace01a"
+  },
+  {
+    "video": "48397_1",
+    "class": "posture_fault",
+    "split": "validation",
+    "user_id": "48397",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "5a629374e2be5e055dfa36c763e9744bb0ced5929f2a821ac782c466f0dd8bfe"
+  },
+  {
+    "video": "48414_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "48414",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "71f60b4f54e3075b8eccf648a3ba640f4dcb61060ce1e0a15a7146c7d5ee44eb"
+  },
+  {
+    "video": "48433_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "48433",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "962cb2e326191198e7e14295f04c1d5203690ff6490b57540ecf38d90e77ad36"
+  },
+  {
+    "video": "48445_1",
+    "class": "posture_fault",
+    "split": "test",
+    "user_id": "48445",
+    "label_conflict": false,
+    "content_split": "test",
+    "content_hash": "577b7e73edf583c305804f3b2871727dbe71aa2d656c249a67edc9119bfd9ac9"
+  },
+  {
+    "video": "48451_1",
+    "class": "posture_fault",
+    "split": "test",
+    "user_id": "48451",
+    "label_conflict": false,
+    "content_split": "test",
+    "content_hash": "f5e51205aa249bdccef79a5493b8258f821e965c1bb4d443874cbd067bfdd2ea"
+  },
+  {
+    "video": "48459_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "48459",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "cbea11a7d68067c9b2f5e027b426e3c9946c7934449c46cf4da02bfecae4d4af"
+  },
+  {
+    "video": "48469_2",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "48469",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "14ffaf5a610007ea6f33368cd2b7548d568d2d7abbc9c9e43c40f3f080770432"
+  },
+  {
+    "video": "48483_2",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "48483",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "b30d2ba3f7201b3e7b156801f4a280fd73c709650aaacb29de819c9fcb4f542f"
+  },
+  {
+    "video": "48493_2",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "48493",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "dee5864e16135032bf8b0c3138da72133bb94c76fe171e879ad2abd7eeb9bf75"
+  },
+  {
+    "video": "48503_2",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "48503",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "0f28bf02177ed5fbe1b4644c15d049269b91e75366e952b1429dd75462e94e8d"
+  },
+  {
+    "video": "48510_5",
+    "class": "good_form",
+    "split": "validation",
+    "user_id": "48510",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "c7720bcf9dbc0b24d0270438785c2b8435812db6ccaa36c748637f1848073c84"
+  },
+  {
+    "video": "48517_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "48517",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "dc8dd76038849780c622bb10ca5a60b93baff3a753dbec0b4e6c90dd28712b14"
+  },
+  {
+    "video": "48547_6",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "48547",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "a55ab62d625ed70c37ed2f3a0b0fd6ee9c45642624197443fdabf9dd650c153f"
+  },
+  {
+    "video": "48563_1",
+    "class": "posture_fault",
+    "split": "test",
+    "user_id": "48563",
+    "label_conflict": false,
+    "content_split": "test",
+    "content_hash": "00b696c1cd86a5855932264405e27941a5f4e32673cf22bdccfba3bfe844c1e2"
+  },
+  {
+    "video": "48573_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "48573",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "36f7115dee7eff1f9a281bb9eb6661c80e7ff25f10684f1f5d31acea2eb762b6"
+  },
+  {
+    "video": "48575_1",
+    "class": "good_form",
+    "split": "test",
+    "user_id": "48575",
+    "label_conflict": false,
+    "content_split": "test",
+    "content_hash": "0a9bf86ae6c3d18c35160756a8d703b4d963c7286153b020197f8e79a7e451c4"
+  },
+  {
+    "video": "48593_4",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "48593",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "38631d8478b25d291122f32f6db8805cce77bc21f8a71a9592ce3856e64ef771"
+  },
+  {
+    "video": "48601_3",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "48601",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "93f3d3ae0ca238d623db279af02606ccb6464681db031bd5ebfccfbdcfd1848d"
+  },
+  {
+    "video": "48608_10",
+    "class": "good_form",
+    "split": "test",
+    "user_id": "48608",
+    "label_conflict": false,
+    "content_split": "test",
+    "content_hash": "5267108cc1b1140add35a0fdd2804ca4ac7e751e9f01daf70cec8d78303b7471"
+  },
+  {
+    "video": "48618_1",
+    "class": "posture_fault",
+    "split": "test",
+    "user_id": "48618",
+    "label_conflict": false,
+    "content_split": "test",
+    "content_hash": "c97bb8715a6467e6d9ed876a5c8d892a70115cb97399b220bc99f28537944dc5"
+  },
+  {
+    "video": "48621_2",
+    "class": "posture_fault",
+    "split": "test",
+    "user_id": "48621",
+    "label_conflict": false,
+    "content_split": "test",
+    "content_hash": "1dd61a237dfc1018e39b69e8f6637358ad95088bfd2d7cecb0ce847eeec47806"
+  },
+  {
+    "video": "48624_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "48624",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "2bc4b838f665c0055190fd974c9c8ceeec1e62daa4b2a8d07ddffa86229c9400"
+  },
+  {
+    "video": "48635_1",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "48635",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "4b47427b261f6f0409cf7c5d013ad43edcbb2b41de8bfdc6b4d0e215d6d629e8"
+  },
+  {
+    "video": "48638_2",
+    "class": "posture_fault",
+    "split": "test",
+    "user_id": "48638",
+    "label_conflict": false,
+    "content_split": "test",
+    "content_hash": "c7b8678a29dd6972f994beb9c3c45ffaf6c17821eb7e2f0d5e30a54aece718d0"
+  },
+  {
+    "video": "48639_2",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "48639",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "34e7e8cb558825c517253afeb9f930fac8e17b54670dde1779c116aa43dd9238"
+  },
+  {
+    "video": "48646_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "48646",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "83f50c414523f0c03dfde161a8ef7bd48b35f347253de74a0d5cd347b9fd6c85"
+  },
+  {
+    "video": "48651_2",
+    "class": "posture_fault",
+    "split": "test",
+    "user_id": "48651",
+    "label_conflict": false,
+    "content_split": "test",
+    "content_hash": "6147c3fa96f0d8cd5ccd6da600409bb8042c513218014157376d17fa2f7c5726"
+  },
+  {
+    "video": "48652_3",
+    "class": "posture_fault",
+    "split": "test",
+    "user_id": "48652",
+    "label_conflict": false,
+    "content_split": "test",
+    "content_hash": "c3ef8a2f25af62418d810f0e804c3b3d7e83a36f5e75e191e34bc5c7ac65ef57"
+  },
+  {
+    "video": "48654_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "48654",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "db66106d2ae01cdd8fb8f41f31f19045fb9ede29e7f49926d9c25b8f1a1f3c70"
+  },
+  {
+    "video": "48676_4",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "48676",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "331ecb60ba39b18cfca7126a93f22ff9efab6feef1fdff542cb5644779c51c89"
+  },
+  {
+    "video": "48681_7",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "48681",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "49f4aee43711a2d484ce42009969b5c94eb2d92e3692b15d8b63f85c92b48f44"
+  },
+  {
+    "video": "48687_3",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "48687",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "71d66219354a3deadef66c527fae5f507d8cf24d30d720e2da9771bf1ccefc26"
+  },
+  {
+    "video": "48697_2",
+    "class": "posture_fault",
+    "split": "validation",
+    "user_id": "48697",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "7544523645cdd5631d5bca430360dcd6bae8fa7ab92b746898769cad22cb30ab"
+  },
+  {
+    "video": "48705_3",
+    "class": "posture_fault",
+    "split": "validation",
+    "user_id": "48705",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "b8a74edfc0fa1a72738d8e56fe5f5cce7f36f4f549b28fe44c0f35a7fb4d3a59"
+  },
+  {
+    "video": "48720_1",
+    "class": "posture_fault",
+    "split": "test",
+    "user_id": "48720",
+    "label_conflict": false,
+    "content_split": "test",
+    "content_hash": "298b03c2e0e627b64d58a2e94538229de84f94e4b88c2b224113cf72a33f6dc7"
+  },
+  {
+    "video": "48725_10",
+    "class": "good_form",
+    "split": "validation",
+    "user_id": "48725",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "916957326f9d1ba4812b05659525ce77a4f344ccdf18f1c3f88309117db65578"
+  },
+  {
+    "video": "48727_8",
+    "class": "posture_fault",
+    "split": "test",
+    "user_id": "48727",
+    "label_conflict": false,
+    "content_split": "test",
+    "content_hash": "97fc185789d424db708adb2c91428017629f2ca9f0f2169390b038180ee64b70"
+  },
+  {
+    "video": "48728_4",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "48728",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "aeda3ec36c46e95cb545457c5433e2a2fb708651afdcb2fe7541fbc3c238ee28"
+  },
+  {
+    "video": "48744_1",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "48744",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "40e43d5ee35a49ac7372d2d68e1fd0441331d76ebad0c19efa0a1ebce6af7164"
+  },
+  {
+    "video": "48763_3",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "48763",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "0fd75152f1084f360881ceac8475aa78fec62db2657cc0bba2dbfd6fc7622857"
+  },
+  {
+    "video": "48769_2",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "48769",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "0b1c37c7f65af5af370d0720324272bcb7f3cf65f9147ad5454779c5589615f9"
+  },
+  {
+    "video": "48771_2",
+    "class": "posture_fault",
+    "split": "validation",
+    "user_id": "48771",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "cef0332fbbb2405409795273e3eb7c542cf811c285cb2fc7c032c0f6dc422d73"
+  },
+  {
+    "video": "48783_3",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "48783",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "4f36dd073235fa589a11131dbe6a96e330e6dd6234d73bbaefe01f9092f31ffe"
+  },
+  {
+    "video": "48786_3",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "48786",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "a1cde5a1031eb172c1aee126ad2ee463455dbc6c5d2ae356a28f6193eddc34b1"
+  },
+  {
+    "video": "48787_1",
+    "class": "posture_fault",
+    "split": "validation",
+    "user_id": "48787",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "165eb42f99a3766b3b74400243ca328294a3fd153bc76b8945ca471df6ffc9c0"
+  },
+  {
+    "video": "48802_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "48802",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "b95fab90509652a360e1f3c21e233db9aec04f3329b8f8c268a26fd500bfa91b"
+  },
+  {
+    "video": "48809_3",
+    "class": "posture_fault",
+    "split": "validation",
+    "user_id": "48809",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "78520ede55c75e9be91e96a63b0d624daed3b8d6b8eb9e285928f17c7245a8e2"
+  },
+  {
+    "video": "48817_5",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "48817",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "0a68ceda6d3df6384c936634154cbc7401e79beb7683c8086c1663161d0856ab"
+  },
+  {
+    "video": "48821_5",
+    "class": "good_form",
+    "split": "validation",
+    "user_id": "48821",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "d8b06ce6bb7ca12534d6f60b2c8032384c3e1ea93b7b9cc3547ebccb3fdfd9e0"
+  },
+  {
+    "video": "48826_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "48826",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "df3d189c9ba900d601603ac999d1c6ed44b1ba8082ca419affc5174ec22b9e22"
+  },
+  {
+    "video": "48840_5",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "48840",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "6b701055862421d66a0f2e031a7d5f6771a3044a77091691648a05ccba27aeaf"
+  },
+  {
+    "video": "48842_6",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "48842",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "1fad46b81bd7209cb490f1daa1fb2840340e98466ae0c02b34f2a92d4c705da8"
+  },
+  {
+    "video": "48844_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "48844",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "eacb58b8e29bedfb046fd2593fa76136c7729e7fde7e4126067152af19f463d2"
+  },
+  {
+    "video": "48851_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "48851",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "3619bd9ce4f290953297b4be79a2d20aeeec2096eb07fb85fb6d82774e9555d8"
+  },
+  {
+    "video": "48852_1",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "48852",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "25ac61805217c6833542d950f7e935bf562a8dbe4321c9adfb3f9aa28636cd17"
+  },
+  {
+    "video": "48853_1",
+    "class": "posture_fault",
+    "split": "validation",
+    "user_id": "48853",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "954651780c70275cc1c96762edb9aae9402b80b5e667a9badf80b66c3caec822"
+  },
+  {
+    "video": "48858_1",
+    "class": "posture_fault",
+    "split": "validation",
+    "user_id": "48858",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "033df9a79ce7f1d30f141825dc4858164cfaeffecabf3c72eec3b5c8e1de7b21"
+  },
+  {
+    "video": "48867_2",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "48867",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "363b6026aee0fd0b7e9158d33a9d75a1ca0870317d7723b0593299c5fadfb71e"
+  },
+  {
+    "video": "48890_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "48890",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "d327fdf77483ee605a465f7f52581d8d5fd9f9acb7e36e4e2cd5012a90a8ae7d"
+  },
+  {
+    "video": "48917_4",
+    "class": "posture_fault",
+    "split": "validation",
+    "user_id": "48917",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "18ddb954c064057da8de00aff6ed363ea8cbe9b24ead0082cc0318572bcf9fb0"
+  },
+  {
+    "video": "48973_5",
+    "class": "good_form",
+    "split": "validation",
+    "user_id": "48973",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "42d57f709bd1e9e1b4174e0fcae83e9e003ca370378c01917b0da6f40638f15c"
+  },
+  {
+    "video": "48986_4",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "48986",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "30f6b60a2c63f8c7045f742f9208bb032d3dc38adccfe1cf5c08eed8fff63dac"
+  },
+  {
+    "video": "49000_8",
+    "class": "posture_fault",
+    "split": "test",
+    "user_id": "49000",
+    "label_conflict": false,
+    "content_split": "test",
+    "content_hash": "e304607c9e72bb6746f5ce62d9f31576ed9b56d65fa8042d562e3dd06982bc3f"
+  },
+  {
+    "video": "49001_5",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "49001",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "7796fb248457b75d1e63714eb412a9a0762c185ef1dfc98729d97da7dfa325a3"
+  },
+  {
+    "video": "49006_2",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49006",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "8b69c3e41d5a76135801d90e5d9ad882dd310f8f9428604d22e1f609cd8a5e2a"
+  },
+  {
+    "video": "49042_1",
+    "class": "posture_fault",
+    "split": "validation",
+    "user_id": "49042",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "d8c5f0978ee969f25787a1db2ad437a0eacd15bcdc4a458109afb7e9dcc85519"
+  },
+  {
+    "video": "49045_2",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49045",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "5f6baa2518f947e5402f73204a122ace8b286bda03c626613b071afe5b04562a"
+  },
+  {
+    "video": "49052_1",
+    "class": "posture_fault",
+    "split": "validation",
+    "user_id": "49052",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "05e1b019c653e833dce3f9181d357e071fbc38b0816c16dc974a09b6f72db69a"
+  },
+  {
+    "video": "49067_9",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "49067",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "e605008a3d1184342d2ddd710983877fe7a0b1ff2ef3c88ff709cae649d2b5a4"
+  },
+  {
+    "video": "49070_2",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49070",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "541a30ca17670f5b91e6e87b5d1a1d8f125972219ba9b16523d0301093038f11"
+  },
+  {
+    "video": "49073_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49073",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "6ce058372e846b783ff22c3d89e324121153bf0165adf80d71be83a2fee3f024"
+  },
+  {
+    "video": "49085_1",
+    "class": "posture_fault",
+    "split": "validation",
+    "user_id": "49085",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "5c996767554a2c645381bc3c890c14e75bf90c874a5c1f7459e8a711bb85de4f"
+  },
+  {
+    "video": "49091_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49091",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "c35c2c0860e849704cd73da519bae170d9c056889b6377534320a2b36f950e99"
+  },
+  {
+    "video": "49106_6",
+    "class": "good_form",
+    "split": "validation",
+    "user_id": "49106",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "0f645792bb3c6b37cd07ec4dd01c65e6326a6900a4306599a0df2ed59d49a359"
+  },
+  {
+    "video": "49125_1",
+    "class": "posture_fault",
+    "split": "test",
+    "user_id": "49125",
+    "label_conflict": false,
+    "content_split": "test",
+    "content_hash": "ca6fecd012833c561fff439fe15d4985839f3a2a34574bd9321993d1904fe60d"
+  },
+  {
+    "video": "49126_3",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "49126",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "24c3424f69dee007f3e2c246d7fda2c7aecbc3bb0d4d51a89f09b959057feb47"
+  },
+  {
+    "video": "49132_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49132",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "740c8eec53e7885d21714a50ad801c94bd6ced50d75710d788747c12fc613ece"
+  },
+  {
+    "video": "49133_2",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49133",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "146d03458619bdbd56b8518db4afb91ef1462faad2e04b770021fde88d2c025b"
+  },
+  {
+    "video": "49147_3",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49147",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "ecaf33d8761555ab266920ac4eca3d2330ba77f8f94b35a039ced4248a3d4f45"
+  },
+  {
+    "video": "49155_2",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49155",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "a488ddac40c901d8832fc87f95ba61db298ca9229b57ebbbf477b384c1265e02"
+  },
+  {
+    "video": "49161_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49161",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "51ee88b1340c352370fcd6e57355a430e3d7bd49a4c063072809766baab19f74"
+  },
+  {
+    "video": "49165_2",
+    "class": "good_form",
+    "split": "test",
+    "user_id": "49165",
+    "label_conflict": false,
+    "content_split": "test",
+    "content_hash": "b7ae296c8df90d06cc70d9cc671fc2b2f9578c185ecc37bd3efd1465b0dfd8fb"
+  },
+  {
+    "video": "49178_11",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "49178",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "b84c05c4d8429634cebf66860857f2d3fd04f153dff7e027416a05449ed23fd1"
+  },
+  {
+    "video": "49182_4",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49182",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "3d4454d8eab6b733ed28a1f4924b3899448f517b7e51ff17be0ee16a15627661"
+  },
+  {
+    "video": "49191_4",
+    "class": "posture_fault",
+    "split": "test",
+    "user_id": "49191",
+    "label_conflict": false,
+    "content_split": "test",
+    "content_hash": "a9a38b741d886c35e735ef90ed7a5f5b6a3d3e5d81a8f47a22ca3d887d4ceeaf"
+  },
+  {
+    "video": "49195_1",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "49195",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "eb0e4f4f58e2ab7b09619a0eacae8c45f26212b0e70cb45caf53b89775cfb7eb"
+  },
+  {
+    "video": "49197_1",
+    "class": "good_form",
+    "split": "test",
+    "user_id": "49197",
+    "label_conflict": false,
+    "content_split": "test",
+    "content_hash": "220aae051d0160040748677fbb92bd533d3c7e24ad3549004be42059ee6d44f4"
+  },
+  {
+    "video": "49204_2",
+    "class": "good_form",
+    "split": "test",
+    "user_id": "49204",
+    "label_conflict": false,
+    "content_split": "test",
+    "content_hash": "ab0bcc83a91f3a0becf8670e90edfbeb979866a8b793c6feae3d7d92a3f5172c"
+  },
+  {
+    "video": "49205_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49205",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "63109a93c0ea3d0fd305def799eeecc7e444aaaaafed6dc70d573d3a2cd7a523"
+  },
+  {
+    "video": "49211_6",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "49211",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "355553c841182c713451dd7719efdd9ab88a3948bdcf52fca98ce9de3ca177c9"
+  },
+  {
+    "video": "49221_1",
+    "class": "posture_fault",
+    "split": "validation",
+    "user_id": "49221",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "c997d39a09192c961d0dd9eed43a22718471bb1c5979452cb21b50628efa7297"
+  },
+  {
+    "video": "49224_5",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49224",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "1ef025c35babc2395cd6f248ebc5cb781175ba89f0b26a3fc3ed61783634812d"
+  },
+  {
+    "video": "49228_4",
+    "class": "good_form",
+    "split": "validation",
+    "user_id": "49228",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "12c146c6b9b412553384f338bc8d49c1b7f3e57dff3c0aae6368887d9ba4c01b"
+  },
+  {
+    "video": "49229_2",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "49229",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "ef74d4491898ecd5bea89b1c2e342ee78fa54f9befa8e96898235327874b542d"
+  },
+  {
+    "video": "49234_2",
+    "class": "good_form",
+    "split": "test",
+    "user_id": "49234",
+    "label_conflict": false,
+    "content_split": "test",
+    "content_hash": "a66f9e66f22d433f064ceb038c670c29f01c9c275386e267c201191664bc76c8"
+  },
+  {
+    "video": "49236_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49236",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "001ee6389c6b6eb61888faaa21326ad0e643465a48881af924893c532adb5583"
+  },
+  {
+    "video": "49240_14",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "49240",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "9811796d2c2a49aa62e1b065b66133219cd7a0c7e4bc7b69df8801f4b853bbef"
+  },
+  {
+    "video": "49245_3",
+    "class": "posture_fault",
+    "split": "validation",
+    "user_id": "49245",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "3bcb392d783fe160c9919c491c3a9a1fa6f47599774504a4938b6f63ed6f0de9"
+  },
+  {
+    "video": "49250_4",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49250",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "c70ca407c6c5f5910e9140dfa618867d7b2c20148b70847da196ad6be13a7c0b"
+  },
+  {
+    "video": "49254_8",
+    "class": "good_form",
+    "split": "validation",
+    "user_id": "49254",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "50d4c4e34da936b29a90d1b624c2876864c94ffe1dbc69e11a80c2bcfdbb4ca6"
+  },
+  {
+    "video": "49268_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49268",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "f9cb340766b313251fa97423e1738d58690a9d3967e32989035300f8d2271d1d"
+  },
+  {
+    "video": "49269_2",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49269",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "16a61d0cbe38cf1c2eb16bb536b8db15f5f7dbf9dc6cc471b9c7f52a5157d4a2"
+  },
+  {
+    "video": "49289_3",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49289",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "8c0226994629b5a6c0085cd0ba994ca2c4c75357313c29044dcab89070a16bf3"
+  },
+  {
+    "video": "49309_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49309",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "b8fd61ed675c0ec8aa8dd393944f4145cf942e77157edd9105d72f01220955ed"
+  },
+  {
+    "video": "49321_5",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "49321",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "d3ccaf8f460adb72cf035062e5b8930a1b82d33fb2e45b309e9b8328749ba9a1"
+  },
+  {
+    "video": "49325_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49325",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "5af478f761564b142ec9d9aa1f36bd322f1f215072921bafab033a5185e8c835"
+  },
+  {
+    "video": "49337_7",
+    "class": "good_form",
+    "split": "validation",
+    "user_id": "49337",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "c3e8a58f595153ae306dcf799f77811311235435d2e3fd03de241570b47aa95d"
+  },
+  {
+    "video": "49351_1",
+    "class": "good_form",
+    "split": "test",
+    "user_id": "49351",
+    "label_conflict": false,
+    "content_split": "test",
+    "content_hash": "50ffc17b419f7d8e4b21f222fa048d2ae629c3edc25354578316c5e32bd34a3c"
+  },
+  {
+    "video": "49355_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49355",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "d0a1663312692fa099774f86545170435914a2e413054913a37b0501016cadd8"
+  },
+  {
+    "video": "49359_3",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49359",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "1426ec26b32c0748b50237583d0ff3241db3369b8664c1f742c87c43718ca660"
+  },
+  {
+    "video": "49377_2",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "49377",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "fb14f801a80f4a7051dc9a45403e1c6866541f6640291412d50749a9df5f9cbc"
+  },
+  {
+    "video": "49385_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49385",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "0829598ef9b7f97e4db49abfc78e7491a1c3d5723958843cd69249e1b37ee687"
+  },
+  {
+    "video": "49387_1",
+    "class": "posture_fault",
+    "split": "test",
+    "user_id": "49387",
+    "label_conflict": false,
+    "content_split": "test",
+    "content_hash": "e2935bd5ccc85b57968678de828270183f983c71d62a0128876edaa4fa364cf4"
+  },
+  {
+    "video": "49399_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49399",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "73c2fed9b5e82882cde8dd1fc1a4e6506b6febbd38137ce5e04b7988c8b3138c"
+  },
+  {
+    "video": "49402_2",
+    "class": "posture_fault",
+    "split": "test",
+    "user_id": "49402",
+    "label_conflict": false,
+    "content_split": "test",
+    "content_hash": "ddef36bfb122f12a6fe3a5c9300daa36d14114cee3b0d04173ebdceea2356be3"
+  },
+  {
+    "video": "49406_2",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49406",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "cc9913214398aa24f72815be3bffba1a802592cc8d0564f833d9655a65dd91ce"
+  },
+  {
+    "video": "49705_2",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49705",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "3eee93c570e753694ed7048ee4b409442cafb08c13ef41e73cef3a36df769268"
+  },
+  {
+    "video": "49708_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49708",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "bd1acc4853173894a3386169576d0638e06b0db3930b3c34fedd130b06bc143c"
+  },
+  {
+    "video": "49712_1",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "49712",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "9ac0387057a89938a018da2393fd1818ed514fc272a8afc1c12b00a58c9db189"
+  },
+  {
+    "video": "49724_2",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49724",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "ed6f0d4991487fda385ae52874c274d0070e30ede591729e14a0a76d75580f53"
+  },
+  {
+    "video": "49733_1",
+    "class": "posture_fault",
+    "split": "test",
+    "user_id": "49733",
+    "label_conflict": false,
+    "content_split": "test",
+    "content_hash": "2e6592e975718dc0de80d15d8e69e5889beffb96f9a553ca09556a0a81193694"
+  },
+  {
+    "video": "49734_4",
+    "class": "good_form",
+    "split": "test",
+    "user_id": "49734",
+    "label_conflict": false,
+    "content_split": "test",
+    "content_hash": "35d916852de67fbaedf6745c4a15d9411227fac2cb90c87d1778f30cd0520a64"
+  },
+  {
+    "video": "49736_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49736",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "4f1e27cdff4fd15ca7e87512a26b71d13f2f3d830d23d43d0757fd5bfd8591c7"
+  },
+  {
+    "video": "49769_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49769",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "3c5a0ecb273b2f5081573e2372cca4dc7318bceb323750a1678c8a3e0e559a2f"
+  },
+  {
+    "video": "49770_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49770",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "633428c8ec1cf620e88b9184a5e5371b7a2110f9e6841fe6503ae33d42017a1c"
+  },
+  {
+    "video": "49789_8",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "49789",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "7f6904b58bdfa2410d6ea7fe6b2d76d4c732581ce04c04e6a2cd4ae21e4f27d3"
+  },
+  {
+    "video": "49802_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49802",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "2dea29076f2e7cd571749080c8d0486e2142fe617a3777f828a4140db230b04f"
+  },
+  {
+    "video": "49807_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49807",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "8a04e3c5f0252ee5376ad76771c64d19dd30fd2278d8e968d231a93af39276c8"
+  },
+  {
+    "video": "49813_4",
+    "class": "good_form",
+    "split": "test",
+    "user_id": "49813",
+    "label_conflict": false,
+    "content_split": "test",
+    "content_hash": "9f4a28ac566196add01a69ef4d8ab1695fd7a5c9efeb36ad820d1f77db81f4f3"
+  },
+  {
+    "video": "49817_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49817",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "1023de66cc57fc192c88ce79be01f5fbd4b1767c2c54ea7ebaeb876985ba3f5a"
+  },
+  {
+    "video": "49834_2",
+    "class": "posture_fault",
+    "split": "validation",
+    "user_id": "49834",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "3214e0f4729e0ef66789e1ece1442bd43d0abc3abc1d156f5a2355d7b7435123"
+  },
+  {
+    "video": "49837_1",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "49837",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "0baa6e88bbb782c3d77c2d233e99283c17f720dfa99e5fe2def1eabffa5d3508"
+  },
+  {
+    "video": "49857_1",
+    "class": "posture_fault",
+    "split": "test",
+    "user_id": "49857",
+    "label_conflict": false,
+    "content_split": "test",
+    "content_hash": "94534daf32a052f7ec99a65ffdbbffcd861d0eddb9602d83cbe4d714611ae1c4"
+  },
+  {
+    "video": "49863_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49863",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "6b84caf8b6940e8d633e36fa05a99ec1aaab9503a57354a3743939e6c3379aa7"
+  },
+  {
+    "video": "49864_2",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "49864",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "acda4842dea0370ddb270c8c61a5774dca60ddcb88d95b5be67a551d7f305449"
+  },
+  {
+    "video": "49868_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49868",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "decdc734f202399bc74f0634415bc86dfb85a070d86d5e6f7bf9b969220b827b"
+  },
+  {
+    "video": "49891_1",
+    "class": "posture_fault",
+    "split": "validation",
+    "user_id": "49891",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "6584f5ef98526f799865ccd33d45909e150883efb95d089532d26cc15a44c339"
+  },
+  {
+    "video": "49900_2",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "49900",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "0dcf4a6f6a508ceba77c76f1d0d7738c5db0603716fb0309b60a2b88b690f8a0"
+  },
+  {
+    "video": "49908_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49908",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "d2d647c94798e368bd9a4bdf46fc095d8d8aaa54287b203669d9cf06992d4cbe"
+  },
+  {
+    "video": "49921_3",
+    "class": "posture_fault",
+    "split": "test",
+    "user_id": "49921",
+    "label_conflict": false,
+    "content_split": "test",
+    "content_hash": "687cd6be4f6150c243319a4d76b0b8108aa2a47b2103b57e6718f2db55c4a327"
+  },
+  {
+    "video": "49926_2",
+    "class": "good_form",
+    "split": "validation",
+    "user_id": "49926",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "e88da6dfb9306205016f94ad9b9cbe2224773a72522d0c97700405264bcf3c6a"
+  },
+  {
+    "video": "49932_8",
+    "class": "posture_fault",
+    "split": "validation",
+    "user_id": "49932",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "f42b80475a166a2aa3b507aec9ad7934cc89edbdf65f6280b32cbb1d9b83f14e"
+  },
+  {
+    "video": "49945_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49945",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "bb4ee6c754b5510196e3f07f842ebe1ba92503c1351d1b4602623e557fffb929"
+  },
+  {
+    "video": "49947_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49947",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "9c6e755b051b025a17a745194e44d927a90fcf38419dd0eca015d1d58a09b878"
+  },
+  {
+    "video": "49949_2",
+    "class": "good_form",
+    "split": "test",
+    "user_id": "49949",
+    "label_conflict": false,
+    "content_split": "test",
+    "content_hash": "86fb64718a1a9509bc3d37b960a728de8473f01424aa4ed3b89a427b922c009b"
+  },
+  {
+    "video": "49954_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49954",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "b46194beb5b929b1d973e2a27421d34626ae47db7326f54d7c1e1ddbd3b22a1b"
+  },
+  {
+    "video": "49957_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49957",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "d6b69beeeb73e9f7448d317729d6e8b9adfe969f723e2e05e0aa9250ab05d524"
+  },
+  {
+    "video": "49968_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49968",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "852dac5cf5dfafcb9909a590c7763e891fe479d2d6aa6ecca53b8b85e173e04c"
+  },
+  {
+    "video": "49971_1",
+    "class": "good_form",
+    "split": "validation",
+    "user_id": "49971",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "662cb93b7d9205205ccf56b09b752fd96d8ffefe57e10b925c58970a35d24b85"
+  },
+  {
+    "video": "49975_2",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49975",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "d8acfbfdac06a92526570782b586ec6c3a38c4c8249fd91ac99ebf1f67abbd6e"
+  },
+  {
+    "video": "49977_1",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "49977",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "de86f02e795adac1fc880f93bdbd0ed7ffdad163c00df21a805d814842142486"
+  },
+  {
+    "video": "49980_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "49980",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "085dc8c3b9165eadbc56b56e78634c17c0ca263573c89bd045ca6170a3e8e9ec"
+  },
+  {
+    "video": "49986_4",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "49986",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "d7a099a414ef95dbbbdceadc75a2f1a1035f79202dbe42dde635d5d44c716b59"
+  },
+  {
+    "video": "50001_7",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "50001",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "23bbc0f5cf376ce4523de591810f74e3242468a9d77720a3e25dcd95607c3acb"
+  },
+  {
+    "video": "50002_2",
+    "class": "posture_fault",
+    "split": "test",
+    "user_id": "50002",
+    "label_conflict": false,
+    "content_split": "test",
+    "content_hash": "be3175fd0382453af414bbde81c4f085c07adfcab4777f075665243058bf0981"
+  },
+  {
+    "video": "50004_4",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "50004",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "16957531097e9e599cb00ea87df0f128d329901fa0919f789f244d0b9333b4db"
+  },
+  {
+    "video": "50008_1",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "50008",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "266a8c4bed1d699225860ee1d138e981dc937936a64d758b2ea51542cd82065d"
+  },
+  {
+    "video": "50024_2",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "50024",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "58cd6161f26fc8497da38593f3aec2e93edb2e09fc68ed36fa7422faf6c12bac"
+  },
+  {
+    "video": "50026_6",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "50026",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "69469f133046c25b20a0389e8e49c51003edcec71636a5aefe58f0482553857f"
+  },
+  {
+    "video": "50032_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "50032",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "5fd6afd43e26b58f1684f7f481e99bbee78dece7b32954d1879423eb44f09e35"
+  },
+  {
+    "video": "50035_2",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "50035",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "75ab6e6ef837f41cb5fd323519586d27bb28206d8db3271942396eca55f69f5c"
+  },
+  {
+    "video": "50037_3",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "50037",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "0fbdc78ca29bf351ef8538cf7fcb044762e9a3938c4d5f0b8f1f10d8e1c74e71"
+  },
+  {
+    "video": "50041_3",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "50041",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "49519bf4c4f0598c710478b9fac5992a06a4f676636ba3e9357f48a4c0d3acc6"
+  },
+  {
+    "video": "50049_1",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "50049",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "e56447e183c279a06629273e87dcd29f8b2767457ed9c4db314968ff2ced5698"
+  },
+  {
+    "video": "50060_2",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "50060",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "92cedea2523ca0056310f391ad82ae67276ea0533fe0acc6ff190e088ae5658d"
+  },
+  {
+    "video": "50099_1",
+    "class": "good_form",
+    "split": "validation",
+    "user_id": "50099",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "23b0147c4561ab818cfd8830ab5ebad358ab493313ad6067d0a1fe4da221255f"
+  },
+  {
+    "video": "50113_1",
+    "class": "good_form",
+    "split": "validation",
+    "user_id": "50113",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "c073939d3354c92e7b4376c8ecd23c5b2ceb950f4ab0e5dd3d374c03e26bd6f9"
+  },
+  {
+    "video": "50114_6",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "50114",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "d2187ee3e0de57e9d539ed270b7712972f930f0f4b4ef89a7e1c579011bae514"
+  },
+  {
+    "video": "50115_5",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "50115",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "d846e9c0089f031cc00ceddc859eb9a4802fd4566ade26ef2dd1dc279ffc6518"
+  },
+  {
+    "video": "50121_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "50121",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "b6e76d31a30f7690716e53b13bffa85022db788b1ef6141ecd6be86cd098f481"
+  },
+  {
+    "video": "50131_2",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "50131",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "71cd9433d037527e9ebc5f5b6bb1c161e819c4aa3bed1fd608b20866ec71991d"
+  },
+  {
+    "video": "50135_2",
+    "class": "good_form",
+    "split": "validation",
+    "user_id": "50135",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "fa30475bdbbfd1d500150413f082a41ddc1ee114f59c7f8a09f70fc10edf7ba9"
+  },
+  {
+    "video": "50137_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "50137",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "155a37e42900a794998d8cea3e5235eefa7d8096a6fba05076c76bdbbabf56c6"
+  },
+  {
+    "video": "50172_2",
+    "class": "good_form",
+    "split": "test",
+    "user_id": "50172",
+    "label_conflict": false,
+    "content_split": "test",
+    "content_hash": "486b0eda06ca6183445f7474475398ca40419abe5d5ac905198a71d196f2f333"
+  },
+  {
+    "video": "50185_2",
+    "class": "posture_fault",
+    "split": "validation",
+    "user_id": "50185",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "115d4444183539696fe988db293d3acfe7c4946fb83ec36df3dca3bc36363fd9"
+  },
+  {
+    "video": "50198_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "50198",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "1f6872bc0e66ca3887f91d2b4cd09c3d852247e568cb7c404af1c3cc3b3a2ca0"
+  },
+  {
+    "video": "50201_1",
+    "class": "posture_fault",
+    "split": "validation",
+    "user_id": "50201",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "0dec07f148c4d3db827c3b5391835d3090af137bab58c15f36b686e6432622cc"
+  },
+  {
+    "video": "50202_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "50202",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "c2c9e204455ee7dbd9bee26c9491d79f86507a3c7fd145370718d006b9891c78"
+  },
+  {
+    "video": "50204_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "50204",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "9939b03e5ed0f1c25cdbede54fc69aef1682b6ad8c9fa47934a89b26db82ba18"
+  },
+  {
+    "video": "50205_4",
+    "class": "posture_fault",
+    "split": "validation",
+    "user_id": "50205",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "9b0462770d98ca0b8d61d2e37e068339d4f796f0307e5f79d345e154a2ee37d5"
+  },
+  {
+    "video": "50210_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "50210",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "64c6bd1f4a042acd52f52ac7d74f4105648e0c9bdefbf343503b0309b6285958"
+  },
+  {
+    "video": "50214_1",
+    "class": "posture_fault",
+    "split": "validation",
+    "user_id": "50214",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "7d21fb3828caaec5a267ab4aec21c7af60b43d5b1dc0b5f933d59ac7279ad129"
+  },
+  {
+    "video": "50215_21",
+    "class": "posture_fault",
+    "split": "validation",
+    "user_id": "50215",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "95795a20b90bdfce62c71f0d331939090a0f7d512269069cc0ad459405de8b9c"
+  },
+  {
+    "video": "50218_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "50218",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "7be0406ac297aaa848625059a3b0407e40e4167a03922d2890ebdf7495d63ac2"
+  },
+  {
+    "video": "50224_1",
+    "class": "posture_fault",
+    "split": "train",
+    "user_id": "50224",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "f4a5e72b59d3d69e35187899c7e172a568aebd6eccfcd6e6e787ab557ec46d5c"
+  },
+  {
+    "video": "50858_2",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "50858",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "0c5743ce2c2ff0c8190af8e7036e5b74aba65faa43d1f375a4b70a2c5a2ac730"
+  },
+  {
+    "video": "50861_5",
+    "class": "good_form",
+    "split": "validation",
+    "user_id": "50861",
+    "label_conflict": false,
+    "content_split": "validation",
+    "content_hash": "2830426f2cf74ddfcf7400606edcebfe9f33defcf1f9e42abfb9adc0f7662a11"
+  },
+  {
+    "video": "50866_1",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "50866",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "44dad99d0d7698b936780c485c47176391c0983297104b8d1f18a98959c0192a"
+  },
+  {
+    "video": "50869_5",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "50869",
+    "label_conflict": false,
+    "content_split": "test",
+    "content_hash": "aba7bae8a6d71953bf3527601d42b495f0ea001ef4fca70df538d971b4ba9640"
+  },
+  {
+    "video": "50870_2",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "50870",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "993cd35ce56719d97a642d15ec0b80dbdcb47f44821eace0099b613421937aea"
+  },
+  {
+    "video": "50871_2",
+    "class": "good_form",
+    "split": "train",
+    "user_id": "50871",
+    "label_conflict": false,
+    "content_split": "train",
+    "content_hash": "70e50a7a8b06c499eee0f75803c36f6a3260ab361efe963e9e70bdcd382fc066"
+  }
+]
