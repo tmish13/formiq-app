@@ -19,6 +19,8 @@ services:
       - CELERY_RESULT_BACKEND=redis://redis:6379/1
       - CELERY_SHARED_DATA_PATH=/var/formiq_celery_shared
       - ENVIRONMENT=${ENVIRONMENT:-development}
+      # G-36: uploads admitted per API process before the route answers 503 (endpoints/form_checks.py).
+      - UPLOAD_MAX_INFLIGHT=${UPLOAD_MAX_INFLIGHT:-4}
       - DEBUG=${DEBUG:-true}
       # min_length=32 enforced by Settings.SECRET_KEY (app/core/config.py:177).
       # The previous default was 27 chars and made `docker compose up` fail to boot.

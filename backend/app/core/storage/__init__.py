@@ -4,6 +4,7 @@ import uuid
 import logging
 import aiofiles
 import tempfile
+import inspect
 import shutil
 from typing import Optional, BinaryIO
 from fastapi import UploadFile
@@ -14,6 +15,7 @@ from app.core.config import settings
 from datetime import datetime
 from urllib.parse import urlparse
 import mimetypes
+from app.core.hashing import HASH_CHUNK_BYTES
 
 logger = get_logger(__name__)
 
@@ -76,16 +78,17 @@ class LocalStorageProvider(StorageProvider):
         file_path = os.path.join(self.base_dir, key)
         os.makedirs(os.path.dirname(file_path), exist_ok=True) # Ensure directory exists
         try:
-            # Assuming file_obj is already a BytesIO or similar in-memory binary stream
-            # If it's an UploadFile, its .read() method should be awaitable if coming from FastAPI
-            # For simplicity here, assuming it has a read() method that returns bytes.
-            content = file_obj.read() # If file_obj is from UploadFile, this might need await file_obj.read()
-                                      # However, StorageService.upload_file_from_path uses open(..., 'rb')
-                                      # and StorageService.upload_file does await file.read() then BytesIO
-
+            # Copy in bounded chunks; never file_obj.read() whole (G-36). Sync reads of a
+            # spooled temp file or BytesIO; an awaitable read (an UploadFile) is awaited.
             async with aiofiles.open(file_path, 'wb') as f:
-                await f.write(content)
-            
+                while True:
+                    chunk = file_obj.read(HASH_CHUNK_BYTES)
+                    if inspect.isawaitable(chunk):
+                        chunk = await chunk
+                    if not chunk:
+                        break
+                    await f.write(chunk)
+
             # For local storage, the "URL" is often just a relative path or a file:// URI
             # Using a simple relative path for now, consistent with get_video_url logic for local
             # The S3 provider returns a full S3 URL.

@@ -82,14 +82,12 @@ class StorageService:
                 "user_id": str(user_id) if user_id else "anonymous"
             }
             
-            # Read the file into memory
-            file_content = await file.read()
-            # Rewind the file for future read operations
+            # Stream, do not copy (G-36). Starlette spools the multipart body to a temp file
+            # past 1 MiB; handing the provider that spooled file keeps the per-request peak
+            # near one chunk instead of one whole video held in this process. The hasher
+            # upstream already read it, so rewind first.
             await file.seek(0)
-            
-            # Convert to a file-like object
-            from io import BytesIO
-            file_obj = BytesIO(file_content)
+            file_obj = file.file
             
             # Upload the file using storage provider with circuit breaker protection
             async def storage_upload():
@@ -174,11 +172,12 @@ class StorageService:
                 "user_id": str(user_id) if user_id else "anonymous"
             }
 
-            file_content = await file.read()
+            # Stream, do not copy (G-36). Starlette spools the multipart body to a temp file
+            # past 1 MiB; handing the provider that spooled file keeps the per-request peak
+            # near one chunk instead of one whole video held in this process. The hasher
+            # upstream already read it, so rewind first.
             await file.seek(0)
-
-            from io import BytesIO
-            file_obj = BytesIO(file_content)
+            file_obj = file.file
 
             async def storage_upload():
                 return await self.provider.upload_file(
