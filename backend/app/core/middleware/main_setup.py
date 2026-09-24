@@ -81,7 +81,13 @@ def setup_middleware(app: FastAPI) -> None:
             logger.error(f"Failed to configure EnhancedRateLimiter: {str(e)}", exc_info=True)
             logger.warning("API will operate without rate limiting due to EnhancedRateLimiter setup error!")
     else:
-        logger.warning("Redis unavailable or cache_service not properly initialized - rate limiting disabled!")
+        # This branch is the one that always runs: CacheService has neither a `redis` attribute nor
+        # `is_available()`, and this code runs at app construction, before Redis connects. The
+        # rate-limit middleware has therefore never been installed. Enabling it is a behaviour change
+        # (a decision, not a fix); until then the log line says what is true.
+        logger.warning("Rate limiting is NOT installed: the guard above cannot be satisfied (CacheService has no "
+                       "`redis`/`is_available()`, and middleware is configured before Redis connects). "
+                       "See bench/results/2026-09-24-cache-is-the-db.md.")
 
     # 5. Error Handler Middleware
     # Sits inside TraceContextMiddleware (pure ASGI).  Any unhandled exception
