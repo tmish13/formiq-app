@@ -7,7 +7,7 @@ import hashlib
 import cv2
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import delete as sqlalchemy_delete, func, or_
+from sqlalchemy import delete as sqlalchemy_delete, func, or_, update as sa_update
 from fastapi import UploadFile, HTTPException, status, Depends
 from enum import Enum
 from datetime import datetime, timedelta
@@ -453,9 +453,33 @@ class FormCheckService(BaseService[FormCheck, FormCheckCreate, FormCheckUpdate])
                 "error_message", "Analysis failed due to an unknown error."
             )
 
-        updated_form_check = await super().update_async(db_obj=form_check, obj_in=update_payload)
+        # G-48: written only while the row is still PROCESSING, i.e. still owned by
+        # the task that claimed it. A finalize that arrives after the row reached a
+        # terminal state -- a duplicate dispatch, a retry racing its original, a
+        # reaper give-up -- matches nothing and changes nothing. The previous
+        # update_async was a plain setattr + commit with no status check, and 520
+        # COMPLETED rows were rewritten to FAILED by their own duplicates.
+        result = await self.db.execute(
+            sa_update(FormCheck)
+            .where(FormCheck.id == form_check_id)
+            .where(FormCheck.status == FormCheckStatus.PROCESSING)
+            .values(**update_payload)
+        )
+        if result.rowcount == 0:
+            await self.db.rollback()
+            await self.db.refresh(form_check, attribute_names=["status", "feedback_items"])
+            observed = getattr(form_check.status, "value", form_check.status)
+            logger.warning(
+                "Finalize refused for FormCheck %s: row is %s, not PROCESSING; nothing written "
+                "(status %s was not applied).", form_check_id, observed, status.value,
+            )
+            return self.response_schema.from_orm(form_check)
+        await self.db.commit()
+        await self.db.refresh(form_check)
+        updated_form_check = form_check
 
-        # Delete old FeedbackItems and create new ones
+        # Feedback rows are replaced only once the status write above succeeded, so
+        # a refused finalize cannot delete a finished row's feedback either.
         logger.info(f"Deleting existing feedback items for FormCheck ID {form_check_id}")
         await self.db.execute(sqlalchemy_delete(FeedbackItem).where(FeedbackItem.form_check_id == form_check_id))
         # The commit for this deletion will happen after adding new items or at end of service method call if using session context manager
