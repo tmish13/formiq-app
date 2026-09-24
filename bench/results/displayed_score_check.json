@@ -1,0 +1,114 @@
+{
+  "n_decisions": 1336,
+  "n_distinct_hashes": 1325,
+  "splits": {
+    "test": {
+      "n": 188,
+      "prevalence": 0.4149,
+      "n_with_displayed_score": 177,
+      "auroc_model_prob_all": 0.705,
+      "same_rows_n": 177,
+      "auroc_displayed_score": 0.7061,
+      "auroc_displayed_score_ci95": [
+        0.6283,
+        0.7836
+      ],
+      "auroc_model_prob": 0.7057,
+      "auroc_model_prob_ci95": [
+        0.6254,
+        0.7817
+      ],
+      "paired_delta_displayed_minus_model": 0.0004,
+      "paired_delta_ci95": [
+        -0.0145,
+        0.0158
+      ],
+      "badge_accuracy_at_shipped_threshold": {
+        "High": {
+          "n": 98,
+          "accuracy": 0.5612
+        },
+        "Low": {
+          "n": 14,
+          "accuracy": 0.9286
+        },
+        "Moderate": {
+          "n": 65,
+          "accuracy": 0.6462
+        }
+      }
+    },
+    "validation": {
+      "n": 212,
+      "prevalence": 0.3868,
+      "n_with_displayed_score": 189,
+      "auroc_model_prob_all": 0.7499,
+      "same_rows_n": 189,
+      "auroc_displayed_score": 0.7727,
+      "auroc_displayed_score_ci95": [
+        0.699,
+        0.8383
+      ],
+      "auroc_model_prob": 0.7783,
+      "auroc_model_prob_ci95": [
+        0.7042,
+        0.8465
+      ],
+      "paired_delta_displayed_minus_model": -0.0056,
+      "paired_delta_ci95": [
+        -0.0184,
+        0.0076
+      ],
+      "badge_accuracy_at_shipped_threshold": {
+        "High": {
+          "n": 96,
+          "accuracy": 0.5417
+        },
+        "Low": {
+          "n": 22,
+          "accuracy": 0.7727
+        },
+        "Moderate": {
+          "n": 71,
+          "accuracy": 0.7606
+        }
+      }
+    },
+    "train": {
+      "n": 901,
+      "prevalence": 0.4218,
+      "n_with_displayed_score": 823,
+      "auroc_model_prob_all": 0.7661,
+      "same_rows_n": 823,
+      "auroc_displayed_score": 0.7562,
+      "auroc_displayed_score_ci95": [
+        0.723,
+        0.7875
+      ],
+      "auroc_model_prob": 0.7611,
+      "auroc_model_prob_ci95": [
+        0.7277,
+        0.793
+      ],
+      "paired_delta_displayed_minus_model": -0.005,
+      "paired_delta_ci95": [
+        -0.0121,
+        0.0022
+      ],
+      "badge_accuracy_at_shipped_threshold": {
+        "High": {
+          "n": 401,
+          "accuracy": 0.5436
+        },
+        "Low": {
+          "n": 77,
+          "accuracy": 0.8831
+        },
+        "Moderate": {
+          "n": 345,
+          "accuracy": 0.7275
+        }
+      }
+    }
+  }
+}

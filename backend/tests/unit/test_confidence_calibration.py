@@ -43,42 +43,46 @@ class TestComputeCalibratedConfidence:
             result = compute_calibrated_confidence(prob)
             assert 0.0 <= result["score"] <= 1.0
 
-    def test_high_label_threshold(self):
-        """Temperature softening means T=1.5 gives moderate label for prob=0.05."""
+    # G-50: fixed points instead of conditional asserts. The previous versions of
+    # these tests were `if score >= 0.80: assert label == "High"` -- they could
+    # not fail, and the formula was inverted underneath them for as long as they
+    # existed.
+    def test_coin_flip_is_low_confidence(self):
+        """p = 0.5 with perfect visibility/consistency is LOW: the model has no opinion."""
         from app.ml.posture_v1.scoring import compute_calibrated_confidence
-        # With T=1.5, even extreme probs are softened toward 0.5 (boundary_score is low)
-        # Result label depends on formula — just ensure it is a valid label
-        result = compute_calibrated_confidence(0.05, 1.0, 1.0)
-        assert result["label"] in ("High", "Moderate", "Low")
+        result = compute_calibrated_confidence(0.5, 1.0, 1.0)
+        assert result["label"] == "Low", result
+        assert result["score"] < 0.60
+
+    def test_decisive_predictions_are_high_confidence(self):
+        """p = 0.02 and p = 0.98 are HIGH, and symmetric."""
+        from app.ml.posture_v1.scoring import compute_calibrated_confidence
+        lo = compute_calibrated_confidence(0.02, 1.0, 1.0)
+        hi = compute_calibrated_confidence(0.98, 1.0, 1.0)
+        assert lo["label"] == "High" and hi["label"] == "High", (lo, hi)
+        assert abs(lo["score"] - hi["score"]) < 1e-6
+
+    def test_confidence_increases_with_distance_from_the_boundary(self):
+        """Monotonic in |p - 0.5|: farther from 0.5 => never lower confidence."""
+        from app.ml.posture_v1.scoring import compute_calibrated_confidence
+        scores = [compute_calibrated_confidence(p, 1.0, 1.0)["score"]
+                  for p in (0.5, 0.6, 0.7, 0.8, 0.9, 0.99)]
+        assert scores == sorted(scores), scores
 
     def test_poor_visibility_lowers_score(self):
         """Poor visibility (0.3) lowers composite compared to perfect visibility."""
         from app.ml.posture_v1.scoring import compute_calibrated_confidence
         r_good = compute_calibrated_confidence(0.1, visibility_ratio=1.0, temporal_consistency=1.0)
         r_poor = compute_calibrated_confidence(0.1, visibility_ratio=0.3, temporal_consistency=1.0)
-        assert r_good["score"] >= r_poor["score"]
+        assert r_good["score"] > r_poor["score"]
 
-    def test_label_thresholds_high(self):
-        """score >= 0.80 → High."""
+    def test_label_bands(self):
+        """score >= 0.80 High; 0.60 <= score < 0.80 Moderate; else Low -- at fixed inputs."""
         from app.ml.posture_v1.scoring import compute_calibrated_confidence
-        result = compute_calibrated_confidence(0.01, 1.0, 1.0)
-        # Boundary score will be high for extreme prob
-        if result["score"] >= 0.80:
-            assert result["label"] == "High"
-
-    def test_label_thresholds_low(self):
-        """score < 0.60 → Low."""
-        from app.ml.posture_v1.scoring import compute_calibrated_confidence
-        result = compute_calibrated_confidence(0.5, 0.1, 0.1)
-        if result["score"] < 0.60:
-            assert result["label"] == "Low"
-
-    def test_label_moderate(self):
-        """0.60 <= score < 0.80 → Moderate."""
-        from app.ml.posture_v1.scoring import compute_calibrated_confidence
-        result = compute_calibrated_confidence(0.5, 0.5, 0.9)
-        if 0.60 <= result["score"] < 0.80:
-            assert result["label"] == "Moderate"
+        assert compute_calibrated_confidence(0.98, 1.0, 1.0)["label"] == "High"
+        assert compute_calibrated_confidence(0.5, 0.1, 0.1)["label"] == "Low"
+        mid = compute_calibrated_confidence(0.98, 0.5, 0.5)   # 0.6*0.96ish + 0.125 + 0.075
+        assert mid["label"] == "Moderate", mid
 
     def test_dict_structure(self):
         """Result has 'score' and 'label' keys."""

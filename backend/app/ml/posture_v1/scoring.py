@@ -135,10 +135,15 @@ def compute_calibrated_confidence(
     """Composite calibrated confidence (clamped to [0, 1]).
 
     composite = 0.6 * boundary_score + 0.25 * visibility_ratio + 0.15 * temporal_consistency
-    boundary_score = 1 - 2 * |calibrated_prob - 0.5|  (distance from uncertain)
+    boundary_score = 2 * |calibrated_prob - 0.5|  (distance from the uncertain boundary)
+
+    G-50: this was `1 - 2 * |p - 0.5|`, which is HIGHEST at p = 0.5 -- the badge read
+    "High" for a coin-flip and "Low" for p = 0.02 or 0.98, and the UI told users to
+    re-record on the model's most decisive predictions. The docstring said
+    "distance from uncertain"; the formula computed its complement.
     """
     calibrated_prob = _apply_temperature(prob_fault)
-    boundary_score = 1.0 - 2.0 * abs(calibrated_prob - 0.5)
+    boundary_score = 2.0 * abs(calibrated_prob - 0.5)
     composite = round(
         0.6 * boundary_score + 0.25 * visibility_ratio + 0.15 * temporal_consistency,
         4,
