@@ -654,6 +654,13 @@ async def _process_form_check_task_async(self, video_id_str: str, form_check_id_
     run_id = None
     _checker_outcomes: List[CheckerOutcome] = []
     _run_started_monotonic = time.monotonic()
+    # G-48: True only once the conditional claim below has moved the row from
+    # PENDING to PROCESSING. Until then the row belongs to someone else -- a
+    # worker that already finished it, or nobody -- and the `finally` must not
+    # write to it. Without this, a duplicate dispatch that lost the claim still
+    # finalized the row with `final_status` (FAILED by default): 520 completed
+    # form checks were flipped to FAILED an hour after they completed.
+    claimed = False
 
     try:
         _session_cm = get_task_db_session()
@@ -714,6 +721,7 @@ async def _process_form_check_task_async(self, video_id_str: str, form_check_id_
             )
             return {"status": "skipped", "message": f"Not in PENDING state, was {observed}"}
 
+        claimed = True
         # The raw UPDATE bypassed the identity map, so refresh before anything
         # downstream reads form_check.status.
         await db_session.refresh(form_check)
@@ -1839,6 +1847,16 @@ async def _process_form_check_task_async(self, video_id_str: str, form_check_id_
                     "[CeleryTask] Could not release FormCheck %s back to PENDING: "
                     "%s. The reaper will pick it up.", form_check_id, e_release,
                 )
+        elif not claimed and form_check_service is not None:
+            # The services came up but this task never won the row: the claim
+            # found it already PROCESSING/terminal, or get_async found nothing.
+            # Either way it is not ours to finalize. The raw fallback below stays
+            # reachable for the case where the services never initialised, and
+            # it is guarded on PENDING, so it cannot rewrite a finished row.
+            logger.info(
+                "[CeleryTask] FormCheck %s was never claimed by this task; row left untouched (G-48).",
+                form_check_id,
+            )
         elif form_check_service and form_check_id: # Ensure form_check_id is available
             try:
                 logger.info(f"[CeleryTask] Finalizing FormCheck {form_check_id} with status {final_status.value}")
