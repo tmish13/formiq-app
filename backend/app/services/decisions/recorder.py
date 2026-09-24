@@ -203,6 +203,7 @@ async def close_run(
     pose_source: Optional[str] = None,
     pose_pass_id: Optional[str] = None,
     rules_spec_hash: Optional[str] = None,
+    settings_snapshot: Optional[Dict[str, Any]] = None,
 ) -> bool:
     """Close a run with a bare UPDATE, rolling back first.
 
@@ -229,6 +230,7 @@ async def close_run(
         ("pose_source", pose_source),
         ("pose_pass_id", pose_pass_id),
         ("rules_spec_hash", rules_spec_hash),
+        ("settings_snapshot", settings_snapshot),   # per-stage ms live here; no migration (D6)
     ):
         if val is not None:
             values[key] = val

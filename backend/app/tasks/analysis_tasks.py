@@ -712,6 +712,17 @@ async def _process_form_check_task_async(self, video_id_str: str, form_check_id_
     run_id = None
     _checker_outcomes: List[CheckerOutcome] = []
     _run_started_monotonic = time.monotonic()
+    # Per-stage wall time (plan D6). Each mark records the ms since the previous mark;
+    # the dict rides into analysis_runs.settings_snapshot at close, so "where do the
+    # 9.7 s go" is a query over the trail and not a guess. No migration: the column
+    # existed and was NULL on every row.
+    _stage_ms: Dict[str, float] = {}
+    _stage_last = [time.monotonic()]
+
+    def _mark(stage: str) -> None:
+        now = time.monotonic()
+        _stage_ms[stage] = round((now - _stage_last[0]) * 1000.0, 1)
+        _stage_last[0] = now
     # G-48: True only once the conditional claim below has moved the row from
     # PENDING to PROCESSING. Until then the row belongs to someone else -- a
     # worker that already finished it, or nobody -- and the `finally` must not
@@ -795,6 +806,7 @@ async def _process_form_check_task_async(self, video_id_str: str, form_check_id_
             )
 
         claimed = True
+        _mark("claim")
         # The raw UPDATE bypassed the identity map, so refresh before anything
         # downstream reads form_check.status.
         await db_session.refresh(form_check)
@@ -831,6 +843,7 @@ async def _process_form_check_task_async(self, video_id_str: str, form_check_id_
             rules_spec_hash=_rules_spec_hash,
             combiner_version=COMBINER_VERSION,
         )
+        _mark("open_run")
 
         # Fetch the Video object (Phase 3 fix: use base get_async, not missing method)
         video_model = await video_service.get_async(id=video_id)
@@ -850,10 +863,12 @@ async def _process_form_check_task_async(self, video_id_str: str, form_check_id_
                 video_local_path, _video_is_temp = await _resolve_video_local_path(
                     video_model, settings_obj, storage_service
                 )
+                _mark("resolve_video")
                 if video_local_path:
                     raw_pose, sequence_length, video_fps = await _extract_pose_from_video(
                         video_local_path, _ai_service_instance, settings_obj
                     )
+                    _mark("pose_extract")
                     if raw_pose:
                         video_model.raw_pose_data = raw_pose
                         video_model.pose_data = raw_pose  # smoothed == raw for now
@@ -1183,6 +1198,7 @@ async def _process_form_check_task_async(self, video_id_str: str, form_check_id_
                         posture_v1_result = posture_v1_loader.predict_posture(
                             keypoint_sequence_for_classification
                         )
+                        _mark("posture_v1")
 
                 logger.info(
                     "[CeleryTask] PostureV1 result for FormCheck %s: "
@@ -1839,12 +1855,14 @@ async def _process_form_check_task_async(self, video_id_str: str, form_check_id_
         if run_id is not None and db_session is not None:
             try:
                 _combined = combine(_checker_outcomes)
+                _mark("after_model")   # rules, delta engine, feedback, finalize payload
                 _written = await record_decisions(
                     db_session, run_id=run_id, outcomes=_checker_outcomes,
                     form_check_id=form_check_id,
                     content_hash=getattr(form_check, "content_hash", None),
                 )
                 await db_session.commit()
+                _mark("record_decisions")
                 logger.info(
                     "[Audit] run %s: %d checker decision(s), %d contributor(s), "
                     "%d advisory, score=%s",
@@ -1894,6 +1912,7 @@ async def _process_form_check_task_async(self, video_id_str: str, form_check_id_
                 n_frames=(len(keypoint_sequence_for_classification)
                           if "keypoint_sequence_for_classification" in dir()
                           and keypoint_sequence_for_classification else None),
+                settings_snapshot=({"stage_ms": dict(_stage_ms)} if _stage_ms else None),
             )
 
         if transient_exc is not None and form_check_id and db_session:
