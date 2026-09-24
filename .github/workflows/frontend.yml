@@ -1,8 +1,13 @@
 # frontend.yml — the one frontend workflow (G-17).
 #
-# Replaces main.yml and frontend-tests.yml, both of which were auto-failed on every run for a
-# deprecated actions/upload-artifact and (frontend-tests.yml) ran `npm test` from the repo root.
-# Node 20 per frontend/package.json "engines". Typecheck, then jest; no artifacts.
+# Replaces main.yml and frontend-tests.yml, both auto-failed on every run for a deprecated
+# actions/upload-artifact (frontend-tests.yml also ran `npm test` from the repo root).
+#
+# Two jobs on purpose: the typecheck is green and gates; the jest suite is red today (G-56: 94 of
+# 587 tests in 17 suites fail on the committed tree) and its own job shows that instead of hiding it.
+#
+# `--legacy-peer-deps`: react-scripts 5.0.1 declares a peer TypeScript below 5 while the app is on
+# TypeScript 5; the lockfile was built this way and plain `npm ci` refuses (ERESOLVE, run 36067763020).
 name: Frontend
 
 on:
@@ -21,23 +26,32 @@ defaults:
     working-directory: frontend
 
 jobs:
-  typecheck_and_test:
-    name: "Typecheck & Jest"
+  typecheck:
+    name: "Typecheck"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-
       - name: Install
-        run: npm ci
-
+        run: npm ci --legacy-peer-deps
       - name: Typecheck
         run: npm run typecheck
 
+  jest:
+    name: "Jest"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install
+        run: npm ci --legacy-peer-deps
       - name: Jest
         run: npm test -- --ci --watchAll=false
