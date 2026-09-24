@@ -70,5 +70,61 @@
       0.026816585489101073,
       33.92105597991595
     ]
+  },
+  "provenance": {
+    "_note": "Added 2026-09-24 (G-20). Additive: serving reads only `threshold` and `version`. tests/unit/test_posture_v1_artifact_integrity.py recomputes the artifact hashes against this block.",
+    "artifact_sha256": {
+      "posture_v1.pt": "b7375ca49a93279948e4e49dd59eedb22aa51f1312ea4f008178c66bbe0b1c36",
+      "posture_v1_scaler.joblib": "776e986f506f83720e79e4fb272ea9c685ff25056a861f1dd6126bba06958485",
+      "posture_v1_splits.json": "ee28d014824623b59e162ffe2cca29460bf922a5311d5f6411dccebf75226fba"
+    },
+    "source_checkpoint_path": "~/FORMIQ Form Analysis Model/runs/best_cnn_lstm_binary_enhanced_cw_f0.5_0.736.pt",
+    "source_checkpoint_sha256": "b7375ca49a93279948e4e49dd59eedb22aa51f1312ea4f008178c66bbe0b1c36",
+    "trainer": {
+      "notebook": "backend/ml_training/posture_v1/provenance/squat_pipeline_posture_stability_goodform_REBUILT.ipynb",
+      "notebook_sha256_prefix": "b7ff1762cc70a601",
+      "exporter": "backend/ml_training/posture_v1/provenance/export_posture_v1.py",
+      "exporter_sha256_prefix": "9f74a5e0434c546e",
+      "results": "backend/ml_training/posture_v1/provenance/cnn_lstm_binary_enhanced_cw_results.json"
+    },
+    "data": {
+      "splits": "backend/ml_training/data/user_level_multilabel_splits.json",
+      "splits_sha256_prefix": "6146992133682d1c",
+      "labels": "backend/ml_training/data/balanced_3class_frame_labels.json",
+      "labels_sha256_prefix": "9f5da0a643a63af8",
+      "label_definition": "binary collapse of the 3-class frame labels: posture_fault vs good_form (depth/stability folded out); see PROVENANCE.md"
+    },
+    "recipe": {
+      "optimizer": "Adam",
+      "lr": 0.001,
+      "weight_decay": 0.0005,
+      "scheduler": "ReduceLROnPlateau(mode=max, factor=0.5, patience=7)",
+      "grad_clip_norm": 1.0,
+      "batch_size": 4,
+      "max_epochs": 100,
+      "early_stopping_patience": 15,
+      "loss": "BCEWithLogitsLoss with class weights",
+      "threshold_selection": "validation F0.5 sweep over linspace(0.2, 0.8, 25)",
+      "seed": null
+    },
+    "export_environment": {
+      "python": "3.12.1",
+      "scikit_learn": "1.6.1",
+      "numpy": "1.26.4",
+      "torch": "2.7.1",
+      "notebook_kernel_python": "3.11.7"
+    },
+    "serving_pins": {
+      "scikit_learn": "1.4.0",
+      "torch": "2.2.0"
+    },
+    "pose_pass_id_at_training": null,
+    "code_git_sha": null,
+    "discrepancies": [
+      "ML_REPO_TRUTH_EXTRACTION.md names a 0.742 checkpoint; 0.736 was exported. The choice is unrecorded.",
+      "training_metrics and threshold 0.525 were computed on the final in-memory weights, not the saved checkpoint; on the shipped weights validation F0.5 peaks at 0.475 (ML_AUDIT.md section 7.2).",
+      "training was unseeded: 20+ runs spanned validation F0.5 0.589-0.742; a rerun does not reproduce these weights.",
+      "the scaler was pickled by scikit-learn 1.6.1 and is served by 1.4.0; statistics identical (G-22)."
+    ]
   }
 }
