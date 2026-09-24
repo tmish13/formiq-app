@@ -22,7 +22,7 @@ import requests
 pytestmark = [pytest.mark.e2e, pytest.mark.slow]
 
 API = os.getenv("E2E_API_BASE", "http://localhost:8000")
-TIMEOUT_S = int(os.getenv("E2E_TIMEOUT_S", "300"))
+TIMEOUT_S = int(os.getenv("E2E_TIMEOUT_S", "600"))
 
 
 def _video() -> Path:
@@ -48,6 +48,7 @@ def session():
     return {"email": email, "headers": {"Authorization": f"Bearer {r.json()['access_token']}"}}
 
 
+@pytest.mark.timeout(TIMEOUT_S + 120)   # pytest.ini's 300 s default is shorter than a cold worker + a queue
 def test_one_clip_reaches_a_terminal_state_with_a_verdict(session):
     video = _video()
     with video.open("rb") as fh:
@@ -115,6 +116,8 @@ async def test_the_trail_for_that_user_passes_a1_to_a10(session):
     async with get_async_session_for_celery() as db:
         n = (await db.execute(text(f"SELECT count(*) FROM ({ids}) x"))).scalar_one()
         assert n >= 1, "the submit test must run first"
+        done = (await db.execute(text(f"SELECT count(*) FROM form_checks WHERE id IN ({ids}) AND status = 'COMPLETED'"))).scalar_one()
+        assert done >= 1, "no COMPLETED form check for this user: the trail assertions would pass vacuously"
         failures = []
         for name, sql in checks.items():
             got = (await db.execute(text(sql))).scalar_one()
