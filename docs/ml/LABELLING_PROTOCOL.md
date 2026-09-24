@@ -51,6 +51,16 @@ two different classes (G-44). For each pair, watch the file once and write **one
 `adjudicated_class` — `good_form`, `posture_fault` or `depth_fault` — or `unusable`. This is a
 separate, shorter task; do it after the severity sheet so its classes do not anchor your grades.
 
+## The interval boundary check (one annotator, 50 clips, after the severity sheet)
+
+`bench/results/relabel/interval_check_sheet.csv` lists 50 train clips with the dataset's own
+knees-forward interval (`labelled_start_s`, `labelled_end_s`). Watch the clip, write the second at
+which the knees first pass the toe line (`observed_start_s`) and the second at which they come back
+behind it or the rep ends (`observed_end_s`), one decimal, and `yes`/`no` in `verdict_accurate_yes_no`
+for whether the labelled interval is the right one. Notes as single words. This checks whether the
+dataset's intervals can serve as frame-level ground truth (pre-registration, Gate 0); it changes no
+label.
+
 ## Rules
 
 1. Watch each clip at least twice; pause at the deepest point.

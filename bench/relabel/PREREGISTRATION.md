@@ -14,6 +14,17 @@ the sheets come back.
   `posture_severity` (0–3) and `posture_fault_v2` (severity ≥ 2). A `usable = no` row writes the
   store's "unusable for every target" marker.
 
+## Gate 0 (added 2026-09-24, before any sheet came back) — are the dataset's intervals frame-accurate?
+
+Fitness-AQA labels each knees-forward error as `[start_s, end_s]` (`Labels/error_knees_forward.json`);
+the repo has only ever used their presence. Before they are used as frame-level ground truth
+(`bench/results/2026-09-24-interval-labels.md`), one annotator checks 50 train clips
+(`bench/results/relabel/interval_check_sheet.csv`, seed 42, no test clips; the sheet shows the
+labelled interval because this task checks a label rather than creating one; done after the severity
+sheet so it cannot anchor the grades). **Pass: median |observed − labelled| ≤ 0.30 s at the start and
+at the end** (≈ 9 frames at 30 fps). Fail ⇒ the intervals are presence labels only; per-frame work
+needs its own boundaries. Gate 0 enters no accuracy metric.
+
 ## Gate 1 — is the construct annotatable?
 `bench/relabel/agreement.py`: quadratic-weighted Cohen's κ between A and B on severity, over clips
 both marked usable; exact agreement and the 2×2 agreement on `severity ≥ 2` alongside.
