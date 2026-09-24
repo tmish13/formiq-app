@@ -269,89 +269,19 @@ async def logs_status() -> Dict[str, Any]:
             "error": str(e)
         }
 
-@router.get(
-    "/rate-limits",
-    response_model=Dict[str, Any],
-    responses={
-        200: {
-            "description": "Rate limit status and metrics",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "status": "healthy",
-                        "rate_limits": {
-                            "auth": {
-                                "limit": 5,
-                                "window": 60,
-                                "current_usage": 2
-                            },
-                            "form_analysis": {
-                                "limit": 10,
-                                "window": 120,
-                                "current_usage": 5
-                            }
-                        },
-                        "exceeded_count": {
-                            "total": 150,
-                            "last_hour": 5
-                        }
-                    }
-                }
-            }
-        }
-    }
-)
-async def rate_limit_status() -> Dict[str, Any]:
-    """
-    Get rate limiting status and metrics.
-    
-    Returns:
-    * Current rate limit configuration
-    * Usage metrics per endpoint
-    * Rate limit exceeded events
-    * Historical data
-    """
-    health_service = HealthService()
-    return await health_service.get_rate_limit_metrics()
+@router.get("/metrics")
+async def prometheus_metrics() -> Response:
+    """Prometheus text exposition of this process's registry.
 
-@router.get(
-    "/metrics",
-    response_model=Dict[str, Any],
-    responses={
-        200: {
-            "description": "Prometheus metrics",
-            "content": {
-                "text/plain": {
-                    "example": """
-                    # HELP rate_limit_exceeded_total Total number of rate limit exceeded events
-                    # TYPE rate_limit_exceeded_total counter
-                    rate_limit_exceeded_total{endpoint="auth"} 150
-                    rate_limit_exceeded_total{endpoint="form_analysis"} 75
-                    
-                    # HELP rate_limit_current Current number of requests within rate limit window
-                    # TYPE rate_limit_current gauge
-                    rate_limit_current{endpoint="auth"} 2
-                    rate_limit_current{endpoint="form_analysis"} 5
-                    """
-                }
-            }
-        }
-    }
-)
-async def prometheus_metrics() -> str:
+    Today that is the default process/platform collectors plus any counters the app registers; the
+    HTTP instrumentator is not installed (plan D8: no Prometheus stack), so this is a liveness-grade
+    signal, not a dashboard. The previous handler built ``HealthService()`` without its three
+    arguments and called a method that did not exist, so it returned 500 on every call.
+    ``/health/rate-limits`` did the same and reported on a middleware that has never been
+    installed; it is gone.
     """
-    Get Prometheus metrics.
-    
-    Returns metrics for:
-    * Rate limiting
-    * API usage
-    * System health
-    * Performance indicators
-    
-    Format: Prometheus text format
-    """
-    health_service = HealthService()
-    return await health_service.get_prometheus_metrics()
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
 
 @router.get("/ready", response_model=Dict[str, Any])
 async def readiness_check(db: AsyncSession = Depends(deps.get_async_db)) -> Dict[str, Any]:
