@@ -46,8 +46,14 @@ class TraceContextMiddleware:
         trace_context: dict = {}
         if is_tracing_enabled():
             trace_context = get_trace_context()
-            if not correlation_id and trace_context.get("correlation_id"):
-                correlation_id = trace_context["correlation_id"]
+            # An UNSAMPLED request (the default sampler keeps 10 %) carries an
+            # all-zero span id, and it was being handed out as the correlation
+            # id: nine responses in ten said "0000000000000000", and five
+            # concurrent requests in the test suite shared one "unique" id for
+            # as long as this middleware existed. All-zero means absent.
+            tc_cid = trace_context.get("correlation_id") or ""
+            if not correlation_id and tc_cid.strip("0"):
+                correlation_id = tc_cid
 
         if not correlation_id and self.generate_correlation_id:
             correlation_id = str(uuid.uuid4())[:16]
