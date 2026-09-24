@@ -1,0 +1,84 @@
+=== Stage A decision trail ===
+user   : mx_c4t1_1790239043@example.com
+videos : 80
+
+submitted 80/80
+
+--- polling for terminal status ---
+  t=  81s  non-terminal=69
+  t=  92s  non-terminal=67
+  t= 103s  non-terminal=65
+  t= 113s  non-terminal=64
+  t= 124s  non-terminal=63
+  t= 134s  non-terminal=61
+  t= 144s  non-terminal=58
+  t= 155s  non-terminal=57
+  t= 166s  non-terminal=54
+  t= 176s  non-terminal=53
+  t= 186s  non-terminal=51
+  t= 197s  non-terminal=49
+  t= 208s  non-terminal=48
+  t= 218s  non-terminal=46
+  t= 229s  non-terminal=45
+  t= 239s  non-terminal=43
+  t= 250s  non-terminal=43
+  t= 260s  non-terminal=41
+  t= 271s  non-terminal=40
+  t= 282s  non-terminal=39
+  t= 292s  non-terminal=36
+  t= 303s  non-terminal=36
+  t= 313s  non-terminal=33
+  t= 324s  non-terminal=32
+  t= 335s  non-terminal=30
+  t= 345s  non-terminal=28
+  t= 356s  non-terminal=28
+  t= 366s  non-terminal=27
+  t= 376s  non-terminal=24
+  t= 387s  non-terminal=23
+  t= 397s  non-terminal=21
+  t= 408s  non-terminal=19
+  t= 418s  non-terminal=19
+  t= 429s  non-terminal=16
+  t= 439s  non-terminal=14
+  t= 450s  non-terminal=13
+  t= 460s  non-terminal=12
+  t= 471s  non-terminal=10
+  t= 481s  non-terminal=9
+  t= 492s  non-terminal=5
+  t= 503s  non-terminal=5
+  t= 513s  non-terminal=3
+  t= 523s  non-terminal=1
+  t= 534s  non-terminal=0
+
+=== THE TRAIL ===
+--- runs by status ---
+  completed : 80
+--- decisions by checker ---
+  depth_parallel_v0/depth AT_DEPTH  fitted=false advisory=true  n=53
+  depth_parallel_v0/depth SHALLOW  fitted=false advisory=true  n=5
+  depth_parallel_v0/depth UNCERTAIN  fitted=false advisory=true  n=22
+  knees_forward_v0/knees_forward NOT_OBSERVED  fitted=false advisory=true  n=23
+  knees_forward_v0/knees_forward OBSERVED  fitted=false advisory=true  n=34
+  knees_forward_v0/knees_forward UNCERTAIN  fitted=false advisory=true  n=23
+  posture_v1/posture FAULT  fitted=true advisory=false  n=46
+  posture_v1/posture GOOD_FORM  fitted=true advisory=false  n=28
+  posture_v1/posture UNCERTAIN  fitted=true advisory=false  n=6
+--- pose passes observed ---
+  pp1_f9850424580ae186  n=80
+
+=== ASSERTIONS ===
+  A1 PASS  terminal form checks with no run row                 0
+  A2 PASS  runs with no checker decision                        0
+  A3 PASS  closed runs missing a pose_pass_id                   0
+  A4 PASS  runs still open                                      0
+  A5 PASS  form checks carrying a depth_score                   0
+  A6 PASS  rule decisions not marked unfitted+advisory          0
+  A7 PASS  answered rule decisions with no score                0
+  A8 PASS  decisions with no inputs_digest                      0
+  A9 PASS  completed runs with no n_frames                      0
+
+--- determinism: same inputs_digest => same decision? ---
+  (more than 1 distinct verdict for one digest = nondeterminism)
+
+=== ALL ASSERTIONS PASS ===
+ids: /var/folders/2_/837jvk4j7tn3zv9_s24fmbxm0000gn/T/tmp.onyvfZLxmC/pairs.txt
