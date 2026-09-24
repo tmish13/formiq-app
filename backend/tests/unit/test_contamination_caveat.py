@@ -127,7 +127,10 @@ def test_the_allow_list_entries_still_exist(offenders):
         in_container = root / rel.removeprefix("backend/")
         if not on_host.exists() and not in_container.exists():
             missing.append(rel)
-    if missing and (root / "bench").is_dir():
+    # Guard on the results directory, not a bare `bench` dir: an empty
+    # `backend/bench` (left behind by a container run) made this fail in the
+    # image, where the allow-listed files are legitimately absent.
+    if missing and (root / "bench" / "results").is_dir():
         pytest.fail(f"allow-listed paths no longer exist: {missing}")
 
 

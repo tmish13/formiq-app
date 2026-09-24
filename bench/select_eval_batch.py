@@ -50,6 +50,13 @@ CLASSES = ("good_form", "posture_fault", "depth_fault")
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--n", type=int, default=300)
+    ap.add_argument("--remaining", action="store_true",
+                    help="Gate 1b: every content-level-assigned video whose content "
+                         "hash has no stored decision yet, one per hash, file on disk. "
+                         "Ignores --n and stratification -- the point is coverage.")
+    ap.add_argument("--judged-hashes", type=Path, default=None,
+                    help="newline-separated content hashes already in checker_decisions "
+                         "(exported from the DB); required with --remaining")
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--out", type=Path,
                     default=REPO / "bench" / "results" / "eval_batch_selection.json")
@@ -98,6 +105,30 @@ def main() -> int:
                 "user_id": str(uid),
                 "label_conflict": name in conflicting,
             })
+
+    if args.remaining:
+        # Coverage, not sampling: the content-level split decides membership and
+        # the decision table decides what is still missing. Duplicates collapse
+        # to one representative because idempotency would return the first
+        # row for the second submission anyway.
+        cl = json.loads((REPO / "bench" / "results" / "content_level_splits.json").read_text())
+        judged = set(args.judged_hashes.read_text().split()) if args.judged_hashes else set()
+        assigned = {r["video"]: r for r in cl["videos"] if r["split"] and r["content_hash"]}
+        seen_hash, picked = set(), []
+        for cls in CLASSES:
+            for r in by_class[cls]:
+                a = assigned.get(r["video"])
+                if a is None: continue
+                if a["content_hash"] in judged or a["content_hash"] in seen_hash: continue
+                seen_hash.add(a["content_hash"])
+                picked.append({**r, "content_split": a["split"], "content_hash": a["content_hash"]})
+        picked.sort(key=lambda r: r["video"])
+        counts = Counter(r["class"] for r in picked); by_split = Counter(r["content_split"] for r in picked)
+        print(f"REMAINING (Gate 1b): {len(picked)} videos not yet judged, one per content hash")
+        for c in CLASSES: print(f"   {c:16s} {counts[c]:4d}")
+        print(f"   by content-level split: {dict(by_split)}")
+        print(f"   already judged (excluded): {len(judged)} hashes")
+        args.out.write_text(json.dumps(picked, indent=2)); print(f"\nwrote {args.out}"); return 0
 
     rng = random.Random(args.seed)
     per = max(1, args.n // len(CLASSES))

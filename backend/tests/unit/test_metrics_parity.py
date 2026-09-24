@@ -251,3 +251,14 @@ def test_the_pinned_population_matches_the_recorded_contamination_scope():
     assert scope["n"] == PINNED["n"] == 224
     assert scope["contaminated"] == 27
     assert scope["same_label"] + scope["conflicting_label"] == 27
+
+
+def test_bootstrap_ci_auroc_is_threshold_free_and_deterministic(v1):
+    """AUROC CI: same seed -> same interval; the threshold argument is ignored;
+    the interval brackets the point estimate; and adding the branch did not
+    move the f1 sequence (the bit-for-bit test above still holds)."""
+    y, s, _ = v1
+    lo, hi = bootstrap_ci(y, s, 0.5, metric="auroc", n=300, seed=3)
+    assert (lo, hi) == bootstrap_ci(y, s, 0.9, metric="auroc", n=300, seed=3)
+    assert lo <= auroc(y, s) <= hi
+    assert 0.0 <= lo < hi <= 1.0

@@ -151,6 +151,10 @@ def bootstrap_ci(
             out.append(precision_recall_f1(c)[0])
         elif metric == "recall":
             out.append(precision_recall_f1(c)[1])
+        elif metric == "auroc":
+            # threshold-free; `threshold` is ignored. Same single draw per iteration,
+            # so the f1/precision/recall sequences are untouched.
+            out.append(auroc(y[idx], s[idx]))
         else:
             raise ValueError(f"unsupported metric: {metric}")
     return float(np.percentile(out, 2.5)), float(np.percentile(out, 97.5))

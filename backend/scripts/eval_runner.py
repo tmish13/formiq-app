@@ -106,7 +106,8 @@ async def _load(target: str, checker: Optional[str], split: Optional[str]) -> Di
 
 def main() -> int:
     from app.eval.labels import resolve_all, to_binary_arrays
-    from app.eval.metrics import auroc, coverage_metrics, summarize, trivial_floor
+    from app.eval.metrics import (auroc, bootstrap_ci, coverage_metrics, summarize,
+                                  trivial_floor)
 
     ap = argparse.ArgumentParser()
     ap.add_argument("--target", required=True,
@@ -208,9 +209,12 @@ def main() -> int:
         fitted = bool(rows[0].fitted)
         advisory = bool(rows[0].advisory)
         preds: Dict[str, Any] = {}
+        probs: Dict[str, float] = {}
         for d in rows:
             if not d.content_hash:
                 continue
+            if d.prob is not None:
+                probs[d.content_hash] = float(d.prob)
             preds[d.content_hash] = (
                 ABSTAIN if (d.abstained or d.decision == ABSTAIN)
                 else (1 if d.decision in positives else 0))
@@ -241,13 +245,41 @@ def main() -> int:
               f"R {an['recall']:.4f}  F1 {an['f1']:.4f}")
         print(f"  trivial floor       F1 {floor['all_positive_f1']:.4f}   "
               f"prevalence {floor['prevalence']:.3f}")
+        # Intervals and a threshold-free number, so no figure leaves here
+        # without its n, prevalence, floor AND CI. Bootstrap n=2000 seed 0,
+        # the same call the pinned v1 numbers were produced with.
+        ci: Dict[str, Any] = {}
+        covered = [i for i, v in enumerate(p) if v != ABSTAIN]
+        if covered:
+            yc = [y[i] for i in covered]
+            pc = [int(p[i]) for i in covered]
+            ci["covered_only_f1_ci95"] = list(
+                bootstrap_ci(yc, pc, 0.5, metric="f1", n=2000, seed=0))
+            hc = [hashes[i] for i in covered]
+            if all(h in probs for h in hc):
+                sc = [probs[h] for h in hc]
+                ci["covered_only_auroc"] = auroc(yc, sc)
+                ci["covered_only_auroc_ci95"] = list(
+                    bootstrap_ci(yc, sc, 0.5, metric="auroc", n=2000, seed=0))
+        pn = [0 if v == ABSTAIN else int(v) for v in p]
+        ci["abstain_as_negative_f1_ci95"] = list(
+            bootstrap_ci(y, pn, 0.5, metric="f1", n=2000, seed=0))
+        if "covered_only_auroc" in ci:
+            print(f"  covered-only AUROC  {ci['covered_only_auroc']:.4f}  "
+                  f"95% CI [{ci['covered_only_auroc_ci95'][0]:.4f}, "
+                  f"{ci['covered_only_auroc_ci95'][1]:.4f}]")
+        if "covered_only_f1_ci95" in ci:
+            print(f"  covered-only F1 CI  [{ci['covered_only_f1_ci95'][0]:.4f}, "
+                  f"{ci['covered_only_f1_ci95'][1]:.4f}]")
+        print(f"  abstain-as-neg F1 CI [{ci['abstain_as_negative_f1_ci95'][0]:.4f}, "
+              f"{ci['abstain_as_negative_f1_ci95'][1]:.4f}]")
         if not fitted:
             print("  -> UNFITTED: descriptive only. These constants were never")
             print("     selected against data and the combiner treats this")
             print("     checker as advisory. Not a performance claim.")
         out["checkers"][name] = {"fitted": fitted, "advisory": advisory,
                                  "n": len(y), "coverage": cov,
-                                 "trivial_floor": floor}
+                                 "trivial_floor": floor, "intervals": ci}
 
     if disputed:
         print()
