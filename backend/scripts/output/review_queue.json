@@ -1,0 +1,49 @@
+{
+  "generated_at": "2026-02-18T08:58:43.253231+00:00",
+  "video_dir": "test_videos/messy/",
+  "threshold": 0.525,
+  "total_in_queue": 2,
+  "priority_summary": {
+    "P1_high_conf_FP": 0,
+    "P2_high_conf_FN": 0,
+    "P3_borderline": 2
+  },
+  "how_to_open": "python scripts/open_review_videos.py [--priority 1]",
+  "how_to_update_labels": "Edit backend/test_videos/labels_override.json \u2014 valid values: good_form, posture_fault, other_fault, messy",
+  "items": [
+    {
+      "priority": 3,
+      "reason": "borderline: prob_fault=0.5740 (threshold\u00b10.05)",
+      "filename": "1668_stability_fault_1.mp4",
+      "folder_label": "messy",
+      "label_used": "messy",
+      "decision": "fault",
+      "prob_fault": 0.574021,
+      "confidence": 0.148,
+      "missing_ratio": null,
+      "duration_sec": 3.67,
+      "flags": [
+        "padded_190_frames"
+      ],
+      "abs_path": "test_videos/messy/1668_stability_fault_1.mp4",
+      "suggested_action": "Watch video \u2192 determine true label (good_form or posture_fault)"
+    },
+    {
+      "priority": 3,
+      "reason": "borderline: prob_fault=0.5471 (threshold\u00b10.05)",
+      "filename": "1665_stability_fault_1.mp4",
+      "folder_label": "messy",
+      "label_used": "messy",
+      "decision": "fault",
+      "prob_fault": 0.547113,
+      "confidence": 0.0942,
+      "missing_ratio": null,
+      "duration_sec": 3.63,
+      "flags": [
+        "padded_191_frames"
+      ],
+      "abs_path": "test_videos/messy/1665_stability_fault_1.mp4",
+      "suggested_action": "Watch video \u2192 determine true label (good_form or posture_fault)"
+    }
+  ]
+}

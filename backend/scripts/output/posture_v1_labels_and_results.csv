@@ -1,0 +1,25 @@
+filename,folder,true_label,predicted,prob_fault,confidence,frames,orig_frames,duration_sec,complexity,note,error_type
+0o2LX-quNZk_good_rep_1.mp4,good,good_form,good_form,0.3065,0.387,150,150,6.0,2,clean rep boundary dur,TN
+RClKKQqsvXA_good_rep_1.mp4,good,messy,fault,0.5702,0.141,180,180,3.0,2,user: messy — misplaced in good/ folder,EXCLUDED
+T6ad8Et3C5Q_good_rep_1.mp4,good,good_form,good_form,0.0001,1.000,89,90,3.0,2,clean rep high confidence,TN
+VFcZv4SOBJE_good_rep_1.mp4,good,good_form,uncertain,0.5582,0.000,218,218,9.1,2,9.1s slow-cadence — duration gate fired,UNCERTAIN_GOOD
+bEv6CCg2BC8_good_rep_1.mp4,good,good_form,good_form,0.3556,0.289,98,98,4.1,2,clean rep,TN
+good_squat_01.mp4,good,good_form,fault,0.7367,0.473,134,134,4.5,2,NEW — false positive high confidence needs review,FP
+i7J5h7BJ07g_good_rep_1.mp4,good,good_form,good_form,0.3923,0.215,72,72,3.0,2,clean rep NEW,TN
+l83R5PblSMA_good_rep_1.mp4,good,good_form,good_form,0.3779,0.244,77,77,3.1,2,clean rep NEW,TN
+1659_posture_fault_1.mp4,fault,fault,good_form,0.4253,0.149,103,104,3.5,2,Penn Action posture fault — borderline miss,FN
+1661_posture_fault_1.mp4,fault,fault,uncertain,0.5000,0.000,43,101,3.4,2,Penn Action fault — heavy occlusion (57% missing),UNCERTAIN_FAULT
+1663_posture_fault_1.mp4,fault,good_form,good_form,0.0228,0.954,88,88,2.9,2,user: actually good form — Penn Action mislabel,TN
+1664_posture_fault_1.mp4,fault,good_form,good_form,0.4025,0.195,93,93,3.1,2,user: actually good form — Penn Action mislabel,TN
+1673_posture_fault_1.mp4,fault,good_form,good_form,0.4635,0.073,76,76,2.5,2,user: actually good form — Penn Action mislabel,TN
+1675_posture_fault_1.mp4,fault,fault,good_form,0.2813,0.437,140,141,4.7,2,Penn Action posture fault — low prob suggests label issue,FN
+1677_good_rep_1.mp4,fault,fault,good_form,0.1708,0.658,92,92,3.1,2,filename=good_rep — probable Penn Action mislabel,FN
+1678_posture_fault_1.mp4,fault,fault,good_form,0.1462,0.708,82,82,2.7,2,prob=0.15 very low — probable Penn Action mislabel,FN
+1680_posture_fault_1.mp4,fault,fault,good_form,0.2965,0.407,97,97,3.2,2,prob=0.30 low — probable Penn Action mislabel,FN
+1682_posture_fault_1.mp4,fault,fault,good_form,0.4674,0.065,89,89,3.0,2,prob=0.47 borderline,FN
+1683_posture_fault_1.mp4,fault,fault,good_form,0.3050,0.390,80,87,2.9,2,prob=0.31 low — probable Penn Action mislabel,FN
+1750_good_form_1.mp4,fault,fault,fault,0.6730,0.346,118,118,3.9,2,filename=good_form but model says fault — possible real fault,TP
+1885_good_form_1.mp4,fault,fault,good_form,0.3852,0.230,91,91,3.0,2,filename=good_form — probable Penn Action mislabel,FN
+1665_stability_fault_1.mp4,messy,messy,fault,0.5471,0.094,109,109,3.6,2,stability fault — messy excluded,EXCLUDED
+1668_stability_fault_1.mp4,messy,messy,fault,0.5740,0.148,110,110,3.7,2,stability fault — messy excluded,EXCLUDED
+1676_stability_fault_1.mp4,messy,messy,good_form,0.1534,0.693,79,79,2.6,2,stability fault — messy excluded,EXCLUDED

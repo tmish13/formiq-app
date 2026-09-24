@@ -1,0 +1,636 @@
+{
+  "fixtures": [
+    {
+      "name": "50852_1_good",
+      "label": "good_form",
+      "source": "squat_more",
+      "sequence_length": 230,
+      "original_frames": 230,
+      "valid_frames": 230,
+      "missing_frame_ratio": 0.0,
+      "angle_invalid_pct": {
+        "trunk_angle": 0.0,
+        "left_knee_angle": 23.3,
+        "right_knee_angle": 23.3,
+        "left_hip_angle": 23.3
+      },
+      "angle_validity_raw": {
+        "trunk_angle": 1.0,
+        "left_knee_angle": 0.7667,
+        "right_knee_angle": 0.7667,
+        "left_hip_angle": 0.7667
+      },
+      "count_outliers_z3": 17,
+      "count_outliers_z6": 4,
+      "top10_outlier_features": [
+        {
+          "index": 130,
+          "name": "trunk_angle_ascent_std",
+          "raw_value": 35.059303,
+          "z_value": 7.383
+        },
+        {
+          "index": 63,
+          "name": "joint30_x_std",
+          "raw_value": 0.214696,
+          "z_value": 7.0701
+        },
+        {
+          "index": 57,
+          "name": "joint24_x_std",
+          "raw_value": 0.215568,
+          "z_value": 6.5547
+        },
+        {
+          "index": 51,
+          "name": "joint18_x_std",
+          "raw_value": 0.206556,
+          "z_value": 6.066
+        },
+        {
+          "index": 45,
+          "name": "joint12_x_std",
+          "raw_value": 0.189746,
+          "z_value": 5.5229
+        },
+        {
+          "index": 60,
+          "name": "joint27_x_std",
+          "raw_value": 0.167453,
+          "z_value": 5.3441
+        },
+        {
+          "index": 54,
+          "name": "joint21_x_std",
+          "raw_value": 0.156688,
+          "z_value": 4.6383
+        },
+        {
+          "index": 48,
+          "name": "joint15_x_std",
+          "raw_value": 0.157027,
+          "z_value": 4.4078
+        },
+        {
+          "index": 61,
+          "name": "joint28_x_std",
+          "raw_value": 0.206456,
+          "z_value": 4.3858
+        },
+        {
+          "index": 49,
+          "name": "joint16_x_std",
+          "raw_value": 0.203985,
+          "z_value": 4.2181
+        }
+      ],
+      "prob_fault": 0.757517,
+      "decision": "fault",
+      "confidence": 0.515,
+      "quality_flags": [
+        "padded_70_frames"
+      ],
+      "quality_ok": true,
+      "raw_features_summary": {
+        "min": 0.137334,
+        "max": 180.0,
+        "mean": 22.569239
+      },
+      "scaled_features_summary": {
+        "min": -2.3824,
+        "max": 7.383,
+        "mean": 0.9877
+      }
+    },
+    {
+      "name": "33499_1_good",
+      "label": "good_form",
+      "source": "squat_more",
+      "sequence_length": 72,
+      "original_frames": 72,
+      "valid_frames": 72,
+      "missing_frame_ratio": 0.0,
+      "angle_invalid_pct": {
+        "trunk_angle": 0.0,
+        "left_knee_angle": 76.0,
+        "right_knee_angle": 76.0,
+        "left_hip_angle": 76.0
+      },
+      "angle_validity_raw": {
+        "trunk_angle": 1.0,
+        "left_knee_angle": 0.24,
+        "right_knee_angle": 0.24,
+        "left_hip_angle": 0.24
+      },
+      "count_outliers_z3": 59,
+      "count_outliers_z6": 9,
+      "top10_outlier_features": [
+        {
+          "index": 90,
+          "name": "left_knee_angle_max",
+          "raw_value": 0.0,
+          "z_value": -24.897
+        },
+        {
+          "index": 105,
+          "name": "right_knee_angle_max",
+          "raw_value": 0.0,
+          "z_value": -24.1198
+        },
+        {
+          "index": 135,
+          "name": "left_hip_angle_max",
+          "raw_value": 0.0,
+          "z_value": -18.8331
+        },
+        {
+          "index": 51,
+          "name": "joint18_x_std",
+          "raw_value": 0.236102,
+          "z_value": 7.0592
+        },
+        {
+          "index": 33,
+          "name": "joint0_x_std",
+          "raw_value": 0.212231,
+          "z_value": 6.6401
+        },
+        {
+          "index": 39,
+          "name": "joint6_x_std",
+          "raw_value": 0.211692,
+          "z_value": 6.3293
+        },
+        {
+          "index": 42,
+          "name": "joint9_x_std",
+          "raw_value": 0.206433,
+          "z_value": 6.1789
+        },
+        {
+          "index": 36,
+          "name": "joint3_x_std",
+          "raw_value": 0.206165,
+          "z_value": 6.123
+        },
+        {
+          "index": 108,
+          "name": "right_knee_angle_descent_mean",
+          "raw_value": 0.0,
+          "z_value": -6.0043
+        },
+        {
+          "index": 63,
+          "name": "joint30_x_std",
+          "raw_value": 0.185345,
+          "z_value": 5.9814
+        }
+      ],
+      "prob_fault": 0.056415,
+      "decision": "good_form",
+      "confidence": 0.8872,
+      "quality_flags": [
+        "padded_228_frames"
+      ],
+      "quality_ok": true,
+      "raw_features_summary": {
+        "min": 0.0,
+        "max": 90.0,
+        "mean": 3.870447
+      },
+      "scaled_features_summary": {
+        "min": -24.897,
+        "max": 7.0592,
+        "mean": -0.3792
+      }
+    },
+    {
+      "name": "45959_1_posture_fault",
+      "label": "posture_fault",
+      "source": "squat_more",
+      "sequence_length": 120,
+      "original_frames": 120,
+      "valid_frames": 120,
+      "missing_frame_ratio": 0.0,
+      "angle_invalid_pct": {
+        "trunk_angle": 0.0,
+        "left_knee_angle": 60.0,
+        "right_knee_angle": 60.0,
+        "left_hip_angle": 60.0
+      },
+      "angle_validity_raw": {
+        "trunk_angle": 1.0,
+        "left_knee_angle": 0.4,
+        "right_knee_angle": 0.4,
+        "left_hip_angle": 0.4
+      },
+      "count_outliers_z3": 36,
+      "count_outliers_z6": 6,
+      "top10_outlier_features": [
+        {
+          "index": 63,
+          "name": "joint30_x_std",
+          "raw_value": 0.266354,
+          "z_value": 8.9864
+        },
+        {
+          "index": 57,
+          "name": "joint24_x_std",
+          "raw_value": 0.265162,
+          "z_value": 8.2613
+        },
+        {
+          "index": 51,
+          "name": "joint18_x_std",
+          "raw_value": 0.245626,
+          "z_value": 7.3794
+        },
+        {
+          "index": 60,
+          "name": "joint27_x_std",
+          "raw_value": 0.217502,
+          "z_value": 7.2105
+        },
+        {
+          "index": 45,
+          "name": "joint12_x_std",
+          "raw_value": 0.236473,
+          "z_value": 7.0999
+        },
+        {
+          "index": 61,
+          "name": "joint28_x_std",
+          "raw_value": 0.259172,
+          "z_value": 6.314
+        },
+        {
+          "index": 33,
+          "name": "joint0_x_std",
+          "raw_value": 0.188896,
+          "z_value": 5.8105
+        },
+        {
+          "index": 49,
+          "name": "joint16_x_std",
+          "raw_value": 0.245803,
+          "z_value": 5.7254
+        },
+        {
+          "index": 54,
+          "name": "joint21_x_std",
+          "raw_value": 0.186169,
+          "z_value": 5.677
+        },
+        {
+          "index": 39,
+          "name": "joint6_x_std",
+          "raw_value": 0.192038,
+          "z_value": 5.6593
+        }
+      ],
+      "prob_fault": 0.469207,
+      "decision": "good_form",
+      "confidence": 0.0616,
+      "quality_flags": [
+        "padded_180_frames"
+      ],
+      "quality_ok": true,
+      "raw_features_summary": {
+        "min": -0.054423,
+        "max": 179.860123,
+        "mean": 22.562918
+      },
+      "scaled_features_summary": {
+        "min": -3.3,
+        "max": 8.9864,
+        "mean": 0.9367
+      }
+    },
+    {
+      "name": "47534_1_posture_fault",
+      "label": "posture_fault",
+      "source": "squat_more",
+      "sequence_length": 109,
+      "original_frames": 109,
+      "valid_frames": 109,
+      "missing_frame_ratio": 0.0,
+      "angle_invalid_pct": {
+        "trunk_angle": 0.0,
+        "left_knee_angle": 63.7,
+        "right_knee_angle": 63.7,
+        "left_hip_angle": 63.7
+      },
+      "angle_validity_raw": {
+        "trunk_angle": 1.0,
+        "left_knee_angle": 0.3633,
+        "right_knee_angle": 0.3633,
+        "left_hip_angle": 0.3633
+      },
+      "count_outliers_z3": 42,
+      "count_outliers_z6": 15,
+      "top10_outlier_features": [
+        {
+          "index": 51,
+          "name": "joint18_x_std",
+          "raw_value": 0.31151,
+          "z_value": 9.594
+        },
+        {
+          "index": 63,
+          "name": "joint30_x_std",
+          "raw_value": 0.262873,
+          "z_value": 8.8573
+        },
+        {
+          "index": 33,
+          "name": "joint0_x_std",
+          "raw_value": 0.273098,
+          "z_value": 8.8039
+        },
+        {
+          "index": 39,
+          "name": "joint6_x_std",
+          "raw_value": 0.273907,
+          "z_value": 8.4501
+        },
+        {
+          "index": 42,
+          "name": "joint9_x_std",
+          "raw_value": 0.266397,
+          "z_value": 8.2322
+        },
+        {
+          "index": 36,
+          "name": "joint3_x_std",
+          "raw_value": 0.265699,
+          "z_value": 8.1471
+        },
+        {
+          "index": 45,
+          "name": "joint12_x_std",
+          "raw_value": 0.25893,
+          "z_value": 7.8578
+        },
+        {
+          "index": 49,
+          "name": "joint16_x_std",
+          "raw_value": 0.303243,
+          "z_value": 7.7957
+        },
+        {
+          "index": 55,
+          "name": "joint22_x_std",
+          "raw_value": 0.300984,
+          "z_value": 7.7826
+        },
+        {
+          "index": 61,
+          "name": "joint28_x_std",
+          "raw_value": 0.27709,
+          "z_value": 6.9694
+        }
+      ],
+      "prob_fault": 0.270279,
+      "decision": "good_form",
+      "confidence": 0.4594,
+      "quality_flags": [
+        "padded_191_frames"
+      ],
+      "quality_ok": true,
+      "raw_features_summary": {
+        "min": -0.113714,
+        "max": 177.961548,
+        "mean": 21.12793
+      },
+      "scaled_features_summary": {
+        "min": -3.4302,
+        "max": 9.594,
+        "mean": 1.3406
+      }
+    },
+    {
+      "name": "33742_1_depth_fault",
+      "label": "depth_fault",
+      "source": "squat_more",
+      "sequence_length": 93,
+      "original_frames": 93,
+      "valid_frames": 93,
+      "missing_frame_ratio": 0.0,
+      "angle_invalid_pct": {
+        "trunk_angle": 0.0,
+        "left_knee_angle": 69.0,
+        "right_knee_angle": 69.0,
+        "left_hip_angle": 69.0
+      },
+      "angle_validity_raw": {
+        "trunk_angle": 1.0,
+        "left_knee_angle": 0.31,
+        "right_knee_angle": 0.31,
+        "left_hip_angle": 0.31
+      },
+      "count_outliers_z3": 62,
+      "count_outliers_z6": 13,
+      "top10_outlier_features": [
+        {
+          "index": 90,
+          "name": "left_knee_angle_max",
+          "raw_value": 0.0,
+          "z_value": -24.897
+        },
+        {
+          "index": 105,
+          "name": "right_knee_angle_max",
+          "raw_value": 0.0,
+          "z_value": -24.1198
+        },
+        {
+          "index": 135,
+          "name": "left_hip_angle_max",
+          "raw_value": 0.0,
+          "z_value": -18.8331
+        },
+        {
+          "index": 51,
+          "name": "joint18_x_std",
+          "raw_value": 0.267408,
+          "z_value": 8.1115
+        },
+        {
+          "index": 33,
+          "name": "joint0_x_std",
+          "raw_value": 0.246207,
+          "z_value": 7.8479
+        },
+        {
+          "index": 39,
+          "name": "joint6_x_std",
+          "raw_value": 0.248122,
+          "z_value": 7.5711
+        },
+        {
+          "index": 63,
+          "name": "joint30_x_std",
+          "raw_value": 0.224554,
+          "z_value": 7.4358
+        },
+        {
+          "index": 42,
+          "name": "joint9_x_std",
+          "raw_value": 0.240702,
+          "z_value": 7.3524
+        },
+        {
+          "index": 45,
+          "name": "joint12_x_std",
+          "raw_value": 0.242499,
+          "z_value": 7.3033
+        },
+        {
+          "index": 36,
+          "name": "joint3_x_std",
+          "raw_value": 0.238601,
+          "z_value": 7.2258
+        }
+      ],
+      "prob_fault": 0.029369,
+      "decision": "good_form",
+      "confidence": 0.9413,
+      "quality_flags": [
+        "padded_207_frames"
+      ],
+      "quality_ok": true,
+      "raw_features_summary": {
+        "min": 0.0,
+        "max": 90.0,
+        "mean": 3.59445
+      },
+      "scaled_features_summary": {
+        "min": -24.897,
+        "max": 8.1115,
+        "mean": -0.1244
+      }
+    },
+    {
+      "name": "33316_1_depth_fault",
+      "label": "depth_fault",
+      "source": "squat_more",
+      "sequence_length": 115,
+      "original_frames": 115,
+      "valid_frames": 115,
+      "missing_frame_ratio": 0.0,
+      "angle_invalid_pct": {
+        "trunk_angle": 0.0,
+        "left_knee_angle": 61.7,
+        "right_knee_angle": 61.7,
+        "left_hip_angle": 61.7
+      },
+      "angle_validity_raw": {
+        "trunk_angle": 1.0,
+        "left_knee_angle": 0.3833,
+        "right_knee_angle": 0.3833,
+        "left_hip_angle": 0.3833
+      },
+      "count_outliers_z3": 63,
+      "count_outliers_z6": 36,
+      "top10_outlier_features": [
+        {
+          "index": 63,
+          "name": "joint30_x_std",
+          "raw_value": 0.444294,
+          "z_value": 15.5872
+        },
+        {
+          "index": 57,
+          "name": "joint24_x_std",
+          "raw_value": 0.446299,
+          "z_value": 14.4943
+        },
+        {
+          "index": 60,
+          "name": "joint27_x_std",
+          "raw_value": 0.408027,
+          "z_value": 14.3152
+        },
+        {
+          "index": 45,
+          "name": "joint12_x_std",
+          "raw_value": 0.438998,
+          "z_value": 13.9349
+        },
+        {
+          "index": 51,
+          "name": "joint18_x_std",
+          "raw_value": 0.419077,
+          "z_value": 13.2098
+        },
+        {
+          "index": 33,
+          "name": "joint0_x_std",
+          "raw_value": 0.394928,
+          "z_value": 13.135
+        },
+        {
+          "index": 39,
+          "name": "joint6_x_std",
+          "raw_value": 0.402179,
+          "z_value": 12.8226
+        },
+        {
+          "index": 42,
+          "name": "joint9_x_std",
+          "raw_value": 0.39891,
+          "z_value": 12.7699
+        },
+        {
+          "index": 61,
+          "name": "joint28_x_std",
+          "raw_value": 0.435103,
+          "z_value": 12.749
+        },
+        {
+          "index": 36,
+          "name": "joint3_x_std",
+          "raw_value": 0.398755,
+          "z_value": 12.6707
+        }
+      ],
+      "prob_fault": 0.010588,
+      "decision": "good_form",
+      "confidence": 0.9788,
+      "quality_flags": [
+        "padded_185_frames"
+      ],
+      "quality_ok": true,
+      "raw_features_summary": {
+        "min": -0.173979,
+        "max": 179.980225,
+        "mean": 24.893555
+      },
+      "scaled_features_summary": {
+        "min": -1.9521,
+        "max": 15.5872,
+        "mean": 3.3479
+      }
+    }
+  ],
+  "aggregate": {
+    "n_fixtures": 6,
+    "raw_feature_stats": {
+      "global_mean": 16.436424,
+      "global_std": 10.877492
+    },
+    "scaled_feature_stats": {
+      "global_mean": 1.0182,
+      "global_std": 1.6269
+    },
+    "scaler_drift": {
+      "avg_abs_z_deviation": 2.4098,
+      "max_abs_z_deviation": 8.9864,
+      "worst_feature": {
+        "index": 63,
+        "name": "joint30_x_std",
+        "z_deviation": 8.9864
+      }
+    }
+  }
+}

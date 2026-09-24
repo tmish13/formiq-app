@@ -1,0 +1,169 @@
+{
+  "run_date": "2026-02-18",
+  "model_version": "posture_v1",
+  "threshold": 0.525,
+  "duration_gate_sec": 6.0,
+  "complexity": 2,
+  "total_videos": 24,
+  "scorable_n": 18,
+  "excluded_messy": 4,
+  "metrics_with_corrected_labels": {
+    "TP": 1,
+    "FP": 1,
+    "TN": 8,
+    "FN": 8,
+    "uncertain_fault": 1,
+    "uncertain_good": 1,
+    "precision": 0.5,
+    "recall": 0.111,
+    "f1": 0.182,
+    "accuracy": 0.5,
+    "uncertain_rate": 0.111,
+    "borderline_count": 3
+  },
+  "metrics_with_strict_penn_action_labels": {
+    "_note": "Counts all fault/ folder videos as fault (including suspected mislabels)",
+    "TP": 1,
+    "FP": 1,
+    "TN": 5,
+    "FN": 11,
+    "uncertain_fault": 1,
+    "uncertain_good": 1,
+    "precision": 0.5,
+    "recall": 0.083,
+    "f1": 0.143,
+    "accuracy": 0.353,
+    "uncertain_rate": 0.111
+  },
+  "quality_gates": {
+    "duration_gate_triggered": ["VFcZv4SOBJE_good_rep_1.mp4"],
+    "occlusion_gate_triggered": ["1661_posture_fault_1.mp4"],
+    "messy_excluded": ["RClKKQqsvXA_good_rep_1.mp4", "1665_stability_fault_1.mp4", "1668_stability_fault_1.mp4", "1676_stability_fault_1.mp4"]
+  },
+  "wrong_cases_analysis": {
+    "false_positives": [
+      {
+        "filename": "good_squat_01.mp4",
+        "prob_fault": 0.7367,
+        "confidence": 0.473,
+        "duration_sec": 4.5,
+        "diagnosis": "model_issue",
+        "note": "High-confidence FP on new unlabeled video. Cadence normal (4.5s). Investigate filming angle or form subtlety. Consider adding to training data if confirmed good form."
+      }
+    ],
+    "false_negatives_real": [
+      {
+        "filename": "1659_posture_fault_1.mp4",
+        "prob_fault": 0.4253,
+        "confidence": 0.149,
+        "duration_sec": 3.5,
+        "diagnosis": "model_issue_borderline",
+        "note": "Low confidence miss. Prob oscillates 0.42-0.55 across runs (MediaPipe frame-level variance). Genuinely borderline."
+      },
+      {
+        "filename": "1682_posture_fault_1.mp4",
+        "prob_fault": 0.4674,
+        "confidence": 0.065,
+        "duration_sec": 3.0,
+        "diagnosis": "borderline",
+        "note": "Very low confidence at 0.065 — model unsure. Borderline case."
+      }
+    ],
+    "false_negatives_likely_label_errors": [
+      {
+        "filename": "1675_posture_fault_1.mp4",
+        "prob_fault": 0.2813,
+        "confidence": 0.437,
+        "note": "Low prob (0.28) suggests model is confident this is good form. Penn Action label may be wrong."
+      },
+      {
+        "filename": "1677_good_rep_1.mp4",
+        "prob_fault": 0.1708,
+        "confidence": 0.658,
+        "note": "Filename says 'good_rep' — almost certainly mislabeled in Penn Action fault folder."
+      },
+      {
+        "filename": "1678_posture_fault_1.mp4",
+        "prob_fault": 0.1462,
+        "confidence": 0.708,
+        "note": "Very low prob (0.15) at high confidence (0.71) — model strongly says good form."
+      },
+      {
+        "filename": "1680_posture_fault_1.mp4",
+        "prob_fault": 0.2965,
+        "confidence": 0.407,
+        "note": "Low prob (0.30) — probable Penn Action mislabel."
+      },
+      {
+        "filename": "1683_posture_fault_1.mp4",
+        "prob_fault": 0.3050,
+        "confidence": 0.390,
+        "note": "Low prob (0.31) — probable Penn Action mislabel."
+      },
+      {
+        "filename": "1885_good_form_1.mp4",
+        "prob_fault": 0.3852,
+        "confidence": 0.230,
+        "note": "Filename says 'good_form' — almost certainly mislabeled in Penn Action fault folder."
+      }
+    ]
+  },
+  "messy_folder_analysis": {
+    "1665_stability_fault_1.mp4": {"decision": "fault", "prob_fault": 0.5471, "note": "stability fault correctly identified as fault (excluded from metrics as messy)"},
+    "1668_stability_fault_1.mp4": {"decision": "fault", "prob_fault": 0.5740, "note": "stability fault correctly identified as fault (excluded from metrics as messy)"},
+    "1676_stability_fault_1.mp4": {"decision": "good_form", "prob_fault": 0.1534, "note": "stability fault classified as good_form — expected, model trained on posture/depth faults not stability"}
+  },
+  "actionable_recommendations": [
+    {
+      "priority": 1,
+      "action": "Update labels_override.json",
+      "detail": "Add 1677, 1678, 1680, 1683, 1885 as 'good_form' after visual review confirms they are Penn Action mislabels. This would change FN count from 8 to 3 and improve reported accuracy to 0.73."
+    },
+    {
+      "priority": 2,
+      "action": "Investigate good_squat_01.mp4 FP",
+      "detail": "High-confidence FP (prob=0.74, conf=0.47). Review the video to determine if it's a filming artifact, unusual angle, or genuine form issue. If confirmed good form, add to training data."
+    },
+    {
+      "priority": 3,
+      "action": "Collect more diverse posture-fault examples",
+      "detail": "Current posture-fault training data from Squat More may not generalize to Penn Action filming style. 1659 and 1682 are genuine misses — more in-domain fault examples with similar cadence/angle would help."
+    },
+    {
+      "priority": 4,
+      "action": "Threshold remains at 0.525",
+      "detail": "Lowering threshold would increase recall on faults but create more FPs on good-form videos. Duration gate correctly handles the slow-cadence outlier case without threshold adjustment."
+    },
+    {
+      "priority": 5,
+      "action": "Stability fault model gap",
+      "detail": "PostureV1 doesn't detect stability faults (1665, 1668 are borderline correct; 1676 is wrong). This is by design — need a separate stability model or multi-label output."
+    }
+  ],
+  "videos": [
+    {"filename": "0o2LX-quNZk_good_rep_1.mp4", "folder": "good", "true_label": "good_form", "predicted": "good_form", "prob_fault": 0.3065, "confidence": 0.387, "frames": 150, "duration_sec": 6.0, "complexity": 2, "error_type": "TN"},
+    {"filename": "RClKKQqsvXA_good_rep_1.mp4", "folder": "good", "true_label": "messy", "predicted": "fault", "prob_fault": 0.5702, "confidence": 0.141, "frames": 180, "duration_sec": 3.0, "complexity": 2, "error_type": "EXCLUDED"},
+    {"filename": "T6ad8Et3C5Q_good_rep_1.mp4", "folder": "good", "true_label": "good_form", "predicted": "good_form", "prob_fault": 0.0001, "confidence": 1.0, "frames": 89, "duration_sec": 3.0, "complexity": 2, "error_type": "TN"},
+    {"filename": "VFcZv4SOBJE_good_rep_1.mp4", "folder": "good", "true_label": "good_form", "predicted": "uncertain", "prob_fault": 0.5582, "confidence": 0.0, "frames": 218, "duration_sec": 9.1, "complexity": 2, "quality_flag": "duration_too_long_single_rep", "error_type": "UNCERTAIN_GOOD"},
+    {"filename": "bEv6CCg2BC8_good_rep_1.mp4", "folder": "good", "true_label": "good_form", "predicted": "good_form", "prob_fault": 0.3556, "confidence": 0.289, "frames": 98, "duration_sec": 4.1, "complexity": 2, "error_type": "TN"},
+    {"filename": "good_squat_01.mp4", "folder": "good", "true_label": "good_form", "predicted": "fault", "prob_fault": 0.7367, "confidence": 0.473, "frames": 134, "duration_sec": 4.5, "complexity": 2, "error_type": "FP"},
+    {"filename": "i7J5h7BJ07g_good_rep_1.mp4", "folder": "good", "true_label": "good_form", "predicted": "good_form", "prob_fault": 0.3923, "confidence": 0.215, "frames": 72, "duration_sec": 3.0, "complexity": 2, "error_type": "TN"},
+    {"filename": "l83R5PblSMA_good_rep_1.mp4", "folder": "good", "true_label": "good_form", "predicted": "good_form", "prob_fault": 0.3779, "confidence": 0.244, "frames": 77, "duration_sec": 3.1, "complexity": 2, "error_type": "TN"},
+    {"filename": "1659_posture_fault_1.mp4", "folder": "fault", "true_label": "fault", "predicted": "good_form", "prob_fault": 0.4253, "confidence": 0.149, "frames": 103, "duration_sec": 3.5, "complexity": 2, "error_type": "FN"},
+    {"filename": "1661_posture_fault_1.mp4", "folder": "fault", "true_label": "fault", "predicted": "uncertain", "prob_fault": 0.5, "confidence": 0.0, "frames": 43, "duration_sec": 3.4, "complexity": 2, "quality_flag": "occlusion", "error_type": "UNCERTAIN_FAULT"},
+    {"filename": "1663_posture_fault_1.mp4", "folder": "fault", "true_label": "good_form", "predicted": "good_form", "prob_fault": 0.0228, "confidence": 0.954, "frames": 88, "duration_sec": 2.9, "complexity": 2, "error_type": "TN"},
+    {"filename": "1664_posture_fault_1.mp4", "folder": "fault", "true_label": "good_form", "predicted": "good_form", "prob_fault": 0.4025, "confidence": 0.195, "frames": 93, "duration_sec": 3.1, "complexity": 2, "error_type": "TN"},
+    {"filename": "1673_posture_fault_1.mp4", "folder": "fault", "true_label": "good_form", "predicted": "good_form", "prob_fault": 0.4635, "confidence": 0.073, "frames": 76, "duration_sec": 2.5, "complexity": 2, "error_type": "TN"},
+    {"filename": "1675_posture_fault_1.mp4", "folder": "fault", "true_label": "fault", "predicted": "good_form", "prob_fault": 0.2813, "confidence": 0.437, "frames": 140, "duration_sec": 4.7, "complexity": 2, "error_type": "FN"},
+    {"filename": "1677_good_rep_1.mp4", "folder": "fault", "true_label": "fault", "predicted": "good_form", "prob_fault": 0.1708, "confidence": 0.658, "frames": 92, "duration_sec": 3.1, "complexity": 2, "error_type": "FN", "suspected_label_error": true},
+    {"filename": "1678_posture_fault_1.mp4", "folder": "fault", "true_label": "fault", "predicted": "good_form", "prob_fault": 0.1462, "confidence": 0.708, "frames": 82, "duration_sec": 2.7, "complexity": 2, "error_type": "FN", "suspected_label_error": true},
+    {"filename": "1680_posture_fault_1.mp4", "folder": "fault", "true_label": "fault", "predicted": "good_form", "prob_fault": 0.2965, "confidence": 0.407, "frames": 97, "duration_sec": 3.2, "complexity": 2, "error_type": "FN", "suspected_label_error": true},
+    {"filename": "1682_posture_fault_1.mp4", "folder": "fault", "true_label": "fault", "predicted": "good_form", "prob_fault": 0.4674, "confidence": 0.065, "frames": 89, "duration_sec": 3.0, "complexity": 2, "error_type": "FN"},
+    {"filename": "1683_posture_fault_1.mp4", "folder": "fault", "true_label": "fault", "predicted": "good_form", "prob_fault": 0.3050, "confidence": 0.390, "frames": 80, "duration_sec": 2.9, "complexity": 2, "error_type": "FN", "suspected_label_error": true},
+    {"filename": "1750_good_form_1.mp4", "folder": "fault", "true_label": "fault", "predicted": "fault", "prob_fault": 0.6730, "confidence": 0.346, "frames": 118, "duration_sec": 3.9, "complexity": 2, "error_type": "TP"},
+    {"filename": "1885_good_form_1.mp4", "folder": "fault", "true_label": "fault", "predicted": "good_form", "prob_fault": 0.3852, "confidence": 0.230, "frames": 91, "duration_sec": 3.0, "complexity": 2, "error_type": "FN", "suspected_label_error": true},
+    {"filename": "1665_stability_fault_1.mp4", "folder": "messy", "true_label": "messy", "predicted": "fault", "prob_fault": 0.5471, "confidence": 0.094, "frames": 109, "duration_sec": 3.6, "complexity": 2, "error_type": "EXCLUDED"},
+    {"filename": "1668_stability_fault_1.mp4", "folder": "messy", "true_label": "messy", "predicted": "fault", "prob_fault": 0.5740, "confidence": 0.148, "frames": 110, "duration_sec": 3.7, "complexity": 2, "error_type": "EXCLUDED"},
+    {"filename": "1676_stability_fault_1.mp4", "folder": "messy", "true_label": "messy", "predicted": "good_form", "prob_fault": 0.1534, "confidence": 0.693, "frames": 79, "duration_sec": 2.6, "complexity": 2, "error_type": "EXCLUDED"}
+  ]
+}

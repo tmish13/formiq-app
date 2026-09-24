@@ -134,7 +134,8 @@ coverage.xml
 .coverage
 
 # Generated script outputs
-backend/scripts/output/
+# backend/scripts/output/ -- tracked since 2026-09-24 (G-07): the end-to-end evaluation reports
+# are evidence, and evidence that is not in git is a claim.
 backend/data/
 backend/perf/
 
