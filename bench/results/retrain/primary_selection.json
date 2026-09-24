@@ -1,0 +1,16 @@
+{
+  "n_reports": 9,
+  "rule": "highest median validation AUROC; ties broken by arm then learner name (deterministic)",
+  "primary": {
+    "head": "posture_fault",
+    "arm": "B_temporal64",
+    "learner": "hgb",
+    "val_auroc_median": 0.7828
+  },
+  "co_primary": {
+    "head": "posture_collapsed",
+    "arm": "B_temporal64",
+    "learner": "hgb",
+    "val_auroc_median": 0.7827
+  }
+}

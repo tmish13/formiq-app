@@ -220,7 +220,11 @@ def main():
     t0 = time.time()
     done = ok = err = 0
     results = []
-    with Pool(processes=args.workers, initializer=_init_worker) as pool:
+    # maxtasksperchild: MediaPipe's per-process memory grows with every video, and an
+    # OOM-killed worker loses its task silently -- imap_unordered then waits forever
+    # for a result that will never come (24 lost of 768 on 2026-09-23, cgroup
+    # oom_kill=24, container stalled at 1463/1487). Recycling workers bounds the growth.
+    with Pool(processes=args.workers, initializer=_init_worker, maxtasksperchild=40) as pool:
         for rec in pool.imap_unordered(_extract_one, todo, chunksize=1):
             done += 1
             results.append(rec)
