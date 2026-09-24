@@ -16,6 +16,7 @@ If A matches ML repo → MediaPipe complexity is root cause.
 If A still differs → preprocessing/feature mismatch exists.
 """
 
+import os
 import sys
 import time
 import json
@@ -27,7 +28,7 @@ import cv2
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BACKEND_DIR))
 
-VIDEO_PATH = "/Users/tarpanmishra/FORMIQ Form Analysis Model/tmp_infer/OpQio9X5rBs_trimmed.mp4"
+VIDEO_PATH = os.path.join(os.environ.get("FORMIQ_ML_DIR", os.path.expanduser("~/FORMIQ Form Analysis Model")), "tmp_infer/OpQio9X5rBs_trimmed.mp4")
 ML_REPO_PROB_FAULT = 0.9065
 ML_REPO_SEQ_LEN = 259
 

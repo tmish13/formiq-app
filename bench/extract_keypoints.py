@@ -29,7 +29,7 @@ Run in-container:
     docker run --rm -m 6g --network deployment_default \
       -v $PWD/backend:/app -v $PWD:/repo \
       -v "$HOME/Desktop/Squat More/Labeled_Dataset/videos:/videos:ro" \
-      -v "$HOME/FORMIQ Form Analysis Model/data/squat_processed:/splits:ro" \
+      -v "${FORMIQ_ML_DIR:-$HOME/FORMIQ Form Analysis Model}/data/squat_processed:/splits:ro" \
       -e POSTGRES_SERVER=db -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres \
       -e POSTGRES_DB=formiq -e SECRET_KEY=dev-only-insecure-secret-key-32chars-minimum \
       -e REDIS_HOST=redis -e REDIS_PORT=6379 -w /app deployment-worker:latest \

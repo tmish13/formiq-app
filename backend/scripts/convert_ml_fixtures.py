@@ -23,14 +23,16 @@ import json
 import os
 import sys
 from pathlib import Path
+# The notebook codebase that produced PostureV1 (backend/ml_training/README.md); override with FORMIQ_ML_DIR.
+FORMIQ_ML_DIR = Path(os.environ.get("FORMIQ_ML_DIR", str(Path.home() / "FORMIQ Form Analysis Model")))
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 OUTPUT_DIR = BACKEND_DIR / "tests" / "fixtures" / "pose_data" / "in_domain_accuracy"
 
 # Keypoint source directories
 SQUAT_MORE_DIR = Path.home() / "Desktop" / "Squat More" / "Labeled_Dataset" / "processed_videos" / "keypoints"
-PENN_ACTION_DIR = Path.home() / "FORMIQ Form Analysis Model" / "data" / "squat_processed" / "keypoints"
-SPLITS_PATH = Path.home() / "FORMIQ Form Analysis Model" / "data" / "squat_processed" / "user_level_multilabel_splits.json"
+PENN_ACTION_DIR = FORMIQ_ML_DIR / "data" / "squat_processed" / "keypoints"
+SPLITS_PATH = FORMIQ_ML_DIR / "data" / "squat_processed" / "user_level_multilabel_splits.json"
 
 # User-verified label corrections (override training labels)
 LABEL_OVERRIDES = {

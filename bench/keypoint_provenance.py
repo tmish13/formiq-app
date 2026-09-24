@@ -23,7 +23,7 @@ Run inside the container (needs MediaPipe + the app):
       -v $PWD/backend:/app -v $PWD:/repo \
       -v "$HOME/Desktop/Squat More/Labeled_Dataset/videos:/videos:ro" \
       -v "$HOME/Desktop/Squat More/Labeled_Dataset/processed_videos/keypoints:/keypoints:ro" \
-      -v "$HOME/FORMIQ Form Analysis Model/data/squat_processed:/splits:ro" \
+      -v "${FORMIQ_ML_DIR:-$HOME/FORMIQ Form Analysis Model}/data/squat_processed:/splits:ro" \
       -e POSTGRES_SERVER=db -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres \
       -e POSTGRES_DB=formiq -e SECRET_KEY=dev-only-insecure-secret-key-32chars-minimum \
       -e REDIS_HOST=redis -e REDIS_PORT=6379 -w /app deployment-worker:latest \

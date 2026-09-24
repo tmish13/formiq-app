@@ -19,7 +19,7 @@ Hashing is the same function the upload path uses (app/core/hashing.py), so
 these are the same keys `form_checks`, `analysis_runs` and `labels` join on.
 
     docker run --rm -v $PWD/backend:/app \
-      -v "$HOME/FORMIQ Form Analysis Model/data/squat_processed:/splits:ro" \
+      -v "${FORMIQ_ML_DIR:-$HOME/FORMIQ Form Analysis Model}/data/squat_processed:/splits:ro" \
       -v "$HOME/Desktop/Squat More/Labeled_Dataset/videos:/videos:ro" \
       -e SECRET_KEY=dev-only-insecure-secret-key-32chars-minimum -w /app \
       deployment-beat:latest python /repo/bench/corpus_duplicates.py

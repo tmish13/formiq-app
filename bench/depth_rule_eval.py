@@ -29,7 +29,7 @@ Run in-container (PostureV1 needs torch):
 
     docker run --rm -m 6g --network deployment_default \
       -v $PWD/backend:/app -v $PWD:/repo \
-      -v "$HOME/FORMIQ Form Analysis Model/data/squat_processed:/splits:ro" \
+      -v "${FORMIQ_ML_DIR:-$HOME/FORMIQ Form Analysis Model}/data/squat_processed:/splits:ro" \
       -e POSTGRES_SERVER=db -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres \
       -e POSTGRES_DB=formiq -e SECRET_KEY=dev-only-insecure-secret-key-32chars-minimum \
       -e REDIS_HOST=redis -e REDIS_PORT=6379 -w /app deployment-worker:latest \
@@ -43,6 +43,9 @@ import json
 import sys
 from collections import Counter
 from pathlib import Path
+import os
+# The notebook codebase that produced PostureV1 (backend/ml_training/README.md); override with FORMIQ_ML_DIR.
+FORMIQ_ML_DIR = Path(os.environ.get("FORMIQ_ML_DIR", str(Path.home() / "FORMIQ Form Analysis Model")))
 from typing import Dict, List, Optional, Tuple
 
 REPO = Path(__file__).resolve().parent.parent
@@ -54,7 +57,7 @@ if not KP_DIR.exists():
     KP_DIR = Path("/repo/bench/cache/keypoints_live")
 SPLITS_CANDIDATES = [
     Path("/splits/user_level_multilabel_splits.json"),
-    Path.home() / "FORMIQ Form Analysis Model" / "data" / "squat_processed"
+    FORMIQ_ML_DIR / "data" / "squat_processed"
     / "user_level_multilabel_splits.json",
 ]
 

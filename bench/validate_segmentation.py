@@ -34,6 +34,9 @@ import statistics as st
 import sys
 from collections import Counter
 from pathlib import Path
+import os
+# The notebook codebase that produced PostureV1 (backend/ml_training/README.md); override with FORMIQ_ML_DIR.
+FORMIQ_ML_DIR = Path(os.environ.get("FORMIQ_ML_DIR", str(Path.home() / "FORMIQ Form Analysis Model")))
 from typing import Dict, List, Optional, Tuple
 
 REPO = Path(__file__).resolve().parent.parent
@@ -41,7 +44,7 @@ sys.path.insert(0, str(REPO / "backend"))
 
 KP_DIR = REPO / "bench" / "cache" / "keypoints_live"
 SPLITS = (
-    Path.home() / "FORMIQ Form Analysis Model" / "data" / "squat_processed"
+    FORMIQ_ML_DIR / "data" / "squat_processed"
     / "user_level_multilabel_splits.json"
 )
 OUT = REPO / "bench" / "results" / "segmentation_validation.json"

@@ -13,7 +13,7 @@ from pathlib import Path
 
 R = Path(__file__).resolve().parents[2]
 VID = Path(os.getenv("VID_DIR", os.path.expanduser("~/Desktop/Squat More/Labeled_Dataset/videos")))
-ML = Path(os.getenv("ML_SPLITS", os.path.expanduser("~/FORMIQ Form Analysis Model/data/squat_processed/user_level_multilabel_splits.json")))
+ML = Path(os.getenv("ML_SPLITS", os.path.join(os.environ.get("FORMIQ_ML_DIR", os.path.expanduser("~/FORMIQ Form Analysis Model")), "data/squat_processed/user_level_multilabel_splits.json")))
 SHEET_COLS = ["video", "video_path", "severity_0_to_3", "usable_yes_no", "knees_forward_at_s", "notes"]
 
 

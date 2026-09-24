@@ -28,6 +28,9 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+import os
+# The notebook codebase that produced PostureV1 (backend/ml_training/README.md); override with FORMIQ_ML_DIR.
+FORMIQ_ML_DIR = Path(os.environ.get("FORMIQ_ML_DIR", str(Path.home() / "FORMIQ Form Analysis Model")))
 from typing import Dict, List, Set
 
 REPO = Path(__file__).resolve().parent.parent
@@ -39,7 +42,7 @@ ABLATION_FIXTURES = (REPO / "backend" / "tests" / "fixtures" / "pose_data"
                      / "in_domain_accuracy" / "manifest.json")
 SPLITS_CANDIDATES = [
     Path("/splits/user_level_multilabel_splits.json"),
-    Path.home() / "FORMIQ Form Analysis Model" / "data" / "squat_processed"
+    FORMIQ_ML_DIR / "data" / "squat_processed"
     / "user_level_multilabel_splits.json",
 ]
 OUT = REPO / "bench" / "results" / "contamination_scope.json"

@@ -11,6 +11,9 @@ The trainer that can produce a servable artifact with seeds and a full provenanc
 `posture_v1/train.py` + `export.py` (plan Track B5); until it lands, `bench/retrain/` is the only
 in-repo training code and it writes sklearn artifacts the serving loader cannot use.
 
+Every script that reads the notebook directory takes it from `FORMIQ_ML_DIR` (default `~/FORMIQ Form Analysis Model`);
+`bench/retrain/run.sh` also honours the older `ML_REPO`.
+
 Rules that apply to anything trained from here: content-level splits with the dedup map applied
 first, metrics from `app/eval/metrics.py` with n / prevalence / floor / CI, and one logged read of
 the test split per model (`bench/results/retrain/TEST_READ_LOG.jsonl`).

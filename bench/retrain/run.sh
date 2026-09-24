@@ -14,7 +14,7 @@
 # HistGradientBoosting oversubscribes an 8-vCPU VM that is also running the worker).
 set -euo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-ML="${ML_REPO:-$HOME/FORMIQ Form Analysis Model}"
+ML="${FORMIQ_ML_DIR:-${ML_REPO:-$HOME/FORMIQ Form Analysis Model}}"
 VIDS="${VID_DIR:-$HOME/Desktop/Squat More/Labeled_Dataset/videos}"
 IMG="${IMG:-deployment-beat:latest}"
 ARMS="A_v2_body B_temporal64 C_incumbent151"; MODELS="logreg hgb mlp"

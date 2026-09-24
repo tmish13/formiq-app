@@ -33,11 +33,12 @@ import os
 import statistics as st
 from collections import Counter, defaultdict
 from pathlib import Path
+# The notebook codebase that produced PostureV1 (backend/ml_training/README.md); override with FORMIQ_ML_DIR.
+FORMIQ_ML_DIR = Path(os.environ.get("FORMIQ_ML_DIR", str(Path.home() / "FORMIQ Form Analysis Model")))
 
 DATASET = Path.home() / "Desktop" / "Squat More" / "Labeled_Dataset"
 SPLITS = (
-    Path.home()
-    / "FORMIQ Form Analysis Model"
+    FORMIQ_ML_DIR
     / "data"
     / "squat_processed"
     / "user_level_multilabel_splits.json"

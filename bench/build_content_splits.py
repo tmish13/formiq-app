@@ -56,6 +56,9 @@ import json
 import random
 from collections import Counter, defaultdict
 from pathlib import Path
+import os
+# The notebook codebase that produced PostureV1 (backend/ml_training/README.md); override with FORMIQ_ML_DIR.
+FORMIQ_ML_DIR = Path(os.environ.get("FORMIQ_ML_DIR", str(Path.home() / "FORMIQ Form Analysis Model")))
 from typing import Dict, List
 
 REPO = Path(__file__).resolve().parent.parent
@@ -71,7 +74,7 @@ VIDEO_ROOTS = [
 ]
 SPLITS_CANDIDATES = [
     Path("/splits/user_level_multilabel_splits.json"),
-    Path.home() / "FORMIQ Form Analysis Model" / "data" / "squat_processed"
+    FORMIQ_ML_DIR / "data" / "squat_processed"
     / "user_level_multilabel_splits.json",
 ]
 CLASSES = ("good_form", "posture_fault", "depth_fault")
