@@ -61,7 +61,7 @@ def test_one_clip_reaches_a_terminal_state_with_a_verdict(session):
     while time.time() < deadline:
         s = requests.get(f"{API}/api/v1/form-checks/{fc_id}", headers=session["headers"], timeout=30)
         assert s.status_code == 200, s.text
-        status = s.json()["status"]
+        status = str(s.json()["status"]).upper()      # the API serialises the enum VALUE ("completed"); the DB stores the NAME
         if status in ("COMPLETED", "FAILED"):
             break
         time.sleep(3)
