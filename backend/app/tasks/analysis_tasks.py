@@ -630,6 +630,47 @@ def process_form_check_task(self, video_id_str: str, form_check_id_str: str):
         )
         raise self.retry(exc=wrapped.original, countdown=countdown)
 
+async def _reclaim_after_worker_lost(db_session, form_check_id, task_id: str) -> bool:
+    """G-46: take back a row whose worker died, the moment its message comes round again.
+
+    A child killed mid-task (SIGKILL, OOM) runs no `finally`: its row stays PROCESSING
+    and its run stays open. Celery requeues the message (`task_reject_on_worker_lost`)
+    and marks the redelivery. When that redelivery loses the claim and finds a PROCESSING
+    row whose OPEN run carries this very task id, nobody else owns the row -- the only
+    other party that could is the reaper, and it waits 30 minutes. So: close the dead run
+    as abandoned/worker_lost (the reason the trail was missing, G-46) and re-take the row
+    now. Returns True iff this task owns the row afterwards.
+
+    Measured before this existed: 7 kills in 900 videos, each a 30-minute wait.
+    """
+    from sqlalchemy import select as _select
+    from app.models.audit import AnalysisRun, RUN_STATUS_ABANDONED, RUN_STATUS_RUNNING
+    from app.services.decisions.recorder import close_run
+
+    dead_run_id = (await db_session.execute(
+        _select(AnalysisRun.id)
+        .where(AnalysisRun.form_check_id == form_check_id)
+        .where(AnalysisRun.celery_task_id == task_id)
+        .where(AnalysisRun.status == RUN_STATUS_RUNNING)
+        .where(AnalysisRun.finished_at.is_(None))
+        .limit(1)
+    )).scalar_one_or_none()
+    if dead_run_id is None:
+        return False
+    await close_run(
+        db_session, run_id=dead_run_id, status=RUN_STATUS_ABANDONED, error_type="worker_lost",
+        error_message="worker child died mid-task (SIGKILL/OOM); message redelivered and the row reclaimed",
+    )
+    reclaim = await db_session.execute(
+        sa_update(FormCheck)
+        .where(FormCheck.id == form_check_id)
+        .where(FormCheck.status == FormCheckStatus.PROCESSING)
+        .values(status=FormCheckStatus.PROCESSING)      # a no-op write: asserts the state, bumps updated_at
+    )
+    await db_session.commit()
+    return reclaim.rowcount == 1
+
+
 async def _process_form_check_task_async(self, video_id_str: str, form_check_id_str: str):
     """
     Celery task to process a form check analysis for a given video and form_check ID.
@@ -715,15 +756,30 @@ async def _process_form_check_task_async(self, video_id_str: str, form_check_id_
 
         if claim.rowcount == 0:
             # Someone else claimed it, or it is already terminal. Either way it
-            # is not ours; return without touching the row.
+            # is not ours; return without touching the row -- with one exception:
+            # a REDELIVERED message for a PROCESSING row whose open run bears this
+            # task id is our own dead predecessor (G-46). Reclaim it now.
             await db_session.refresh(form_check)
             observed = getattr(form_check.status, "value", form_check.status)
+            _req = getattr(self, "request", None)
+            _delivery = getattr(_req, "delivery_info", None)
+            _delivery = _delivery if isinstance(_delivery, dict) else {}
+            _task_id = getattr(_req, "id", None)
+            reclaimed = False
+            if (str(observed) == FormCheckStatus.PROCESSING.value and _delivery.get("redelivered")
+                    and isinstance(_task_id, str)):
+                reclaimed = await _reclaim_after_worker_lost(db_session, form_check_id, _task_id)
+            if not reclaimed:
+                logger.warning(
+                    "[CeleryTask] FormCheck ID %s could not be claimed (status: %s). "
+                    "Skipping -- another worker has it or it is already finished.",
+                    form_check_id, observed,
+                )
+                return {"status": "skipped", "message": f"Not in PENDING state, was {observed}"}
             logger.warning(
-                "[CeleryTask] FormCheck ID %s could not be claimed (status: %s). "
-                "Skipping -- another worker has it or it is already finished.",
-                form_check_id, observed,
+                "[CeleryTask] FormCheck %s reclaimed after worker loss (message redelivered); "
+                "dead run closed as worker_lost, continuing.", form_check_id,
             )
-            return {"status": "skipped", "message": f"Not in PENDING state, was {observed}"}
 
         claimed = True
         # The raw UPDATE bypassed the identity map, so refresh before anything
