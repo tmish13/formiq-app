@@ -19,9 +19,11 @@ What remains here is **not deployed and not verified**:
   service, so it does not plan as a whole; the auto-scaling block that targeted the missing
   service was removed.
 - `monitoring/` — Prometheus/Alertmanager configs with no scrape target in the compose stack.
-- `docker/nginx/` — nginx configs and **self-signed, expired certificates and private keys**
-  (`ssl/*.key`, CN=formiq-app.com, expired 2026-04-10). Nothing uses them; they are flagged for
-  removal and are not secrets that protect anything.
+- `docker/nginx/` — nginx configs from the deleted compose stack. The `ssl/` directory that sat here
+  (two self-signed key pairs, CN=formiq-app.com, expired 2026-04-10, committed 2025-04-11) was
+  removed on 2026-09-24 (G-55). Certificates are issued at deploy time, never committed. Git history
+  still contains those files; they were self-signed and expired, trusted by nothing, and there is no
+  live domain to rotate — if the domain is ever served for real, generate new keys.
 
 Before any of these is used it needs the worker and beat added, an image build from the
 `backend/Dockerfile`, and the `bench/` acceptance run against it.
