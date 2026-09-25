@@ -38,11 +38,13 @@ the exported directory scored **20 of 20 parity clips** (`bench/results/parity_2
 from their cached frames; threshold and `model_version` propagated from the exported manifest.
 (The 2-epoch/40-clip model is meaningless by construction: val AUROC 0.33 on 20 clips.)
 
-## Five seeds on train/validation, current labels (started 15:38 PDT; ≈ 2 min per epoch on this
-laptop on battery)
+## Five seeds on train/validation, current labels — STOPPED at the owner's request
 
-_Results are appended below by the run in `bench/cache/trainer_port/run/SUMMARY.json` when it
-completes; until then this section is empty on purpose rather than estimated._
+Started 15:38 PDT at ≈ 2 min per epoch (battery, Low Power Mode, the test suite running alongside).
+Stopped at 16:13 PDT during seed 0, epoch 27 (train loss 0.574, validation F0.5 at 0.5 = 0.622 and
+still rising; epoch 1 was 0.488). No seed completed, so no `seedN.json`, no artifact and no number
+is reported. Re-run with the command in `backend/ml_training/posture_v1/README.md` when the machine
+is free; nothing about it reads the test split.
 
 ## What this does and does not establish
 
